@@ -1,45 +1,60 @@
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { COMPETITIONS } from '../mock/mockData';
 import { Button } from '../components/ui/button';
 import { Progress } from '../components/ui/progress';
 import { Badge } from '../components/ui/badge';
 import { Minus, Plus, Ticket, Clock, ShieldCheck, Zap, Award, Brain, Check, X } from 'lucide-react';
 import { countdown, percent, gbp } from '../lib/format';
 import { useToast } from '../hooks/use-toast';
+import { contestsAPI } from '../lib/api';
 
 export default function CompetitionDetail() {
   const { slug } = useParams();
-  const c = COMPETITIONS.find(x => x.slug === slug) || COMPETITIONS[0];
-  const [t, setT] = useState(countdown(c.endDate));
+  const nav = useNavigate();
+  const { toast } = useToast();
+  const [c, setC] = useState(null);
+  const [t, setT] = useState({ days: 0, hours: 0, mins: 0, secs: 0 });
   const [tickets, setTickets] = useState(1);
   const [answer, setAnswer] = useState('');
   const [verified, setVerified] = useState(false);
   const [wrong, setWrong] = useState(false);
-  const { toast } = useToast();
 
   useEffect(() => {
-    const i = setInterval(() => setT(countdown(c.endDate)), 1000);
+    contestsAPI.get(slug).then(setC).catch(() => nav('/competitions'));
+  }, [slug, nav]);
+
+  useEffect(() => {
+    if (!c) return;
+    const upd = () => setT(countdown(c.end_date));
+    upd();
+    const i = setInterval(upd, 1000);
     return () => clearInterval(i);
-  }, [c.endDate]);
+  }, [c]);
 
-  useEffect(() => { setVerified(false); setWrong(false); setAnswer(''); }, [c.id]);
+  if (!c) {
+    return <div className="max-w-7xl mx-auto p-10 text-slate-500">Loading contest…</div>;
+  }
 
-  const pct = percent(c.ticketsSold, c.ticketsTotal);
-  const q = c.skillQuestion;
+  const pct = percent(c.tickets_sold, c.tickets_total);
+  const options = c.skill_question_options || [];
 
-  const submitAnswer = (opt) => {
+  const submitAnswer = async (opt) => {
     setAnswer(opt);
-    if (opt === q.answer) { setVerified(true); setWrong(false); toast({ title: 'Correct!', description: 'Skill verified. You can now buy tickets.' }); }
-    else { setWrong(true); setVerified(false); }
+    try {
+      const r = await contestsAPI.verifySkill(c.slug, opt);
+      if (r.correct) { setVerified(true); setWrong(false); toast({ title: 'Correct!', description: 'Skill verified. You may buy tickets.' }); }
+      else { setVerified(false); setWrong(true); }
+    } catch { setVerified(false); }
   };
 
   const addToCart = () => {
-    if (!verified) { toast({ title: 'Answer skill question first', description: 'You must correctly answer to be eligible.' }); return; }
+    if (!verified) { toast({ title: 'Answer the skill question correctly first' }); return; }
     const raw = localStorage.getItem('gamezoo_cart');
     const cart = raw ? JSON.parse(raw) : [];
-    const idx = cart.findIndex(x => x.id === c.id);
-    if (idx >= 0) cart[idx].qty += tickets; else cart.push({ id: c.id, slug: c.slug, title: c.title, image: c.image, price: c.price, qty: tickets });
+    const idx = cart.findIndex(x => x.contest_id === c.contest_id);
+    const item = { contest_id: c.contest_id, slug: c.slug, title: c.title, image: c.image, price: c.price, qty: tickets, skill_answer: answer };
+    if (idx >= 0) { cart[idx].qty += tickets; cart[idx].skill_answer = answer; }
+    else cart.push(item);
     localStorage.setItem('gamezoo_cart', JSON.stringify(cart));
     toast({ title: 'Added to basket', description: `${tickets} ticket${tickets > 1 ? 's' : ''} for “${c.title}”` });
   };
@@ -76,7 +91,7 @@ export default function CompetitionDetail() {
 
           <div className="mt-6">
             <div className="flex justify-between text-sm mb-1">
-              <span className="text-slate-600">{c.ticketsSold.toLocaleString()} / {c.ticketsTotal.toLocaleString()} tickets</span>
+              <span className="text-slate-600">{c.tickets_sold.toLocaleString()} / {c.tickets_total.toLocaleString()} tickets</span>
               <span className="font-semibold text-teal-600">{pct}%</span>
             </div>
             <Progress value={pct} className="h-2" />
@@ -87,23 +102,25 @@ export default function CompetitionDetail() {
               <Brain className="w-5 h-5 text-teal-600" />
               <div className="font-display font-bold text-slate-900">Skill Question <span className="text-xs uppercase text-teal-600 ml-1">Required</span></div>
             </div>
-            <p className="text-slate-900 font-medium mb-3">{q.q}</p>
+            <p className="text-slate-900 font-medium mb-3">{c.skill_question_q}</p>
             <div className="grid grid-cols-2 gap-2">
-              {q.options.map(opt => {
+              {options.map(opt => {
                 const isSel = answer === opt;
                 const state = verified && isSel ? 'correct' : (wrong && isSel ? 'wrong' : 'idle');
                 return (
                   <button key={opt} onClick={() => submitAnswer(opt)} disabled={verified}
                     className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors text-left ${state === 'correct' ? 'bg-emerald-500 border-emerald-500 text-white' : state === 'wrong' ? 'bg-rose-500 border-rose-500 text-white' : isSel ? 'bg-white border-teal-500 text-teal-700' : 'bg-white border-slate-200 hover:border-teal-400'}`}>
                     <span className="inline-flex items-center gap-2">
-                      {state === 'correct' && <Check className="w-4 h-4" />} {state === 'wrong' && <X className="w-4 h-4" />} {opt}
+                      {state === 'correct' && <Check className="w-4 h-4" />}
+                      {state === 'wrong' && <X className="w-4 h-4" />}
+                      {opt}
                     </span>
                   </button>
                 );
               })}
             </div>
-            {wrong && <p className="text-xs text-rose-600 mt-2">Try again – a correct answer is required to enter.</p>}
-            {verified && <p className="text-xs text-emerald-700 mt-2 font-medium">✓ Skill verified. You may now purchase tickets.</p>}
+            {wrong && <p className="text-xs text-rose-600 mt-2">Incorrect &ndash; try a different answer.</p>}
+            {verified && <p className="text-xs text-emerald-700 mt-2 font-medium">&#10003; Skill verified. You may now purchase tickets.</p>}
           </div>
 
           <div className="mt-6 p-5 rounded-2xl border border-slate-200 bg-white">
@@ -119,7 +136,7 @@ export default function CompetitionDetail() {
               </div>
             </div>
             <Button onClick={addToCart} disabled={!verified} className="w-full h-12 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white text-base font-bold disabled:opacity-50 disabled:cursor-not-allowed">
-              <Ticket className="w-4 h-4 mr-2" /> {verified ? 'Add to basket' : 'Answer skill question first'} • {gbp(c.price * tickets)}
+              <Ticket className="w-4 h-4 mr-2" /> {verified ? 'Add to basket' : 'Answer skill question first'} &bull; {gbp(c.price * tickets)}
             </Button>
             <p className="text-[11px] text-slate-500 text-center mt-2">Free postal entry route available – see FAQ.</p>
           </div>

@@ -1,16 +1,31 @@
-import { NavLink, Outlet, Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Users, Package, ShoppingBag, Trophy, BarChart3, LogOut, Sparkles } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 const LINKS = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/admin/users', label: 'Users', icon: Users },
-  { to: '/admin/competitions', label: 'Competitions', icon: Package },
+  { to: '/admin/competitions', label: 'Contests', icon: Package },
   { to: '/admin/orders', label: 'Orders', icon: ShoppingBag },
   { to: '/admin/winners', label: 'Winners', icon: Trophy },
   { to: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
 ];
 
 export default function AdminLayout() {
+  const { user, loading, logout } = useAuth();
+  const nav = useNavigate();
+
+  useEffect(() => {
+    if (loading) return;
+    if (!user) nav('/login', { replace: true });
+    else if (user.role !== 'admin') nav('/', { replace: true });
+  }, [user, loading, nav]);
+
+  if (loading || !user || user.role !== 'admin') {
+    return <div className="min-h-screen flex items-center justify-center text-slate-500">Checking access…</div>;
+  }
+
   return (
     <div className="min-h-screen flex bg-slate-50">
       <aside className="w-64 bg-slate-900 text-slate-200 hidden md:flex flex-col">
@@ -29,19 +44,16 @@ export default function AdminLayout() {
           ))}
         </nav>
         <div className="p-3 border-t border-slate-800">
-          <Link to="/production" className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-800">
-            <Package className="w-4 h-4" /> Production Panel
-          </Link>
-          <Link to="/" className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-slate-800">
-            <LogOut className="w-4 h-4" /> Back to site
-          </Link>
+          <Link to="/production" className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-800"><Package className="w-4 h-4" /> Production Panel</Link>
+          <button onClick={async () => { await logout(); nav('/'); }} className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-slate-800"><LogOut className="w-4 h-4" /> Sign out</button>
         </div>
       </aside>
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-14 bg-white border-b border-slate-200 px-5 flex items-center justify-between">
           <div className="font-display font-semibold text-slate-900">Admin Dashboard</div>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-bold">AD</div>
+            <div className="text-sm text-slate-600">{user.email}</div>
+            <div className="w-8 h-8 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-bold">{user.name?.slice(0,2).toUpperCase() || 'AD'}</div>
           </div>
         </header>
         <main className="p-6 flex-1"><Outlet /></main>

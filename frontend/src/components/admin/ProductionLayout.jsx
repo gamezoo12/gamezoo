@@ -1,5 +1,7 @@
-import { NavLink, Outlet, Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
 import { Radio, Boxes, Wrench, LogOut, Sparkles, ShieldCheck } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 const LINKS = [
   { to: '/production', label: 'Operations', icon: Wrench, end: true },
@@ -8,6 +10,18 @@ const LINKS = [
 ];
 
 export default function ProductionLayout() {
+  const { user, loading } = useAuth();
+  const nav = useNavigate();
+  useEffect(() => {
+    if (loading) return;
+    if (!user) nav('/login', { replace: true });
+    else if (user.role !== 'admin') nav('/', { replace: true });
+  }, [user, loading, nav]);
+
+  if (loading || !user || user.role !== 'admin') {
+    return <div className="min-h-screen flex items-center justify-center text-slate-500">Checking access…</div>;
+  }
+
   return (
     <div className="min-h-screen flex bg-slate-950">
       <aside className="w-64 bg-slate-900 text-slate-200 hidden md:flex flex-col border-r border-slate-800">

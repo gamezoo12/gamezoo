@@ -6,6 +6,7 @@ import { Label } from '../components/ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import { useToast } from '../hooks/use-toast';
 import { Sparkles, Mail, Phone, Shield } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 function GoogleIcon() {
   return (
@@ -15,28 +16,38 @@ function GoogleIcon() {
 
 export default function Login() {
   const [mode, setMode] = useState('login');
+  const [busy, setBusy] = useState(false);
   const nav = useNavigate();
   const { toast } = useToast();
+  const { login, register } = useAuth();
 
-  const persistUser = (user) => {
-    localStorage.setItem('gamezoo_user', JSON.stringify(user));
-  };
-
-  const emailSubmit = (e) => {
+  const emailSubmit = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    persistUser({ email: fd.get('email'), name: fd.get('name') || fd.get('email'), method: 'email' });
-    toast({ title: mode === 'login' ? 'Welcome back!' : 'Account created!' });
-    setTimeout(() => nav('/my-account'), 400);
+    setBusy(true);
+    try {
+      if (mode === 'login') {
+        await login({ email: fd.get('email'), password: fd.get('password') });
+        toast({ title: 'Welcome back!' });
+      } else {
+        await register({ email: fd.get('email'), password: fd.get('password'), name: fd.get('name') });
+        toast({ title: 'Account created!' });
+      }
+      nav('/my-account');
+    } catch (err) {
+      toast({ title: 'Sign in failed', description: err?.response?.data?.detail || 'Please try again.' });
+    } finally { setBusy(false); }
   };
 
   const phoneSubmit = (e) => {
     e.preventDefault();
-    toast({ title: 'SMS OTP not enabled', description: 'Provide a Twilio API key to activate mobile sign-in.' });
+    toast({ title: 'SMS OTP not enabled', description: 'Provide Twilio credentials to activate mobile sign-in.' });
   };
 
+  // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
   const google = () => {
-    toast({ title: 'Google Sign-In coming next', description: 'Emergent Google Auth will be wired once backend is connected.' });
+    const redirectUrl = window.location.origin + '/my-account';
+    window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
   };
 
   return (
@@ -67,8 +78,8 @@ export default function Login() {
               )}
               <div><Label className="mb-1 block">Email</Label><Input name="email" type="email" required placeholder="you@email.com" /></div>
               <div><Label className="mb-1 block">Password</Label><Input name="password" type="password" required minLength={6} placeholder="••••••••" /></div>
-              <Button type="submit" className="w-full h-11 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white font-semibold">
-                {mode === 'login' ? 'Sign in' : 'Create account'}
+              <Button type="submit" disabled={busy} className="w-full h-11 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white font-semibold">
+                {busy ? 'Please wait…' : (mode === 'login' ? 'Sign in' : 'Create account')}
               </Button>
             </form>
           </TabsContent>
