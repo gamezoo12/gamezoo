@@ -6,7 +6,7 @@ const iconMap = { Trophy, BadgePoundSterling, Users, Sparkles, Coins };
 export default function StatsBar() {
   return (
     <section className="py-10 border-y border-slate-100 bg-white">
-      <div className="max-w-7xl mx-auto px-4 lg:px-8 grid grid-cols-2 md:grid-cols-5 gap-6">
+      <div className="max-w-7xl mx-auto px-4 lg:px-8 grid grid-cols-2 md:grid-cols-4 gap-6">
         {SITE_STATS.map((s, idx) => {
           const Icon = iconMap[s.icon] || Sparkles;
           return (

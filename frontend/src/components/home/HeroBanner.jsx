@@ -17,8 +17,8 @@ export default function HeroBanner() {
       <div className="confetti absolute inset-0 opacity-40 pointer-events-none" />
       <div className="max-w-7xl mx-auto px-4 lg:px-8 py-12 lg:py-20 grid lg:grid-cols-2 gap-10 items-center relative">
         <div className="fade-up">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-semibold">
-            <Star className="w-3.5 h-3.5 fill-amber-500 stroke-amber-500" /> Rated 5-Star on Trustpilot • 3,017 reviews
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-100 text-teal-800 text-xs font-semibold">
+            <Star className="w-3.5 h-3.5 fill-teal-600 stroke-teal-600" /> UK Skill-Based Contests • Fully Legal
           </div>
           <h1 className="mt-4 font-display text-4xl md:text-6xl font-extrabold leading-tight text-slate-900">
             {s.title}
@@ -30,25 +30,25 @@ export default function HeroBanner() {
                 {s.cta}
               </Button>
             </Link>
-            <Link to="/competitions">
-              <Button size="lg" variant="outline" className="border-teal-500 text-teal-700 hover:bg-teal-50">Browse Competitions</Button>
+            <Link to="/faq">
+              <Button size="lg" variant="outline" className="border-teal-500 text-teal-700 hover:bg-teal-50">How it Works</Button>
             </Link>
           </div>
           <div className="mt-8 flex items-center gap-6 text-sm text-slate-500">
-            <div><span className="font-bold text-slate-900">85,000+</span> Winners</div>
+            <div><span className="font-bold text-slate-900">50</span> Live Contests</div>
             <div className="h-4 w-px bg-slate-200" />
-            <div><span className="font-bold text-slate-900">£22m+</span> Prizes Given</div>
+            <div><span className="font-bold text-slate-900">£7,500</span> Prize Pool</div>
             <div className="h-4 w-px bg-slate-200" />
-            <div><span className="font-bold text-slate-900">165k+</span> Followers</div>
+            <div><span className="font-bold text-slate-900">£1</span> Entry</div>
           </div>
         </div>
 
         <div className="relative">
           <div className={`relative aspect-[4/3] rounded-3xl overflow-hidden shadow-2xl shadow-teal-500/20 bg-gradient-to-br ${s.accent}`}>
-            <img src={s.image} alt={s.title} className="w-full h-full object-cover mix-blend-luminosity opacity-90" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
+            <img src={s.image} alt={s.title} className="w-full h-full object-cover opacity-90" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/10 to-transparent" />
             <div className="absolute bottom-6 left-6 right-6 flex items-center justify-between">
-              <span className="px-3 py-1 rounded-full bg-white/95 backdrop-blur text-xs font-bold text-teal-700">LIVE DRAW SOON</span>
+              <span className="px-3 py-1 rounded-full bg-white/95 backdrop-blur text-xs font-bold text-teal-700">SKILL BASED</span>
               <div className="flex gap-1">
                 {HERO_SLIDES.map((_, idx) => (
                   <button key={idx} onClick={() => setI(idx)} className={`h-2 rounded-full transition-all ${idx === i ? 'w-8 bg-white' : 'w-2 bg-white/50'}`} />
