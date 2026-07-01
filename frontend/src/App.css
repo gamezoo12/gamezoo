@@ -1,0 +1,53 @@
+.App { min-height: 100vh; }
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: #f8fafc; }
+::-webkit-scrollbar-thumb { background: #14b8a6; border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: #0d9488; }
+
+/* Marquee */
+@keyframes marquee {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+.marquee-track { animation: marquee 40s linear infinite; }
+
+/* Float animation */
+@keyframes floaty {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.float { animation: floaty 4s ease-in-out infinite; }
+
+/* Shine */
+@keyframes shine {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shine {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+  background-size: 200% 100%;
+  animation: shine 3s linear infinite;
+}
+
+/* Card hover */
+.prize-card { transition: transform .35s ease, box-shadow .35s ease; }
+.prize-card:hover { transform: translateY(-6px); box-shadow: 0 20px 40px -20px rgba(20,184,166,.4); }
+
+/* Spin */
+@keyframes spin-slow { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+.spin-slow { animation: spin-slow 22s linear infinite; }
+
+/* Fade-in */
+@keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+.fade-up { animation: fadeUp .6s ease both; }
+
+/* Confetti dots decorative */
+.confetti {
+  background-image:
+    radial-gradient(circle at 10% 20%, rgba(20,184,166,.35) 0 3px, transparent 4px),
+    radial-gradient(circle at 80% 30%, rgba(249,115,22,.35) 0 3px, transparent 4px),
+    radial-gradient(circle at 30% 70%, rgba(251,191,36,.4) 0 3px, transparent 4px),
+    radial-gradient(circle at 65% 80%, rgba(168,85,247,.35) 0 3px, transparent 4px);
+}

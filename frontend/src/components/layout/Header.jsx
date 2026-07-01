@@ -1,0 +1,68 @@
+import { Link, useLocation } from 'react-router-dom';
+import { useState } from 'react';
+import { ShoppingCart, User, Menu, X, Sparkles, Shield } from 'lucide-react';
+import { NAV_LINKS } from '../../mock/mockData';
+import { Button } from '../ui/button';
+
+export default function Header() {
+  const [open, setOpen] = useState(false);
+  const { pathname } = useLocation();
+
+  return (
+    <header className="sticky top-0 z-40 bg-white/85 backdrop-blur-md border-b border-slate-100">
+      <div className="max-w-7xl mx-auto flex items-center justify-between px-4 lg:px-8 h-16">
+        <Link to="/" className="flex items-center gap-2">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-500 flex items-center justify-center text-white shadow-lg shadow-teal-500/30">
+            <Sparkles className="w-5 h-5" />
+          </div>
+          <span className="font-display font-extrabold text-xl tracking-tight text-slate-900">
+            Prize <span className="text-teal-600">Paradise</span>
+          </span>
+        </Link>
+
+        <nav className="hidden lg:flex items-center gap-8">
+          {NAV_LINKS.map((l) => (
+            <Link
+              key={l.href}
+              to={l.href}
+              className={`text-sm font-medium transition-colors ${pathname === l.href ? 'text-teal-600' : 'text-slate-700 hover:text-teal-600'}`}
+            >
+              {l.label}
+            </Link>
+          ))}
+        </nav>
+
+        <div className="flex items-center gap-2">
+          <Link to="/admin" className="hidden md:inline-flex items-center gap-1 text-xs text-slate-500 hover:text-teal-600 mr-2">
+            <Shield className="w-3.5 h-3.5" /> Admin
+          </Link>
+          <Link to="/cart" className="relative p-2 rounded-lg hover:bg-slate-100">
+            <ShoppingCart className="w-5 h-5 text-slate-700" />
+            <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-[10px] font-bold rounded-full h-4 min-w-[16px] flex items-center justify-center px-1">2</span>
+          </Link>
+          <Link to="/login" className="hidden sm:inline-flex">
+            <Button variant="ghost" size="sm" className="gap-1"><User className="w-4 h-4" /> Sign in</Button>
+          </Link>
+          <Link to="/competitions" className="hidden sm:inline-flex">
+            <Button size="sm" className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-md shadow-orange-500/20">Enter Now</Button>
+          </Link>
+          <button className="lg:hidden p-2" onClick={() => setOpen(!open)}>
+            {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        </div>
+      </div>
+
+      {open && (
+        <div className="lg:hidden border-t border-slate-100 bg-white">
+          <div className="px-4 py-3 flex flex-col gap-2">
+            {NAV_LINKS.map((l) => (
+              <Link key={l.href} to={l.href} onClick={() => setOpen(false)} className="py-2 text-slate-700">{l.label}</Link>
+            ))}
+            <Link to="/admin" onClick={() => setOpen(false)} className="py-2 text-slate-500 text-sm">Admin Panel</Link>
+            <Link to="/production" onClick={() => setOpen(false)} className="py-2 text-slate-500 text-sm">Production Panel</Link>
+          </div>
+        </div>
+      )}
+    </header>
+  );
+}
