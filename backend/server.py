@@ -61,11 +61,13 @@ from routers.auth_routes import router as auth_router
 from routers.contest_routes import router as contest_router
 from routers.order_routes import router as order_router
 from routers.admin_routes import router as admin_router
+from routers.meera_routes import router as meera_router
 
 app.include_router(auth_router)
 app.include_router(contest_router)
 app.include_router(order_router)
 app.include_router(admin_router)
+app.include_router(meera_router)
 
 
 app.add_middleware(

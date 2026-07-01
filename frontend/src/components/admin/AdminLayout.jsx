@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Users, Package, ShoppingBag, Trophy, BarChart3, LogOut, Sparkles } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import MeeraChat from '../MeeraChat';
 
 const LINKS = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -58,6 +59,7 @@ export default function AdminLayout() {
         </header>
         <main className="p-6 flex-1"><Outlet /></main>
       </div>
+      <MeeraChat theme="light" />
     </div>
   );
 }

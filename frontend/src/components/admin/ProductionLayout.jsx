@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
 import { Radio, Boxes, Wrench, LogOut, Sparkles, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import MeeraChat from '../MeeraChat';
 
 const LINKS = [
   { to: '/production', label: 'Operations', icon: Wrench, end: true },
@@ -51,6 +52,7 @@ export default function ProductionLayout() {
         </header>
         <main className="p-6 flex-1 text-slate-100"><Outlet /></main>
       </div>
+      <MeeraChat theme="dark" />
     </div>
   );
 }

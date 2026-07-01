@@ -47,4 +47,7 @@ export const adminAPI = {
   winners: () => api.get('/admin/winners').then(r => r.data),
   draw: (contestId) => api.post(`/admin/draw/${contestId}`).then(r => r.data),
   markPaid: (winnerId) => api.post(`/admin/winners/${winnerId}/mark-paid`).then(r => r.data),
+  launchContest: (contestId) => api.post(`/admin/contests/${contestId}/launch`).then(r => r.data),
+  pauseContest: (contestId) => api.post(`/admin/contests/${contestId}/pause`).then(r => r.data),
+  deleteContest: (contestId) => api.delete(`/admin/contests/${contestId}`).then(r => r.data),
 };

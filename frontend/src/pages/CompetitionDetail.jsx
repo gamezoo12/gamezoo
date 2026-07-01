@@ -138,7 +138,7 @@ export default function CompetitionDetail() {
             <Button onClick={addToCart} disabled={!verified} className="w-full h-12 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white text-base font-bold disabled:opacity-50 disabled:cursor-not-allowed">
               <Ticket className="w-4 h-4 mr-2" /> {verified ? 'Add to basket' : 'Answer skill question first'} &bull; {gbp(c.price * tickets)}
             </Button>
-            <p className="text-[11px] text-slate-500 text-center mt-2">Free postal entry route available – see FAQ.</p>
+            <p className="text-[11px] text-slate-500 text-center mt-2"><a href="/free-entry" className="text-teal-600 hover:underline">Free postal entry route</a> available – no purchase necessary.</p>
           </div>
 
           <div className="grid grid-cols-3 gap-3 mt-6 text-center">

@@ -130,6 +130,7 @@ async def main():
                 jackpot=is_big,
                 featured=i < 3,
                 skill_question=SkillQuestion(q=qb[0], options=qb[1], answer=qb[2], type=qb[3]),
+                status='draft',
             )
             contests.append(c.model_dump())
         await db.contests.insert_many(contests)

@@ -15,6 +15,7 @@ import Login from './pages/Login';
 import MyAccount from './pages/MyAccount';
 import Cart from './pages/Cart';
 import AuthCallback from './pages/AuthCallback';
+import FreeEntry from './pages/FreeEntry';
 
 import AdminLayout from './components/admin/AdminLayout';
 import AdminDashboard from './pages/admin/Dashboard';
@@ -48,6 +49,7 @@ function AppRouter() {
         <Route path="/login" element={<Login />} />
         <Route path="/my-account" element={<MyAccount />} />
         <Route path="/cart" element={<Cart />} />
+        <Route path="/free-entry" element={<FreeEntry />} />
       </Route>
 
       <Route path="/admin" element={<AdminLayout />}>

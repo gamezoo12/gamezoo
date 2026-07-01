@@ -114,3 +114,37 @@ async def mark_paid(winner_id: str, request: Request):
     if r.matched_count == 0:
         raise HTTPException(status_code=404, detail='Winner not found')
     return {'ok': True}
+
+
+@router.post('/contests/{contest_id}/launch')
+async def launch_contest(contest_id: str, request: Request):
+    await require_admin(request)
+    from server import db_ref
+    db = db_ref()
+    r = await db.contests.update_one({'contest_id': contest_id}, {'$set': {'status': 'live'}})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail='Contest not found')
+    return {'ok': True, 'status': 'live'}
+
+
+@router.post('/contests/{contest_id}/pause')
+async def pause_contest(contest_id: str, request: Request):
+    await require_admin(request)
+    from server import db_ref
+    db = db_ref()
+    r = await db.contests.update_one({'contest_id': contest_id}, {'$set': {'status': 'draft'}})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail='Contest not found')
+    return {'ok': True, 'status': 'draft'}
+
+
+@router.delete('/contests/{contest_id}')
+async def delete_contest(contest_id: str, request: Request):
+    await require_admin(request)
+    from server import db_ref
+    db = db_ref()
+    r = await db.contests.delete_one({'contest_id': contest_id})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail='Contest not found')
+    await db.tickets.delete_many({'contest_id': contest_id})
+    return {'ok': True}
