@@ -7,6 +7,7 @@ import { Minus, Plus, Ticket, Clock, ShieldCheck, Zap, Award, Brain, Check, X } 
 import { countdown, percent, gbp } from '../lib/format';
 import { useToast } from '../hooks/use-toast';
 import { contestsAPI } from '../lib/api';
+import BackButton from '../components/BackButton';
 
 export default function CompetitionDetail() {
   const { slug } = useParams();
@@ -61,6 +62,7 @@ export default function CompetitionDetail() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 lg:px-8 py-10">
+      <BackButton to="/competitions" label="All contests" className="mb-4" />
       <div className="grid lg:grid-cols-2 gap-10">
         <div>
           <div className="aspect-square rounded-3xl overflow-hidden bg-gradient-to-br from-teal-50 to-emerald-50 shadow-xl">

@@ -2,6 +2,7 @@ import { Outlet } from 'react-router-dom';
 import AnnouncementBar from './AnnouncementBar';
 import Header from './Header';
 import Footer from './Footer';
+import MeeraChat from '../MeeraChat';
 
 export default function PublicLayout() {
   return (
@@ -12,6 +13,7 @@ export default function PublicLayout() {
         <Outlet />
       </main>
       <Footer />
+      <MeeraChat theme="light" publicMode />
     </div>
   );
 }

@@ -24,15 +24,17 @@ import AdminCompetitions from './pages/admin/CompetitionsAdmin';
 import AdminOrders from './pages/admin/OrdersPage';
 import AdminWinners from './pages/admin/WinnersAdmin';
 import AdminAnalytics from './pages/admin/AnalyticsPage';
+import AdminKyc from './pages/admin/KycPage';
+import AdminPayments from './pages/admin/PaymentsPage';
 
 import ProductionLayout from './components/admin/ProductionLayout';
 import LiveDrawPage from './pages/production/LiveDraw';
 import PrizeInventory from './pages/production/PrizeInventory';
 import OperationsPage from './pages/production/Operations';
+import WinnersFeed from './pages/production/WinnersFeed';
 
 function AppRouter() {
   const location = useLocation();
-  // Intercept Google OAuth return: URL contains #session_id=...
   if (location.hash && location.hash.includes('session_id=')) {
     return <AuthCallback />;
   }
@@ -55,8 +57,10 @@ function AppRouter() {
       <Route path="/admin" element={<AdminLayout />}>
         <Route index element={<AdminDashboard />} />
         <Route path="users" element={<AdminUsers />} />
+        <Route path="kyc" element={<AdminKyc />} />
         <Route path="competitions" element={<AdminCompetitions />} />
         <Route path="orders" element={<AdminOrders />} />
+        <Route path="payments" element={<AdminPayments />} />
         <Route path="winners" element={<AdminWinners />} />
         <Route path="analytics" element={<AdminAnalytics />} />
       </Route>
@@ -65,6 +69,8 @@ function AppRouter() {
         <Route index element={<OperationsPage />} />
         <Route path="live-draw" element={<LiveDrawPage />} />
         <Route path="inventory" element={<PrizeInventory />} />
+        <Route path="winners" element={<WinnersFeed />} />
+        <Route path="kyc" element={<AdminKyc />} />
       </Route>
     </Routes>
   );

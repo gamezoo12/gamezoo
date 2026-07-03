@@ -5,7 +5,7 @@ import { api } from '../lib/api';
 
 const STORAGE_KEY = 'gz_meera_history';
 
-export default function MeeraChat({ theme = 'light', onActionsExecuted }) {
+export default function MeeraChat({ theme = 'light', onActionsExecuted, publicMode = false }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState(() => {
     try { return JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
@@ -26,7 +26,8 @@ export default function MeeraChat({ theme = 'light', onActionsExecuted }) {
     setMessages(m => [...m, { role: 'user', text: msg }]);
     setInput('');
     try {
-      const r = await api.post('/admin/meera/chat', { message: msg, session_id: sessionId });
+      const endpoint = publicMode ? '/meera/chat' : '/admin/meera/chat';
+      const r = await api.post(endpoint, { message: msg, session_id: sessionId });
       if (r.data.session_id && !sessionId) { setSessionId(r.data.session_id); sessionStorage.setItem('gz_meera_sid', r.data.session_id); }
       setMessages(m => [...m, { role: 'meera', text: r.data.reply, actions: r.data.actions, results: r.data.results }]);
       if (onActionsExecuted && (r.data.results || []).some(x => x.ok)) onActionsExecuted();
@@ -35,13 +36,21 @@ export default function MeeraChat({ theme = 'light', onActionsExecuted }) {
     } finally { setBusy(false); }
   };
 
-  const quickSuggestions = [
+  const adminSuggestions = [
     'Add 5 draft contests worth £100 with 150 tickets running 7 days',
     'Launch all draft contests',
     'Show me all draft contests',
     'Change contest-1 prize to £250',
     'Delete all draft contests',
   ];
+  const publicSuggestions = [
+    'How does GameZoo work?',
+    'Is this legal in the UK?',
+    'How do I enter for free by post?',
+    'When are the draws?',
+    'How do winners get paid?',
+  ];
+  const quickSuggestions = publicMode ? publicSuggestions : adminSuggestions;
 
   const bubbleBase = theme === 'dark' ? 'bg-slate-800 text-slate-100 border-slate-700' : 'bg-white text-slate-800 border-slate-100';
 

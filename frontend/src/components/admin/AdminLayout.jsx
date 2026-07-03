@@ -1,14 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Package, ShoppingBag, Trophy, BarChart3, LogOut, Sparkles } from 'lucide-react';
+import { LayoutDashboard, Users, Package, ShoppingBag, Trophy, BarChart3, LogOut, Sparkles, Shield, CreditCard } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import MeeraChat from '../MeeraChat';
 
 const LINKS = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/admin/users', label: 'Users', icon: Users },
+  { to: '/admin/kyc', label: 'KYC', icon: Shield },
   { to: '/admin/competitions', label: 'Contests', icon: Package },
   { to: '/admin/orders', label: 'Orders', icon: ShoppingBag },
+  { to: '/admin/payments', label: 'Payments', icon: CreditCard },
   { to: '/admin/winners', label: 'Winners', icon: Trophy },
   { to: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
 ];
@@ -20,10 +22,10 @@ export default function AdminLayout() {
   useEffect(() => {
     if (loading) return;
     if (!user) nav('/login', { replace: true });
-    else if (user.role !== 'admin') nav('/', { replace: true });
+    else if (!['admin', 'super_admin', 'operator', 'support'].includes(user.role)) nav('/', { replace: true });
   }, [user, loading, nav]);
 
-  if (loading || !user || user.role !== 'admin') {
+  if (loading || !user || !['admin', 'super_admin', 'operator', 'support'].includes(user.role)) {
     return <div className="min-h-screen flex items-center justify-center text-slate-500">Checking access…</div>;
   }
 
@@ -37,7 +39,7 @@ export default function AdminLayout() {
             <div className="text-[10px] uppercase tracking-wider text-teal-400">Admin Panel</div>
           </div>
         </Link>
-        <nav className="flex-1 p-3 space-y-1">
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {LINKS.map(l => (
             <NavLink key={l.to} to={l.to} end={l.end} className={({isActive}) => `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${isActive ? 'bg-teal-600 text-white' : 'hover:bg-slate-800 text-slate-300'}`}>
               <l.icon className="w-4 h-4" /> {l.label}
@@ -51,11 +53,8 @@ export default function AdminLayout() {
       </aside>
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-14 bg-white border-b border-slate-200 px-5 flex items-center justify-between">
-          <div className="font-display font-semibold text-slate-900">Admin Dashboard</div>
-          <div className="flex items-center gap-3">
-            <div className="text-sm text-slate-600">{user.email}</div>
-            <div className="w-8 h-8 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-bold">{user.name?.slice(0,2).toUpperCase() || 'AD'}</div>
-          </div>
+          <Link to="/" className="font-display font-semibold text-slate-900 hover:text-teal-600">← GameZoo Admin</Link>
+          <div className="flex items-center gap-3"><div className="text-sm text-slate-600">{user.email}</div><div className="w-8 h-8 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-bold">{user.name?.slice(0,2).toUpperCase() || 'AD'}</div></div>
         </header>
         <main className="p-6 flex-1"><Outlet /></main>
       </div>

@@ -55,34 +55,44 @@ DEFAULT_IMAGES = [
 ]
 
 
-SYSTEM_PROMPT = """You are Meera, the AI operations assistant for GameZoo — a UK skill-based prize competition platform.
-You help the admin manage contests via natural language.
+SYSTEM_PROMPT = """You are Meera, the AI operations assistant for GameZoo — a UK skill-based prize competition platform. You help both admins and end-users. You are fluent in every language and MUST reply in the SAME language the user wrote to you.
 
 You MUST always reply with a single JSON object (no markdown, no code fences, no extra text):
 {
-  "reply": "friendly one-paragraph natural language reply to the admin",
+  "reply": "friendly natural-language reply in the user's language",
   "actions": [ ...zero or more action objects... ]
 }
 
-Supported action types (use exact keys):
-- {"type": "create_contests", "count": <int>, "prize_amount": <number>, "tickets_total": <int>, "duration_days": <int>, "title": "<optional>", "category": "<prize-draws|instant-wins|jackpot|new-games>", "ticket_price": <optional number, default 1>, "status": "<draft|live, default draft>"}
-- {"type": "update_contest", "id_or_slug": "<contest_id or slug>", "updates": {"prize_amount"?: <n>, "tickets_total"?: <n>, "title"?: "<s>", "end_date_days_from_now"?: <n>, "category"?: "<s>", "status"?: "<draft|live|archived>"}}
+Supported action types (exact keys):
+- {"type": "create_contests", "count": <int>, "prize_amount": <number>, "tickets_total": <int>, "duration_days": <int>, "title": "<optional>", "category": "<prize-draws|instant-wins|jackpot|new-games>", "ticket_price": <optional, default 1>, "status": "<draft|live, default draft>"}
+- {"type": "update_contest", "id_or_slug": "<>", "updates": {"prize_amount"?, "tickets_total"?, "title"?, "subtitle"?, "image"?, "end_date_days_from_now"?, "category"?, "status"?, "price"?}}
 - {"type": "delete_contest", "id_or_slug": "<>"}
 - {"type": "delete_all_drafts"}
 - {"type": "launch_contest", "id_or_slug": "<>"}
 - {"type": "launch_all_drafts"}
 - {"type": "pause_contest", "id_or_slug": "<>"}
 - {"type": "draw_winner", "id_or_slug": "<>"}
-- {"type": "list_contests", "status": "<draft|live|drawn|all, default all>"}
+- {"type": "list_contests", "status": "<draft|live|drawn|all>"}
+- {"type": "list_users", "filter": "<all|admins|kyc_pending>"}
+- {"type": "set_user_role", "email_or_id": "<>", "role": "<user|admin|super_admin|operator|support>"}
+- {"type": "suspend_user", "email_or_id": "<>"}
+- {"type": "unsuspend_user", "email_or_id": "<>"}
+- {"type": "approve_kyc", "email_or_id": "<>"}
+- {"type": "reject_kyc", "email_or_id": "<>", "reason": "<>"}
+- {"type": "refund_order", "order_id": "<>"}
+- {"type": "mark_winner_paid", "winner_id_or_ticket": "<>"}
+- {"type": "site_stats"}
+- {"type": "explain", "topic": "<free_entry|how_to_play|payouts|kyc|skill_law|other>"}  // for public users who ask general questions
 
 Rules:
-1. When admin says something like "add 5 contests worth £100 with 150 tickets running 7 days", output ONE create_contests action.
-2. Never invent extra actions the admin didn't ask for. Ask a clarifying question via "reply" only if genuinely ambiguous.
-3. Default new contests to status="draft" so admin launches them individually, unless admin explicitly says "launch" or "start live".
-4. Interpret currency casually (£100, 100 pounds, 100gbp → 100). Interpret numbers spelled out ("five" → 5).
-5. If no explicit duration is given, default duration_days to 7.
-6. Keep "reply" short, warm, and confirm what you're about to do (e.g. "Sure — creating 5 draft contests worth £100 each…").
-7. Output MUST be valid JSON parseable by json.loads. No trailing commas, no markdown.
+1. If the user writes in Hindi, reply in Hindi. If Tamil, reply in Tamil. If French, reply in French. Match their language exactly.
+2. New contests default to status="draft" unless user explicitly says "launch"/"start live"/"go live".
+3. Parse casual money references (£100, 100 pounds, 100 gbp, 100 quid → 100). Parse spelled-out numbers.
+4. Default duration_days=7 if not specified.
+5. Only emit actions the user asked for. Ask clarifying questions via "reply" only if genuinely ambiguous.
+6. For non-admin users, only use the "explain" action or ask polite clarifying questions. Never expose admin actions to public users; if asked, politely say those need admin rights.
+7. Keep "reply" short, warm, natural. Confirm what you're about to do.
+8. Output MUST be valid JSON parseable by json.loads. No trailing commas, no markdown.
 """
 
 
@@ -281,6 +291,82 @@ async def _execute_actions(db, actions: List[dict]) -> List[dict]:
                     q['status'] = st
                 docs = await db.contests.find(q, {'_id': 0, 'skill_question': 0}).sort('created_at', -1).to_list(200)
                 results.append({'action': t, 'ok': True, 'contests': docs})
+
+            elif t == 'list_users':
+                f = a.get('filter', 'all')
+                q = {}
+                if f == 'admins':
+                    q = {'role': {'$in': ['admin', 'super_admin']}}
+                elif f == 'kyc_pending':
+                    pending = await db.kyc.find({'status': 'pending'}, {'_id': 0, 'user_id': 1}).to_list(500)
+                    ids = [p['user_id'] for p in pending]
+                    q = {'user_id': {'$in': ids}}
+                users = await db.users.find(q, {'_id': 0, 'password_hash': 0}).limit(200).to_list(200)
+                results.append({'action': t, 'ok': True, 'users': users, 'count': len(users)})
+
+            elif t == 'set_user_role':
+                key = (a.get('email_or_id') or '').lower()
+                role = a.get('role')
+                if role not in ('user', 'admin', 'super_admin', 'operator', 'support'):
+                    results.append({'action': t, 'ok': False, 'error': f'Invalid role: {role}'}); continue
+                u = await db.users.find_one({'$or': [{'email': key}, {'user_id': key}]}, {'_id': 0})
+                if not u:
+                    results.append({'action': t, 'ok': False, 'error': f'User not found: {key}'}); continue
+                await db.users.update_one({'user_id': u['user_id']}, {'$set': {'role': role}})
+                results.append({'action': t, 'ok': True, 'user_id': u['user_id'], 'role': role})
+
+            elif t in ('suspend_user', 'unsuspend_user'):
+                key = (a.get('email_or_id') or '').lower()
+                u = await db.users.find_one({'$or': [{'email': key}, {'user_id': key}]}, {'_id': 0})
+                if not u:
+                    results.append({'action': t, 'ok': False, 'error': f'User not found: {key}'}); continue
+                await db.users.update_one({'user_id': u['user_id']}, {'$set': {'suspended': t == 'suspend_user'}})
+                results.append({'action': t, 'ok': True, 'user_id': u['user_id']})
+
+            elif t in ('approve_kyc', 'reject_kyc'):
+                key = (a.get('email_or_id') or '').lower()
+                u = await db.users.find_one({'$or': [{'email': key}, {'user_id': key}]}, {'_id': 0})
+                if not u:
+                    results.append({'action': t, 'ok': False, 'error': f'User not found: {key}'}); continue
+                update = {'status': 'approved' if t == 'approve_kyc' else 'rejected', 'reviewed_at': datetime.now(timezone.utc)}
+                if t == 'reject_kyc':
+                    update['reject_reason'] = a.get('reason', '')
+                r = await db.kyc.update_one({'user_id': u['user_id']}, {'$set': update})
+                results.append({'action': t, 'ok': r.matched_count > 0, 'user_id': u['user_id']})
+
+            elif t == 'refund_order':
+                oid = a.get('order_id') or ''
+                o = await db.orders.find_one({'order_id': oid}, {'_id': 0})
+                if not o:
+                    results.append({'action': t, 'ok': False, 'error': f'Order not found: {oid}'}); continue
+                for item in o.get('items', []):
+                    await db.contests.update_one({'contest_id': item['contest_id']}, {'$inc': {'tickets_sold': -item['qty']}})
+                await db.tickets.delete_many({'order_id': oid})
+                await db.orders.update_one({'order_id': oid}, {'$set': {'status': 'refunded'}})
+                results.append({'action': t, 'ok': True, 'order_id': oid})
+
+            elif t == 'mark_winner_paid':
+                key = a.get('winner_id_or_ticket') or ''
+                w = await db.winners.find_one({'$or': [{'winner_id': key}, {'ticket_number': int(key) if str(key).isdigit() else -1}]}, {'_id': 0})
+                if not w:
+                    results.append({'action': t, 'ok': False, 'error': f'Winner not found: {key}'}); continue
+                await db.winners.update_one({'winner_id': w['winner_id']}, {'$set': {'paid_out': True}})
+                results.append({'action': t, 'ok': True, 'winner_id': w['winner_id']})
+
+            elif t == 'site_stats':
+                users_count = await db.users.count_documents({})
+                contests_count = await db.contests.count_documents({})
+                live_count = await db.contests.count_documents({'status': 'live'})
+                orders_count = await db.orders.count_documents({})
+                kyc_pending = await db.kyc.count_documents({'status': 'pending'})
+                results.append({'action': t, 'ok': True, 'stats': {
+                    'users': users_count, 'contests': contests_count, 'live_contests': live_count,
+                    'orders': orders_count, 'kyc_pending': kyc_pending,
+                }})
+
+            elif t == 'explain':
+                # No side effects — Meera's "reply" already contains the explanation.
+                results.append({'action': t, 'ok': True, 'topic': a.get('topic', 'other')})
             else:
                 results.append({'action': t, 'ok': False, 'error': 'Unknown action type'})
         except Exception as e:
@@ -296,17 +382,30 @@ async def chat(inp: MeeraInput, request: Request):
     session_id = inp.session_id or new_id('meera')
     plan = await _run_meera(inp.message, session_id)
     exec_results = await _execute_actions(db, plan.get('actions', []))
-    # Log conversation for audit
     await db.meera_log.insert_one({
-        'session_id': session_id,
-        'user_msg': inp.message,
-        'plan': plan,
-        'results': exec_results,
-        'at': datetime.now(timezone.utc),
+        'session_id': session_id, 'user_msg': inp.message,
+        'plan': plan, 'results': exec_results, 'at': datetime.now(timezone.utc),
     })
     return {
-        'session_id': session_id,
-        'reply': plan.get('reply'),
-        'actions': plan.get('actions', []),
-        'results': exec_results,
+        'session_id': session_id, 'reply': plan.get('reply'),
+        'actions': plan.get('actions', []), 'results': exec_results,
+    }
+
+
+# Public Meera — for end users. Only "explain" actions are ever executed here.
+public_router = APIRouter(prefix='/api/meera', tags=['meera-public'])
+
+
+@public_router.post('/chat')
+async def public_chat(inp: MeeraInput):
+    from server import db_ref
+    db = db_ref()
+    session_id = inp.session_id or new_id('meerap')
+    plan = await _run_meera(inp.message, session_id)
+    # Only allow safe explain actions for anonymous / user callers
+    safe_actions = [a for a in plan.get('actions', []) if (a.get('type') or '') == 'explain']
+    exec_results = await _execute_actions(db, safe_actions)
+    return {
+        'session_id': session_id, 'reply': plan.get('reply'),
+        'actions': safe_actions, 'results': exec_results,
     }
