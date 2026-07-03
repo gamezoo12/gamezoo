@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Facebook, Instagram, Sparkles, Mail, Shield } from 'lucide-react';
+import { Facebook, Instagram, Sparkles, Mail } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { useToast } from '../../hooks/use-toast';
@@ -44,8 +44,6 @@ export default function Footer() {
           <h4 className="text-white font-semibold mb-3">Company</h4>
           <ul className="space-y-2 text-sm">
             <li><Link to="/my-account" className="hover:text-teal-400">My Account</Link></li>
-            <li><Link to="/admin" className="hover:text-teal-400 inline-flex items-center gap-1"><Shield className="w-3 h-3" /> Admin Panel</Link></li>
-            <li><Link to="/production" className="hover:text-teal-400 inline-flex items-center gap-1"><Shield className="w-3 h-3" /> Production Panel</Link></li>
             <li><a href="/free-entry" className="hover:text-teal-400">Free Postal Entry</a></li>
             <li><a href="#" className="hover:text-teal-400">Terms & Conditions</a></li>
             <li><a href="#" className="hover:text-teal-400">Privacy Policy</a></li>

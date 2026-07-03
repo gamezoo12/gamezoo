@@ -324,10 +324,12 @@ async def _execute_actions(db, actions: List[dict]) -> List[dict]:
                 key = (a.get('email_or_id') or '').lower()
                 role = a.get('role')
                 if role not in ('user', 'admin', 'super_admin', 'operator', 'support'):
-                    results.append({'action': t, 'ok': False, 'error': f'Invalid role: {role}'}); continue
+                    results.append({'action': t, 'ok': False, 'error': f'Invalid role: {role}'})
+                    continue
                 u = await db.users.find_one({'$or': [{'email': key}, {'user_id': key}]}, {'_id': 0})
                 if not u:
-                    results.append({'action': t, 'ok': False, 'error': f'User not found: {key}'}); continue
+                    results.append({'action': t, 'ok': False, 'error': f'User not found: {key}'})
+                    continue
                 await db.users.update_one({'user_id': u['user_id']}, {'$set': {'role': role}})
                 results.append({'action': t, 'ok': True, 'user_id': u['user_id'], 'role': role})
 
@@ -335,7 +337,8 @@ async def _execute_actions(db, actions: List[dict]) -> List[dict]:
                 key = (a.get('email_or_id') or '').lower()
                 u = await db.users.find_one({'$or': [{'email': key}, {'user_id': key}]}, {'_id': 0})
                 if not u:
-                    results.append({'action': t, 'ok': False, 'error': f'User not found: {key}'}); continue
+                    results.append({'action': t, 'ok': False, 'error': f'User not found: {key}'})
+                    continue
                 await db.users.update_one({'user_id': u['user_id']}, {'$set': {'suspended': t == 'suspend_user'}})
                 results.append({'action': t, 'ok': True, 'user_id': u['user_id']})
 
@@ -343,7 +346,8 @@ async def _execute_actions(db, actions: List[dict]) -> List[dict]:
                 key = (a.get('email_or_id') or '').lower()
                 u = await db.users.find_one({'$or': [{'email': key}, {'user_id': key}]}, {'_id': 0})
                 if not u:
-                    results.append({'action': t, 'ok': False, 'error': f'User not found: {key}'}); continue
+                    results.append({'action': t, 'ok': False, 'error': f'User not found: {key}'})
+                    continue
                 update = {'status': 'approved' if t == 'approve_kyc' else 'rejected', 'reviewed_at': datetime.now(timezone.utc)}
                 if t == 'reject_kyc':
                     update['reject_reason'] = a.get('reason', '')
@@ -354,7 +358,8 @@ async def _execute_actions(db, actions: List[dict]) -> List[dict]:
                 oid = a.get('order_id') or ''
                 o = await db.orders.find_one({'order_id': oid}, {'_id': 0})
                 if not o:
-                    results.append({'action': t, 'ok': False, 'error': f'Order not found: {oid}'}); continue
+                    results.append({'action': t, 'ok': False, 'error': f'Order not found: {oid}'})
+                    continue
                 for item in o.get('items', []):
                     await db.contests.update_one({'contest_id': item['contest_id']}, {'$inc': {'tickets_sold': -item['qty']}})
                 await db.tickets.delete_many({'order_id': oid})
@@ -365,7 +370,8 @@ async def _execute_actions(db, actions: List[dict]) -> List[dict]:
                 key = a.get('winner_id_or_ticket') or ''
                 w = await db.winners.find_one({'$or': [{'winner_id': key}, {'ticket_number': int(key) if str(key).isdigit() else -1}]}, {'_id': 0})
                 if not w:
-                    results.append({'action': t, 'ok': False, 'error': f'Winner not found: {key}'}); continue
+                    results.append({'action': t, 'ok': False, 'error': f'Winner not found: {key}'})
+                    continue
                 await db.winners.update_one({'winner_id': w['winner_id']}, {'$set': {'paid_out': True}})
                 results.append({'action': t, 'ok': True, 'winner_id': w['winner_id']})
 
