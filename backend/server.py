@@ -63,6 +63,7 @@ from routers.order_routes import router as order_router
 from routers.admin_routes import router as admin_router
 from routers.meera_routes import router as meera_router, public_router as meera_public_router
 from routers.user_routes import router as user_router
+from routers.settings_routes import router as settings_router, public_router as settings_public_router
 
 app.include_router(auth_router)
 app.include_router(contest_router)
@@ -71,6 +72,8 @@ app.include_router(admin_router)
 app.include_router(meera_router)
 app.include_router(meera_public_router)
 app.include_router(user_router)
+app.include_router(settings_router)
+app.include_router(settings_public_router)
 
 
 app.add_middleware(

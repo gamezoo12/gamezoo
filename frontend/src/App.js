@@ -26,6 +26,8 @@ import AdminWinners from './pages/admin/WinnersAdmin';
 import AdminAnalytics from './pages/admin/AnalyticsPage';
 import AdminKyc from './pages/admin/KycPage';
 import AdminPayments from './pages/admin/PaymentsPage';
+import AdminSettings from './pages/admin/SettingsPage';
+import AdminRoles from './pages/admin/RolesPage';
 
 import ProductionLayout from './components/admin/ProductionLayout';
 import LiveDrawPage from './pages/production/LiveDraw';
@@ -63,6 +65,8 @@ function AppRouter() {
         <Route path="payments" element={<AdminPayments />} />
         <Route path="winners" element={<AdminWinners />} />
         <Route path="analytics" element={<AdminAnalytics />} />
+        <Route path="roles" element={<AdminRoles />} />
+        <Route path="settings" element={<AdminSettings />} />
       </Route>
 
       <Route path="/production" element={<ProductionLayout />}>

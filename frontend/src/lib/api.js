@@ -61,4 +61,6 @@ export const adminAPI = {
   kycList: (status = 'all') => api.get('/admin/kyc', { params: { status } }).then(r => r.data),
   kycApprove: (id) => api.post(`/admin/kyc/${id}/approve`).then(r => r.data),
   kycReject: (id, reason) => api.post(`/admin/kyc/${id}/reject`, { reason }).then(r => r.data),
+  getSettings: () => api.get('/admin/settings').then(r => r.data),
+  updateSettings: (data) => api.put('/admin/settings', data).then(r => r.data),
 };

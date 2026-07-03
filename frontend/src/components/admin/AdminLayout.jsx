@@ -1,18 +1,20 @@
 import { useEffect } from 'react';
 import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Package, ShoppingBag, Trophy, BarChart3, LogOut, Sparkles, Shield, CreditCard } from 'lucide-react';
+import { LayoutDashboard, Users, Package, ShoppingBag, Trophy, BarChart3, LogOut, Sparkles, Shield, CreditCard, Settings as SettingsIcon, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import MeeraChat from '../MeeraChat';
 
 const LINKS = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/admin/users', label: 'Users', icon: Users },
+  { to: '/admin/roles', label: 'Roles & Permissions', icon: ShieldCheck },
   { to: '/admin/kyc', label: 'KYC', icon: Shield },
   { to: '/admin/competitions', label: 'Contests', icon: Package },
   { to: '/admin/orders', label: 'Orders', icon: ShoppingBag },
   { to: '/admin/payments', label: 'Payments', icon: CreditCard },
   { to: '/admin/winners', label: 'Winners', icon: Trophy },
   { to: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
+  { to: '/admin/settings', label: 'Settings', icon: SettingsIcon },
 ];
 
 export default function AdminLayout() {
