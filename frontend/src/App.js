@@ -16,6 +16,7 @@ import MyAccount from './pages/MyAccount';
 import Cart from './pages/Cart';
 import AuthCallback from './pages/AuthCallback';
 import FreeEntry from './pages/FreeEntry';
+import AdminLogin from './pages/AdminLogin';
 
 import AdminLayout from './components/admin/AdminLayout';
 import AdminDashboard from './pages/admin/Dashboard';
