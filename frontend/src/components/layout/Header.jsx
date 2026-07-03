@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { ShoppingCart, User, Menu, X, Sparkles } from 'lucide-react';
 import { NAV_LINKS } from '../../mock/mockData';
 import { Button } from '../ui/button';
+import NotificationsBell from './NotificationsBell';
 
 export default function Header() {
   const [open, setOpen] = useState(false);
@@ -42,6 +43,7 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center gap-2">
+          <NotificationsBell />
           <Link to="/cart" className="relative p-2 rounded-lg hover:bg-slate-100">
             <ShoppingCart className="w-5 h-5 text-slate-700" />
             {cartCount > 0 && <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-[10px] font-bold rounded-full h-4 min-w-[16px] flex items-center justify-center px-1">{cartCount}</span>}

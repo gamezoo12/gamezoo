@@ -1,0 +1,44 @@
+{
+  "summary": "P2 draw-scheduler + in-app notifications tested end-to-end. Backend regression (16/16 from iteration_1) still green. Added 11 new pytest cases in /app/backend/tests/test_scheduler_notifications.py covering /api/production/upcoming-draws (auth+shape), /api/production/draw/{id} (200/400/404/403), /api/admin/draw/{id} refactored path + notification insertion, /api/users/notifications list+mark-read, and the 60s background scheduler auto-drawing an overdue seeded contest (verified drawn status + Winner + Notification within 60s). Frontend: /production Operations page renders 4 ops-stat cards, upcoming-draws panel, and 4 draw-now-<id> buttons; public Header renders NotificationsBell (hidden when anonymous, visible when logged in), unread badge shows correct count (3), panel opens with 3 items, badge disappears after opening (mark-read fires). Total 27/27 backend tests + full UI flow PASS.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "public Header", "issue": "'Sign in' link and 'Play Now' CTA still render in the header when a user is logged in — cosmetic only, not a P2 requirement, but user-visible inconsistency."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "public Header (logged-in state)", "issues": ["'Sign in' and 'Play Now' buttons still shown when a JWT is stored — should hide/replace with user avatar/menu; NotificationsBell itself renders correctly."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_scheduler_notifications.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Optional polish) In Header.jsx, hide 'Sign in' link and swap to a user menu when useAuth().user is set.",
+    "No P2 blockers — feature is production-ready."
+  ],
+  "critical_code_review_comments": [
+    "draw_service.py – Correctly idempotent: rejects already-drawn contests, closes empty ones with status 'closed_no_entries' to avoid re-processing forever. Notification insert is atomic with winner creation (good).",
+    "scheduler.py – 60s interval + top-level exception catch keeps the loop resilient. `_running` flag makes shutdown clean. Reasonable.",
+    "production_routes.py – Role gating via _require_staff (admin/super_admin/operator) is consistent with admin_routes _require_role. Status codes 400/404 mapped from reason strings — good.",
+    "NotificationsBell.jsx – `if (!user) return null` correctly hides bell for anon users. Mark-read fires only when opening AND unread>0 (good, avoids unnecessary calls). 30s polling interval is reasonable.",
+    "Operations.jsx – 'Draw now' button disables when tickets_sold===0 (prevents 400 errors). Auto-refresh every 30s is aligned with scheduler cadence (60s). Toast on both success/failure paths.",
+    "MINOR: draw_service uses `random.choice` — for a real production system consider `secrets.choice` for cryptographically fair draws (currently deterministic-ish and non-audited).",
+    "MINOR: Notification document uses ad-hoc dict rather than a Pydantic model — inconsistent with Winner/Contest models. Consider adding a Notification model for validation + type-safety."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_scheduler_notifications.py (created)"
+  ],
+  "success_rate": {"backend": "100% (27/27)", "frontend": "100% (production ops page + bell hidden/visible/badge/mark-read all verified)"},
+  "test_credentials": "Admin bachanta8@gmail.com / Herts@910022 – working via /admin/login (from /app/memory/test_credentials.md). Test player accounts created dynamically with TEST_ prefix and cleaned up after run.",
+  "seed_data_creation": "During tests: TEST_p2_ prefixed contests/tickets/winners/notifications inserted via pymongo and deleted in fixture teardown. Also created TEST_uibadge_/TEST_bell_ player users for UI runs — all cleaned up post-run (verified 0 remaining TEST_ docs).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Two backend test suites: /app/backend/tests/backend_test.py (16 regression) + /app/backend/tests/test_scheduler_notifications.py (11 P2). All 27 pass in ~57s (scheduler test alone takes ~60s waiting for the tick). Run via `REACT_APP_BACKEND_URL=... pytest backend/tests/ -v` — pytest.ini enforces xdist -n 2 --dist loadscope; do not override. Frontend: public Header renders NotificationsBell (data-testid 'notifications-bell'/'notifications-panel'/'notifications-unread'/'notification-item'). Admin/Production panels use their own layouts and do NOT include the public NotificationsBell — that is intentional per the admin/player UX split from iteration_1. If retesting UI, use `localStorage.setItem('gz_token', <jwt>)` + navigate to '/' (avoid page.reload with networkidle — it can time out on the video/animation-heavy hero).",
+  "rca_of_the_issue": "N/A — no bugs found in this iteration. Only cosmetic observation is that the public Header still shows 'Sign in' when a user is authenticated; not part of P2 scope but flagged for polish."
+}

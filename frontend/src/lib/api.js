@@ -39,6 +39,13 @@ export const publicAPI = {
 export const userAPI = {
   kycSubmit: (data) => api.post('/users/kyc/submit', data).then(r => r.data),
   kycStatus: () => api.get('/users/kyc/status').then(r => r.data),
+  notifications: (onlyUnread = false) => api.get('/users/notifications', { params: { only_unread: onlyUnread } }).then(r => r.data),
+  markAllRead: () => api.post('/users/notifications/mark-read').then(r => r.data),
+};
+
+export const productionAPI = {
+  upcomingDraws: (hours = 24) => api.get('/production/upcoming-draws', { params: { hours } }).then(r => r.data),
+  draw: (contestId) => api.post(`/production/draw/${contestId}`).then(r => r.data),
 };
 
 export const adminAPI = {

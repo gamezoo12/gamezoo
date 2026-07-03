@@ -64,6 +64,7 @@ from routers.admin_routes import router as admin_router
 from routers.meera_routes import router as meera_router, public_router as meera_public_router
 from routers.user_routes import router as user_router
 from routers.settings_routes import router as settings_router, public_router as settings_public_router
+from routers.production_routes import production_router, notif_router
 
 app.include_router(auth_router)
 app.include_router(contest_router)
@@ -74,6 +75,8 @@ app.include_router(meera_public_router)
 app.include_router(user_router)
 app.include_router(settings_router)
 app.include_router(settings_public_router)
+app.include_router(production_router)
+app.include_router(notif_router)
 
 
 app.add_middleware(
@@ -88,6 +91,15 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 
+@app.on_event('startup')
+async def _start_scheduler():
+    from services import scheduler as draw_scheduler
+    draw_scheduler.start(db)
+    logger.info('Draw scheduler started')
+
+
 @app.on_event('shutdown')
 async def shutdown_db_client():
+    from services import scheduler as draw_scheduler
+    draw_scheduler.stop()
     client.close()

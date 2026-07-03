@@ -1,9 +1,8 @@
 from fastapi import APIRouter, HTTPException, Request
 from datetime import datetime, timedelta, timezone
-import random
 
 from auth import require_admin, get_current_user
-from models import Winner
+from models import Winner  # noqa: F401 (kept for other endpoints that may use it)
 
 router = APIRouter(prefix='/api/admin', tags=['admin'])
 
@@ -179,28 +178,20 @@ async def all_winners(request: Request):
 
 @router.post('/draw/{contest_id}')
 async def draw_winner(contest_id: str, request: Request):
-    await require_admin(request)
+    await _require_role(request, ['admin', 'super_admin', 'operator'])
     from server import db_ref
+    from services.draw_service import draw_contest as _draw
     db = db_ref()
-    c = await db.contests.find_one({'contest_id': contest_id}, {'_id': 0})
-    if not c:
-        raise HTTPException(status_code=404, detail='Contest not found')
-    if c.get('status') == 'drawn':
-        raise HTTPException(status_code=400, detail='Contest already drawn')
-    tickets = await db.tickets.find({'contest_id': contest_id}, {'_id': 0}).to_list(100000)
-    if not tickets:
-        raise HTTPException(status_code=400, detail='No tickets sold')
-    chosen = random.choice(tickets)
-    user = await db.users.find_one({'user_id': chosen['user_id']}, {'_id': 0, 'password_hash': 0})
-    winner = Winner(
-        contest_id=contest_id, user_id=chosen['user_id'],
-        user_name=user['name'] if user else 'Anonymous',
-        ticket_number=chosen['ticket_number'],
-        prize_amount=c['prize_amount'], prize_title=c['title'],
-    )
-    await db.winners.insert_one(winner.model_dump())
-    await db.contests.update_one({'contest_id': contest_id}, {'$set': {'status': 'drawn'}})
-    return {'winner': winner.model_dump()}
+    result = await _draw(db, contest_id)
+    if not result.get('ok'):
+        reason_map = {
+            'contest_not_found': (404, 'Contest not found'),
+            'already_drawn': (400, 'Contest already drawn'),
+            'no_tickets': (400, 'No tickets sold'),
+        }
+        code, msg = reason_map.get(result.get('reason'), (400, result.get('reason', 'Draw failed')))
+        raise HTTPException(status_code=code, detail=msg)
+    return {'winner': result['winner']}
 
 
 @router.post('/winners/{winner_id}/mark-paid')
