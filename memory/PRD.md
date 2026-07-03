@@ -23,18 +23,27 @@ Production-ready skill-based sweepstakes web app (rebranded from "Prize Paradise
 - [x] Production panel: Operations, Live Draw, Prize Inventory, Winners Feed, KYC
 - [x] Meera AI assistant (uses Emergent LLM Key + emergentintegrations)
 - [x] Seeded 52 live contests
-- [x] **Admin/Player UX split** – separate `/admin/login` staff portal, no admin links on public header/footer (2026-02)
-- [x] **Colorful animated hero** – animated purple→magenta→orange gradient + background video + floating badges (2026-02)
-- [x] **Real live-draw scheduler** – 60s async loop auto-draws contests when `end_date` passes; manual "Draw now" from Operations page (2026-02)
-- [x] **Winner in-app notifications** – bell + panel in public header, unread badge, auto mark-read on open (2026-02)
-- [x] **Header session UX** – shows user avatar+dropdown when logged in, Sign in/Play Now when anonymous (2026-02)
+- [x] Admin/Player UX split – separate `/admin/login` staff portal (2026-02)
+- [x] Colorful animated hero – animated gradient + background video + floating badges (2026-02)
+- [x] Live-draw scheduler – 60s asyncio loop + manual "Draw now" (2026-02)
+- [x] Winner in-app notifications – header bell + panel with unread badge (2026-02)
+- [x] Header session UX – user avatar+dropdown when logged in (2026-02)
+- [x] **Code-quality pass** (2026-02):
+  - Broke circular import via `deps.py`
+  - `secrets.choice` for cryptographically fair draws
+  - Refactored Meera's 217-line `_execute_actions` → `services/meera_actions.py` dispatch table (per-action handlers, each <25 LoC)
+  - `meera_routes.py`: 434 → 164 lines
+  - Hook-deps fixed, empty catches replaced with logging, `useMemo`+`useCallback` on `AuthContext`
+  - Stable list keys (HeroBanner, MeeraChat, MyAccount stats)
+  - CSP + strict referrer meta tags on `index.html`
+  - Test admin creds via env vars with fallback
 
 ## Architecture
 - Frontend: React (CRA) + Tailwind + Shadcn UI. Backend URL from `REACT_APP_BACKEND_URL`.
 - Backend: FastAPI, Motor async. All routes under `/api`. Env from `MONGO_URL`, `DB_NAME`, `EMERGENT_LLM_KEY`.
+- Shared: `backend/deps.py` (motor client, `get_db()`), `backend/services/draw_service.py`, `backend/services/scheduler.py`, `backend/services/meera_actions.py`.
 - AI: `emergentintegrations` (GPT-4o-mini via Emergent LLM Key).
 - Background: `services/scheduler.py` asyncio task started at FastAPI startup event, 60s tick.
-- Shared draw logic: `services/draw_service.py::draw_contest(db, contest_id)` (used by both scheduler and manual endpoints).
 
 ## Roadmap
 ### P1 (needs user-supplied keys)
@@ -47,11 +56,18 @@ Production-ready skill-based sweepstakes web app (rebranded from "Prize Paradise
 - Payout reconciliation dashboard
 
 ### Nice-to-have
-- `secrets.choice` for cryptographically fair draws (currently `random.choice`)
-- Pydantic `Notification` model for type-safety
+- localStorage → httpOnly cookie migration for auth (currently mitigated with CSP)
+- Extract heavy components (CompetitionDetail, EditContestDialog) into smaller sub-components
+- Reduce complexity of `auth.get_current_user`, `order_routes.checkout`, `admin_routes.update_contest_full`
 
 ## Test credentials
 See `/app/memory/test_credentials.md`.
+
+## Test suites
+- `/app/backend/tests/backend_test.py` – 16 regression
+- `/app/backend/tests/test_scheduler_notifications.py` – 11 (P2)
+- `/app/backend/tests/test_meera_refactor.py` – 5 (refactor safety)
+- Total: **32/32 pass** as of 2026-02
 
 ## Known mocked flows
 - Stripe checkout → mock (no real charge)
