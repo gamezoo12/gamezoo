@@ -51,3 +51,23 @@
     radial-gradient(circle at 30% 70%, rgba(251,191,36,.4) 0 3px, transparent 4px),
     radial-gradient(circle at 65% 80%, rgba(168,85,247,.35) 0 3px, transparent 4px);
 }
+
+
+/* Colorful animated hero gradient */
+@keyframes gzHeroShift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.gz-hero-gradient {
+  background: linear-gradient(120deg, #0f172a 0%, #1e1b4b 20%, #6d28d9 40%, #db2777 62%, #f97316 82%, #f59e0b 100%);
+  background-size: 300% 300%;
+  animation: gzHeroShift 18s ease infinite;
+}
+
+/* Bigger confetti dot pattern used on hero */
+@keyframes confettiDrift {
+  0%   { background-position: 0 0, 0 0, 0 0, 0 0; }
+  100% { background-position: 60px 100px, -50px 90px, 40px -80px, -60px -110px; }
+}
+.confetti { animation: confettiDrift 22s linear infinite; }

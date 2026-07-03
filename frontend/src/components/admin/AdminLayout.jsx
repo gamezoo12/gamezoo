@@ -23,7 +23,7 @@ export default function AdminLayout() {
 
   useEffect(() => {
     if (loading) return;
-    if (!user) nav('/login', { replace: true });
+    if (!user) nav('/admin/login', { replace: true });
     else if (!['admin', 'super_admin', 'operator', 'support'].includes(user.role)) nav('/', { replace: true });
   }, [user, loading, nav]);
 

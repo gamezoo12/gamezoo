@@ -57,6 +57,8 @@ function AppRouter() {
         <Route path="/free-entry" element={<FreeEntry />} />
       </Route>
 
+      <Route path="/admin/login" element={<AdminLogin />} />
+
       <Route path="/admin" element={<AdminLayout />}>
         <Route index element={<AdminDashboard />} />
         <Route path="users" element={<AdminUsers />} />

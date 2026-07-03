@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ShoppingCart, User, Menu, X, Sparkles, Shield } from 'lucide-react';
+import { ShoppingCart, User, Menu, X, Sparkles } from 'lucide-react';
 import { NAV_LINKS } from '../../mock/mockData';
 import { Button } from '../ui/button';
 
@@ -42,7 +42,6 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <Link to="/admin" className="hidden md:inline-flex items-center gap-1 text-xs text-slate-500 hover:text-teal-600 mr-2"><Shield className="w-3.5 h-3.5" /> Admin</Link>
           <Link to="/cart" className="relative p-2 rounded-lg hover:bg-slate-100">
             <ShoppingCart className="w-5 h-5 text-slate-700" />
             {cartCount > 0 && <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-[10px] font-bold rounded-full h-4 min-w-[16px] flex items-center justify-center px-1">{cartCount}</span>}
@@ -57,8 +56,6 @@ export default function Header() {
         <div className="lg:hidden border-t border-slate-100 bg-white">
           <div className="px-4 py-3 flex flex-col gap-2">
             {NAV_LINKS.map((l) => <Link key={l.href} to={l.href} onClick={() => setOpen(false)} className="py-2 text-slate-700">{l.label}</Link>)}
-            <Link to="/admin" onClick={() => setOpen(false)} className="py-2 text-slate-500 text-sm">Admin Panel</Link>
-            <Link to="/production" onClick={() => setOpen(false)} className="py-2 text-slate-500 text-sm">Production Panel</Link>
           </div>
         </div>
       )}

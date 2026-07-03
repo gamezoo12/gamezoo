@@ -110,7 +110,7 @@ export default function Login() {
           </Tabs>
 
           <p className="text-[11px] text-slate-400 text-center mt-5">By continuing you agree to our <a href="/faq" className="underline">Terms</a> and confirm you’re 18 or older.</p>
-          <p className="text-xs text-slate-400 text-center mt-3">Staff? <Link to="/admin-login" className="text-slate-600 hover:text-teal-600 font-semibold">Admin sign-in →</Link></p>
+          <p className="text-xs text-slate-400 text-center mt-3">Staff? <Link to="/admin/login" className="text-slate-600 hover:text-teal-600 font-semibold">Admin sign-in →</Link></p>
         </div>
       </div>
     </div>
