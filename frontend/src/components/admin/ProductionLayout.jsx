@@ -13,7 +13,7 @@ const LINKS = [
 ];
 
 export default function ProductionLayout() {
-  const { user, loading } = useAuth();
+  const { user, loading, logout } = useAuth();
   const nav = useNavigate();
   useEffect(() => {
     if (loading) return;
@@ -41,7 +41,11 @@ export default function ProductionLayout() {
         </nav>
         <div className="p-3 border-t border-slate-800 space-y-1">
           <Link to="/admin" className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-800"><ShieldCheck className="w-4 h-4" /> Admin Panel</Link>
-          <Link to="/" className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-slate-800"><LogOut className="w-4 h-4" /> Back to site</Link>
+          <button
+            data-testid="production-logout"
+            onClick={async () => { await logout(); nav('/admin/login'); }}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-rose-300 hover:bg-rose-500/10"
+          ><LogOut className="w-4 h-4" /> Sign out</button>
         </div>
       </aside>
       <div className="flex-1 flex flex-col min-w-0">

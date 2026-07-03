@@ -50,7 +50,11 @@ export default function AdminLayout() {
         </nav>
         <div className="p-3 border-t border-slate-800">
           <Link to="/production" className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-800"><Package className="w-4 h-4" /> Production Panel</Link>
-          <button onClick={async () => { await logout(); nav('/'); }} className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-slate-800"><LogOut className="w-4 h-4" /> Sign out</button>
+          <button
+            data-testid="admin-logout"
+            onClick={async () => { await logout(); nav('/admin/login'); }}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-rose-300 hover:bg-rose-500/10"
+          ><LogOut className="w-4 h-4" /> Sign out</button>
         </div>
       </aside>
       <div className="flex-1 flex flex-col min-w-0">
