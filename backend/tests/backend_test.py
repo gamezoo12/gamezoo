@@ -14,8 +14,8 @@ import requests
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://contest-arena-16.preview.emergentagent.com").rstrip("/")
 
-ADMIN_EMAIL = "bachanta8@gmail.com"
-ADMIN_PASSWORD = "Herts@910022"
+ADMIN_EMAIL = os.environ.get("ADMIN_TEST_EMAIL", "bachanta8@gmail.com")
+ADMIN_PASSWORD = os.environ.get("ADMIN_TEST_PASSWORD", "Herts@910022")
 
 
 # ---------- Fixtures ----------

@@ -1,23 +1,21 @@
 from fastapi import FastAPI, APIRouter
-from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
 
-ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+from deps import get_client, get_db
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ.get('DB_NAME', 'gamezoo')]
+ROOT_DIR = Path(__file__).parent
+
+# MongoDB connection (owned by deps.py; re-exported for legacy callers)
+client = get_client()
+db = get_db()
 
 
 def db_ref():
-    """Helper for routers to access db without circular imports."""
-    return db
+    """Legacy shim — use `from deps import get_db` in new code."""
+    return get_db()
 
 
 # Create the main app

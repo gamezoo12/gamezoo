@@ -24,8 +24,8 @@ BASE_URL = (os.environ.get('REACT_APP_BACKEND_URL')
 MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
 DB_NAME = os.environ.get('DB_NAME', 'test_database')
 
-ADMIN_EMAIL = 'bachanta8@gmail.com'
-ADMIN_PASSWORD = 'Herts@910022'
+ADMIN_EMAIL = os.environ.get('ADMIN_TEST_EMAIL', 'bachanta8@gmail.com')
+ADMIN_PASSWORD = os.environ.get('ADMIN_TEST_PASSWORD', 'Herts@910022')
 
 TEST_PREFIX = 'TEST_p2_'
 

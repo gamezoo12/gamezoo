@@ -13,7 +13,12 @@ export default function LiveDraw() {
   const [viewers, setViewers] = useState(1);
   const { toast } = useToast();
 
-  useEffect(() => { adminAPI.contests().then(list => { setContests(list); if (list[0]) setSelected(list[0].contest_id); }).catch(() => {}); }, []);
+  useEffect(() => {
+    adminAPI.contests().then(list => {
+      setContests(list);
+      if (list[0]) setSelected(list[0].contest_id);
+    }).catch((err) => console.error('[live-draw] contests:', err?.message));
+  }, []);
 
   const contest = contests.find(c => c.contest_id === selected);
 

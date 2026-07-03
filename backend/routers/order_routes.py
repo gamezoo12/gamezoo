@@ -14,8 +14,8 @@ async def checkout(inp: CheckoutInput, request: Request):
     if not inp.items:
         raise HTTPException(status_code=400, detail='Cart is empty')
 
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
 
     order_items = []
     tickets_to_insert = []
@@ -75,8 +75,8 @@ async def checkout(inp: CheckoutInput, request: Request):
 @router.get('/mine')
 async def my_orders(request: Request):
     user = await get_current_user(request)
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     orders = await db.orders.find({'user_id': user['user_id']}, {'_id': 0}).sort('created_at', -1).to_list(200)
     return orders
 
@@ -84,7 +84,7 @@ async def my_orders(request: Request):
 @router.get('/my-tickets')
 async def my_tickets(request: Request):
     user = await get_current_user(request)
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     tickets = await db.tickets.find({'user_id': user['user_id']}, {'_id': 0}).to_list(1000)
     return tickets

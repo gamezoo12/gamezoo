@@ -27,8 +27,8 @@ async def _require_staff(request: Request):
 @production_router.get('/upcoming-draws')
 async def upcoming_draws(request: Request, hours: int = 24):
     await _require_staff(request)
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     now = datetime.now(timezone.utc)
     horizon = now + timedelta(hours=hours)
 
@@ -54,8 +54,8 @@ async def upcoming_draws(request: Request, hours: int = 24):
 @production_router.post('/draw/{contest_id}')
 async def production_draw(contest_id: str, request: Request):
     await _require_staff(request)
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     result = await draw_contest(db, contest_id)
     if not result.get('ok'):
         code_map = {
@@ -72,8 +72,8 @@ async def production_draw(contest_id: str, request: Request):
 @notif_router.get('')
 async def my_notifications(request: Request, only_unread: bool = False):
     user = await get_current_user(request)
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     q = {'user_id': user['user_id']}
     if only_unread:
         q['read'] = False
@@ -85,8 +85,8 @@ async def my_notifications(request: Request, only_unread: bool = False):
 @notif_router.post('/mark-read')
 async def mark_read(request: Request):
     user = await get_current_user(request)
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     r = await db.notifications.update_many(
         {'user_id': user['user_id'], 'read': False},
         {'$set': {'read': True}},

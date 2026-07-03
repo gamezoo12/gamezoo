@@ -120,9 +120,9 @@ export default function HeroBanner() {
               <div className="mt-3 flex items-center justify-between">
                 <div className="text-xs text-white/80">Tickets from £1</div>
                 <div className="flex gap-1">
-                  {HERO_SLIDES.map((_, idx) => (
+                  {HERO_SLIDES.map((slide, idx) => (
                     <button
-                      key={idx}
+                      key={slide.title}
                       onClick={() => setI(idx)}
                       aria-label={`Slide ${idx + 1}`}
                       className={`h-2 rounded-full transition-all ${idx === i ? 'w-8 bg-white' : 'w-2 bg-white/50'}`}

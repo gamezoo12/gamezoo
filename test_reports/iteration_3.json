@@ -1,0 +1,33 @@
+{
+  "summary": "Iteration 3 refactor regression. All existing backend tests still green: /app/backend/tests/backend_test.py = 16/16 and /app/backend/tests/test_scheduler_notifications.py = 11/11. Added new /app/backend/tests/test_meera_refactor.py = 5/5 (admin Meera create_contests via chat, public chat cannot create, /api/production/upcoming-draws shape, /api/admin/draw still creates winner+notification, meera public 'How does GameZoo work?' returns non-empty reply with no create action executed). Frontend: Home / renders hero-banner + hero-video + both hero CTAs; only console errors are the two expected anonymous 401s for /api/auth/me and /api/users/notifications. Admin login (bachanta8@gmail.com / Herts@910022) via /admin/login → lands on /admin, Dashboard cards render, no console errors. When logged in on public /, both data-testid='header-user-menu' AND data-testid='notifications-bell' are visible (previous iteration_2 minor gap now closed). Meera chat launcher opens the panel; sending 'How does GameZoo work?' streams a proper multi-paragraph reply. No React duplicate-key warnings observed. Zero behavior change confirmed after deps.py extraction, secrets.choice, services/meera_actions.py split, and AuthContext/NotificationsBell memoization refactor.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_scheduler_notifications.py",
+    "/app/backend/tests/test_meera_refactor.py",
+    "/app/test_reports/pytest/iter3_backend_test.xml",
+    "/app/test_reports/pytest/iter3_scheduler_test.xml",
+    "/app/test_reports/pytest/iter3_meera_refactor.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "deps.py extraction is clean — single AsyncIOMotorClient at import time, get_db() returns shared handle, db_ref alias preserved for back-compat. No circular-import risk anymore.",
+    "services/meera_actions.py: dispatch table + per-action handlers dropped meera_routes.py from 434 to 164 lines and each handler is <25 LoC. All handlers catch expected errors internally and return {ok:false,error:...}; only unexpected exceptions bubble to dispatch_action wrapper — good defensive style.",
+    "draw_service.py using secrets.choice is the right upgrade (was previously random.choice — flagged in iter2 review). Verified via test_meera_refactor.TestAdminDrawStillWorks that draws still succeed and create a Winner + notification.",
+    "AuthContext.js useMemo(value) + useCallback methods will prevent unnecessary re-renders in downstream consumers (Header, NotificationsBell, MeeraChat). Verified: no infinite-loop console warnings during login flow.",
+    "MeeraChat.jsx stable message ids: verified — no React 'duplicate key' warnings after sending message and receiving reply.",
+    "CSP meta tag: connect-src includes https:/wss:, so REACT_APP_BACKEND_URL fetches + WebSocket-based hot reload still work. Verified home + admin dashboard load fine.",
+    "Minor: tests/backend_test.py and test_scheduler_notifications.py still fall back to hard-coded BASE_URL/admin creds when envs are unset — acceptable for local dev but flagged for hardening (should use pytest.skip if env missing in CI)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_meera_refactor.py (created)"
+  ],
+  "success_rate": {"backend": "100% (32/32: 16 regression + 11 scheduler + 5 refactor)", "frontend": "100% (home hero, admin login+dashboard, header user-menu, notifications-bell, Meera chat all pass)"},
+  "test_credentials": "Admin bachanta8@gmail.com / Herts@910022 (from /app/memory/test_credentials.md). Envs ADMIN_TEST_EMAIL/ADMIN_TEST_PASSWORD honoured if set.",
+  "seed_data_creation": "TEST_p3_ prefix contests/tickets/winners/notifications inserted directly via pymongo in test_meera_refactor.py fixtures and cleaned up in try/finally. Meera-created 'Win £50 Cash' contests deleted after admin-chat test run. Verified 0 TEST_p3_* documents remain post-run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Three backend test suites now live: backend_test.py (16), test_scheduler_notifications.py (11), test_meera_refactor.py (5). All ~40s combined via `REACT_APP_BACKEND_URL=... pytest backend/tests/ -v`. pytest.ini uses xdist -n 2 loadscope. When testing Meera admin actions, remember: LLM occasionally returns extra actions — the refactor test asserts *presence* of create_contests + count=2, not exclusivity. For UI: use localStorage.setItem('gz_token', <jwt>) + goto('/') to fast-login; the AuthContext hydrates from token on mount. Header now shows data-testid='header-user-menu' + data-testid='notifications-bell' when authenticated (both were partially missing in iter2 — now closed).",
+  "rca_of_the_issue": "N/A — pure refactor iteration, zero behavior regressions detected."
+}

@@ -27,8 +27,8 @@ DEFAULT_SETTINGS = {
 @router.get('')
 async def get_settings(request: Request):
     await require_admin(request)
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     doc = await db.settings.find_one({'_id': 'app'}, {'_id': 0})
     if not doc:
         return DEFAULT_SETTINGS
@@ -39,8 +39,8 @@ async def get_settings(request: Request):
 @router.put('')
 async def update_settings(payload: dict, request: Request):
     await require_admin(request)
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     updates = {k: v for k, v in (payload or {}).items() if k in DEFAULT_SETTINGS}
     if not updates:
         raise HTTPException(status_code=400, detail='No valid settings to update')
@@ -55,8 +55,8 @@ public_router = APIRouter(prefix='/api/settings', tags=['settings-public'])
 
 @public_router.get('')
 async def public_settings():
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     doc = await db.settings.find_one({'_id': 'app'}, {'_id': 0}) or {}
     merged = {**DEFAULT_SETTINGS, **doc}
     safe_keys = {'site_name', 'tagline', 'support_email', 'support_phone',

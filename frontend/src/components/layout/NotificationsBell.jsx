@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Bell, Trophy, X } from 'lucide-react';
 import { userAPI } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
@@ -10,20 +10,22 @@ export default function NotificationsBell() {
   const [unread, setUnread] = useState(0);
   const ref = useRef(null);
 
-  const load = () => {
+  const load = useCallback(() => {
     if (!user) return;
     userAPI.notifications().then(({ notifications, unread }) => {
       setItems(notifications || []);
       setUnread(unread || 0);
-    }).catch(() => {});
-  };
+    }).catch((err) => {
+      console.error('[notifications] load failed:', err?.message || err);
+    });
+  }, [user]);
 
   useEffect(() => {
-    if (!user) { setItems([]); setUnread(0); return; }
+    if (!user) { setItems([]); setUnread(0); return undefined; }
     load();
     const t = setInterval(load, 30000);
     return () => clearInterval(t);
-  }, [user]);
+  }, [user, load]);
 
   useEffect(() => {
     const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
@@ -35,7 +37,12 @@ export default function NotificationsBell() {
     const next = !open;
     setOpen(next);
     if (next && unread > 0) {
-      try { await userAPI.markAllRead(); setUnread(0); } catch { /* noop */ }
+      try {
+        await userAPI.markAllRead();
+        setUnread(0);
+      } catch (err) {
+        console.warn('[notifications] mark-read failed:', err?.message || err);
+      }
     }
   };
 

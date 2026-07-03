@@ -8,7 +8,11 @@ const STORAGE_KEY = 'gz_meera_history';
 export default function MeeraChat({ theme = 'light', onActionsExecuted, publicMode = false }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState(() => {
-    try { return JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
+    try {
+      const raw = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '[]');
+      // Backfill ids for any older-format messages so keys stay unique + stable
+      return raw.map((m, idx) => (m.id ? m : { ...m, id: `legacy_${idx}_${Math.random().toString(36).slice(2, 8)}` }));
+    } catch { return []; }
   });
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -23,16 +27,18 @@ export default function MeeraChat({ theme = 'light', onActionsExecuted, publicMo
   const send = async (msg) => {
     if (!msg.trim() || busy) return;
     setBusy(true);
-    setMessages(m => [...m, { role: 'user', text: msg }]);
+    const userMsg = { id: `u_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, role: 'user', text: msg };
+    setMessages(m => [...m, userMsg]);
     setInput('');
     try {
       const endpoint = publicMode ? '/meera/chat' : '/admin/meera/chat';
       const r = await api.post(endpoint, { message: msg, session_id: sessionId });
       if (r.data.session_id && !sessionId) { setSessionId(r.data.session_id); sessionStorage.setItem('gz_meera_sid', r.data.session_id); }
-      setMessages(m => [...m, { role: 'meera', text: r.data.reply, actions: r.data.actions, results: r.data.results }]);
+      setMessages(m => [...m, { id: `m_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, role: 'meera', text: r.data.reply, actions: r.data.actions, results: r.data.results }]);
       if (onActionsExecuted && (r.data.results || []).some(x => x.ok)) onActionsExecuted();
     } catch (e) {
-      setMessages(m => [...m, { role: 'meera', text: `Sorry, I hit an error: ${e?.response?.data?.detail || e.message}` }]);
+      console.error('[meera] chat failed:', e?.response?.data?.detail || e.message);
+      setMessages(m => [...m, { id: `err_${Date.now()}`, role: 'meera', text: `Sorry, I hit an error: ${e?.response?.data?.detail || e.message}` }]);
     } finally { setBusy(false); }
   };
 
@@ -90,14 +96,14 @@ export default function MeeraChat({ theme = 'light', onActionsExecuted, publicMo
                   </div>
                 </div>
               )}
-              {messages.map((m, i) => (
-                <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              {messages.map((m) => (
+                <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[85%] rounded-2xl px-4 py-3 border ${m.role === 'user' ? 'bg-gradient-to-br from-indigo-600 to-fuchsia-600 text-white border-transparent' : bubbleBase}`}>
                     <div className="whitespace-pre-wrap text-sm">{m.text}</div>
                     {m.results && m.results.length > 0 && (
                       <div className="mt-2 space-y-1">
                         {m.results.map((r, j) => (
-                          <div key={j} className={`text-xs px-2 py-1 rounded ${r.ok ? 'bg-emerald-500/15 text-emerald-700' : 'bg-rose-500/15 text-rose-700'}`}>
+                          <div key={`${m.id}-r-${j}`} className={`text-xs px-2 py-1 rounded ${r.ok ? 'bg-emerald-500/15 text-emerald-700' : 'bg-rose-500/15 text-rose-700'}`}>
                             <span className="font-mono">{r.action}</span> {r.ok ? '✓' : `✗ ${r.error || ''}`}
                             {r.count !== undefined && ` — ${r.count} created`}
                             {r.launched !== undefined && ` — ${r.launched} launched`}

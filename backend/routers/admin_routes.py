@@ -17,8 +17,8 @@ async def _require_role(request: Request, allowed):
 @router.get('/stats')
 async def stats(request: Request):
     await require_admin(request)
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     users_count = await db.users.count_documents({})
     contests_count = await db.contests.count_documents({})
     orders_count = await db.orders.count_documents({})
@@ -38,8 +38,8 @@ async def stats(request: Request):
 @router.get('/users')
 async def all_users(request: Request):
     await require_admin(request)
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     users = await db.users.find({}, {'_id': 0, 'password_hash': 0}).sort('created_at', -1).to_list(1000)
     for u in users:
         u['tickets'] = await db.tickets.count_documents({'user_id': u['user_id']})
@@ -53,8 +53,8 @@ async def all_users(request: Request):
 @router.put('/users/{user_id}')
 async def update_user(user_id: str, payload: dict, request: Request):
     await _require_role(request, ['admin', 'super_admin'])
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     allowed = {'name', 'email', 'role', 'picture'}
     updates = {k: v for k, v in (payload or {}).items() if k in allowed}
     if 'role' in updates and updates['role'] not in ('user', 'admin', 'super_admin', 'operator', 'support'):
@@ -68,8 +68,8 @@ async def update_user(user_id: str, payload: dict, request: Request):
 @router.post('/users/{user_id}/suspend')
 async def suspend_user(user_id: str, request: Request):
     await require_admin(request)
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     await db.users.update_one({'user_id': user_id}, {'$set': {'suspended': True}})
     return {'ok': True}
 
@@ -77,8 +77,8 @@ async def suspend_user(user_id: str, request: Request):
 @router.post('/users/{user_id}/unsuspend')
 async def unsuspend_user(user_id: str, request: Request):
     await require_admin(request)
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     await db.users.update_one({'user_id': user_id}, {'$set': {'suspended': False}})
     return {'ok': True}
 
@@ -86,8 +86,8 @@ async def unsuspend_user(user_id: str, request: Request):
 @router.get('/orders')
 async def all_orders(request: Request):
     await require_admin(request)
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     orders = await db.orders.find({}, {'_id': 0}).sort('created_at', -1).to_list(500)
     for o in orders:
         u = await db.users.find_one({'user_id': o['user_id']}, {'_id': 0, 'name': 1, 'email': 1})
@@ -99,8 +99,8 @@ async def all_orders(request: Request):
 @router.post('/orders/{order_id}/refund')
 async def refund_order(order_id: str, request: Request):
     await require_admin(request)
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     o = await db.orders.find_one({'order_id': order_id}, {'_id': 0})
     if not o:
         raise HTTPException(status_code=404, detail='Order not found')
@@ -117,8 +117,8 @@ async def refund_order(order_id: str, request: Request):
 @router.get('/payments')
 async def all_payments(request: Request):
     await require_admin(request)
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     orders = await db.orders.find({}, {'_id': 0}).sort('created_at', -1).to_list(500)
     for o in orders:
         u = await db.users.find_one({'user_id': o['user_id']}, {'_id': 0, 'name': 1, 'email': 1})
@@ -130,16 +130,16 @@ async def all_payments(request: Request):
 @router.get('/contests')
 async def all_contests(request: Request):
     await require_admin(request)
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     return await db.contests.find({}, {'_id': 0}).sort('end_date', 1).to_list(500)
 
 
 @router.put('/contests/{contest_id}')
 async def update_contest_full(contest_id: str, payload: dict, request: Request):
     await require_admin(request)
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     allowed = {'title', 'subtitle', 'category', 'tag', 'image', 'price', 'tickets_total',
                'prize_amount', 'end_date', 'jackpot', 'featured', 'status', 'skill_question'}
     updates = {}
@@ -171,17 +171,17 @@ async def update_contest_full(contest_id: str, payload: dict, request: Request):
 @router.get('/winners')
 async def all_winners(request: Request):
     await require_admin(request)
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     return await db.winners.find({}, {'_id': 0}).sort('drawn_at', -1).to_list(500)
 
 
 @router.post('/draw/{contest_id}')
 async def draw_winner(contest_id: str, request: Request):
     await _require_role(request, ['admin', 'super_admin', 'operator'])
-    from server import db_ref
+    from deps import get_db
     from services.draw_service import draw_contest as _draw
-    db = db_ref()
+    db = get_db()
     result = await _draw(db, contest_id)
     if not result.get('ok'):
         reason_map = {
@@ -197,8 +197,8 @@ async def draw_winner(contest_id: str, request: Request):
 @router.post('/winners/{winner_id}/mark-paid')
 async def mark_paid(winner_id: str, request: Request):
     await require_admin(request)
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     r = await db.winners.update_one({'winner_id': winner_id}, {'$set': {'paid_out': True}})
     if r.matched_count == 0:
         raise HTTPException(status_code=404, detail='Winner not found')
@@ -208,8 +208,8 @@ async def mark_paid(winner_id: str, request: Request):
 @router.post('/contests/{contest_id}/launch')
 async def launch_contest(contest_id: str, request: Request):
     await require_admin(request)
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     r = await db.contests.update_one({'contest_id': contest_id}, {'$set': {'status': 'live'}})
     if r.matched_count == 0:
         raise HTTPException(status_code=404, detail='Contest not found')
@@ -219,8 +219,8 @@ async def launch_contest(contest_id: str, request: Request):
 @router.post('/contests/{contest_id}/pause')
 async def pause_contest(contest_id: str, request: Request):
     await require_admin(request)
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     r = await db.contests.update_one({'contest_id': contest_id}, {'$set': {'status': 'draft'}})
     if r.matched_count == 0:
         raise HTTPException(status_code=404, detail='Contest not found')
@@ -230,8 +230,8 @@ async def pause_contest(contest_id: str, request: Request):
 @router.delete('/contests/{contest_id}')
 async def delete_contest(contest_id: str, request: Request):
     await require_admin(request)
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     r = await db.contests.delete_one({'contest_id': contest_id})
     if r.deleted_count == 0:
         raise HTTPException(status_code=404, detail='Contest not found')
@@ -243,8 +243,8 @@ async def delete_contest(contest_id: str, request: Request):
 @router.get('/kyc')
 async def list_kyc(request: Request, status: str = 'all'):
     await require_admin(request)
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     q = {} if status == 'all' else {'status': status}
     subs = await db.kyc.find(q, {'_id': 0}).sort('submitted_at', -1).to_list(500)
     for s in subs:
@@ -257,8 +257,8 @@ async def list_kyc(request: Request, status: str = 'all'):
 @router.post('/kyc/{kyc_id}/approve')
 async def approve_kyc(kyc_id: str, request: Request):
     admin = await require_admin(request)
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     r = await db.kyc.update_one({'kyc_id': kyc_id}, {'$set': {
         'status': 'approved',
         'reviewed_at': datetime.now(timezone.utc),
@@ -272,8 +272,8 @@ async def approve_kyc(kyc_id: str, request: Request):
 @router.post('/kyc/{kyc_id}/reject')
 async def reject_kyc(kyc_id: str, payload: dict, request: Request):
     admin = await require_admin(request)
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     r = await db.kyc.update_one({'kyc_id': kyc_id}, {'$set': {
         'status': 'rejected',
         'reviewed_at': datetime.now(timezone.utc),

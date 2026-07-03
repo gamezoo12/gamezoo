@@ -21,11 +21,12 @@ export default function MyAccount() {
   const [kycBusy, setKycBusy] = useState(false);
 
   useEffect(() => {
-    if (loading) return;
-    if (!user) { nav('/login', { replace: true }); return; }
-    ordersAPI.mine().then(setOrders).catch(() => {});
-    ordersAPI.myTickets().then(setTickets).catch(() => {});
-    userAPI.kycStatus().then(setKyc).catch(() => {});
+    if (loading) return undefined;
+    if (!user) { nav('/login', { replace: true }); return undefined; }
+    ordersAPI.mine().then(setOrders).catch((err) => console.error('[account] orders:', err?.message));
+    ordersAPI.myTickets().then(setTickets).catch((err) => console.error('[account] tickets:', err?.message));
+    userAPI.kycStatus().then(setKyc).catch((err) => console.error('[account] kyc:', err?.message));
+    return undefined;
   }, [user, loading, nav]);
 
   const submitKyc = async (e) => {
@@ -64,8 +65,8 @@ export default function MyAccount() {
           { label: 'Active tickets', value: tickets.length, Icon: Ticket, color: 'from-orange-500 to-rose-500' },
           { label: 'Orders', value: orders.length, Icon: Award, color: 'from-amber-400 to-orange-500' },
           { label: 'KYC status', value: kyc.status || 'none', Icon: ShieldCheck, color: 'from-slate-700 to-slate-900' },
-        ].map((s, i) => (
-          <div key={i} className={`rounded-2xl p-5 text-white bg-gradient-to-br ${s.color} shadow-lg`}><s.Icon className="w-6 h-6 opacity-80" /><div className="mt-3 text-2xl font-extrabold font-display capitalize">{s.value}</div><div className="text-sm opacity-90">{s.label}</div></div>
+        ].map((s) => (
+          <div key={s.label} className={`rounded-2xl p-5 text-white bg-gradient-to-br ${s.color} shadow-lg`}><s.Icon className="w-6 h-6 opacity-80" /><div className="mt-3 text-2xl font-extrabold font-display capitalize">{s.value}</div><div className="text-sm opacity-90">{s.label}</div></div>
         ))}
       </div>
 

@@ -22,8 +22,8 @@ class KycSubmit(BaseModel):
 @router.post('/kyc/submit')
 async def submit_kyc(inp: KycSubmit, request: Request):
     user = await get_current_user(request)
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     existing = await db.kyc.find_one({'user_id': user['user_id']}, {'_id': 0})
     doc = {
         'kyc_id': existing['kyc_id'] if existing else f"kyc_{uuid.uuid4().hex[:12]}",
@@ -46,8 +46,8 @@ async def submit_kyc(inp: KycSubmit, request: Request):
 @router.get('/kyc/status')
 async def kyc_status(request: Request):
     user = await get_current_user(request)
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     kyc = await db.kyc.find_one({'user_id': user['user_id']}, {'_id': 0})
     if not kyc:
         return {'status': 'none'}

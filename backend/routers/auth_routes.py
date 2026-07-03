@@ -14,8 +14,8 @@ router = APIRouter(prefix='/api/auth', tags=['auth'])
 
 @router.post('/register')
 async def register(inp: RegisterInput, request: Request):
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     if await db.users.find_one({'email': inp.email.lower()}):
         raise HTTPException(status_code=400, detail='Email already registered')
     user = User(
@@ -36,8 +36,8 @@ async def register(inp: RegisterInput, request: Request):
 
 @router.post('/login')
 async def login(inp: LoginInput):
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     user = await db.users.find_one({'email': inp.email.lower()}, {'_id': 0})
     if not user or not user.get('password_hash') or not verify_password(inp.password, user['password_hash']):
         raise HTTPException(status_code=401, detail='Invalid email or password')
@@ -58,8 +58,8 @@ async def google_session(request: Request):
     if not data:
         raise HTTPException(status_code=401, detail='Invalid session_id')
 
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     email = data['email'].lower()
     user = await db.users.find_one({'email': email}, {'_id': 0})
     if not user:
@@ -118,8 +118,8 @@ async def me(request: Request):
 
 @router.post('/logout')
 async def logout(request: Request, response: Response):
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     token = request.cookies.get('session_token')
     if token:
         await db.user_sessions.delete_one({'session_token': token})

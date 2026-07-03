@@ -29,8 +29,8 @@ def _to_public(c: dict) -> dict:
 
 @router.get('')
 async def list_contests(category: Optional[str] = None, q: Optional[str] = Query(None)):
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     query = {'status': 'live'}
     if category and category != 'all':
         query['category'] = category
@@ -42,8 +42,8 @@ async def list_contests(category: Optional[str] = None, q: Optional[str] = Query
 
 @router.get('/{slug}')
 async def get_contest(slug: str):
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     doc = await db.contests.find_one({'slug': slug}, {'_id': 0})
     if not doc:
         raise HTTPException(status_code=404, detail='Contest not found')
@@ -52,8 +52,8 @@ async def get_contest(slug: str):
 
 @router.post('/{slug}/verify-skill')
 async def verify_skill(slug: str, payload: dict):
-    from server import db_ref
-    db = db_ref()
+    from deps import get_db
+    db = get_db()
     doc = await db.contests.find_one({'slug': slug}, {'_id': 0})
     if not doc:
         raise HTTPException(status_code=404, detail='Contest not found')

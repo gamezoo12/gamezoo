@@ -1,7 +1,7 @@
 """Shared logic for drawing a winner and notifying them."""
 from __future__ import annotations
 from datetime import datetime, timezone
-import random
+import secrets
 import uuid
 
 from models import Winner
@@ -35,7 +35,7 @@ async def draw_contest(db, contest_id: str) -> dict:
         )
         return {'ok': False, 'reason': 'no_tickets'}
 
-    chosen = random.choice(tickets)
+    chosen = secrets.choice(tickets)
     user = await db.users.find_one(
         {'user_id': chosen['user_id']},
         {'_id': 0, 'password_hash': 0},

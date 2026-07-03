@@ -19,9 +19,9 @@ export default function Dashboard() {
   const [contests, setContests] = useState([]);
 
   useEffect(() => {
-    adminAPI.stats().then(setStats).catch(() => {});
-    adminAPI.orders().then(setOrders).catch(() => {});
-    adminAPI.contests().then(setContests).catch(() => {});
+    adminAPI.stats().then(setStats).catch((err) => console.error('[dashboard] stats:', err?.message));
+    adminAPI.orders().then(setOrders).catch((err) => console.error('[dashboard] orders:', err?.message));
+    adminAPI.contests().then(setContests).catch((err) => console.error('[dashboard] contests:', err?.message));
   }, []);
 
   return (
