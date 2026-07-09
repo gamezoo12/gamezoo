@@ -38,6 +38,9 @@ export const publicAPI = {
 };
 
 export const userAPI = {
+  me: () => api.get('/users/me').then(r => r.data),
+  updateMe: (data) => api.patch('/users/me', data).then(r => r.data),
+  changePassword: (data) => api.post('/users/me/password', data).then(r => r.data),
   kycSubmit: (data) => api.post('/users/kyc/submit', data).then(r => r.data),
   kycStatus: () => api.get('/users/kyc/status').then(r => r.data),
   notifications: (onlyUnread = false) => api.get('/users/notifications', { params: { only_unread: onlyUnread } }).then(r => r.data),
