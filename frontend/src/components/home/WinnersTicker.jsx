@@ -14,14 +14,17 @@ export default function WinnersTicker() {
     return () => clearInterval(t);
   }, []);
 
-  // Fallback dummy items so ticker never looks empty
-  const items = (winners && winners.length > 0) ? winners : [
+  // Always show a full row: mix real winners with dummy fallbacks if fewer than 4 real ones
+  const dummies = [
     { user_name: 'Sarah M.', prize_title: 'Win £250 Cash', prize_amount: 250 },
     { user_name: 'James T.', prize_title: 'Win £500 Cash', prize_amount: 500 },
     { user_name: 'Priya K.', prize_title: 'Win £100 Cash', prize_amount: 100 },
     { user_name: 'Ade O.',   prize_title: 'Win £1000 Cash', prize_amount: 1000 },
     { user_name: 'Lucy W.',  prize_title: 'Win £50 Cash',  prize_amount: 50 },
   ];
+  const items = (winners && winners.length >= 4)
+    ? winners
+    : [...(winners || []), ...dummies].slice(0, 6);
   const doubled = [...items, ...items];
 
   return (
