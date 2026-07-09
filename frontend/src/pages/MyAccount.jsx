@@ -46,7 +46,10 @@ export default function MyAccount() {
   useEffect(() => {
     if (loading) return undefined;
     if (!user) { nav('/login', { replace: true }); return undefined; }
-    setProfile({ name: user.name || '', email: user.email || '', phone: user.phone || '' });
+    // Fetch the FULL profile (includes phone/kyc/counts) — /api/auth/me only returns UserPublic
+    userAPI.me()
+      .then(me => setProfile({ name: me.name || '', email: me.email || '', phone: me.phone || '' }))
+      .catch(() => setProfile({ name: user.name || '', email: user.email || '', phone: '' }));
     ordersAPI.mine().then(setOrders).catch((err) => console.error('[account] orders:', err?.message));
     ordersAPI.myTickets().then(setTickets).catch((err) => console.error('[account] tickets:', err?.message));
     userAPI.kycStatus().then(setKyc).catch((err) => console.error('[account] kyc:', err?.message));
@@ -134,14 +137,16 @@ export default function MyAccount() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={goAdmin}
-              data-testid="account-go-admin"
-              variant="outline"
-              className="border-teal-400/50 text-teal-300 bg-teal-400/10 hover:bg-teal-400/20 hover:text-white"
-            >
-              <ShieldCheck className="w-4 h-4 mr-1" /> Sign out → Admin
-            </Button>
+            {['admin', 'super_admin', 'operator', 'support'].includes(user.role) && (
+              <Button
+                onClick={goAdmin}
+                data-testid="account-go-admin"
+                variant="outline"
+                className="border-teal-400/50 text-teal-300 bg-teal-400/10 hover:bg-teal-400/20 hover:text-white"
+              >
+                <ShieldCheck className="w-4 h-4 mr-1" /> Sign out → Admin
+              </Button>
+            )}
             <Button
               onClick={doLogout}
               data-testid="account-signout"
