@@ -47,10 +47,16 @@ export function AuthProvider({ children }) {
     try {
       await authAPI.logout();
     } catch (err) {
-      // Ignore network errors – we still want to clear local session
       console.warn('[auth] logout API failed (clearing local session anyway):', err?.message);
     }
-    localStorage.removeItem('gz_token');
+    // Aggressively purge every trace of the session
+    try {
+      localStorage.removeItem('gz_token');
+      localStorage.removeItem('prizeleague_cart');
+      localStorage.removeItem('gamezoo_cart');
+      sessionStorage.removeItem('gz_meera_history');
+      sessionStorage.removeItem('gz_meera_sid');
+    } catch { /* storage unavailable */ }
     setUser(null);
   }, []);
 

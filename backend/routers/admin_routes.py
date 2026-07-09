@@ -135,6 +135,67 @@ async def all_contests(request: Request):
     return await db.contests.find({}, {'_id': 0}).sort('end_date', 1).to_list(500)
 
 
+@router.post('/contests')
+async def create_contest_api(payload: dict, request: Request):
+    """Create a new contest from the admin UI (no code, no Meera required)."""
+    await require_admin(request)
+    from deps import get_db
+    from models import Contest, SkillQuestion
+    db = get_db()
+
+    # Validate skill question
+    sk = payload.get('skill_question') or {}
+    if not (sk.get('q') and sk.get('answer') and sk.get('options') and len(sk['options']) >= 2):
+        raise HTTPException(status_code=400, detail='Skill question with q/options/answer is required')
+
+    # Slug (server-generated, unique)
+    import re
+    import secrets
+    title = (payload.get('title') or 'Contest').strip()
+    slug_base = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')[:40] or 'contest'
+    slug = f"{slug_base}-{secrets.token_hex(3)}"
+
+    # Parse end_date
+    end_date_val = payload.get('end_date')
+    if isinstance(end_date_val, str):
+        try:
+            end_date_val = datetime.fromisoformat(end_date_val.replace('Z', '+00:00'))
+        except Exception:
+            end_date_val = datetime.now(timezone.utc) + timedelta(days=7)
+    elif not isinstance(end_date_val, datetime):
+        end_date_val = datetime.now(timezone.utc) + timedelta(days=7)
+
+    category = payload.get('category') or 'prize-draws'
+    tag_map = {'jackpot': 'Jackpot', 'instant-wins': 'Instant Wins', 'prize-draws': 'Prize Draws', 'new-games': 'New Game'}
+    prize_amount = float(payload.get('prize_amount') or 100)
+
+    try:
+        contest = Contest(
+            slug=slug,
+            title=title,
+            subtitle=payload.get('subtitle') or f"£{int(prize_amount)} cash prize",
+            category=category,
+            tag=payload.get('tag') or tag_map.get(category, 'Prize Draws'),
+            price=float(payload.get('price') or 1),
+            tickets_total=int(payload.get('tickets_total') or 150),
+            prize_amount=prize_amount,
+            end_date=end_date_val,
+            image=payload.get('image') or 'https://images.pexels.com/photos/928187/pexels-photo-928187.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+            jackpot=bool(payload.get('jackpot')) or prize_amount >= 250,
+            featured=bool(payload.get('featured')),
+            skill_question=SkillQuestion(
+                q=sk['q'], options=list(sk['options']), answer=sk['answer'],
+                type=sk.get('type', 'trivia'),
+            ),
+            status=payload.get('status', 'draft') if payload.get('status') in ('draft', 'live') else 'draft',
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f'Invalid contest data: {e}')
+
+    await db.contests.insert_one(contest.model_dump())
+    return {'ok': True, 'contest': contest.model_dump()}
+
+
 @router.put('/contests/{contest_id}')
 async def update_contest_full(contest_id: str, payload: dict, request: Request):
     await require_admin(request)

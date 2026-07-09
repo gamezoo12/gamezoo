@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 4 (Prize League rebrand + logout + create-contest UI). Backend: 37/37 pytest pass (16 backend_test + 11 scheduler + 5 meera_refactor + 5 new test_create_contest). New file /app/backend/tests/test_create_contest.py added — covers auth (401/403), validation (missing skill_question & <2 options both 400), success (draft appears in /api/admin/contests but NOT public, then cleanup) and live (surfaces in public /api/contests). Frontend: All UI flows verified end-to-end against the preview URL. (1) REBRAND: <title>='Prize League — UK Skill-Based Prize Contests', header 'PrizeLeague' + teal accent, footer 'PrizeLeague' + 'Prize League' copyright, admin sidebar 'Prize League'+'ADMIN PANEL', production sidebar 'Prize League'+'PRODUCTION PANEL', admin-login card 'Prize League'/'STAFF PORTAL'. No visible 'GameZoo' anywhere. (2) LOGOUT (all 3 paths verified): admin-logout, header-logout, production-logout — each clears localStorage.gz_token to null AND lands on the correct hard-redirected route. Ghost-session guard verified: navigating to /admin after admin-logout bounces to /admin/login (no cached session). (3) CREATE CONTEST: '+ New contest' opens modal titled 'Create new contest'; filled title 'TEST_UI Contest £77', prize £77, price £1, tickets 50, category prize-draws, picked 1st of 6 gallery thumbs (image URL auto-filled), publish='Go live now'. 'Create contest' → toast 'Contest created' + contest appeared in admin list AND in /api/admin/contests with status='live' prize=77. (4) EDIT CONTEST: 'Edit' opens modal titled 'Edit contest', changed title to '<orig> [Edited]', 'Save changes' persisted (verified via full page refresh). (5) PRIZE WHEEL on Home: data-testid='prize-wheel' visible, 8 slices rendered (£25/£100/£250/£500/£50/Cash!/£1000/FREE), wheel-spin-btn text transitions 'Spin to reveal a prize' → 'Spinning…' → 'Spin again' with landed-prize banner (e.g., 'You landed on FREE'). (6) WINNERS TICKER: data-testid='winners-ticker' visible with 'X just won £Y on Win £Z Cash' items (currently only 1 real winner 'Test User' in DB, ticker repeats it — fallback dummies never triggered because len>0; not a bug, but content is thin). Cleanup: TEST_UI contest deleted via /api/admin/contests/{id} → 200 ok. All contests count restored.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Home WinnersTicker", "issues": ["Only 1 real winner ('Test User') in DB — ticker looks repetitive. Consider seeding 5+ varied winners OR letting the fallback dummy list activate whenever real count < 3 for a livelier look."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_scheduler_notifications.py",
+    "/app/backend/tests/test_meera_refactor.py",
+    "/app/backend/tests/test_create_contest.py",
+    "/app/test_reports/pytest/iter4_all.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "POST /api/admin/contests (admin_routes.py:138) validates skill_question q/options/answer/>=2 opts, generates unique slug (secrets.token_hex(3)), parses end_date ISO safely, allows status=live or draft — clean and defensive. Consider whitelisting `category` to the same 4-value set the frontend uses (prize-draws/instant-wins/jackpot/new-games) to prevent typos leaking into DB.",
+    "EditContestDialog.jsx handles both create+edit via `mode` prop with clean guard `if (!isCreate && !contest) return null` — good reuse. Minor: gallery URLs are hard-coded inline in JSX — could be extracted to a constant for reuse across other admin screens.",
+    "AuthContext.logout() purges gz_token + prizeleague_cart + gamezoo_cart + Meera session keys inside a try/catch — sound cleanup. Combined with `window.location.href=/`|/admin/login hard-nav in Header/AdminLayout/ProductionLayout, this fully eliminates ghost sessions (verified end-to-end).",
+    "Header.jsx still reads/writes localStorage['gamezoo_cart'] (line 19–21) — cart storage key was NOT renamed to 'prizeleague_cart' during the rebrand. Existing users keep their cart contents (backwards-compat), which is fine, but for full brand purity the key should be migrated (write both keys for one release, then drop 'gamezoo_cart').",
+    "WinnersTicker fallback logic: `winners.length > 0` triggers real-only mode. With only 1 real winner in the seeded DB the ticker looks repetitive. Consider `winners.length >= 3 ? real : [...real, ...dummies]` to always render a full row.",
+    "PrizeWheel.jsx uses Math.random() for prize selection — fine for a visual gimmick, but if this ever becomes a real reward mechanic, swap to crypto secrets (server-side) for the same reason draw_service.py moved from random → secrets.choice."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_create_contest.py (new)"
+  ],
+  "success_rate": {"backend": "100% (37/37)", "frontend": "100% (rebrand, 3× logout, create-contest, edit-contest, prize-wheel spin state, winners-ticker all pass)"},
+  "test_credentials": "Admin bachanta8@gmail.com / Herts@910022 (from /app/memory/test_credentials.md).",
+  "seed_data_creation": "test_create_contest.py creates 'TEST_CreateContest £77' and 'TEST_CreateContest LIVE £42' during the module and deletes them via DELETE /api/admin/contests/{id} in each test's finally block. UI create test created 'TEST_UI Contest £77', edited it to add '[Edited]', then deleted via API. Verified 0 TEST_* residues after run (contest count back to baseline 51 live).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Four backend test suites live: backend_test.py (16), test_scheduler_notifications.py (11), test_meera_refactor.py (5), test_create_contest.py (5). Run all: `cd /app/backend && python -m pytest tests/ -v --junitxml=/app/test_reports/pytest/iterX_all.xml` (~60s, uses xdist -n 2 loadscope). Rebrand is 100% complete on the UI — no lingering visible 'GameZoo' — but note that localStorage cart key is still 'gamezoo_cart' (deliberate backwards-compat, flagged in code-review comments). All 3 logout data-testids (header-logout / admin-logout / production-logout) are wired to `await logout(); window.location.href = <route>` — verified they null-out localStorage.gz_token AND that visiting /admin without a token bounces to /admin/login. Create-contest modal has 3 <select> inside: [0]=category, [1]=publish (only when mode='create'), [2]=correct-answer. Gallery has exactly 6 hard-coded Pexels image URLs — clicking any thumb fills the Image URL input. Console errors on every page are just CSP frame-ancestors meta-warning + worker-src blob (harmless PostHog/emergent asset) + 2× anonymous 401 for /api/auth/me and /api/users/notifications (expected).",
+  "rca_of_the_issue": "N/A — all requested features verified end-to-end. User's 'logout does not work' complaint is resolved: each of the 3 buttons (a) awaits AuthContext.logout() which POSTs /api/auth/logout AND aggressively purges localStorage.gz_token + cart + Meera keys and sessionStorage, then (b) does a full-document reload via window.location.href so React's in-memory user state cannot linger. Verified ghost-session guard: /admin without a token → /admin/login (AdminLayout useEffect nav('/admin/login', {replace:true}) fires once loading resolves)."
+}

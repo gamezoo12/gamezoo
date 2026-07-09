@@ -13,14 +13,24 @@ const CATS = [
   { value: 'new-games', label: 'New Game' },
 ];
 
-export default function EditContestDialog({ contest, open, onClose, onSaved }) {
+export default function EditContestDialog({ contest, open, onClose, onSaved, mode = 'edit' }) {
   const { toast } = useToast();
-  const [form, setForm] = useState(() => contest || {});
+  const isCreate = mode === 'create';
+  const emptyForm = {
+    title: '', subtitle: '', category: 'prize-draws', image: '',
+    price: 1, tickets_total: 150, prize_amount: 100,
+    end_date: new Date(Date.now() + 7 * 86400000).toISOString(),
+    jackpot: false, featured: false, status: 'draft',
+    skill_question: { q: 'What is 2 + 2?', options: ['3', '4', '5', '6'], answer: '4', type: 'math' },
+  };
+  const [form, setForm] = useState(() => (isCreate ? emptyForm : (contest || {})));
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { setForm(contest || {}); }, [contest, open]);
+  useEffect(() => {
+    if (open) setForm(isCreate ? emptyForm : (contest || {}));
+  }, [contest, open, isCreate]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!contest) return null;
+  if (!isCreate && !contest) return null;
 
   const upd = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const updSkill = (k, v) => setForm(f => ({ ...f, skill_question: { ...(f.skill_question || {}), [k]: v } }));
@@ -34,19 +44,25 @@ export default function EditContestDialog({ contest, open, onClose, onSaved }) {
         category: form.category,
         image: form.image,
         price: parseFloat(form.price) || 1,
-        tickets_total: parseInt(form.tickets_total) || 100,
+        tickets_total: parseInt(form.tickets_total, 10) || 100,
         prize_amount: parseFloat(form.prize_amount) || 100,
         end_date: form.end_date,
         jackpot: !!form.jackpot,
         featured: !!form.featured,
         skill_question: form.skill_question,
       };
-      await adminAPI.updateContest(contest.contest_id, payload);
-      toast({ title: 'Contest updated' });
+      if (isCreate) {
+        payload.status = form.status || 'draft';
+        await adminAPI.createContest(payload);
+        toast({ title: 'Contest created', description: `"${payload.title}" saved as ${payload.status}` });
+      } else {
+        await adminAPI.updateContest(contest.contest_id, payload);
+        toast({ title: 'Contest updated' });
+      }
       onSaved?.();
       onClose?.();
     } catch (e) {
-      toast({ title: 'Update failed', description: e?.response?.data?.detail });
+      toast({ title: isCreate ? 'Create failed' : 'Update failed', description: e?.response?.data?.detail || e.message });
     } finally { setBusy(false); }
   };
 
@@ -56,7 +72,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved }) {
   return (
     <Dialog open={open} onOpenChange={o => !o && onClose?.()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>Edit contest</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{isCreate ? 'Create new contest' : 'Edit contest'}</DialogTitle></DialogHeader>
 
         <div className="space-y-4 py-3">
           <div>
@@ -95,10 +111,39 @@ export default function EditContestDialog({ contest, open, onClose, onSaved }) {
             <Label>Image URL</Label>
             <Input value={form.image || ''} onChange={e => upd('image', e.target.value)} placeholder="https://…" />
             {form.image && <img src={form.image} alt="" className="mt-2 rounded-lg w-32 h-32 object-cover border" />}
+            <div className="mt-2">
+              <div className="text-xs text-slate-500 mb-1">Or pick from the gallery:</div>
+              <div className="flex gap-2 flex-wrap">
+                {[
+                  'https://images.pexels.com/photos/928187/pexels-photo-928187.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+                  'https://images.pexels.com/photos/15633962/pexels-photo-15633962.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+                  'https://images.pexels.com/photos/19240616/pexels-photo-19240616.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+                  'https://images.pexels.com/photos/9462148/pexels-photo-9462148.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+                  'https://images.pexels.com/photos/973406/pexels-photo-973406.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+                  'https://images.pexels.com/photos/27064826/pexels-photo-27064826.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+                ].map(url => (
+                  <button
+                    key={url}
+                    type="button"
+                    onClick={() => upd('image', url)}
+                    className={`w-14 h-14 rounded-lg overflow-hidden border-2 ${form.image === url ? 'border-teal-500' : 'border-transparent hover:border-slate-300'}`}
+                  ><img src={url} alt="" className="w-full h-full object-cover" /></button>
+                ))}
+              </div>
+            </div>
           </div>
-          <div className="flex gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!form.jackpot} onChange={e => upd('jackpot', e.target.checked)} /> Jackpot</label>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!form.featured} onChange={e => upd('featured', e.target.checked)} /> Featured</label>
+            {isCreate && (
+              <div className="flex items-center gap-2 text-sm ml-auto">
+                <Label className="text-sm">Publish:</Label>
+                <select value={form.status || 'draft'} onChange={e => upd('status', e.target.value)} className="rounded-lg border border-slate-200 px-2 py-1 text-sm">
+                  <option value="draft">On hold (draft)</option>
+                  <option value="live">Go live now</option>
+                </select>
+              </div>
+            )}
           </div>
 
           <div className="pt-3 border-t border-slate-100">
@@ -123,7 +168,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved }) {
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={save} disabled={busy} className="bg-teal-600 hover:bg-teal-700">{busy ? 'Saving…' : 'Save changes'}</Button>
+          <Button onClick={save} disabled={busy} className="bg-teal-600 hover:bg-teal-700">{busy ? 'Saving…' : (isCreate ? 'Create contest' : 'Save changes')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

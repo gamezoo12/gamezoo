@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { HERO_SLIDES } from '../../mock/mockData';
 import { Link } from 'react-router-dom';
 import { Button } from '../ui/button';
-import { ChevronLeft, ChevronRight, Sparkles, Trophy, Zap, Play } from 'lucide-react';
+import { Sparkles, Trophy, Zap, Play } from 'lucide-react';
+import PrizeWheel from './PrizeWheel';
 
 const BG_VIDEO = 'https://videos.pexels.com/video-files/2795750/2795750-hd_1920_1080_25fps.mp4';
 
@@ -100,59 +101,15 @@ export default function HeroBanner() {
           </div>
         </div>
 
-        {/* Right side – floating prize card */}
-        <div className="relative hidden lg:block">
-          <div className="relative aspect-[4/3] rounded-3xl overflow-hidden shadow-2xl shadow-black/60 border border-white/20 bg-black/30 backdrop-blur-sm">
-            <img src={s.image} alt={s.title} className="w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
-
-            {/* Live pill */}
-            <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500 text-white text-[11px] font-bold uppercase tracking-wider shadow-lg">
-              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> Live now
-            </div>
-            <div className="absolute top-4 right-4 px-3 py-1.5 rounded-full bg-white/95 backdrop-blur text-[11px] font-extrabold text-slate-900 shadow-lg">
-              SKILL-BASED
-            </div>
-
-            <div className="absolute bottom-5 left-5 right-5">
-              <div className="text-white/80 text-xs uppercase tracking-widest">Top prize</div>
-              <div className="font-display text-4xl font-extrabold text-white drop-shadow-lg">£500 Cash</div>
-              <div className="mt-3 flex items-center justify-between">
-                <div className="text-xs text-white/80">Tickets from £1</div>
-                <div className="flex gap-1">
-                  {HERO_SLIDES.map((slide, idx) => (
-                    <button
-                      key={slide.title}
-                      onClick={() => setI(idx)}
-                      aria-label={`Slide ${idx + 1}`}
-                      className={`h-2 rounded-full transition-all ${idx === i ? 'w-8 bg-white' : 'w-2 bg-white/50'}`}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <button
-              onClick={() => setI((i - 1 + HERO_SLIDES.length) % HERO_SLIDES.length)}
-              aria-label="Previous"
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/90 hover:bg-white flex items-center justify-center shadow-lg"
-            >
-              <ChevronLeft className="w-4 h-4 text-slate-900" />
-            </button>
-            <button
-              onClick={() => setI((i + 1) % HERO_SLIDES.length)}
-              aria-label="Next"
-              className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/90 hover:bg-white flex items-center justify-center shadow-lg"
-            >
-              <ChevronRight className="w-4 h-4 text-slate-900" />
-            </button>
-          </div>
+        {/* Right side – Prize Wheel + floating badges */}
+        <div className="relative hidden lg:flex items-center justify-center">
+          <PrizeWheel />
 
           {/* Floating badges */}
-          <div className="absolute -top-5 -left-5 rotate-[-6deg] px-4 py-2 rounded-2xl bg-gradient-to-r from-amber-300 to-orange-400 text-slate-900 font-extrabold text-sm shadow-2xl shadow-amber-500/40 float">
+          <div className="absolute -top-2 -left-2 rotate-[-6deg] px-4 py-2 rounded-2xl bg-gradient-to-r from-amber-300 to-orange-400 text-slate-900 font-extrabold text-sm shadow-2xl shadow-amber-500/40 float">
             🎉 Instant Win
           </div>
-          <div className="absolute -bottom-5 -right-4 rotate-[5deg] px-4 py-2 rounded-2xl bg-gradient-to-r from-fuchsia-500 to-pink-500 text-white font-extrabold text-sm shadow-2xl shadow-fuchsia-500/40 float" style={{ animationDelay: '1s' }}>
+          <div className="absolute -bottom-2 -right-2 rotate-[5deg] px-4 py-2 rounded-2xl bg-gradient-to-r from-fuchsia-500 to-pink-500 text-white font-extrabold text-sm shadow-2xl shadow-fuchsia-500/40 float" style={{ animationDelay: '1s' }}>
             💷 Same-day payout
           </div>
         </div>

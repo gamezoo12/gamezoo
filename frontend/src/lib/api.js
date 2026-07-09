@@ -23,6 +23,7 @@ export const contestsAPI = {
   list: (params = {}) => api.get('/contests', { params }).then(r => r.data),
   get: (slug) => api.get(`/contests/${slug}`).then(r => r.data),
   verifySkill: (slug, answer) => api.post(`/contests/${slug}/verify-skill`, { answer }).then(r => r.data),
+  recentWinners: () => api.get('/public/winners').then(r => r.data),
 };
 
 export const ordersAPI = {
@@ -59,6 +60,7 @@ export const adminAPI = {
   payments: () => api.get('/admin/payments').then(r => r.data),
   contests: () => api.get('/admin/contests').then(r => r.data),
   updateContest: (id, data) => api.put(`/admin/contests/${id}`, data).then(r => r.data),
+  createContest: (data) => api.post('/admin/contests', data).then(r => r.data),
   winners: () => api.get('/admin/winners').then(r => r.data),
   draw: (contestId) => api.post(`/admin/draw/${contestId}`).then(r => r.data),
   markPaid: (winnerId) => api.post(`/admin/winners/${winnerId}/mark-paid`).then(r => r.data),

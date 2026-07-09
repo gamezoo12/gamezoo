@@ -125,7 +125,7 @@ async def main():
                 price=1.0,
                 tickets_total=tickets,
                 prize_amount=float(prize),
-                end_date=days_from_now(3 + (i % 14)),
+                end_date=days_from_now(30 + (i % 60)),
                 image=IMG_LIST[i % len(IMG_LIST)],
                 jackpot=is_big,
                 featured=i < 3,

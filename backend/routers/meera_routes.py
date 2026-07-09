@@ -1,4 +1,4 @@
-"""Meera AI assistant for GameZoo admin/production panels.
+"""Meera AI assistant for Prize League admin/production panels.
 
 Uses Emergent LLM to interpret natural-language commands and returns a
 structured plan of actions (create/update/delete/launch/pause/draw contests),
@@ -22,7 +22,7 @@ EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY')
 
 
 
-SYSTEM_PROMPT = """You are Meera, GameZoo's warm and highly-capable AI assistant. GameZoo is a UK skill-based prize competition platform.
+SYSTEM_PROMPT = """You are Meera, Prize League's warm and highly-capable AI assistant. Prize League is a UK skill-based prize competition platform.
 
 ## Your personality
 - You are conversational, warm and helpful — like ChatGPT, not a rigid bot.
@@ -40,7 +40,7 @@ You ALWAYS respond with ONE valid JSON object (nothing else, no markdown, no cod
 }
 
 - Put your entire conversational reply in the "reply" field. Be natural, warm, multi-paragraph if useful.
-- Only include actions when the user is explicitly asking you to CHANGE something in GameZoo (create/edit/delete/launch/pause/draw a contest, manage a user, approve KYC, refund an order, etc.).
+- Only include actions when the user is explicitly asking you to CHANGE something in Prize League (create/edit/delete/launch/pause/draw a contest, manage a user, approve KYC, refund an order, etc.).
 - If it's small talk, questions, brainstorming, discussion, or clarification needed → "actions": [].
 - Never invent or add actions the user didn't request.
 

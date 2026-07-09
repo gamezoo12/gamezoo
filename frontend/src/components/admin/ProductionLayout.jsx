@@ -30,7 +30,7 @@ export default function ProductionLayout() {
       <aside className="w-64 bg-slate-900 text-slate-200 hidden md:flex flex-col border-r border-slate-800">
         <Link to="/" className="flex items-center gap-2 p-5 border-b border-slate-800">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-500 to-rose-500 flex items-center justify-center text-white"><Sparkles className="w-5 h-5" /></div>
-          <div><div className="font-display font-bold text-white">GameZoo</div><div className="text-[10px] uppercase tracking-wider text-orange-400">Production Panel</div></div>
+          <div><div className="font-display font-bold text-white">Prize League</div><div className="text-[10px] uppercase tracking-wider text-orange-400">Production Panel</div></div>
         </Link>
         <nav className="flex-1 p-3 space-y-1">
           {LINKS.map(l => (
@@ -43,14 +43,14 @@ export default function ProductionLayout() {
           <Link to="/admin" className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-800"><ShieldCheck className="w-4 h-4" /> Admin Panel</Link>
           <button
             data-testid="production-logout"
-            onClick={async () => { await logout(); nav('/admin/login'); }}
+            onClick={async () => { await logout(); window.location.href = '/admin/login'; }}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-rose-300 hover:bg-rose-500/10"
           ><LogOut className="w-4 h-4" /> Sign out</button>
         </div>
       </aside>
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-14 bg-slate-900 border-b border-slate-800 px-5 flex items-center justify-between text-slate-200">
-          <Link to="/" className="font-display font-semibold hover:text-orange-400">← GameZoo Production</Link>
+          <Link to="/" className="font-display font-semibold hover:text-orange-400">← Prize League Production</Link>
           <div className="flex items-center gap-2 text-xs text-emerald-400"><span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> Live systems OK</div>
         </header>
         <main className="p-6 flex-1 text-slate-100"><Outlet /></main>

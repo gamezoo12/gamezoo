@@ -19,7 +19,7 @@ def db_ref():
 
 
 # Create the main app
-app = FastAPI(title='GameZoo API')
+app = FastAPI(title='Prize League API')
 
 # Basic root
 api_router = APIRouter(prefix='/api')

@@ -11,7 +11,7 @@ export default function FreeEntry() {
         <ShieldCheck className="w-3.5 h-3.5" /> UK LAW COMPLIANT • FREE ENTRY ROUTE
       </div>
       <h1 className="font-display text-4xl font-extrabold text-slate-900">Free Postal Entry</h1>
-      <p className="text-slate-600 mt-3 leading-relaxed">Under UK skill-competition law we are required to offer a genuine free entry route to every GameZoo contest. You can enter any live contest for free by post – you’ll receive the same odds as a paid entry.</p>
+      <p className="text-slate-600 mt-3 leading-relaxed">Under UK skill-competition law we are required to offer a genuine free entry route to every Prize League contest. You can enter any live contest for free by post – you’ll receive the same odds as a paid entry.</p>
 
       <div className="mt-8 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
         <h2 className="font-display text-xl font-bold text-slate-900">How to enter for free</h2>
@@ -25,7 +25,7 @@ export default function FreeEntry() {
           </li>
           <li>Post the card to:
             <div className="mt-2 p-4 rounded-xl bg-slate-50 border border-slate-100 text-sm text-slate-800 font-mono">
-              GameZoo Free Entry<br />PO Box 4210<br />London EC1A 1BB<br />United Kingdom
+              Prize League Free Entry<br />PO Box 4210<br />London EC1A 1BB<br />United Kingdom
             </div>
           </li>
           <li>Your card must arrive at least 24 hours before the contest’s draw time to be valid. One card = one entry per contest, per person, per day.</li>
@@ -40,7 +40,7 @@ export default function FreeEntry() {
 
       <div className="mt-6 flex flex-col sm:flex-row gap-3">
         <Link to="/competitions"><Button className="bg-teal-600 hover:bg-teal-700">Browse contests</Button></Link>
-        <a href="mailto:support@gamezoo.co.uk"><Button variant="outline"><Mail className="w-4 h-4 mr-1" /> Questions? support@gamezoo.co.uk</Button></a>
+        <a href="mailto:support@prizeleague.co.uk"><Button variant="outline"><Mail className="w-4 h-4 mr-1" /> Questions? support@prizeleague.co.uk</Button></a>
       </div>
     </div>
   );

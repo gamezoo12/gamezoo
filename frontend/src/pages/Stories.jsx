@@ -5,7 +5,7 @@ export default function Stories() {
   return (
     <div className="max-w-7xl mx-auto px-4 lg:px-8 py-10">
       <h1 className="font-display text-4xl font-extrabold text-slate-900">Stories</h1>
-      <p className="text-slate-500 mt-1">Winner interviews and updates from the GameZoo team.</p>
+      <p className="text-slate-500 mt-1">Winner interviews and updates from the Prize League team.</p>
 
       {STORIES.length === 0 ? (
         <div className="mt-10 rounded-3xl border-2 border-dashed border-slate-200 py-20 text-center">

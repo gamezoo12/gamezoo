@@ -37,7 +37,7 @@ export default function AdminLayout() {
         <Link to="/" className="flex items-center gap-2 p-5 border-b border-slate-800">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-500 flex items-center justify-center text-white"><Sparkles className="w-5 h-5" /></div>
           <div>
-            <div className="font-display font-bold text-white">GameZoo</div>
+            <div className="font-display font-bold text-white">Prize League</div>
             <div className="text-[10px] uppercase tracking-wider text-teal-400">Admin Panel</div>
           </div>
         </Link>
@@ -52,14 +52,14 @@ export default function AdminLayout() {
           <Link to="/production" className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-800"><Package className="w-4 h-4" /> Production Panel</Link>
           <button
             data-testid="admin-logout"
-            onClick={async () => { await logout(); nav('/admin/login'); }}
+            onClick={async () => { await logout(); window.location.href = '/admin/login'; }}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-rose-300 hover:bg-rose-500/10"
           ><LogOut className="w-4 h-4" /> Sign out</button>
         </div>
       </aside>
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-14 bg-white border-b border-slate-200 px-5 flex items-center justify-between">
-          <Link to="/" className="font-display font-semibold text-slate-900 hover:text-teal-600">← GameZoo Admin</Link>
+          <Link to="/" className="font-display font-semibold text-slate-900 hover:text-teal-600">← Prize League Admin</Link>
           <div className="flex items-center gap-3"><div className="text-sm text-slate-600">{user.email}</div><div className="w-8 h-8 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-bold">{user.name?.slice(0,2).toUpperCase() || 'AD'}</div></div>
         </header>
         <main className="p-6 flex-1"><Outlet /></main>

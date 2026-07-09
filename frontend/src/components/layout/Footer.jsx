@@ -20,7 +20,7 @@ export default function Footer() {
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-500 flex items-center justify-center text-white">
               <Sparkles className="w-5 h-5" />
             </div>
-            <span className="font-display font-extrabold text-xl text-white">Game<span className="text-teal-400">Zoo</span></span>
+            <span className="font-display font-extrabold text-xl text-white">Prize<span className="text-teal-400">League</span></span>
           </div>
           <p className="text-sm text-slate-400 leading-relaxed">Skill-based prize contests. Solve a puzzle, buy a ticket, win real cash. Fully compliant with UK skill-competition law.</p>
           <div className="flex gap-3 mt-4">
@@ -61,7 +61,7 @@ export default function Footer() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 lg:px-8 mt-10 pt-6 border-t border-slate-800 flex flex-col md:flex-row justify-between gap-4 text-xs text-slate-500">
-        <p>© {new Date().getFullYear()} GameZoo. All rights reserved.</p>
+        <p>© {new Date().getFullYear()} Prize League. All rights reserved.</p>
         <p>18+ | Please play responsibly | UK residents only</p>
       </div>
     </footer>

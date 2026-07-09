@@ -42,7 +42,7 @@ export default function AdminLogin() {
           <div className="flex items-center gap-2 mb-6">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-500 flex items-center justify-center text-white"><ShieldCheck className="w-5 h-5" /></div>
             <div>
-              <div className="font-display font-extrabold text-white text-lg">GameZoo</div>
+              <div className="font-display font-extrabold text-white text-lg">Prize League</div>
               <div className="text-[10px] uppercase tracking-widest text-teal-400">Staff Portal</div>
             </div>
           </div>
@@ -50,7 +50,7 @@ export default function AdminLogin() {
           <p className="text-sm text-slate-400 mb-6">Restricted access. Staff accounts only.</p>
 
           <form onSubmit={submit} className="space-y-4">
-            <div><Label className="text-slate-300 mb-1 block">Work email</Label><Input name="email" type="email" required placeholder="admin@gamezoo.co.uk" className="bg-slate-800 border-slate-700 text-white" /></div>
+            <div><Label className="text-slate-300 mb-1 block">Work email</Label><Input name="email" type="email" required placeholder="admin@prizeleague.co.uk" className="bg-slate-800 border-slate-700 text-white" /></div>
             <div><Label className="text-slate-300 mb-1 block">Password</Label><Input name="password" type="password" required placeholder="••••••••" className="bg-slate-800 border-slate-700 text-white" /></div>
             <Button type="submit" disabled={busy} className="w-full h-11 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white font-semibold">
               {busy ? 'Signing in…' : <><Lock className="w-4 h-4 mr-1" /> Sign in to admin</>}

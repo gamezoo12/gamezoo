@@ -56,7 +56,7 @@ export default function MyAccount() {
       <BackButton to="/" label="Back to home" className="mb-4" />
       <div className="flex items-center justify-between mb-6">
         <div><h1 className="font-display text-3xl font-extrabold">Hi, {user.name} 👋</h1><p className="text-slate-500">{user.email} • <KycBadge status={kyc.status} /></p></div>
-        <button onClick={async () => { await logout(); nav('/'); }} className="text-sm text-slate-500 hover:text-rose-600">Sign out</button>
+        <button onClick={async () => { await logout(); window.location.href = '/'; }} className="text-sm text-slate-500 hover:text-rose-600">Sign out</button>
       </div>
 
       <div className="grid md:grid-cols-4 gap-4 mb-8">

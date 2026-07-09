@@ -18,7 +18,7 @@ export default function Winners() {
         <div className="mt-10 rounded-3xl border-2 border-dashed border-slate-200 py-20 text-center bg-gradient-to-b from-teal-50/50 to-white">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-500 text-white mx-auto flex items-center justify-center mb-4"><Sparkles className="w-8 h-8" /></div>
           <h2 className="font-display text-2xl font-bold text-slate-900">No winners announced yet</h2>
-          <p className="text-slate-500 mt-2 max-w-md mx-auto">GameZoo has just launched. Enter now for your chance to be one of the very first winners.</p>
+          <p className="text-slate-500 mt-2 max-w-md mx-auto">Prize League has just launched. Enter now for your chance to be one of the very first winners.</p>
           <Link to="/competitions"><Button className="mt-6 bg-teal-600 hover:bg-teal-700">Browse contests</Button></Link>
         </div>
       ) : (

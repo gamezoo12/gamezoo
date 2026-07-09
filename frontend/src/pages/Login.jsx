@@ -27,7 +27,7 @@ export default function Login() {
     setBusy(true);
     try {
       if (mode === 'login') { await login({ email: fd.get('email'), password: fd.get('password') }); toast({ title: 'Welcome back!' }); }
-      else { await register({ email: fd.get('email'), password: fd.get('password'), name: fd.get('name') }); toast({ title: 'Account created!', description: 'Welcome to GameZoo 🎉' }); }
+      else { await register({ email: fd.get('email'), password: fd.get('password'), name: fd.get('name') }); toast({ title: 'Account created!', description: 'Welcome to Prize League 🎉' }); }
       nav('/my-account');
     } catch (err) { toast({ title: 'Sign in failed', description: err?.response?.data?.detail || 'Please try again.' }); }
     finally { setBusy(false); }
@@ -48,7 +48,7 @@ export default function Login() {
         <div className="relative">
           <Link to="/" className="inline-flex items-center gap-2">
             <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center"><Sparkles className="w-5 h-5" /></div>
-            <span className="font-display font-extrabold text-2xl">GameZoo</span>
+            <span className="font-display font-extrabold text-2xl">Prize League</span>
           </Link>
         </div>
         <div className="relative space-y-6">
@@ -68,7 +68,7 @@ export default function Login() {
         <div className="w-full max-w-md">
           <div className="lg:hidden flex items-center gap-2 mb-6">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-500 flex items-center justify-center text-white"><Sparkles className="w-5 h-5" /></div>
-            <span className="font-display font-extrabold text-xl">GameZoo</span>
+            <span className="font-display font-extrabold text-xl">Prize League</span>
           </div>
 
           <div className="flex gap-1 p-1 bg-slate-100 rounded-xl mb-6">

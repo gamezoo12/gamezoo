@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import HeroBanner from '../components/home/HeroBanner';
+import WinnersTicker from '../components/home/WinnersTicker';
 import StatsBar from '../components/home/StatsBar';
 import CompetitionSection from '../components/home/CompetitionSection';
 import HowItWorks from '../components/home/HowItWorks';
@@ -26,6 +27,7 @@ export default function Home() {
   return (
     <>
       <HeroBanner />
+      <WinnersTicker />
       <StatsBar />
       {endingSoon.length > 0 && <CompetitionSection title="Ending Soon…" subtitle="Don't miss out" items={endingSoon} viewAllHref="/competitions" />}
       {jackpot.length > 0 && <CompetitionSection title="Jackpot Contests…" subtitle="Bigger prizes" items={jackpot} accent="amber" viewAllHref="/competitions" />}

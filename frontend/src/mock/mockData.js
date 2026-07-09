@@ -1,4 +1,4 @@
-// GameZoo mock data (production launch data)
+// Prize League mock data (production launch data)
 
 const placeholders = {
   scratch: 'https://images.pexels.com/photos/7267577/pexels-photo-7267577.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940',
@@ -108,14 +108,14 @@ export const HOW_IT_WORKS = [
 ];
 
 export const FAQ_ITEMS = [
-  { q: 'Is GameZoo gambling?', a: 'No. GameZoo is a UK skill-based prize competition platform. Every entry requires you to correctly answer a genuine skill question. Entries with an incorrect answer are excluded from the draw, which places us outside the Gambling Act 2005 under the “skill-competition” exemption.' },
+  { q: 'Is Prize League gambling?', a: 'No. Prize League is a UK skill-based prize competition platform. Every entry requires you to correctly answer a genuine skill question. Entries with an incorrect answer are excluded from the draw, which places us outside the Gambling Act 2005 under the “skill-competition” exemption.' },
   { q: 'How do I enter a contest?', a: 'Pick a contest, correctly answer the skill question, choose the number of tickets you want, and pay £1 per entry at checkout.' },
   { q: 'When are the draws?', a: 'Every contest has a published draw date and time on its page. All draws are live-streamed on our Production channel.' },
   { q: 'Is there a free entry route?', a: 'Yes – UK law requires a free postal entry alternative. Details are printed on every contest page under “Free Entry”.' },
   { q: 'How do winners get paid?', a: 'Cash prizes are transferred to your bank account within 24 hours of the draw. Physical prizes ship free within 5 working days.' },
-  { q: 'What happens if I answer wrong?', a: 'Incorrect answers are excluded from the prize draw, so please double-check before submitting. This is what makes GameZoo a skill contest rather than a lottery.' },
+  { q: 'What happens if I answer wrong?', a: 'Incorrect answers are excluded from the prize draw, so please double-check before submitting. This is what makes Prize League a skill contest rather than a lottery.' },
   { q: 'Who can enter?', a: 'You must be 18+ and a UK resident. Verification may be required before payout.' },
-  { q: 'How do I contact support?', a: 'Email support@gamezoo.co.uk – we typically reply within one business day.' },
+  { q: 'How do I contact support?', a: 'Email support@prizeleague.co.uk – we typically reply within one business day.' },
 ];
 
 export const NAV_LINKS = [

@@ -34,7 +34,7 @@ export default function Header() {
             <Sparkles className="w-5 h-5" />
           </div>
           <span className="font-display font-extrabold text-xl tracking-tight text-slate-900">
-            Game<span className="text-teal-600">Zoo</span>
+            Prize<span className="text-teal-600">League</span>
           </span>
         </Link>
 
@@ -77,7 +77,7 @@ export default function Header() {
                   <div className="border-t border-slate-100 my-1" />
                   <button
                     data-testid="header-logout"
-                    onClick={() => { logout(); nav('/'); }}
+                    onClick={async () => { await logout(); window.location.href = '/'; }}
                     className="w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-rose-600 hover:bg-rose-50"
                   ><LogOut className="w-4 h-4" /> Sign out</button>
                 </div>

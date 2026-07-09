@@ -104,7 +104,7 @@ class TestMeeraPublicChat:
     """Public chat: no create actions even if requested."""
 
     def test_public_explain(self, api):
-        r = api.post(f'{BASE_URL}/api/meera/chat', json={'message': 'How does GameZoo work?'})
+        r = api.post(f'{BASE_URL}/api/meera/chat', json={'message': 'How does Prize League work?'})
         assert r.status_code == 200, r.text
         data = r.json()
         reply = data.get('reply') or ''

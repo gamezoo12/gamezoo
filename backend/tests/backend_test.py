@@ -1,4 +1,4 @@
-"""Backend regression tests for GameZoo review request.
+"""Backend regression tests for Prize League review request.
 
 Covers:
 - Health / basic API access
@@ -161,7 +161,7 @@ class TestAdmin:
 class TestMeera:
     def test_meera_public_chat(self, api):
         # Review request mentions /api/meera/public-chat but actual endpoint is /api/meera/chat
-        r = api.post(f"{BASE_URL}/api/meera/chat", json={"message": "Hi Meera, how does GameZoo work?"})
+        r = api.post(f"{BASE_URL}/api/meera/chat", json={"message": "Hi Meera, how does Prize League work?"})
         assert r.status_code == 200, r.text
         data = r.json()
         assert "reply" in data

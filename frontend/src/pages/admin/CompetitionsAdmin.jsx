@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/button';
 import { Progress } from '../../components/ui/progress';
 import { gbp, percent } from '../../lib/format';
 import { useToast } from '../../hooks/use-toast';
-import { Play, Pause, Trash2, Trophy, Pencil } from 'lucide-react';
+import { Play, Pause, Trash2, Trophy, Pencil, Plus } from 'lucide-react';
 import EditContestDialog from '../../components/EditContestDialog';
 
 const STATUS_TABS = [
@@ -18,6 +18,7 @@ export default function CompetitionsAdmin() {
   const [contests, setContests] = useState([]);
   const [tab, setTab] = useState('all');
   const [editing, setEditing] = useState(null);
+  const [creating, setCreating] = useState(false);
   const { toast } = useToast();
 
   const load = () => adminAPI.contests().then(setContests).catch(() => {});
@@ -35,15 +36,24 @@ export default function CompetitionsAdmin() {
     <div className="space-y-4">
       <div className="flex justify-between items-center flex-wrap gap-3">
         <h2 className="font-display text-2xl font-extrabold">Contests ({contests.length})</h2>
-        <div className="flex gap-1 bg-white border border-slate-100 p-1 rounded-xl">
-          {STATUS_TABS.map(t => {
-            const count = t.key === 'all' ? contests.length : contests.filter(c => c.status === t.key).length;
-            return (
-              <button key={t.key} onClick={() => setTab(t.key)} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${tab === t.key ? 'bg-teal-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
-                {t.label} <span className={`ml-1 text-xs ${tab === t.key ? 'text-white/80' : 'text-slate-400'}`}>({count})</span>
-              </button>
-            );
-          })}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex gap-1 bg-white border border-slate-100 p-1 rounded-xl">
+            {STATUS_TABS.map(t => {
+              const count = t.key === 'all' ? contests.length : contests.filter(c => c.status === t.key).length;
+              return (
+                <button key={t.key} onClick={() => setTab(t.key)} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${tab === t.key ? 'bg-teal-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
+                  {t.label} <span className={`ml-1 text-xs ${tab === t.key ? 'text-white/80' : 'text-slate-400'}`}>({count})</span>
+                </button>
+              );
+            })}
+          </div>
+          <Button
+            onClick={() => setCreating(true)}
+            data-testid="new-contest-btn"
+            className="bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white shadow-md"
+          >
+            <Plus className="w-4 h-4 mr-1" /> New contest
+          </Button>
         </div>
       </div>
 
@@ -76,6 +86,7 @@ export default function CompetitionsAdmin() {
       {filtered.length === 0 && <p className="text-center text-slate-500 py-16">No contests in this status. Ask Meera to create some!</p>}
 
       <EditContestDialog contest={editing} open={!!editing} onClose={() => setEditing(null)} onSaved={load} />
+      <EditContestDialog contest={null} mode="create" open={creating} onClose={() => setCreating(false)} onSaved={load} />
     </div>
   );
 }
