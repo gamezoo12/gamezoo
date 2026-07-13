@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 10 — Games expansion (8→16) verified. GET /api/games/types returns 16 games in exact order [jigsaw_3x3, jigsaw_4x4, memory_match, number_sequence, slider_puzzle, emoji_riddle, target_tap, word_unscramble, math_sprint, reaction_time, trivia_quiz, simon_says, whack_a_mole, odd_one_out, color_match, pattern_repeat]. /admin/games renders admin-games-page with 16 game-card-<id> cards + 16 test-game-<id> buttons (visual confirmed). Every one of the 8 NEW games opens test-game-modal and renders its expected inner selector with ZERO pageerrors and ZERO new console errors: math_sprint→math-q+math-input (sample q: '15 - 6 = ?'); reaction_time→reaction-pad (initial 'Wait…' state); trivia_quiz→trivia-q + 4×trivia-opt-* buttons; simon_says→all 4 buttons simon-red/green/blue/yellow present; whack_a_mole→9 mole-0..8 tiles; odd_one_out→9 odd-0..8 circles; color_match→stroop-word (rendered 'GREEN'); pattern_repeat→9 pattern-1..9 tiles. EditContestDialog contest-game-select has 4 optgroups (Puzzles=4, Memory=3, Reaction=6, Trivia & Word=3) → 16 game options + None sentinel = 17 total <option> elements; every game_type id in GAME_TYPES appears exactly once. Pytest regression: 70/71 passed (42.98s, xdist -n auto). The single failure — tests/backend_test.py::TestContests::test_get_contest_detail — is a PRE-EXISTING data/test issue unrelated to this iteration's changes: DB currently has 51 contests all in status='draft' (no 'live'), so the public GET /api/contests/{slug} returns 404 for the first admin-listed contest. Iter9 report already flagged that its TestReferralFallback fixture may leave contests paused; combined with no seed data of live contests, this test cannot pass in current DB state. Not a regression from Games work.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/contests/{slug}", "issue": "Test test_get_contest_detail in backend_test.py fails because all 51 contests in DB are in status='draft'; public endpoint filters to live only. Test needs to either seed a live contest or the DB fixture needs cleanup. Pre-existing, not caused by iter10 changes."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/iter10_all.xml"
+  ],
+  "action_items": [
+    "OPTIONAL — Make test_get_contest_detail resilient: seed/launch a live contest inside the test class fixture OR match the endpoint's actual public visibility rule (filter admin list by status=='live' before picking [0]).",
+    "OPTIONAL — Seed at least one live contest so /api/contests is non-empty for smoke tests and homepage previews.",
+    "MINOR — Review request states dropdown has '15 options + None option' but the implementation correctly has 16 game options + None = 17 total (matches the 16 GAME_TYPES). No fix required — the code is correct; the review count was slightly off."
+  ],
+  "critical_code_review_comments": [
+    "GamesAdmin.jsx L143-144 — GAME_MAP[testing.id]({}, setTestResult) passes empty config object then setTestResult as onComplete. Every game destructures ({config, onComplete}) or ({onComplete}) so setTestResult flows in as onComplete. Works, but the calling convention 'component-as-function-called-with-args' is unusual — GAME_MAP entries are arrow functions returning JSX, so this works. Consider renaming to GAME_RENDERERS or GAME_FACTORIES for clarity, or convert to actual React components rendered via <Cmp config={} onComplete={} />.",
+    "games/index.jsx TriviaQuiz L457 `if (i >= qs.length) return null;` will produce a React 'setState during render is bypassed but component returns null' — but onComplete is called inside pick handler, so users are unmounted after answering the 10th; safe. No bug.",
+    "games/index.jsx ReactionTime L420 uses stale `times` closure when computing final on the last round — mitigated by rebuilding finalTimes locally. OK.",
+    "games/index.jsx SimonSays uses setTimeout without cleanup on unmount — modal close during 'showing' phase will fire setFlash/setShowing on unmounted component causing a React 18 warning (not an error). Low priority.",
+    "GAME_TYPES ordering — new games are appended in a different order than the frontend GamesAdmin ICONS/DESC map, but both maps have entries for all 16 ids, so no visual regression. Ordering on the /admin/games page follows API order (jigsaw_3x3 first) which is fine."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "98.6% (70/71 pytest — 1 unrelated pre-existing failure)", "frontend": "100% (16/16 cards rendered, 8/8 new-game modals render without errors, EditContestDialog dropdown complete with all 16 games)"},
+  "test_credentials": "Admin: bachanta8@gmail.com / Herts@910022 (from /app/memory/test_credentials.md).",
+  "seed_data_creation": "None. No test data created in this iteration.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All 16 skill games are wired end-to-end (backend GAME_TYPES ↔ frontend GAME_MAP ↔ /admin/games test modal ↔ EditContestDialog dropdown). If next iteration touches games, quick regression: (1) `curl $BACKEND/api/games/types | jq '.games|length'` should be 16; (2) `pytest tests/test_games.py -v` (2 tests); (3) visit /admin/games and click any test-game-* button — modal must open and render without React errors. Ignore the test_get_contest_detail failure — it is a data-state bug from iter9's fixture (all contests are drafts). To unblock: launch one contest via admin UI or `POST /api/admin/contests/{id}/launch` before running the full pytest suite.",
+  "rca_of_the_issue": "test_get_contest_detail failure RCA: test fetches admin contest list (all statuses), grabs contests[0].slug, then GETs /api/contests/{slug} which is the PUBLIC endpoint that filters to status=='live'. Since iter9's TestReferralFallback fixture paused every live contest and the teardown may not have restored them (or the DB was reset since), all 51 contests are now 'draft'. Reproduce: `curl $BACKEND/api/contests` returns []. Fix options: (a) test should launch a contest first, (b) test should filter admin list to status=='live' before picking, or (c) run `POST /api/admin/contests/{id}/launch` for one contest to restore fixture state."
+}

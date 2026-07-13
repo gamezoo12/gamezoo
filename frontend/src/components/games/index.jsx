@@ -356,6 +356,317 @@ export function SliderPuzzle({ onComplete }) {
   );
 }
 
+// ---------- Math Sprint ----------
+export function MathSprint({ onComplete }) {
+  const [q, setQ] = useState(() => genQ());
+  const [ans, setAns] = useState('');
+  const [correct, setCorrect] = useState(0);
+  const [misses, setMisses] = useState(0);
+  const [start] = useState(() => Date.now());
+  const TARGET = 10;
+  function genQ() {
+    const a = Math.floor(Math.random() * 20) + 1;
+    const b = Math.floor(Math.random() * 20) + 1;
+    const ops = ['+', '-', '×'];
+    const op = ops[Math.floor(Math.random() * ops.length)];
+    const val = op === '+' ? a + b : op === '-' ? a - b : a * b;
+    return { text: `${a} ${op} ${b}`, val };
+  }
+  const submit = () => {
+    if (parseInt(ans, 10) === q.val) {
+      const nc = correct + 1;
+      setCorrect(nc);
+      if (nc >= TARGET) {
+        onComplete({ solved: true, accuracy: Math.max(0.2, TARGET / (TARGET + misses)), duration_ms: Date.now() - start });
+        return;
+      }
+    } else setMisses(m => m + 1);
+    setAns(''); setQ(genQ());
+  };
+  return (
+    <div className="max-w-md mx-auto text-center">
+      <div className="text-slate-600 text-sm">Solve <b>{TARGET}</b> problems. Correct: <b>{correct}</b> / Misses: <b>{misses}</b></div>
+      <div className="my-6 font-display text-5xl font-extrabold text-orange-600" data-testid="math-q">{q.text} = ?</div>
+      <input type="number" value={ans} onChange={e => setAns(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} data-testid="math-input" className="w-40 px-4 py-3 rounded-xl border-2 text-center text-2xl font-bold focus:border-orange-500 outline-none" />
+      <button onClick={submit} className="ml-2 px-6 py-3 rounded-xl bg-orange-500 text-white font-bold">Enter</button>
+    </div>
+  );
+}
+
+// ---------- Reaction Time ----------
+export function ReactionTime({ onComplete }) {
+  const ROUNDS = 5;
+  const [phase, setPhase] = useState('waiting'); // waiting | ready | go | done
+  const [times, setTimes] = useState([]);
+  const [start, setStart] = useState(0);
+  const [round, setRound] = useState(0);
+  useEffect(() => {
+    if (phase === 'waiting' && round < ROUNDS) {
+      const delay = 1000 + Math.random() * 2500;
+      const t = setTimeout(() => { setStart(Date.now()); setPhase('go'); }, delay);
+      return () => clearTimeout(t);
+    }
+    return undefined;
+  }, [phase, round]);
+  const tap = () => {
+    if (phase !== 'go') {
+      setTimes(t => [...t, 2000]); // penalty for early tap
+    } else {
+      setTimes(t => [...t, Date.now() - start]);
+    }
+    const nextRound = round + 1;
+    setRound(nextRound);
+    if (nextRound >= ROUNDS) {
+      const finalTimes = [...times, phase === 'go' ? Date.now() - start : 2000];
+      const avg = finalTimes.reduce((s, x) => s + x, 0) / finalTimes.length;
+      const dur = finalTimes.reduce((s, x) => s + x, 0);
+      const acc = Math.max(0.1, Math.min(1, 400 / avg));
+      onComplete({ solved: true, accuracy: acc, duration_ms: dur });
+    } else setPhase('waiting');
+  };
+  const bg = phase === 'go' ? 'bg-emerald-500' : 'bg-slate-800';
+  return (
+    <div className="max-w-md mx-auto text-center">
+      <div className="text-slate-600 text-sm mb-2">Round <b>{round + 1}</b>/{ROUNDS}. Tap when the screen turns GREEN. Don't tap early!</div>
+      <button onClick={tap} data-testid="reaction-pad" className={`w-full aspect-video rounded-2xl ${bg} text-white font-display text-3xl font-extrabold flex items-center justify-center transition-colors`}>
+        {phase === 'go' ? 'TAP NOW!' : 'Wait…'}
+      </button>
+      <div className="text-xs text-slate-500 mt-2">{times.map((t, i) => <span key={i} className="mx-1">R{i+1}: {t}ms</span>)}</div>
+    </div>
+  );
+}
+
+// ---------- Trivia Quiz ----------
+const TRIVIA = [
+  { q: 'Capital of Australia?', opts: ['Sydney', 'Canberra', 'Melbourne', 'Perth'], a: 'Canberra' },
+  { q: 'Which planet is largest?', opts: ['Earth', 'Saturn', 'Jupiter', 'Neptune'], a: 'Jupiter' },
+  { q: 'H2O is …?', opts: ['Salt', 'Water', 'Sugar', 'Acid'], a: 'Water' },
+  { q: '2^10 = ?', opts: ['512', '1000', '1024', '2048'], a: '1024' },
+  { q: 'Author of Hamlet?', opts: ['Dickens', 'Shakespeare', 'Austen', 'Twain'], a: 'Shakespeare' },
+  { q: 'Currency of Japan?', opts: ['Yuan', 'Won', 'Yen', 'Rupee'], a: 'Yen' },
+  { q: 'Speed of light approx?', opts: ['3×10⁵ km/s', '3×10⁸ m/s', '3×10⁶ m/s', '3×10¹⁰ m/s'], a: '3×10⁸ m/s' },
+  { q: 'Longest river?', opts: ['Amazon', 'Nile', 'Yangtze', 'Mississippi'], a: 'Nile' },
+  { q: 'First president of USA?', opts: ['Lincoln', 'Washington', 'Jefferson', 'Adams'], a: 'Washington' },
+  { q: 'Chemical symbol for Gold?', opts: ['Ag', 'Au', 'Gd', 'Go'], a: 'Au' },
+];
+export function TriviaQuiz({ onComplete }) {
+  const qs = useMemo(() => shuffle(TRIVIA).slice(0, 10), []);
+  const [i, setI] = useState(0);
+  const [correct, setCorrect] = useState(0);
+  const [start] = useState(() => Date.now());
+  if (i >= qs.length) return null;
+  const cur = qs[i];
+  const pick = (o) => {
+    const isRight = o === cur.a;
+    const nc = correct + (isRight ? 1 : 0);
+    if (i + 1 >= qs.length) {
+      onComplete({ solved: true, accuracy: nc / qs.length, duration_ms: Date.now() - start });
+    } else { setCorrect(nc); setI(i + 1); }
+  };
+  return (
+    <div className="max-w-md mx-auto">
+      <div className="text-slate-600 text-sm text-center">Q {i + 1}/{qs.length} • Score: <b>{correct}</b></div>
+      <div className="my-4 font-display text-xl font-bold text-center" data-testid="trivia-q">{cur.q}</div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {cur.opts.map(o => (
+          <button key={o} onClick={() => pick(o)} data-testid={`trivia-opt-${o}`} className="px-4 py-3 rounded-xl bg-white border-2 border-slate-200 hover:border-orange-500 font-semibold">{o}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Simon Says ----------
+export function SimonSays({ onComplete }) {
+  const COLORS = ['red', 'green', 'blue', 'yellow'];
+  const CLS = { red: 'bg-red-500', green: 'bg-emerald-500', blue: 'bg-blue-500', yellow: 'bg-amber-400' };
+  const [seq, setSeq] = useState([]);
+  const [userSeq, setUserSeq] = useState([]);
+  const [showing, setShowing] = useState(false);
+  const [flash, setFlash] = useState(null);
+  const [level, setLevel] = useState(1);
+  const [start] = useState(() => Date.now());
+  const TARGET_LEVEL = 5;
+
+  const startLevel = () => {
+    const s = Array.from({ length: level + 2 }, () => COLORS[Math.floor(Math.random() * 4)]);
+    setSeq(s); setUserSeq([]); setShowing(true);
+    s.forEach((c, i) => {
+      setTimeout(() => setFlash(c), 700 * i + 200);
+      setTimeout(() => setFlash(null), 700 * i + 600);
+    });
+    setTimeout(() => setShowing(false), 700 * s.length + 400);
+  };
+  useEffect(() => { startLevel(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const click = (c) => {
+    if (showing) return;
+    const next = [...userSeq, c];
+    setUserSeq(next);
+    if (seq[next.length - 1] !== c) {
+      onComplete({ solved: level >= TARGET_LEVEL, accuracy: level / TARGET_LEVEL, duration_ms: Date.now() - start });
+      return;
+    }
+    if (next.length === seq.length) {
+      if (level + 1 > TARGET_LEVEL) {
+        onComplete({ solved: true, accuracy: 1, duration_ms: Date.now() - start });
+      } else { setLevel(level + 1); setTimeout(startLevel, 800); }
+    }
+  };
+  return (
+    <div className="max-w-xs mx-auto text-center">
+      <div className="text-slate-600 text-sm mb-3">Repeat the sequence. Level: <b>{level}</b> / {TARGET_LEVEL}</div>
+      <div className="grid grid-cols-2 gap-2">
+        {COLORS.map(c => (
+          <button key={c} onClick={() => click(c)} disabled={showing} data-testid={`simon-${c}`} className={`aspect-square rounded-2xl ${CLS[c]} transition-opacity ${flash === c ? 'opacity-100 scale-105' : 'opacity-70 hover:opacity-90'}`} />
+        ))}
+      </div>
+      {showing && <div className="mt-2 text-xs text-slate-500">Watch…</div>}
+    </div>
+  );
+}
+
+// ---------- Whack-a-Mole ----------
+export function WhackMole({ onComplete }) {
+  const [hits, setHits] = useState(0);
+  const [misses, setMisses] = useState(0);
+  const [pos, setPos] = useState(0);
+  const [start] = useState(() => Date.now());
+  const TARGET_HITS = 10;
+  useEffect(() => {
+    const t = setInterval(() => setPos(Math.floor(Math.random() * 9)), 900);
+    return () => clearInterval(t);
+  }, []);
+  useEffect(() => {
+    if (hits >= TARGET_HITS) {
+      onComplete({ solved: true, accuracy: Math.max(0.1, TARGET_HITS / (TARGET_HITS + misses)), duration_ms: Date.now() - start });
+    }
+  }, [hits, misses, start, onComplete]);
+  return (
+    <div className="max-w-md mx-auto">
+      <div className="text-slate-600 text-sm text-center mb-3">Whack <b>{TARGET_HITS}</b> moles. Hits: <b>{hits}</b> · Misses: <b>{misses}</b></div>
+      <div className="grid grid-cols-3 gap-2">
+        {Array.from({ length: 9 }).map((_, i) => (
+          <button
+            key={i}
+            onClick={() => (i === pos ? setHits(h => h + 1) : setMisses(m => m + 1))}
+            data-testid={`mole-${i}`}
+            className={`aspect-square rounded-xl ${i === pos ? 'bg-gradient-to-br from-orange-500 to-fuchsia-600' : 'bg-slate-200'} text-white text-4xl font-bold flex items-center justify-center transition`}
+          >{i === pos ? '🐹' : ''}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Odd One Out ----------
+export function OddOneOut({ onComplete }) {
+  const [round, setRound] = useState(0);
+  const [correct, setCorrect] = useState(0);
+  const [items, setItems] = useState([]);
+  const [oddIdx, setOddIdx] = useState(0);
+  const [start] = useState(() => Date.now());
+  const TOTAL = 5;
+  const gen = () => {
+    const base = Math.floor(Math.random() * 8) + 1;
+    const grid = Array.from({ length: 9 }, () => base);
+    const idx = Math.floor(Math.random() * 9);
+    grid[idx] = base + 1;
+    setItems(grid); setOddIdx(idx);
+  };
+  useEffect(() => { gen(); }, []);
+  const pick = (i) => {
+    const nc = correct + (i === oddIdx ? 1 : 0);
+    if (round + 1 >= TOTAL) {
+      onComplete({ solved: true, accuracy: nc / TOTAL, duration_ms: Date.now() - start });
+    } else { setCorrect(nc); setRound(round + 1); gen(); }
+  };
+  return (
+    <div className="max-w-md mx-auto text-center">
+      <div className="text-slate-600 text-sm mb-3">Round {round + 1}/{TOTAL} — Find the different circle</div>
+      <div className="grid grid-cols-3 gap-3">
+        {items.map((v, i) => (
+          <button key={i} onClick={() => pick(i)} data-testid={`odd-${i}`} className="aspect-square rounded-full bg-orange-500 hover:scale-105 transition" style={{ opacity: v * 0.1 + 0.2 }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Color Match (Stroop) ----------
+export function ColorMatch({ onComplete }) {
+  const COLORS = [{ name: 'RED', c: 'text-red-500' }, { name: 'GREEN', c: 'text-emerald-500' }, { name: 'BLUE', c: 'text-blue-500' }, { name: 'YELLOW', c: 'text-amber-400' }];
+  const gen = () => {
+    const wordIdx = Math.floor(Math.random() * 4);
+    const colorIdx = Math.floor(Math.random() * 4);
+    return { word: COLORS[wordIdx].name, colorClass: COLORS[colorIdx].c, colorName: COLORS[colorIdx].name };
+  };
+  const [q, setQ] = useState(gen);
+  const [correct, setCorrect] = useState(0);
+  const [misses, setMisses] = useState(0);
+  const [round, setRound] = useState(0);
+  const [start] = useState(() => Date.now());
+  const TOTAL = 10;
+  const pick = (name) => {
+    if (name === q.colorName) setCorrect(c => c + 1); else setMisses(m => m + 1);
+    if (round + 1 >= TOTAL) {
+      onComplete({ solved: true, accuracy: (correct + (name === q.colorName ? 1 : 0)) / TOTAL, duration_ms: Date.now() - start });
+    } else { setRound(round + 1); setQ(gen()); }
+  };
+  return (
+    <div className="max-w-md mx-auto text-center">
+      <div className="text-slate-600 text-sm mb-2">Pick the <b>colour</b> of the text, not the word. Round {round + 1}/{TOTAL}</div>
+      <div data-testid="stroop-word" className={`my-6 font-display font-extrabold text-6xl ${q.colorClass}`}>{q.word}</div>
+      <div className="grid grid-cols-2 gap-2">
+        {COLORS.map(c => <button key={c.name} onClick={() => pick(c.name)} data-testid={`stroop-${c.name}`} className="px-4 py-3 rounded-xl bg-white border-2 border-slate-200 hover:border-orange-500 font-bold">{c.name}</button>)}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Pattern Repeat (rhythm) ----------
+export function PatternRepeat({ onComplete }) {
+  // Like Simon Says but with numbers 1-9 and target 7 correct
+  const [target, setTarget] = useState([]);
+  const [userSeq, setUserSeq] = useState([]);
+  const [level, setLevel] = useState(3);
+  const [showing, setShowing] = useState(false);
+  const [start] = useState(() => Date.now());
+  const [flash, setFlash] = useState(null);
+  const gen = () => {
+    const t = Array.from({ length: level }, () => Math.floor(Math.random() * 9) + 1);
+    setTarget(t); setUserSeq([]); setShowing(true);
+    t.forEach((n, i) => {
+      setTimeout(() => setFlash(n), 600 * i + 100);
+      setTimeout(() => setFlash(null), 600 * i + 500);
+    });
+    setTimeout(() => setShowing(false), 600 * t.length + 200);
+  };
+  useEffect(() => { gen(); }, [level]); // eslint-disable-line react-hooks/exhaustive-deps
+  const click = (n) => {
+    if (showing) return;
+    const next = [...userSeq, n];
+    setUserSeq(next);
+    if (target[next.length - 1] !== n) {
+      onComplete({ solved: level >= 6, accuracy: Math.min(1, (level - 3) / 4), duration_ms: Date.now() - start });
+      return;
+    }
+    if (next.length === target.length) {
+      if (level >= 6) onComplete({ solved: true, accuracy: 1, duration_ms: Date.now() - start });
+      else setLevel(level + 1);
+    }
+  };
+  return (
+    <div className="max-w-xs mx-auto text-center">
+      <div className="text-slate-600 text-sm mb-2">Repeat the pattern. Length: <b>{level}</b> / 6</div>
+      <div className="grid grid-cols-3 gap-2">
+        {[1,2,3,4,5,6,7,8,9].map(n => (
+          <button key={n} onClick={() => click(n)} disabled={showing} data-testid={`pattern-${n}`} className={`aspect-square rounded-2xl font-display font-bold text-2xl transition ${flash === n ? 'bg-orange-500 text-white scale-105' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>{n}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ---------- Registry ----------
 export const GAME_MAP = {
   memory_match: (config, onComplete) => <MemoryMatch config={config} onComplete={onComplete} />,
@@ -366,4 +677,12 @@ export const GAME_MAP = {
   jigsaw_3x3: (config, onComplete) => <ImageJigsaw size={3} config={config} onComplete={onComplete} />,
   jigsaw_4x4: (config, onComplete) => <ImageJigsaw size={4} config={config} onComplete={onComplete} />,
   slider_puzzle: (config, onComplete) => <SliderPuzzle config={config} onComplete={onComplete} />,
+  math_sprint: (config, onComplete) => <MathSprint config={config} onComplete={onComplete} />,
+  reaction_time: (config, onComplete) => <ReactionTime config={config} onComplete={onComplete} />,
+  trivia_quiz: (config, onComplete) => <TriviaQuiz config={config} onComplete={onComplete} />,
+  simon_says: (config, onComplete) => <SimonSays config={config} onComplete={onComplete} />,
+  whack_a_mole: (config, onComplete) => <WhackMole config={config} onComplete={onComplete} />,
+  odd_one_out: (config, onComplete) => <OddOneOut config={config} onComplete={onComplete} />,
+  color_match: (config, onComplete) => <ColorMatch config={config} onComplete={onComplete} />,
+  pattern_repeat: (config, onComplete) => <PatternRepeat config={config} onComplete={onComplete} />,
 };

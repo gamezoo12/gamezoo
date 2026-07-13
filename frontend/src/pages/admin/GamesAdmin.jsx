@@ -1,16 +1,14 @@
 import { useEffect, useState } from 'react';
 import { gamesAPI, adminAPI } from '../../lib/api';
-import { Gamepad2, Users, Trophy, Zap, Sparkles, Grid3x3, Brain, Target, Type, Puzzle } from 'lucide-react';
+import { Gamepad2, Users, Trophy, Zap, Sparkles, Grid3x3, Brain, Target, Type, Puzzle, Play, X } from 'lucide-react';
+import { GAME_MAP } from '../../components/games';
+import { Button } from '../../components/ui/button';
 
 const ICONS = {
-  memory_match: Brain,
-  number_sequence: Grid3x3,
-  target_tap: Target,
-  word_unscramble: Type,
-  emoji_riddle: Sparkles,
-  jigsaw_3x3: Puzzle,
-  jigsaw_4x4: Puzzle,
-  slider_puzzle: Grid3x3,
+  memory_match: Brain, number_sequence: Grid3x3, target_tap: Target, word_unscramble: Type,
+  emoji_riddle: Sparkles, jigsaw_3x3: Puzzle, jigsaw_4x4: Puzzle, slider_puzzle: Grid3x3,
+  math_sprint: Brain, reaction_time: Zap, trivia_quiz: Sparkles, simon_says: Brain,
+  whack_a_mole: Target, odd_one_out: Puzzle, color_match: Sparkles, pattern_repeat: Grid3x3,
 };
 
 const DESC = {
@@ -22,11 +20,22 @@ const DESC = {
   jigsaw_3x3: '9-tile image jigsaw. Rearrange tiles to reveal the picture.',
   jigsaw_4x4: '16-tile image jigsaw. Harder — twice the pieces.',
   slider_puzzle: 'Classic 15-slider. Arrange numbers 1→15 in order.',
+  math_sprint: 'Solve 10 arithmetic problems as fast as you can.',
+  reaction_time: 'Tap when the screen turns green — 5 rounds.',
+  trivia_quiz: '10 general-knowledge questions, multiple choice.',
+  simon_says: 'Repeat the flashing colour sequence — 5 levels.',
+  whack_a_mole: 'Whack 10 moles as they pop up on a 3×3 grid.',
+  odd_one_out: 'Find the different-shaded circle in a 3×3 grid — 5 rounds.',
+  color_match: 'Stroop test — pick the colour of the text, not the word.',
+  pattern_repeat: 'Watch and repeat number patterns of increasing length.',
 };
 
 export default function GamesAdmin() {
   const [games, setGames] = useState([]);
   const [contests, setContests] = useState([]);
+  const [testing, setTesting] = useState(null);
+  const [testKey, setTestKey] = useState(0);
+  const [testResult, setTestResult] = useState(null);
 
   useEffect(() => {
     gamesAPI.types().then(r => setGames(r?.games || [])).catch(() => {});
@@ -87,10 +96,59 @@ export default function GamesAdmin() {
                 <span>·</span>
                 <span className="capitalize">🎯 {g.category}</span>
               </div>
+              <div className="mt-4 pt-3 border-t border-slate-100">
+                <Button
+                  onClick={() => { setTesting(g); setTestResult(null); setTestKey(k => k + 1); }}
+                  data-testid={`test-game-${g.id}`}
+                  size="sm"
+                  className="w-full bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white"
+                >
+                  <Play className="w-3.5 h-3.5 mr-1" /> Test game
+                </Button>
+              </div>
             </div>
           );
         })}
       </div>
+
+      {/* Test-play modal */}
+      {testing && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" data-testid="test-game-modal">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-2xl max-h-[95vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="text-xs uppercase tracking-widest text-orange-600 font-bold">Test mode — no score saved</div>
+                <h3 className="font-display font-bold text-xl">{testing.label}</h3>
+              </div>
+              <button onClick={() => setTesting(null)} className="text-slate-500 hover:text-slate-900 text-2xl leading-none">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            {testResult ? (
+              <div className="text-center py-8">
+                <div className="text-slate-500 text-sm">Test complete!</div>
+                <div className="font-display text-4xl font-extrabold text-orange-600 mt-2">
+                  {(testResult.duration_ms / 1000).toFixed(1)}s
+                </div>
+                <div className="text-sm text-slate-600 mt-1">
+                  {Math.round(testResult.accuracy * 100)}% accuracy · {testResult.solved ? '✅ solved' : '⚠️ not fully solved'}
+                </div>
+                <div className="mt-4 flex gap-2 justify-center">
+                  <Button onClick={() => { setTestResult(null); setTestKey(k => k + 1); }} className="bg-orange-500 hover:bg-orange-600 text-white">Play again</Button>
+                  <Button onClick={() => setTesting(null)} variant="outline">Close</Button>
+                </div>
+              </div>
+            ) : (
+              <div key={testKey}>
+                {GAME_MAP[testing.id]
+                  ? GAME_MAP[testing.id]({}, setTestResult)
+                  : <div className="text-center text-slate-500 py-8">This game type is registered on the server but has no frontend component yet.</div>
+                }
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-slate-200 text-sm">
         <div className="font-display font-bold text-white mb-2">How to assign a game to a contest</div>
