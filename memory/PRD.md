@@ -33,7 +33,7 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - [x] Admin wallet panel — view all, search, credit/debit, per-user tx history
 - [x] **Referral programme** — unique code per user, invite link, both parties get 1 free ticket (or £5 wallet fallback)
 - [x] Expanded My Account — 11 tabs: Profile · Wallet · Tickets · Orders · Referrals · Notifications · KYC · Security · Support · Policies · Preferences
-- [x] **8 skill games** — Memory Match, Number Sequence, Target Tap, Word Unscramble, Emoji Riddle, Image Jigsaw 3×3, Image Jigsaw 4×4, 15-Slider Puzzle
+- [x] **16 skill games** — Memory Match, Number Sequence, Target Tap, Word Unscramble, Emoji Riddle, Image Jigsaw 3×3/4×4, 15-Slider Puzzle, Math Sprint, Reaction Time, Trivia Quiz, Simon Says, Whack-a-Mole, Odd One Out, Color Match (Stroop), Pattern Repeat
 - [x] Admin can assign a game to each contest (dropdown in EditContestDialog) or leave blank for manual winner draw
 - [x] Play flow — `/play/:contestId/:ticketId`, 3 attempts, score = speed × accuracy
 - [x] Real-time per-contest leaderboard — `/leaderboard/:contestId`
