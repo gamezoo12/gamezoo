@@ -31,6 +31,21 @@ GAME_TYPES = [
     {'id': 'odd_one_out',      'label': 'Odd One Out (spot the different)','category': 'puzzle', 'target_time_s': 30, 'max_attempts': 3},
     {'id': 'color_match',      'label': 'Color Match (Stroop test)','category': 'reaction', 'target_time_s': 45,  'max_attempts': 3},
     {'id': 'pattern_repeat',   'label': 'Pattern Repeat (rhythm)', 'category': 'memory',   'target_time_s': 45,  'max_attempts': 3},
+    # ----- Vol.2 (14 new skill-based games) -----
+    {'id': 'sudoku_mini',        'label': 'Sudoku Mini (4×4 logic)',        'category': 'logic',    'target_time_s': 120, 'max_attempts': 3},
+    {'id': 'sequence_predict',   'label': 'Sequence Predict (what comes next)', 'category': 'logic', 'target_time_s': 60,  'max_attempts': 3},
+    {'id': 'countdown_numbers',  'label': 'Countdown Numbers (reach the target)', 'category': 'math','target_time_s': 90, 'max_attempts': 3},
+    {'id': 'word_ladder',        'label': 'Word Ladder (change 1 letter)',  'category': 'word',     'target_time_s': 90,  'max_attempts': 3},
+    {'id': 'chess_mate_in_one',  'label': 'Chess: Mate in One',             'category': 'strategy', 'target_time_s': 60,  'max_attempts': 3},
+    {'id': 'tower_of_hanoi',     'label': 'Tower of Hanoi (3 disks)',       'category': 'logic',    'target_time_s': 90,  'max_attempts': 3},
+    {'id': 'lights_out',         'label': 'Lights Out (parity puzzle)',     'category': 'logic',    'target_time_s': 90,  'max_attempts': 3},
+    {'id': 'minesweeper_mini',   'label': 'Minesweeper Mini (5×5)',         'category': 'deduction','target_time_s': 120, 'max_attempts': 3},
+    {'id': 'nonogram_mini',      'label': 'Nonogram / Picross (5×5)',       'category': 'logic',    'target_time_s': 180, 'max_attempts': 3},
+    {'id': 'tf2048_mini',        'label': '2048 Mini (reach 32)',           'category': 'strategy', 'target_time_s': 120, 'max_attempts': 3},
+    {'id': 'cryptogram',         'label': 'Cryptogram (decode cipher)',     'category': 'logic',    'target_time_s': 120, 'max_attempts': 3},
+    {'id': 'anagram_finder',     'label': 'Anagram Finder (find 4+ words)', 'category': 'word',     'target_time_s': 90,  'max_attempts': 3},
+    {'id': 'maze_solver',        'label': 'Maze Solver (7×7 randomized)',   'category': 'spatial',  'target_time_s': 60,  'max_attempts': 3},
+    {'id': 'spot_pattern',       'label': 'Spot the Pattern (Raven-style)', 'category': 'reasoning','target_time_s': 45,  'max_attempts': 3},
 ]
 
 

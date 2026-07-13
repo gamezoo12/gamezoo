@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { gamesAPI, adminAPI } from '../../lib/api';
-import { Gamepad2, Users, Trophy, Zap, Sparkles, Grid3x3, Brain, Target, Type, Puzzle, Play, X, PauseCircle, PlayCircle } from 'lucide-react';
+import { Gamepad2, Users, Trophy, Zap, Sparkles, Grid3x3, Brain, Target, Type, Puzzle, Play, X, PauseCircle, PlayCircle, Crown, Compass, Bomb, Calculator, Hash, LayoutGrid, Lock, Route } from 'lucide-react';
 import { GAME_MAP } from '../../components/games';
 import { Button } from '../../components/ui/button';
 import { useToast } from '../../hooks/use-toast';
@@ -10,6 +10,12 @@ const ICONS = {
   emoji_riddle: Sparkles, jigsaw_3x3: Puzzle, jigsaw_4x4: Puzzle, slider_puzzle: Grid3x3,
   math_sprint: Brain, reaction_time: Zap, trivia_quiz: Sparkles, simon_says: Brain,
   whack_a_mole: Target, odd_one_out: Puzzle, color_match: Sparkles, pattern_repeat: Grid3x3,
+  // Vol.2
+  sudoku_mini: Hash, sequence_predict: Sparkles, countdown_numbers: Calculator,
+  word_ladder: Type, chess_mate_in_one: Crown, tower_of_hanoi: LayoutGrid,
+  lights_out: Zap, minesweeper_mini: Bomb, nonogram_mini: Grid3x3,
+  tf2048_mini: LayoutGrid, cryptogram: Lock, anagram_finder: Type,
+  maze_solver: Route, spot_pattern: Compass,
 };
 
 const DESC = {
@@ -29,6 +35,21 @@ const DESC = {
   odd_one_out: 'Find the different-shaded circle in a 3×3 grid — 5 rounds.',
   color_match: 'Stroop test — pick the colour of the text, not the word.',
   pattern_repeat: 'Watch and repeat number patterns of increasing length.',
+  // Vol.2
+  sudoku_mini: '4×4 sudoku with 2×2 boxes. Fill every row, column & box with 1-4.',
+  sequence_predict: 'Given 4 numbers, predict what comes next. 5 rounds.',
+  countdown_numbers: 'Reach a target number using 4 given digits and + − × ( ).',
+  word_ladder: 'Change one letter at a time to transform the start word into the target.',
+  chess_mate_in_one: 'A real chess tactical position — find the mating move.',
+  tower_of_hanoi: 'Move all 3 disks to the right peg. Bigger cannot sit on smaller (min 7 moves).',
+  lights_out: 'Click a cell to toggle it and its 4 neighbours. Goal: turn every light OFF.',
+  minesweeper_mini: '5×5 minesweeper with 4 mines. Reveal all safe cells without exploding.',
+  nonogram_mini: 'Picross-style logic — fill cells so every row/column matches its numbers.',
+  tf2048_mini: 'A compact 2048 on 3×3 board. Merge tiles to reach the 32 tile.',
+  cryptogram: 'Every letter has been swapped for another. Decode the hidden phrase.',
+  anagram_finder: 'Given 6 letters, find at least 4 valid English words.',
+  maze_solver: 'Navigate a randomly-generated 7×7 maze. Fewer steps = higher score.',
+  spot_pattern: 'Raven-style abstract reasoning — pick the shape that breaks the pattern.',
 };
 
 export default function GamesAdmin() {
