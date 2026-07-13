@@ -82,7 +82,7 @@ export default function GlobalLeaderboard() {
                       {m.Icon ? <m.Icon className="w-6 h-6" /> : p.rank}
                     </div>
                     <div className="font-bold truncate w-full">{p.user_name}</div>
-                    <div className="text-2xl font-extrabold font-display">{p.total_points.toLocaleString()}</div>
+                    <div className="text-2xl font-extrabold font-display">{(p.total_points || 0).toLocaleString()}</div>
                     <div className="text-xs opacity-90">{p.contests_played} contest{p.contests_played !== 1 ? 's' : ''}</div>
                   </div>
                 );
@@ -109,7 +109,7 @@ export default function GlobalLeaderboard() {
                         <div className="font-semibold text-slate-900 truncate">{p.user_name}</div>
                         <div className="text-xs text-slate-500">{p.contests_played} contest{p.contests_played !== 1 ? 's' : ''} played</div>
                       </div>
-                      <div className="font-display text-2xl font-extrabold text-orange-600">{p.total_points.toLocaleString()}</div>
+                      <div className="font-display text-2xl font-extrabold text-orange-600">{(p.total_points || 0).toLocaleString()}</div>
                     </li>
                   );
                 })}

@@ -268,7 +268,7 @@ async def mark_paid(winner_id: str, request: Request):
 
 
 @router.post('/contests/bulk/launch')
-async def bulk_launch_contests(payload: dict | None, request: Request):
+async def bulk_launch_contests(request: Request, payload: dict | None = None):
     """Launch multiple contests at once. Optional filter:
     - only_games=true → only contests with game_type set
     - category=<slug> → only contests in that category
@@ -293,7 +293,7 @@ async def bulk_launch_contests(payload: dict | None, request: Request):
 
 
 @router.post('/contests/bulk/pause')
-async def bulk_pause_contests(payload: dict | None, request: Request):
+async def bulk_pause_contests(request: Request, payload: dict | None = None):
     """Pause multiple contests. Same filter surface as bulk/launch."""
     await require_admin(request)
     from deps import get_db

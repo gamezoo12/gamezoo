@@ -37,6 +37,9 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - [x] Admin can assign a game to each contest (dropdown in EditContestDialog) or leave blank for manual winner draw
 - [x] Play flow — `/play/:contestId/:ticketId`, 3 attempts, score = speed × accuracy
 - [x] Real-time per-contest leaderboard — `/leaderboard/:contestId`
+- [x] **Global live leaderboard** — `/leaderboard` (public nav link) with podium, per-contest tab switcher, 15s auto-refresh
+- [x] **🎮 Play to win badge** on competition cards where a skill game is assigned
+- [x] **Admin bulk launch/hold** — `POST /api/admin/contests/bulk/{launch,pause}` with filters (only_games, category, status_from) surfaced in Games Admin + Contests Admin
 - [x] Rebrand sweep — killed all teal/emerald on public site
 - [x] Renamed "free spins" → "free tickets"
 
@@ -47,8 +50,8 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - Background task: `services/scheduler.py` auto-draws contests at end_date (60s tick).
 - Games: pure client-side React components in `/app/frontend/src/components/games/index.jsx`; scoring & leaderboard server-side.
 
-## Test suites (71/71 pass — as of iteration_9)
-- backend_test (16 regression) + scheduler (11) + meera_refactor (5) + create_contest (5) + profile (10) + **wallet (~9)** + **referrals (incl fallback, ~7)** + **games (~5)** + checkout_wallet + ~others = **71 total**
+## Test suites (86/86 pass — as of iteration_11)
+- backend_test (16 regression) + scheduler (11) + meera_refactor (5) + create_contest (5) + profile (10) + wallet (~9) + referrals (~7) + games (~5) + checkout_wallet + **leaderboard_and_bulk (15 new — global leaderboard, game_type field, bulk launch/pause + auth guard)** = **86 total**
 
 ## Roadmap
 ### P0 to launch (needs user-supplied keys)
