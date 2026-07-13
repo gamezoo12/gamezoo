@@ -1,0 +1,31 @@
+{
+  "summary": "Iteration 9 — Post-iter8 polish sweep verified: (a) referral fallback branch, (b) /login rebrand, (c) header wallet chip retint, (d) Home StatsBar retint. All 71 pytest suites pass (70 pre-existing + 1 new TestReferralFallback::test_fallback_credits_both_wallets) in 58.73s via xdist. New test provisions two users via referral_code, pauses every live contest with price<=£5 via admin API, creates a throwaway £10 live contest to ensure no eligible reward contest exists, then POST /api/referrals/complete → 200 {ok:true}. Verified balances of BOTH referrer and referred rose by exactly £5.00 via GET /api/wallet/me, and GET /api/wallet/transactions on each contains a wallet_tx with kind='referral_bonus' amount=5.0. Fixture restores paused contests and deletes the throwaway contest in teardown. Playwright rebrand verified: /login left panel now bg-gradient-to-br from-slate-900 via-fuchsia-800 to-orange-600 (screenshot confirms warm slate→fuchsia→orange gradient, no teal); Prize League wordmark rendered white on gradient (no green). Header wallet chip data-testid='header-wallet-chip' resolved class: 'from-orange-100 to-amber-100 border-orange-200 text-orange-800' — has_orange=true, has_teal/emerald=false; visible on Home as '£35.00' pill in the admin session screenshot. Home StatsBar 4 icons all use 'bg-gradient-to-br from-orange-50 to-rose-50' with text-orange-600 lucide icons (visible in home screenshot). Sanity: /my-account renders 11/11 tabs (tab-profile/wallet/tickets/orders/referrals/notifications/verify/security/support/policies/preferences). /admin/wallets loads admin-wallet-page. /admin/competitions '+ New contest' modal opens with Skill-game / game_type dropdown intact.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Home (below the fold)", "issues": ["One residual teal/emerald component still present — a single div matched 'bg-gradient-to-br from-teal-500 to-emerald-600 text-white p-6' (likely the ReferralPromo banner or a card in the '+ New game' section). Not called out in the review request but noted for a complete rebrand sweep."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_referrals.py",
+    "/app/test_reports/pytest/iter9_all.xml"
+  ],
+  "action_items": [
+    "OPTIONAL — Sweep the remaining teal/emerald gradient (from-teal-500 to-emerald-600) on Home if you want the rebrand 100% complete. All P0 rebrand targets (login, header chip, StatsBar) are done.",
+    "OPTIONAL (from iter8, still open) — Consider using MongoDB findOneAndUpdate + $inc in wallet_routes._apply_tx for atomic balance updates under concurrent top-ups/checkouts (not a regression but flagged in critical_code_review_comments)."
+  ],
+  "critical_code_review_comments": [
+    "referral_routes._grant_free_ticket fallback branch — clean implementation: awaits _apply_tx with kind='referral_bonus' amount=5.0, inserts a notifications row, returns None so /complete still flips the referral to completed. Good defensive coding; matches the review request precisely.",
+    "wallet_routes.MIN_TOPUP=10 while referral_bonus is £5 — _apply_tx has no lower-bound check (only 'new_balance < 0' rejection), so bypassing the Pydantic ge=10 constraint via the internal call path works as intended for referral bonuses. Confirmed by test."
+  ],
+  "updated_files": ["/app/backend/tests/test_referrals.py"],
+  "success_rate": {"backend": "100% (71/71 pytest, includes new fallback test)", "frontend": "100% (rebrand verified on /login, header chip, StatsBar; sanity flows /my-account 11/11 tabs + /admin/wallets + /admin/competitions modal all green)"},
+  "test_credentials": "Admin: bachanta8@gmail.com / Herts@910022 (from /app/memory/test_credentials.md). New test users prefixed test_ref_fb_ref_* and test_ref_fb_ed_* for the fallback test.",
+  "seed_data_creation": "TestReferralFallback fixture creates 2 users + 1 throwaway TEST £10 contest. Fixture teardown restores previously-paused live contests to 'live' status and DELETEs the throwaway contest. If the test is interrupted, some contests may remain paused — re-running the suite (or hitting POST /api/admin/contests/{id}/launch) restores them.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "The fallback test (TestReferralFallback in test_referrals.py) DEPENDS on admin login working (bachanta8@gmail.com/Herts@910022) and admin endpoints /api/admin/contests + /api/admin/contests/{id}/pause + /api/admin/contests/{id}/launch. Fixture is class-scoped so pytest-xdist keeps setup+test+teardown on the same worker. Test cost: ~5s. Cleanup pattern: db.contests.delete_many({title:/^TEST/}) and db.users.delete_many({email:/^test_ref_/}) is safe to run periodically. To run just the fallback: `cd /app/backend && python -m pytest tests/test_referrals.py::TestReferralFallback -v`. To run all: `cd /app/backend && python -m pytest tests/ -v --junitxml=/app/test_reports/pytest/iterN_all.xml`.",
+  "rca_of_the_issue": "N/A — polish verification, no bugs found. Iter8's flagged risk ('referral reward silently no-ops if no cheap contest exists') has been correctly resolved by the fallback £5 wallet credit path. Test coverage now proves the fix."
+}

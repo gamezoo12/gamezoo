@@ -61,7 +61,7 @@ export default function Header() {
             <Link
               to="/my-account?tab=wallet"
               data-testid="header-wallet-chip"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-emerald-100 to-teal-100 border border-emerald-200 text-emerald-800 text-xs font-bold hover:from-emerald-200"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-orange-100 to-amber-100 border border-orange-200 text-orange-800 text-xs font-bold hover:from-orange-200"
             >
               <WalletIcon className="w-3.5 h-3.5" />
               {balance === null ? '…' : `£${Number(balance).toFixed(2)}`}

@@ -79,3 +79,112 @@ class TestReferralFlow:
         tok = r.json()['token']
         r2 = requests.post(f'{BASE_URL}/api/referrals/complete', headers=_auth(tok), timeout=30)
         assert r2.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Fallback branch: if NO live contest with price<=£5 exists, /complete must
+# still succeed and credit £5 to BOTH the referrer and the referred user's
+# wallet (kind='referral_bonus').
+# ---------------------------------------------------------------------------
+ADMIN_EMAIL = 'bachanta8@gmail.com'
+ADMIN_PASSWORD = 'Herts@910022'
+
+
+@pytest.fixture(scope='module')
+def admin_token():
+    r = requests.post(f'{BASE_URL}/api/auth/login', json={'email': ADMIN_EMAIL, 'password': ADMIN_PASSWORD}, timeout=30)
+    if r.status_code != 200:
+        pytest.skip(f'Admin login failed: {r.status_code} {r.text}')
+    return r.json()['token']
+
+
+@pytest.fixture(scope='class')
+def hide_cheap_contests(admin_token):
+    """Temporarily pause all live contests with price<=£5 so the fallback branch is exercised."""
+    # Find all live contests price<=5 via admin listing
+    r = requests.get(f'{BASE_URL}/api/admin/contests', headers=_auth(admin_token), timeout=30)
+    assert r.status_code == 200, r.text
+    contests = r.json()
+    paused_ids = []
+    for c in contests:
+        if c.get('status') == 'live' and float(c.get('price', 0)) <= 5:
+            resp = requests.post(f'{BASE_URL}/api/admin/contests/{c["contest_id"]}/pause', headers=_auth(admin_token), timeout=30)
+            if resp.status_code == 200:
+                paused_ids.append(c['contest_id'])
+    # Also create a fresh live contest with price=£10 to ensure at least one live contest exists
+    payload = {
+        'title': 'TEST Fallback Contest £10',
+        'category': 'prize-draws',
+        'price': 10.0,
+        'tickets_total': 100,
+        'prize_amount': 500.0,
+        'status': 'live',
+        'skill_question': {'q': '2+2?', 'options': ['3', '4', '5'], 'answer': '4', 'type': 'trivia'},
+    }
+    cr = requests.post(f'{BASE_URL}/api/admin/contests', headers=_auth(admin_token), json=payload, timeout=30)
+    fresh_contest_id = cr.json().get('contest', {}).get('contest_id') if cr.status_code == 200 else None
+
+    yield paused_ids
+
+    # Restore paused contests
+    for cid in paused_ids:
+        requests.post(f'{BASE_URL}/api/admin/contests/{cid}/launch', headers=_auth(admin_token), timeout=30)
+    # Delete the throwaway fresh contest
+    if fresh_contest_id:
+        requests.delete(f'{BASE_URL}/api/admin/contests/{fresh_contest_id}', headers=_auth(admin_token), timeout=30)
+
+
+class TestReferralFallback:
+    """When no live contest ≤£5 exists, /complete should credit £5 to both parties."""
+
+    def test_fallback_credits_both_wallets(self, hide_cheap_contests):
+        # Register referrer
+        ts = int(time.time() * 1000)
+        ref_email = f'test_ref_fb_ref_{ts}@example.com'
+        r = requests.post(f'{BASE_URL}/api/auth/register',
+                          json={'email': ref_email, 'name': 'RefFB', 'password': 'Password123!'}, timeout=30)
+        assert r.status_code == 200, r.text
+        ref_token = r.json()['token']
+        me = requests.get(f'{BASE_URL}/api/referrals/me', headers=_auth(ref_token), timeout=30)
+        assert me.status_code == 200
+        ref_code = me.json()['code']
+
+        # Register referred using referrer's code
+        ed_email = f'test_ref_fb_ed_{ts}@example.com'
+        r2 = requests.post(f'{BASE_URL}/api/auth/register',
+                           json={'email': ed_email, 'name': 'EdFB', 'password': 'Password123!', 'referral_code': ref_code},
+                           timeout=30)
+        assert r2.status_code == 200, r2.text
+        ed_token = r2.json()['token']
+        ed_user = r2.json()['user']
+
+        # Snapshot balances BEFORE
+        w_ref_before = requests.get(f'{BASE_URL}/api/wallet/me', headers=_auth(ref_token), timeout=30).json()
+        w_ed_before = requests.get(f'{BASE_URL}/api/wallet/me', headers=_auth(ed_token), timeout=30).json()
+        ref_bal_before = float(w_ref_before.get('balance', 0))
+        ed_bal_before = float(w_ed_before.get('balance', 0))
+
+        # Call complete — with no live contest ≤ £5, fallback should credit £5 to both
+        cmp = requests.post(f'{BASE_URL}/api/referrals/complete', headers=_auth(ed_token), timeout=30)
+        assert cmp.status_code == 200, f'Expected 200 with fallback credit, got {cmp.status_code}: {cmp.text}'
+        body = cmp.json()
+        assert body.get('ok') is True
+
+        # Verify balances after
+        w_ref_after = requests.get(f'{BASE_URL}/api/wallet/me', headers=_auth(ref_token), timeout=30).json()
+        w_ed_after = requests.get(f'{BASE_URL}/api/wallet/me', headers=_auth(ed_token), timeout=30).json()
+        ref_bal_after = float(w_ref_after.get('balance', 0))
+        ed_bal_after = float(w_ed_after.get('balance', 0))
+
+        assert ref_bal_after - ref_bal_before == pytest.approx(5.0), \
+            f'Referrer balance delta expected 5.0, got {ref_bal_after - ref_bal_before} (before={ref_bal_before}, after={ref_bal_after})'
+        assert ed_bal_after - ed_bal_before == pytest.approx(5.0), \
+            f'Referred balance delta expected 5.0, got {ed_bal_after - ed_bal_before}'
+
+        # Verify wallet_tx entries of kind='referral_bonus' amount=5.0
+        txs_ref = requests.get(f'{BASE_URL}/api/wallet/transactions', headers=_auth(ref_token), timeout=30).json()['transactions']
+        txs_ed = requests.get(f'{BASE_URL}/api/wallet/transactions', headers=_auth(ed_token), timeout=30).json()['transactions']
+        assert any(t['kind'] == 'referral_bonus' and float(t['amount']) == 5.0 for t in txs_ref), \
+            f'Referrer wallet has no referral_bonus tx of £5: {txs_ref}'
+        assert any(t['kind'] == 'referral_bonus' and float(t['amount']) == 5.0 for t in txs_ed), \
+            f'Referred wallet has no referral_bonus tx of £5: {txs_ed}'

@@ -11,8 +11,8 @@ export default function StatsBar() {
           const Icon = iconMap[s.icon] || Sparkles;
           return (
             <div key={idx} className="text-center group">
-              <div className="mx-auto w-12 h-12 rounded-2xl bg-gradient-to-br from-teal-50 to-emerald-50 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-                <Icon className="w-5 h-5 text-teal-600" />
+              <div className="mx-auto w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-50 to-rose-50 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                <Icon className="w-5 h-5 text-orange-600" />
               </div>
               <div className="font-display font-extrabold text-2xl text-slate-900">{s.value}</div>
               <div className="text-xs text-slate-500 mt-1">{s.label}</div>

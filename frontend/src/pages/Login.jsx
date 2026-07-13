@@ -65,7 +65,7 @@ export default function Login() {
   return (
     <div className="min-h-[calc(100vh-8rem)] grid lg:grid-cols-2 relative overflow-hidden">
       {/* Colourful left panel */}
-      <div className="relative hidden lg:flex flex-col justify-between p-12 text-white bg-gradient-to-br from-teal-500 via-emerald-500 to-cyan-500 overflow-hidden">
+      <div className="relative hidden lg:flex flex-col justify-between p-12 text-white bg-gradient-to-br from-slate-900 via-fuchsia-800 to-orange-600 overflow-hidden">
         <div className="absolute -top-20 -right-20 w-80 h-80 bg-amber-300/40 rounded-full blur-3xl float" />
         <div className="absolute -bottom-20 -left-20 w-96 h-96 bg-fuchsia-400/30 rounded-full blur-3xl float" style={{ animationDelay: '1s' }} />
         <div className="confetti absolute inset-0 opacity-30" />
@@ -88,16 +88,16 @@ export default function Login() {
       </div>
 
       {/* Right form panel */}
-      <div className="flex items-center justify-center px-4 py-12 bg-gradient-to-b from-white via-teal-50/40 to-white">
+      <div className="flex items-center justify-center px-4 py-12 bg-gradient-to-b from-white via-orange-50/40 to-white">
         <div className="w-full max-w-md">
           <div className="lg:hidden flex items-center gap-2 mb-6">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-500 flex items-center justify-center text-white"><Sparkles className="w-5 h-5" /></div>
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 via-rose-500 to-fuchsia-600 flex items-center justify-center text-white"><Sparkles className="w-5 h-5" /></div>
             <span className="font-display font-extrabold text-xl">Prize League</span>
           </div>
 
           <div className="flex gap-1 p-1 bg-slate-100 rounded-xl mb-6">
-            <button onClick={() => setMode('register')} className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${mode === 'register' ? 'bg-white text-teal-700 shadow' : 'text-slate-500'}`}>Sign up free</button>
-            <button onClick={() => setMode('login')} className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${mode === 'login' ? 'bg-white text-teal-700 shadow' : 'text-slate-500'}`}>Log in</button>
+            <button onClick={() => setMode('register')} className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${mode === 'register' ? 'bg-white text-orange-700 shadow' : 'text-slate-500'}`}>Sign up free</button>
+            <button onClick={() => setMode('login')} className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${mode === 'login' ? 'bg-white text-orange-700 shadow' : 'text-slate-500'}`}>Log in</button>
           </div>
 
           <h1 className="font-display text-3xl font-extrabold text-slate-900">{mode === 'login' ? 'Welcome back!' : 'Create your free account'}</h1>
@@ -134,7 +134,7 @@ export default function Login() {
           </Tabs>
 
           <p className="text-[11px] text-slate-400 text-center mt-5">By continuing you agree to our <a href="/faq" className="underline">Terms</a> and confirm you’re 18 or older.</p>
-          <p className="text-xs text-slate-400 text-center mt-3">Staff? <Link to="/admin/login" className="text-slate-600 hover:text-teal-600 font-semibold">Admin sign-in →</Link></p>
+          <p className="text-xs text-slate-400 text-center mt-3">Staff? <Link to="/admin/login" className="text-slate-600 hover:text-orange-600 font-semibold">Admin sign-in →</Link></p>
         </div>
       </div>
     </div>

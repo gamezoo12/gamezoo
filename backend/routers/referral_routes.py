@@ -25,6 +25,18 @@ async def _pick_reward_contest(db) -> Optional[dict]:
 async def _grant_free_ticket(db, user_id: str, user_name: str, note: str) -> Optional[str]:
     contest = await _pick_reward_contest(db)
     if not contest:
+        # Fallback: credit £5 to the user's wallet so the reward never silently fails
+        from routers.wallet_routes import _apply_tx
+        await _apply_tx(db, user_id, 'referral_bonus', 5.0, note=f'Referral reward (fallback credit) — {note}')
+        await db.notifications.insert_one({
+            'notification_id': f"nr_{user_id[-8:]}",
+            'user_id': user_id,
+            'type': 'referral_reward',
+            'title': '🎁 £5 referral credit added',
+            'body': f'{note} £5 has been credited to your wallet.',
+            'read': False,
+            'created_at': datetime.now(timezone.utc),
+        })
         return None
     ticket_number = int(contest.get('tickets_sold', 0)) + 1
     t = Ticket(
