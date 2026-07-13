@@ -39,7 +39,7 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - [x] Real-time per-contest leaderboard — `/leaderboard/:contestId`
 - [x] **Global live leaderboard** — `/leaderboard` (public nav link) with podium, per-contest tab switcher, 15s auto-refresh
 - [x] **Per-contest live leaderboard embedded on `/competition/:slug`** — full card (top 10, medals, view-full link) shown whenever contest has a skill game assigned
-- [x] **🎮 Play to win badge** on competition cards where a skill game is assigned
+- [x] **30 skill-based mini-games** — 16 original + **14 new** (sudoku_mini, sequence_predict, countdown_numbers, word_ladder, chess_mate_in_one, tower_of_hanoi, lights_out, minesweeper_mini, nonogram_mini, tf2048_mini, cryptogram, anagram_finder, maze_solver, spot_pattern) — all mount + interactive, backend types endpoint returns 30
 - [x] **Admin bulk launch/hold** — `POST /api/admin/contests/bulk/{launch,pause}` with filters (only_games, category, status_from) surfaced in Games Admin + Contests Admin
 - [x] Rebrand sweep — killed all teal/emerald on public site
 - [x] Renamed "free spins" → "free tickets"
@@ -51,8 +51,8 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - Background task: `services/scheduler.py` auto-draws contests at end_date (60s tick).
 - Games: pure client-side React components in `/app/frontend/src/components/games/index.jsx`; scoring & leaderboard server-side.
 
-## Test suites (86/86 pass — as of iteration_11)
-- backend_test (16 regression) + scheduler (11) + meera_refactor (5) + create_contest (5) + profile (10) + wallet (~9) + referrals (~7) + games (~5) + checkout_wallet + **leaderboard_and_bulk (15 new — global leaderboard, game_type field, bulk launch/pause + auth guard)** = **86 total**
+## Test suites (106/106 pass — as of iteration_12)
+- backend_test (16 regression) + scheduler (11) + meera_refactor (5) + create_contest (5) + profile (10) + wallet (~9) + referrals (~7) + games (~5) + checkout_wallet + leaderboard_and_bulk (15) + **games_v2 (20 new — 30-type registry, 14-game assignment parametrize, e2e cryptogram submit + leaderboard)** = **106 total**
 
 ## Roadmap
 ### P0 to launch (needs user-supplied keys)

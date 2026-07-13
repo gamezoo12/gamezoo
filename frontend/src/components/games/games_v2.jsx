@@ -640,6 +640,11 @@ export function MazeSolver({ onComplete }) {
     }
   }, [pos]);
   useEffect(() => {
+    const move = (dx,dy) => {
+      const nx = pos[0]+dx, ny = pos[1]+dy;
+      if (nx<0||ny<0||nx>=maze.length||ny>=maze.length||maze[nx][ny]===1) return;
+      setPos([nx,ny]); setSteps(s=>s+1);
+    };
     const onKey = (e) => {
       if (e.key==='ArrowUp') move(-1,0);
       if (e.key==='ArrowDown') move(1,0);
@@ -648,7 +653,7 @@ export function MazeSolver({ onComplete }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  });
+  }, [pos, maze]);
   return (
     <div className="max-w-md mx-auto text-center" data-testid="maze-solver">
       <div className="text-slate-600 text-sm mb-2">Navigate from 🟢 to 🏁 using arrows (buttons or keyboard). Steps: <b>{steps}</b></div>
