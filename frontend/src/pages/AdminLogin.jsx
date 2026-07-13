@@ -27,7 +27,7 @@ export default function AdminLogin() {
       toast({ title: `Welcome, ${u.name}` });
       nav(u.role === 'operator' ? '/production' : '/admin');
     } catch (err) {
-      toast({ title: 'Sign-in failed', description: err?.response?.data?.detail || 'Invalid credentials' });
+      toast({ title: 'Sign in failed', description: err?.response?.data?.detail || 'Invalid credentials' });
     } finally { setBusy(false); }
   };
 

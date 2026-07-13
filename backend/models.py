@@ -78,8 +78,8 @@ class UserPublic(BaseModel):
 
 class RegisterInput(BaseModel):
     email: EmailStr
-    password: str
-    name: str
+    password: str = Field(..., min_length=8, description="Minimum 8 characters")
+    name: str = Field(..., min_length=1)
 
 
 class LoginInput(BaseModel):

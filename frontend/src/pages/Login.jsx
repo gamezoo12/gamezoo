@@ -36,7 +36,11 @@ export default function Login() {
       }
       nav('/my-account');
     } catch (err) {
-      const detail = err?.response?.data?.detail || 'Please check your details and try again.';
+      const raw = err?.response?.data?.detail;
+      // Pydantic 422 returns an array of {msg, loc}. Flatten to a readable string.
+      const detail = Array.isArray(raw)
+        ? raw.map(e => e.msg).join('. ')
+        : (raw || 'Please check your details and try again.');
       // Common register-side error: existing email → suggest the login tab
       if (mode === 'register' && /already/i.test(detail)) {
         toast({
@@ -114,7 +118,7 @@ export default function Login() {
               <form onSubmit={emailSubmit} className="space-y-3">
                 {mode === 'register' && (<div><Label className="mb-1 block">Your name</Label><Input name="name" required placeholder="Alex Smith" /></div>)}
                 <div><Label className="mb-1 block">Email</Label><Input name="email" type="email" required placeholder="you@email.com" /></div>
-                <div><Label className="mb-1 block">Password</Label><Input name="password" type="password" required minLength={6} placeholder="••••••••" /></div>
+                <div><Label className="mb-1 block">Password</Label><Input name="password" type="password" required minLength={8} placeholder="At least 8 characters" /></div>
                 <Button type="submit" disabled={busy} className="w-full h-11 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold shadow-lg shadow-orange-500/20">
                   {busy ? 'Please wait…' : (mode === 'login' ? 'Log in →' : 'Create free account →')}
                 </Button>
