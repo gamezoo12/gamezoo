@@ -24,6 +24,14 @@ export default function CompetitionCard({ c }) {
           {c.jackpot && (
             <Badge className="absolute top-3 right-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white border-0">JACKPOT</Badge>
           )}
+          {c.gameType && (
+            <Badge
+              data-testid={`play-to-win-badge-${c.id}`}
+              className={`absolute ${c.jackpot ? 'top-11' : 'top-3'} right-3 bg-gradient-to-r from-fuchsia-500 via-rose-500 to-orange-500 text-white border-0 shadow-md`}
+            >
+              🎮 Play to win
+            </Badge>
+          )}
           <div className="absolute bottom-3 left-3 right-3 flex items-center gap-1 text-white text-xs font-semibold">
             <span className="bg-black/60 backdrop-blur px-2 py-1 rounded-md"><Clock className="w-3 h-3 inline mr-1" />{t.days}d {t.hours}h {t.mins}m {String(t.secs).padStart(2,'0')}s</span>
           </div>

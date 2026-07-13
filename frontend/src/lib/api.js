@@ -69,6 +69,8 @@ export const adminAPI = {
   markPaid: (winnerId) => api.post(`/admin/winners/${winnerId}/mark-paid`).then(r => r.data),
   launchContest: (contestId) => api.post(`/admin/contests/${contestId}/launch`).then(r => r.data),
   pauseContest: (contestId) => api.post(`/admin/contests/${contestId}/pause`).then(r => r.data),
+  bulkLaunch: (filter = {}) => api.post('/admin/contests/bulk/launch', filter).then(r => r.data),
+  bulkPause: (filter = {}) => api.post('/admin/contests/bulk/pause', filter).then(r => r.data),
   deleteContest: (contestId) => api.delete(`/admin/contests/${contestId}`).then(r => r.data),
   kycList: (status = 'all') => api.get('/admin/kyc', { params: { status } }).then(r => r.data),
   kycApprove: (id) => api.post(`/admin/kyc/${id}/approve`).then(r => r.data),
@@ -100,5 +102,6 @@ export const gamesAPI = {
   submit: (data) => api.post('/games/submit', data).then(r => r.data),
   myAttempts: (ticket_id) => api.get(`/games/attempts/${ticket_id}`).then(r => r.data),
   leaderboard: (contest_id, limit = 25) => api.get(`/contests/${contest_id}/leaderboard`, { params: { limit } }).then(r => r.data),
+  globalLeaderboard: (limit = 50) => api.get('/leaderboard/global', { params: { limit } }).then(r => r.data),
 };
 

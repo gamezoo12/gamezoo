@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { gamesAPI, adminAPI } from '../../lib/api';
-import { Gamepad2, Users, Trophy, Zap, Sparkles, Grid3x3, Brain, Target, Type, Puzzle, Play, X } from 'lucide-react';
+import { Gamepad2, Users, Trophy, Zap, Sparkles, Grid3x3, Brain, Target, Type, Puzzle, Play, X, PauseCircle, PlayCircle } from 'lucide-react';
 import { GAME_MAP } from '../../components/games';
 import { Button } from '../../components/ui/button';
+import { useToast } from '../../hooks/use-toast';
 
 const ICONS = {
   memory_match: Brain, number_sequence: Grid3x3, target_tap: Target, word_unscramble: Type,
@@ -36,14 +37,34 @@ export default function GamesAdmin() {
   const [testing, setTesting] = useState(null);
   const [testKey, setTestKey] = useState(0);
   const [testResult, setTestResult] = useState(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const { toast } = useToast();
 
+  const loadContests = () => adminAPI.contests().then(setContests).catch(() => {});
   useEffect(() => {
     gamesAPI.types().then(r => setGames(r?.games || [])).catch(() => {});
-    adminAPI.contests().then(setContests).catch(() => {});
+    loadContests();
   }, []);
 
   const usageCount = (gameId) => contests.filter(c => c.game_type === gameId).length;
   const totalAssigned = contests.filter(c => c.game_type).length;
+  const liveGames = contests.filter(c => c.game_type && c.status === 'live').length;
+  const heldGames = contests.filter(c => c.game_type && c.status === 'draft').length;
+
+  const doBulk = async (action) => {
+    setBulkBusy(true);
+    try {
+      const r = action === 'launch'
+        ? await adminAPI.bulkLaunch({ only_games: true, status_from: 'draft' })
+        : await adminAPI.bulkPause({ only_games: true, status_from: 'live' });
+      toast({ title: action === 'launch' ? 'All game contests launched' : 'All game contests held', description: `${r.updated} contest${r.updated !== 1 ? 's' : ''} updated` });
+      loadContests();
+    } catch (e) {
+      toast({ title: 'Bulk action failed', description: e?.response?.data?.detail || 'Try again' });
+    } finally {
+      setBulkBusy(false);
+    }
+  };
 
   return (
     <div className="space-y-6" data-testid="admin-games-page">
@@ -56,6 +77,35 @@ export default function GamesAdmin() {
           game (3 attempts) and the highest score wins. To assign a game, edit a contest and pick from the
           &ldquo;Skill game&rdquo; dropdown.
         </p>
+      </div>
+
+      {/* Bulk actions bar */}
+      <div className="bg-gradient-to-r from-slate-900 via-fuchsia-900 to-orange-800 text-white rounded-2xl p-5 flex flex-wrap gap-4 items-center justify-between" data-testid="bulk-actions-bar">
+        <div>
+          <div className="text-xs uppercase tracking-widest text-white/70">Bulk actions — all game-enabled contests</div>
+          <div className="font-display text-xl font-extrabold mt-1">
+            {liveGames} live · {heldGames} on hold · {totalAssigned} total
+          </div>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <Button
+            onClick={() => doBulk('launch')}
+            disabled={bulkBusy || heldGames === 0}
+            data-testid="bulk-launch-btn"
+            className="bg-emerald-500 hover:bg-emerald-600 text-white disabled:opacity-40"
+          >
+            <PlayCircle className="w-4 h-4 mr-2" /> Launch all games {heldGames > 0 && `(${heldGames})`}
+          </Button>
+          <Button
+            onClick={() => doBulk('pause')}
+            disabled={bulkBusy || liveGames === 0}
+            data-testid="bulk-pause-btn"
+            variant="outline"
+            className="bg-white/10 border-white/30 text-white hover:bg-white/20 hover:text-white disabled:opacity-40"
+          >
+            <PauseCircle className="w-4 h-4 mr-2" /> Hold all games {liveGames > 0 && `(${liveGames})`}
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

@@ -16,7 +16,7 @@ export default function Home() {
     category: c.category, tag: c.tag, price: c.price,
     ticketsSold: c.tickets_sold, ticketsTotal: c.tickets_total,
     prizeAmount: c.prize_amount, endDate: c.end_date, image: c.image,
-    jackpot: c.jackpot, featured: c.featured,
+    jackpot: c.jackpot, featured: c.featured, gameType: c.game_type,
   }));
   const endingSoon = [...mapped].sort((a,b) => new Date(a.endDate) - new Date(b.endDate)).slice(0, 4);
   const newGames = mapped.filter(c => c.category === 'new-games').slice(0, 4);

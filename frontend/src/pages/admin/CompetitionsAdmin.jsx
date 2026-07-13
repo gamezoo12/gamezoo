@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/button';
 import { Progress } from '../../components/ui/progress';
 import { gbp, percent } from '../../lib/format';
 import { useToast } from '../../hooks/use-toast';
-import { Play, Pause, Trash2, Trophy, Pencil, Plus } from 'lucide-react';
+import { Play, Pause, Trash2, Trophy, Pencil, Plus, PlayCircle, PauseCircle } from 'lucide-react';
 import EditContestDialog from '../../components/EditContestDialog';
 
 const STATUS_TABS = [
@@ -26,6 +26,23 @@ export default function CompetitionsAdmin() {
 
   const launch = async (id) => { try { await adminAPI.launchContest(id); toast({ title: 'Launched' }); load(); } catch (e) { toast({ title: 'Failed', description: e?.response?.data?.detail }); } };
   const pause = async (id) => { try { await adminAPI.pauseContest(id); toast({ title: 'Paused' }); load(); } catch (e) { toast({ title: 'Failed', description: e?.response?.data?.detail }); } };
+  const bulkLaunch = async () => {
+    if (!window.confirm(`Launch all ${tab === 'all' ? 'draft' : tab === 'draft' ? '' : ''} contests${tab !== 'all' && tab !== 'draft' ? ` in "${tab}" tab` : ''}?`)) return;
+    try {
+      const filter = tab === 'all' ? { status_from: 'draft' } : { status_from: tab === 'live' ? 'draft' : tab };
+      const r = await adminAPI.bulkLaunch(filter);
+      toast({ title: `Launched ${r.updated} contest${r.updated !== 1 ? 's' : ''}` });
+      load();
+    } catch (e) { toast({ title: 'Bulk launch failed', description: e?.response?.data?.detail }); }
+  };
+  const bulkPause = async () => {
+    if (!window.confirm('Hold all live contests? They will move to draft.')) return;
+    try {
+      const r = await adminAPI.bulkPause({ status_from: 'live' });
+      toast({ title: `Held ${r.updated} contest${r.updated !== 1 ? 's' : ''}` });
+      load();
+    } catch (e) { toast({ title: 'Bulk hold failed', description: e?.response?.data?.detail }); }
+  };
   const remove = async (id) => { if (!window.confirm('Delete contest? Tickets will be deleted too.')) return; try { await adminAPI.deleteContest(id); toast({ title: 'Deleted' }); load(); } catch (e) { toast({ title: 'Failed', description: e?.response?.data?.detail }); } };
   const draw = async (id) => { try { const r = await adminAPI.draw(id); toast({ title: 'Winner drawn!', description: `${r.winner.user_name} – Ticket #${r.winner.ticket_number}` }); load(); } catch (e) { toast({ title: 'Draw failed', description: e?.response?.data?.detail }); } };
 
@@ -47,6 +64,22 @@ export default function CompetitionsAdmin() {
               );
             })}
           </div>
+          <Button
+            onClick={bulkLaunch}
+            data-testid="bulk-launch-contests-btn"
+            variant="outline"
+            className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+          >
+            <PlayCircle className="w-4 h-4 mr-1" /> Launch all
+          </Button>
+          <Button
+            onClick={bulkPause}
+            data-testid="bulk-pause-contests-btn"
+            variant="outline"
+            className="border-amber-200 text-amber-700 hover:bg-amber-50"
+          >
+            <PauseCircle className="w-4 h-4 mr-1" /> Hold all
+          </Button>
           <Button
             onClick={() => setCreating(true)}
             data-testid="new-contest-btn"

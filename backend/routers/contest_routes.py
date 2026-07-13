@@ -24,6 +24,7 @@ def _to_public(c: dict) -> dict:
         'status': c.get('status', 'live'),
         'skill_question_q': sq.get('q'),
         'skill_question_options': sq.get('options', []),
+        'game_type': c.get('game_type'),
     }
 
 

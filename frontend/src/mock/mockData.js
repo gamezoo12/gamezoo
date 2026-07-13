@@ -120,6 +120,7 @@ export const FAQ_ITEMS = [
 
 export const NAV_LINKS = [
   { label: 'Contests', href: '/competitions' },
+  { label: 'Leaderboard', href: '/leaderboard' },
   { label: 'Winners', href: '/winners' },
   { label: 'Draw Results', href: '/draw-results' },
   { label: 'How it Works', href: '/#how-it-works' },

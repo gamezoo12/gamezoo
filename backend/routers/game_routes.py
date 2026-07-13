@@ -122,6 +122,38 @@ async def contest_leaderboard(contest_id: str, limit: int = 25):
     return {'contest_id': contest_id, 'leaderboard': rows}
 
 
+@public_router.get('/leaderboard/global')
+async def global_leaderboard(limit: int = 50):
+    """Global leaderboard across all contests.
+    Ranks players by total points (sum of their best score per contest they entered).
+    Public — no auth required.
+    """
+    db = get_db()
+    # Step 1: best score per (user, contest)
+    pipeline = [
+        {'$sort': {'points': -1, 'duration_ms': 1}},
+        {'$group': {
+            '_id': {'user_id': '$user_id', 'contest_id': '$contest_id'},
+            'user_name': {'$first': '$user_name'},
+            'best_points': {'$max': '$points'},
+        }},
+        # Step 2: aggregate per user
+        {'$group': {
+            '_id': '$_id.user_id',
+            'user_name': {'$first': '$user_name'},
+            'total_points': {'$sum': '$best_points'},
+            'contests_played': {'$sum': 1},
+        }},
+        {'$sort': {'total_points': -1, 'contests_played': -1}},
+        {'$limit': int(limit)},
+    ]
+    rows = await db.game_scores.aggregate(pipeline).to_list(int(limit))
+    for i, r in enumerate(rows):
+        r['rank'] = i + 1
+        r['user_id'] = r.pop('_id')
+    return {'leaderboard': rows}
+
+
 @router.get('/attempts/{ticket_id}')
 async def my_attempts(ticket_id: str, request: Request):
     user = await get_current_user(request)

@@ -33,6 +33,7 @@ import AdminWallets from './pages/admin/WalletAdmin';
 import AdminGames from './pages/admin/GamesAdmin';
 import PlayGame from './pages/PlayGame';
 import ContestLeaderboard from './pages/ContestLeaderboard';
+import GlobalLeaderboard from './pages/GlobalLeaderboard';
 
 import ProductionLayout from './components/admin/ProductionLayout';
 import LiveDrawPage from './pages/production/LiveDraw';
@@ -60,6 +61,7 @@ function AppRouter() {
         <Route path="/cart" element={<Cart />} />
         <Route path="/free-entry" element={<FreeEntry />} />
         <Route path="/play/:contestId/:ticketId" element={<PlayGame />} />
+        <Route path="/leaderboard" element={<GlobalLeaderboard />} />
         <Route path="/leaderboard/:contestId" element={<ContestLeaderboard />} />
       </Route>
 

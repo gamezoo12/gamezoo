@@ -267,6 +267,51 @@ async def mark_paid(winner_id: str, request: Request):
     return {'ok': True}
 
 
+@router.post('/contests/bulk/launch')
+async def bulk_launch_contests(payload: dict | None, request: Request):
+    """Launch multiple contests at once. Optional filter:
+    - only_games=true → only contests with game_type set
+    - category=<slug> → only contests in that category
+    - status_from='draft'|'live'|'all' (default 'draft')
+    Returns count of contests updated.
+    """
+    await require_admin(request)
+    from deps import get_db
+    db = get_db()
+    payload = payload or {}
+    q = {}
+    status_from = (payload.get('status_from') or 'draft')
+    if status_from != 'all':
+        q['status'] = status_from
+    if payload.get('only_games'):
+        q['game_type'] = {'$exists': True, '$nin': [None, '']}
+    cat = payload.get('category')
+    if cat and cat != 'all':
+        q['category'] = cat
+    r = await db.contests.update_many(q, {'$set': {'status': 'live'}})
+    return {'ok': True, 'updated': r.modified_count, 'matched': r.matched_count, 'filter': q}
+
+
+@router.post('/contests/bulk/pause')
+async def bulk_pause_contests(payload: dict | None, request: Request):
+    """Pause multiple contests. Same filter surface as bulk/launch."""
+    await require_admin(request)
+    from deps import get_db
+    db = get_db()
+    payload = payload or {}
+    q = {}
+    status_from = (payload.get('status_from') or 'live')
+    if status_from != 'all':
+        q['status'] = status_from
+    if payload.get('only_games'):
+        q['game_type'] = {'$exists': True, '$nin': [None, '']}
+    cat = payload.get('category')
+    if cat and cat != 'all':
+        q['category'] = cat
+    r = await db.contests.update_many(q, {'$set': {'status': 'draft'}})
+    return {'ok': True, 'updated': r.modified_count, 'matched': r.matched_count, 'filter': q}
+
+
 @router.post('/contests/{contest_id}/launch')
 async def launch_contest(contest_id: str, request: Request):
     await require_admin(request)
