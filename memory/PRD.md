@@ -38,6 +38,7 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - [x] Play flow — `/play/:contestId/:ticketId`, 3 attempts, score = speed × accuracy
 - [x] Real-time per-contest leaderboard — `/leaderboard/:contestId`
 - [x] **Global live leaderboard** — `/leaderboard` (public nav link) with podium, per-contest tab switcher, 15s auto-refresh
+- [x] **Per-contest live leaderboard embedded on `/competition/:slug`** — full card (top 10, medals, view-full link) shown whenever contest has a skill game assigned
 - [x] **🎮 Play to win badge** on competition cards where a skill game is assigned
 - [x] **Admin bulk launch/hold** — `POST /api/admin/contests/bulk/{launch,pause}` with filters (only_games, category, status_from) surfaced in Games Admin + Contests Admin
 - [x] Rebrand sweep — killed all teal/emerald on public site

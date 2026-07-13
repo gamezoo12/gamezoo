@@ -8,6 +8,7 @@ import { countdown, percent, gbp } from '../lib/format';
 import { useToast } from '../hooks/use-toast';
 import { contestsAPI } from '../lib/api';
 import BackButton from '../components/BackButton';
+import ContestLeaderboardCard from '../components/ContestLeaderboardCard';
 
 export default function CompetitionDetail() {
   const { slug } = useParams();
@@ -152,6 +153,13 @@ export default function CompetitionDetail() {
           <Link to="/competitions" className="inline-block text-sm text-teal-600 hover:underline mt-6">← Back to all contests</Link>
         </div>
       </div>
+
+      {/* Live leaderboard — only for game-enabled contests */}
+      {c.game_type && (
+        <div className="mt-12">
+          <ContestLeaderboardCard contestId={c.contest_id} contestTitle={c.title} limit={10} />
+        </div>
+      )}
     </div>
   );
 }
