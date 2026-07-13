@@ -9,11 +9,11 @@ export default function Stories() {
       <div className="max-w-7xl mx-auto px-4 lg:px-8">
         <div className="flex items-end justify-between mb-8">
           <div>
-            <span className="text-xs uppercase font-semibold text-teal-600 tracking-wider">The blog</span>
+            <span className="text-xs uppercase font-semibold text-orange-600 tracking-wider">The blog</span>
             <h2 className="font-display text-3xl md:text-4xl font-extrabold text-slate-900 mt-1">Prize Paradise Stories</h2>
           </div>
           <Link to="/stories" className="hidden md:inline-flex">
-            <Button variant="ghost" className="text-teal-600 hover:text-teal-700 hover:bg-teal-100">View all <ArrowRight className="w-4 h-4 ml-1" /></Button>
+            <Button variant="ghost" className="text-orange-600 hover:text-orange-700 hover:bg-orange-100">View all <ArrowRight className="w-4 h-4 ml-1" /></Button>
           </Link>
         </div>
 
@@ -27,7 +27,7 @@ export default function Stories() {
                 <div className="text-xs text-slate-500 mb-1">{s.date}</div>
                 <h3 className="font-display font-bold text-lg text-slate-900 mb-2">{s.title}</h3>
                 <p className="text-sm text-slate-600 line-clamp-3 leading-relaxed">{s.excerpt}</p>
-                <button className="mt-3 text-sm font-semibold text-teal-600 hover:text-teal-700 inline-flex items-center gap-1">Read More <ArrowRight className="w-3.5 h-3.5" /></button>
+                <button className="mt-3 text-sm font-semibold text-orange-600 hover:text-orange-700 inline-flex items-center gap-1">Read More <ArrowRight className="w-3.5 h-3.5" /></button>
               </div>
             </article>
           ))}

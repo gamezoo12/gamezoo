@@ -29,7 +29,7 @@ export default function WinnersGallery() {
         </div>
 
         <div className="text-center mt-8">
-          <Link to="/winners"><Button variant="outline" className="border-teal-500 text-teal-700 hover:bg-teal-50">View All Winners</Button></Link>
+          <Link to="/winners"><Button variant="outline" className="border-orange-500 text-orange-700 hover:bg-orange-50">View All Winners</Button></Link>
         </div>
       </div>
     </section>

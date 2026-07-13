@@ -4,7 +4,7 @@ export default function TrustBadges() {
   return (
     <section className="py-12">
       <div className="max-w-7xl mx-auto px-4 lg:px-8 grid md:grid-cols-2 gap-4">
-        <div className="rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 text-white p-6 flex items-center gap-5 shadow-lg">
+        <div className="rounded-2xl bg-gradient-to-br from-orange-500 to-rose-600 text-white p-6 flex items-center gap-5 shadow-lg">
           <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center"><Zap className="w-7 h-7" /></div>
           <div>
             <h3 className="font-display font-bold text-xl">Fast Payouts. Zero Fees.</h3>

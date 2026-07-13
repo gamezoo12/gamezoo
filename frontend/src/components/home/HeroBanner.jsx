@@ -51,7 +51,7 @@ export default function HeroBanner() {
       <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-black/10 to-black/60" />
       <div className="absolute -top-24 -left-24 w-[28rem] h-[28rem] rounded-full bg-fuchsia-500/40 blur-3xl float" />
       <div className="absolute top-1/3 -right-32 w-[32rem] h-[32rem] rounded-full bg-amber-400/40 blur-3xl float" style={{ animationDelay: '1.4s' }} />
-      <div className="absolute -bottom-32 left-1/3 w-[26rem] h-[26rem] rounded-full bg-teal-400/30 blur-3xl float" style={{ animationDelay: '2.8s' }} />
+      <div className="absolute -bottom-32 left-1/3 w-[26rem] h-[26rem] rounded-full bg-fuchsia-400/30 blur-3xl float" style={{ animationDelay: '2.8s' }} />
 
       {/* Layer 4 – confetti css overlay */}
       <div className="confetti absolute inset-0 opacity-60 pointer-events-none" />

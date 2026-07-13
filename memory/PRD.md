@@ -1,74 +1,84 @@
 # Prize League — PRD
 
 ## Original problem statement
-Production-ready skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-07-09). Requirements:
-- User auth (JWT + Emergent Google), ticket purchasing (mock Stripe today)
-- Skill-based questions (trivia / puzzles) gating each contest entry (UK legal)
-- Extensive admin/production panel (KYC, payments, settings, roles, live draws)
-- Conversational AI assistant "Meera" that can control the platform (multilingual)
+Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-07-09). Requirements:
+- JWT + Emergent Google auth
+- Ticket purchasing via **wallet** (min £10 top-up)
+- Skill-question gate + optional per-contest **skill game** (memory match, jigsaws, slider, etc.)
+- Full admin + production panels (KYC, payments, wallets, roles, live draws, settings, meera AI)
+- Conversational **Meera AI** — admin/production panels ONLY (not on public site)
 - Admin and player interfaces completely separate
-- Highly colorful player UI with live videos, images, and spin wheel
+- Highly colorful player UI (orange/rose/fuchsia palette, no light green)
+- **Referral programme** — invite friends, both get free ticket (or £5 wallet credit fallback)
+- **Live winners ticker + leaderboard per contest**
 
 ## Personas
-- Player – buys tickets, answers a skill question, tracks entries & winnings.
-- Admin / Super-admin – full platform control, KYC/payments, contest CRUD via UI.
-- Operator – production-panel access only (live draw / prize inventory).
-- Support – read-only admin.
+- Player – buys tickets from wallet, plays skill game, tracks entries + winnings, invites friends
+- Admin / Super-admin – full control incl. wallet adjustments
+- Operator – production-panel access only (live draw / inventory)
+- Support – read-only admin
 
-## Core requirements (status)
-- [x] Rebrand to **Prize League** (2026-07-09)
-- [x] MongoDB models, JWT + Emergent Google OAuth
-- [x] Skill-question verify before purchase (`/api/contests/{id}/verify-skill`)
-- [x] Admin dashboard: Users, Roles, KYC, Contests, Orders, Payments, Winners, Analytics, Settings
-- [x] Production panel: Operations, Live Draw, Prize Inventory, Winners Feed, KYC
-- [x] Meera AI assistant (Emergent LLM Key + emergentintegrations)
-- [x] Admin/Player UX split — separate `/admin/login` staff portal
-- [x] Colorful animated hero — animated gradient + background video + floating badges
-- [x] Live-draw scheduler — 60s asyncio loop + manual "Draw now"
-- [x] Winner in-app notifications — header bell + panel
-- [x] Header session UX — user avatar+dropdown when logged in
-- [x] **Rebrand: PrizeLeague across UI, DB settings, title, footer, admin/production** (2026-07-09)
-- [x] **Robust logout** — 3 buttons (header/admin/production), each purges localStorage + sessionStorage + hard-nav (2026-07-09)
-- [x] **UI-first contest CRUD** — New Contest / Edit Contest modal with 6-image gallery + publish selector (2026-07-09)
-- [x] **Prize Wheel** on Home — SVG-based, spins to reveal (2026-07-09)
-- [x] **Winners Ticker** on Home — mixes real + fallback for lively marquee (2026-07-09)
-- [x] Code-quality: `secrets.choice` for draws, dispatch-table Meera actions, deps.py, hook deps + useMemo
+## Core requirements (status — all shipped)
+- [x] Prize League rebrand
+- [x] JWT + Emergent Google OAuth + email/password
+- [x] Skill-question verify + optional skill game per contest
+- [x] Admin dashboard (Users, Roles, KYC, Contests, **Wallets**, Orders, Payments, Winners, Analytics, Settings)
+- [x] Production panel (Operations, Live Draw, Prize Inventory, Winners feed, KYC)
+- [x] Meera AI — admin/production only (removed from public pages)
+- [x] Auto-draw scheduler (60s tick) + winner in-app notifications
+- [x] Header session UX (visible Sign out + wallet balance chip)
+- [x] Prominent multi-path logout (header/admin/production/mobile) — all 4 verified working
+- [x] **Wallet system** with £10 min top-up (mock), atomic per-user balance, transaction log
+- [x] Ticket checkout charges wallet ONLY (returns 402 with helpful message if insufficient)
+- [x] Admin wallet panel — view all, search, credit/debit, per-user tx history
+- [x] **Referral programme** — unique code per user, invite link, both parties get 1 free ticket (or £5 wallet fallback)
+- [x] Expanded My Account — 11 tabs: Profile · Wallet · Tickets · Orders · Referrals · Notifications · KYC · Security · Support · Policies · Preferences
+- [x] **8 skill games** — Memory Match, Number Sequence, Target Tap, Word Unscramble, Emoji Riddle, Image Jigsaw 3×3, Image Jigsaw 4×4, 15-Slider Puzzle
+- [x] Admin can assign a game to each contest (dropdown in EditContestDialog) or leave blank for manual winner draw
+- [x] Play flow — `/play/:contestId/:ticketId`, 3 attempts, score = speed × accuracy
+- [x] Real-time per-contest leaderboard — `/leaderboard/:contestId`
+- [x] Rebrand sweep — killed all teal/emerald on public site
+- [x] Renamed "free spins" → "free tickets"
 
 ## Architecture
-- Frontend: React (CRA) + Tailwind + Shadcn UI. Backend URL from `REACT_APP_BACKEND_URL`.
-- Backend: FastAPI, Motor async. All routes under `/api`. Env from `MONGO_URL`, `DB_NAME`, `EMERGENT_LLM_KEY`.
+- Frontend: React (CRA) + Tailwind + Shadcn UI. `REACT_APP_BACKEND_URL`.
+- Backend: FastAPI + Motor async. Routes prefixed `/api`. Env `MONGO_URL`, `DB_NAME`, `EMERGENT_LLM_KEY`.
 - Shared: `backend/deps.py`, `backend/services/{draw_service,scheduler,meera_actions}.py`.
-- AI: `emergentintegrations` (GPT-4o-mini via Emergent LLM Key).
-- Background: `services/scheduler.py` asyncio task, 60s tick.
+- Background task: `services/scheduler.py` auto-draws contests at end_date (60s tick).
+- Games: pure client-side React components in `/app/frontend/src/components/games/index.jsx`; scoring & leaderboard server-side.
+
+## Test suites (71/71 pass — as of iteration_9)
+- backend_test (16 regression) + scheduler (11) + meera_refactor (5) + create_contest (5) + profile (10) + **wallet (~9)** + **referrals (incl fallback, ~7)** + **games (~5)** + checkout_wallet + ~others = **71 total**
 
 ## Roadmap
 ### P0 to launch (needs user-supplied keys)
-- **Real Stripe payments** (currently mocked)
-- **Legal URLs + Company/VAT numbers** in Settings
-- **Winner email notifications** (Resend/SendGrid — API key needed)
+- Real Stripe integration for wallet top-ups (currently mocked → instant credit)
+- **TrueLayer** open-banking integration (user mentioned as an alternative)
+- Company/VAT/T&C/Privacy URLs in `/admin/settings`
+- Winner email notifications (Resend/SendGrid API key)
+- Custom domain + SSL via Emergent Deploy
 
 ### P1
 - Twilio SMS OTP login
-- Custom domain + SSL (via Emergent Deploy)
-- httpOnly cookie auth migration
 - Real KYC provider (SumSub/Onfido)
+- httpOnly cookies migration (CSP mitigates for now)
+
+### P2 (code review action items — non-blocking)
+- Atomic wallet updates via MongoDB `findOneAndUpdate + $inc`
+- Atomic ticket-number assignment (avoid duplicate numbers under concurrent checkouts)
+- Order.checkout ordering: debit wallet BEFORE inserting tickets (rollback safety)
+- Rate-limit /api/games/submit
 
 ### Nice-to-have
-- Cinematic live-draw reveal (animated wheel on `/production/live-draw`)
-- Payout reconciliation dashboard
-- Migrate `gamezoo_cart` → `prizeleague_cart` localStorage key
+- More games (word ladder, sudoku mini, spot-the-difference, reaction time, etc. — currently 8)
+- Refer-and-earn tiers (VIP badge after 10 successful referrals)
+- Delete-account self-service (currently email-only)
 
 ## Test credentials
 See `/app/memory/test_credentials.md`.
 
-## Test suites (all pass — 37/37 as of 2026-07-09)
-- `/app/backend/tests/backend_test.py` — 16 regression
-- `/app/backend/tests/test_scheduler_notifications.py` — 11 (P2 scheduler + notifications)
-- `/app/backend/tests/test_meera_refactor.py` — 5 (Meera dispatch table safety)
-- `/app/backend/tests/test_create_contest.py` — 5 (UI create-contest endpoint)
-
 ## Known mocked / disabled flows
-- Stripe checkout → mock
+- Wallet top-up → **mock** (instant credit, no card charge)
 - SMS OTP → disabled
 - Winner emails → in-app only
-- Auth in localStorage (with CSP + strict referrer mitigation)
+- Auth stored in localStorage (CSP + strict referrer mitigation active)

@@ -3,8 +3,8 @@ import CompetitionCard from '../CompetitionCard';
 import { Button } from '../ui/button';
 import { ArrowRight } from 'lucide-react';
 
-export default function CompetitionSection({ title, subtitle, items, viewAllHref = '/competitions', accent = 'teal' }) {
-  const accentDot = accent === 'orange' ? 'bg-orange-500' : accent === 'amber' ? 'bg-amber-500' : 'bg-teal-500';
+export default function CompetitionSection({ title, subtitle, items, viewAllHref = '/competitions', accent = "orange" }) {
+  const accentDot = accent === 'orange' ? 'bg-orange-500' : accent === 'amber' ? 'bg-amber-500' : 'bg-orange-500';
   return (
     <section className="py-12">
       <div className="max-w-7xl mx-auto px-4 lg:px-8">
@@ -17,7 +17,7 @@ export default function CompetitionSection({ title, subtitle, items, viewAllHref
             <h2 className="font-display text-3xl md:text-4xl font-extrabold text-slate-900">{title}</h2>
           </div>
           <Link to={viewAllHref} className="hidden md:inline-flex">
-            <Button variant="ghost" className="text-teal-600 hover:text-teal-700 hover:bg-teal-50">
+            <Button variant="ghost" className="text-orange-600 hover:text-orange-700 hover:bg-orange-50">
               View All <ArrowRight className="w-4 h-4 ml-1" />
             </Button>
           </Link>
