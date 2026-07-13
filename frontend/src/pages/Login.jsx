@@ -15,7 +15,8 @@ function GoogleIcon() {
 }
 
 export default function Login() {
-  const [mode, setMode] = useState('register');
+  // Default to 'login' — returning users are the common case. New signups can toggle to register.
+  const [mode, setMode] = useState('login');
   const [busy, setBusy] = useState(false);
   const nav = useNavigate();
   const { toast } = useToast();
@@ -26,11 +27,30 @@ export default function Login() {
     const fd = new FormData(e.currentTarget);
     setBusy(true);
     try {
-      if (mode === 'login') { await login({ email: fd.get('email'), password: fd.get('password') }); toast({ title: 'Welcome back!' }); }
-      else { await register({ email: fd.get('email'), password: fd.get('password'), name: fd.get('name') }); toast({ title: 'Account created!', description: 'Welcome to Prize League 🎉' }); }
+      if (mode === 'login') {
+        await login({ email: fd.get('email'), password: fd.get('password') });
+        toast({ title: 'Welcome back!' });
+      } else {
+        await register({ email: fd.get('email'), password: fd.get('password'), name: fd.get('name') });
+        toast({ title: 'Account created!', description: 'Welcome to Prize League 🎉' });
+      }
       nav('/my-account');
-    } catch (err) { toast({ title: 'Sign in failed', description: err?.response?.data?.detail || 'Please try again.' }); }
-    finally { setBusy(false); }
+    } catch (err) {
+      const detail = err?.response?.data?.detail || 'Please check your details and try again.';
+      // Common register-side error: existing email → suggest the login tab
+      if (mode === 'register' && /already/i.test(detail)) {
+        toast({
+          title: 'Email already registered',
+          description: 'It looks like you already have an account. Switch to "Log in" and try your password.',
+        });
+        setMode('login');
+      } else {
+        toast({
+          title: mode === 'login' ? 'Sign in failed' : 'Sign up failed',
+          description: detail,
+        });
+      }
+    } finally { setBusy(false); }
   };
 
   const google = () => {

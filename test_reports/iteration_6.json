@@ -1,0 +1,42 @@
+{
+  "summary": "Iteration 6 – regression check for the 'sign in failed' UX fix + CSP worker-src. Backend: 47/47 pytest pass (backend_test 16 + scheduler 11 + meera_refactor 5 + create-contest 5 + profile 10). Frontend: 6 out of 7 requested flows fully verified end-to-end. Verified (a) /login default mode is 'login' — heading 'Welcome back!', no name field, submit says 'Log in →'; (b) main /login with admin creds → POST /api/auth/login 200, gz_token in localStorage, navigation to /my-account, 'Welcome back!' toast rendered; (c) /admin/login regression → admin creds succeed, navigates to /admin dashboard, sidebar visible, 'Welcome, Admin' toast; (d) Register happy-path with fresh pw<ts>@test.com — navigates to /my-account, gz_token set; (e) Duplicate-email UX FIX WORKS — submitting existing email in register mode: no navigation, toast titled 'Email already registered' with description containing 'switch to Log in', mode auto-switches to login (heading flips to 'Welcome back!', name input disappears); (f) Wrong-password toast NOW shows correct title 'Sign in failed' with description 'Invalid email or password' (previous confusing behaviour fixed); (g) CSP fix — after `sudo supervisorctl restart frontend` (needed to pick up new /app/frontend/public/index.html), served CSP now includes `worker-src 'self' blob:` and `script-src ... blob:`. Zero worker-src CSP violations observed on home page after reload. IMPORTANT: without the frontend restart, the served index.html was still the stale old CSP (dev server had cached the initial index.html on last boot). Main agent should include a note that any future edits to public/index.html require a frontend restart to take effect.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/auth/register", "issue": "Backend does NOT enforce a minimum password length. curl accepts password='abc' (3 chars) and creates the user. The Login.jsx Input has HTML minLength=6 which enforces client-side only. Recommendation: add `password: constr(min_length=8)` (or 6) to RegisterInput in /app/backend/models.py so weak passwords are rejected server-side → the new 'Sign up failed' toast will then fire correctly. Currently the weak-password UX task in the review-request cannot fully be exercised because backend accepts abc as valid."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_scheduler_notifications.py",
+    "/app/backend/tests/test_meera_refactor.py",
+    "/app/backend/tests/test_create_contest.py",
+    "/app/backend/tests/test_profile.py",
+    "/app/test_reports/pytest/iter6_all.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: Add server-side min_length validation on RegisterInput.password (backend accepts 3-char passwords today). Once added, the 'Sign up failed' toast path will be reachable end-to-end.",
+    "DOCUMENT: public/index.html edits require `sudo supervisorctl restart frontend` — CRA dev server does not hot-reload the HTML template. This report already applied the restart; served CSP now correctly includes worker-src 'self' blob:.",
+    "OPTIONAL: Add data-testid attributes to the /login form (mode-toggle-login, mode-toggle-register, submit-btn, email-input, password-input, name-input) — would harden Playwright tests. Current tests fall back to input[name=...] which works but is fragile."
+  ],
+  "critical_code_review_comments": [
+    "Login.jsx error branch (lines 41-52) relies on /already/i.test(detail) to detect duplicate email. Coupled to backend copy — if user_routes.py ever changes the detail from 'Email already registered' to e.g. 'This email is taken', the auto-switch-to-login UX silently breaks. Recommend using the HTTP status (409 Conflict) as the signal, or a machine-readable error code field in the response body.",
+    "Login.jsx submit form does not disable the email/password inputs while `busy=true` — only the button. A user can still tab and change fields mid-request. Minor UX.",
+    "AdminLogin.jsx toast title is 'Sign-in failed' (with a hyphen), but Login.jsx now uses 'Sign in failed' (no hyphen). Cosmetic but inconsistent tone across the two portals.",
+    "CSP meta tag: `frame-ancestors 'none'` was removed in this iteration — the browser correctly warns that frame-ancestors is ignored in a <meta> element anyway, so the removal is fine, but if clickjacking protection is desired, add an `X-Frame-Options: DENY` (or CSP frame-ancestors) response header at the reverse-proxy/ingress level.",
+    "Backend RegisterInput has no password strength check — anyone can register with password='a'. Add constr(min_length=8) plus a simple complexity rule."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (47/47 pytest)", "frontend": "100% on regression items 1-7 + 8 (default-mode, main-login, admin-login, register-happy, duplicate-email-UX, wrong-password toast, CSP worker-src). Weak-password UX untestable end-to-end because backend does not reject short passwords (see backend minor issue)."},
+  "test_credentials": "Admin: bachanta8@gmail.com / Herts@910022 (from /app/memory/test_credentials.md). Fresh players registered on the fly via /api/auth/register.",
+  "seed_data_creation": "Test created 2 fresh users during UI verification (pw<epoch>@test.com and weak_test_<epoch>@test.com via curl). They are harmless throwaway accounts.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend regression command: `cd /app/backend && python -m pytest tests/ -v --junitxml=/app/test_reports/pytest/iterN_all.xml` (~22s, 47 tests, all pass). CSP served via meta tag in public/index.html — after any edit to that file, main agent MUST `sudo supervisorctl restart frontend` because CRA does NOT hot-reload the HTML template. Login page: default mode is now 'login' (Login.jsx line 19). Duplicate-email detection at line 41 uses regex /already/i on backend detail string — see code-review comment. Backend accepts any password length on register — flagged as minor. Preview URL: https://contest-arena-16.preview.emergentagent.com.",
+  "rca_of_the_issue": "Original bug: user hit 'sign in failed' toast when trying to log in. Root cause was /login defaulted to the register tab, and returning users' submissions hit POST /api/auth/register → 400 'Email already registered' → generic 'Sign in failed' toast. Fix verified: (1) mode defaults to 'login' — Login.jsx L19; (2) 400 from register with 'already' detail now shows a distinct 'Email already registered' toast AND auto-switches to login mode (L41-46); (3) login-mode failures now say 'Sign in failed', register-mode say 'Sign up failed'; (4) public/index.html CSP updated with `worker-src 'self' blob:` and `script-src ... blob:` — required a frontend restart because CRA dev server caches the HTML template. All four fixes verified end-to-end via Playwright + curl."
+}
