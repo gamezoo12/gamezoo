@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
-import { ordersAPI, userAPI } from '../lib/api';
+import { ordersAPI, userAPI, walletAPI, referralAPI } from '../lib/api';
 import { gbp } from '../lib/format';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import {
   Wallet, Ticket, Award, User, ShieldCheck, Clock, AlertCircle,
-  LogOut, Bell, Lock, Mail, Phone, Trophy, ArrowRight,
+  LogOut, Bell, Lock, Mail, Trophy, ArrowRight, Gift, Copy, Check,
+  MessageCircle, FileText, Settings2, TrendingUp, TrendingDown, Coins,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Button } from '../components/ui/button';
@@ -33,15 +34,25 @@ const KycBadge = ({ status }) => {
 export default function MyAccount() {
   const { user, loading, logout, refresh } = useAuth();
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [orders, setOrders] = useState([]);
   const [tickets, setTickets] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [kyc, setKyc] = useState({ status: 'none' });
   const [profile, setProfile] = useState({ name: '', email: '', phone: '' });
+  const [wallet, setWallet] = useState(null);
+  const [walletTxs, setWalletTxs] = useState([]);
+  const [referral, setReferral] = useState(null);
+  const [referralList, setReferralList] = useState([]);
+  const [topupAmount, setTopupAmount] = useState(10);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPw, setSavingPw] = useState(false);
   const [kycBusy, setKycBusy] = useState(false);
+  const [toppingUp, setToppingUp] = useState(false);
+  const [copiedRef, setCopiedRef] = useState(false);
+
+  const defaultTab = searchParams.get('tab') || 'profile';
 
   useEffect(() => {
     if (loading) return undefined;
@@ -54,6 +65,10 @@ export default function MyAccount() {
     ordersAPI.myTickets().then(setTickets).catch((err) => console.error('[account] tickets:', err?.message));
     userAPI.kycStatus().then(setKyc).catch((err) => console.error('[account] kyc:', err?.message));
     userAPI.notifications().then((r) => setNotifications(r?.notifications || [])).catch(() => {});
+    walletAPI.me().then(setWallet).catch(() => {});
+    walletAPI.transactions(20).then(r => setWalletTxs(r?.transactions || [])).catch(() => {});
+    referralAPI.me().then(setReferral).catch(() => {});
+    referralAPI.list().then(r => setReferralList(r?.referrals || [])).catch(() => {});
     return undefined;
   }, [user, loading, nav]);
 
@@ -114,6 +129,28 @@ export default function MyAccount() {
     } finally { setKycBusy(false); }
   };
 
+  const topup = async () => {
+    if (Number(topupAmount) < 10) {
+      toast({ title: 'Minimum £10', description: 'Wallet top-ups must be at least £10.' });
+      return;
+    }
+    setToppingUp(true);
+    try {
+      await walletAPI.topup(Number(topupAmount));
+      const [w, txs] = await Promise.all([walletAPI.me(), walletAPI.transactions(20)]);
+      setWallet(w);
+      setWalletTxs(txs?.transactions || []);
+      toast({ title: '💷 Wallet topped up', description: `£${topupAmount} added to your balance.` });
+    } catch (err) {
+      toast({ title: 'Top-up failed', description: err?.response?.data?.detail || err.message });
+    } finally { setToppingUp(false); }
+  };
+
+  const copyReferralLink = async () => {
+    const url = `${window.location.origin}/?ref=${referral?.code}`;
+    try { await navigator.clipboard.writeText(url); setCopiedRef(true); setTimeout(() => setCopiedRef(false), 2000); } catch { /* noop */ }
+  };
+
   if (loading || !user) return <div className="max-w-6xl mx-auto p-10 text-slate-500">Loading…</div>;
   const totalSpent = orders.reduce((s, o) => s + (o.total || 0), 0);
   const initials = (user.name || user.email || 'U').slice(0, 1).toUpperCase();
@@ -161,10 +198,10 @@ export default function MyAccount() {
       {/* Stat cards */}
       <div className="grid md:grid-cols-4 gap-4 mb-8">
         {[
-          { label: 'Total spent', value: gbp(totalSpent), Icon: Wallet, color: 'from-teal-500 to-emerald-500' },
-          { label: 'Active tickets', value: tickets.length, Icon: Ticket, color: 'from-orange-500 to-rose-500' },
-          { label: 'Orders', value: orders.length, Icon: Award, color: 'from-amber-400 to-orange-500' },
-          { label: 'Notifications', value: notifications.length, Icon: Bell, color: 'from-fuchsia-500 to-pink-500' },
+          { label: 'Wallet balance', value: wallet ? gbp(wallet.balance) : '£0.00', Icon: Wallet, color: 'from-orange-500 to-rose-500' },
+          { label: 'Active tickets', value: tickets.length, Icon: Ticket, color: 'from-amber-400 to-orange-500' },
+          { label: 'Orders', value: orders.length, Icon: Award, color: 'from-fuchsia-500 to-pink-500' },
+          { label: 'Referrals', value: referral?.completed || 0, Icon: Gift, color: 'from-indigo-500 to-purple-600' },
         ].map((s) => (
           <div key={s.label} className={`rounded-2xl p-5 text-white bg-gradient-to-br ${s.color} shadow-lg`}>
             <s.Icon className="w-6 h-6 opacity-80" />
@@ -174,14 +211,19 @@ export default function MyAccount() {
         ))}
       </div>
 
-      <Tabs defaultValue="profile">
-        <TabsList data-testid="account-tabs">
+      <Tabs defaultValue={defaultTab}>
+        <TabsList data-testid="account-tabs" className="flex flex-wrap h-auto">
           <TabsTrigger value="profile" data-testid="tab-profile">Profile</TabsTrigger>
-          <TabsTrigger value="security" data-testid="tab-security">Security</TabsTrigger>
-          <TabsTrigger value="tickets" data-testid="tab-tickets">My Tickets</TabsTrigger>
+          <TabsTrigger value="wallet" data-testid="tab-wallet">Wallet</TabsTrigger>
+          <TabsTrigger value="tickets" data-testid="tab-tickets">Tickets</TabsTrigger>
           <TabsTrigger value="orders" data-testid="tab-orders">Orders</TabsTrigger>
+          <TabsTrigger value="referrals" data-testid="tab-referrals">Referrals</TabsTrigger>
           <TabsTrigger value="notifications" data-testid="tab-notifications">Notifications</TabsTrigger>
-          <TabsTrigger value="verify" data-testid="tab-verify">Identity (KYC)</TabsTrigger>
+          <TabsTrigger value="verify" data-testid="tab-verify">KYC</TabsTrigger>
+          <TabsTrigger value="security" data-testid="tab-security">Security</TabsTrigger>
+          <TabsTrigger value="support" data-testid="tab-support">Support</TabsTrigger>
+          <TabsTrigger value="policies" data-testid="tab-policies">Policies</TabsTrigger>
+          <TabsTrigger value="preferences" data-testid="tab-preferences">Preferences</TabsTrigger>
         </TabsList>
 
         {/* PROFILE */}
@@ -373,6 +415,238 @@ export default function MyAccount() {
                 {kyc.status === 'rejected' && <p className="mt-3 text-sm text-rose-600">Rejected: {kyc.reject_reason}. Please correct and resubmit.</p>}
               </>
             )}
+          </div>
+        </TabsContent>
+
+        {/* WALLET */}
+        <TabsContent value="wallet">
+          <div className="space-y-6" data-testid="wallet-panel">
+            <div className="bg-gradient-to-br from-orange-500 via-rose-500 to-fuchsia-600 rounded-2xl p-6 text-white shadow-xl">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="text-white/85 text-sm uppercase tracking-wider">Wallet balance</div>
+                  <div className="mt-1 font-display font-extrabold text-5xl" data-testid="wallet-balance">{wallet ? gbp(wallet.balance) : '£0.00'}</div>
+                  <div className="mt-2 text-xs text-white/85">Tickets can only be purchased using this balance.</div>
+                </div>
+                <Coins className="w-10 h-10 text-white/60" />
+              </div>
+              <div className="mt-5 grid grid-cols-3 gap-3 text-white/90">
+                <div className="bg-white/10 backdrop-blur rounded-xl p-3">
+                  <div className="text-xs uppercase">Lifetime top-up</div>
+                  <div className="font-bold text-lg">{wallet ? gbp(wallet.lifetime_topup) : '£0.00'}</div>
+                </div>
+                <div className="bg-white/10 backdrop-blur rounded-xl p-3">
+                  <div className="text-xs uppercase">Lifetime spend</div>
+                  <div className="font-bold text-lg">{wallet ? gbp(wallet.lifetime_spend) : '£0.00'}</div>
+                </div>
+                <div className="bg-white/10 backdrop-blur rounded-xl p-3">
+                  <div className="text-xs uppercase">Total spent</div>
+                  <div className="font-bold text-lg">{gbp(totalSpent)}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-100 p-6">
+              <h3 className="font-display font-bold text-lg mb-1">Top up wallet</h3>
+              <p className="text-sm text-slate-500 mb-4">Minimum £10. Real card processing coming soon — top-ups are instant for now.</p>
+              <div className="flex flex-wrap items-center gap-3">
+                {[10, 25, 50, 100, 250].map(a => (
+                  <button
+                    key={a}
+                    type="button"
+                    onClick={() => setTopupAmount(a)}
+                    data-testid={`topup-preset-${a}`}
+                    className={`px-4 py-2 rounded-full border text-sm font-semibold ${Number(topupAmount) === a ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-slate-700 border-slate-200 hover:border-orange-400'}`}
+                  >£{a}</button>
+                ))}
+                <div className="flex items-center gap-2 ml-auto">
+                  <Label className="text-sm">£</Label>
+                  <Input data-testid="topup-amount" type="number" min={10} max={5000} step={5} value={topupAmount} onChange={e => setTopupAmount(e.target.value)} className="w-28" />
+                  <Button
+                    onClick={topup}
+                    disabled={toppingUp || Number(topupAmount) < 10}
+                    data-testid="topup-btn"
+                    className="bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white shadow-lg"
+                  >{toppingUp ? 'Adding…' : 'Add funds'}</Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-100 p-6">
+              <h3 className="font-display font-bold text-lg mb-4">Transaction history</h3>
+              {walletTxs.length === 0 ? (
+                <div className="text-sm text-slate-500 text-center py-6">No transactions yet.</div>
+              ) : (
+                <ul className="divide-y divide-slate-100" data-testid="wallet-tx-list">
+                  {walletTxs.map(tx => (
+                    <li key={tx.tx_id} className="py-3 flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${tx.amount > 0 ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
+                        {tx.amount > 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-slate-800 capitalize">{tx.kind.replace(/_/g, ' ')}</div>
+                        <div className="text-xs text-slate-500 truncate">{tx.note}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className={`font-bold ${tx.amount > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{tx.amount > 0 ? '+' : ''}{gbp(tx.amount)}</div>
+                        <div className="text-xs text-slate-400">{new Date(tx.created_at).toLocaleDateString('en-GB')}</div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* REFERRALS */}
+        <TabsContent value="referrals">
+          <div className="space-y-6" data-testid="referrals-panel">
+            <div className="bg-gradient-to-br from-indigo-600 via-fuchsia-600 to-orange-500 text-white rounded-2xl p-6 shadow-xl">
+              <div className="grid md:grid-cols-3 gap-4">
+                <div>
+                  <div className="text-white/85 text-xs uppercase tracking-wider">Free tickets earned</div>
+                  <div className="font-display text-4xl font-extrabold">{referral?.tickets_earned ?? 0}</div>
+                </div>
+                <div>
+                  <div className="text-white/85 text-xs uppercase tracking-wider">Completed</div>
+                  <div className="font-display text-4xl font-extrabold">{referral?.completed ?? 0}</div>
+                </div>
+                <div>
+                  <div className="text-white/85 text-xs uppercase tracking-wider">Pending</div>
+                  <div className="font-display text-4xl font-extrabold">{referral?.pending ?? 0}</div>
+                </div>
+              </div>
+              <div className="mt-6 bg-white/10 backdrop-blur rounded-xl p-4">
+                <div className="text-xs uppercase text-white/85 mb-2">Your referral link — share it</div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="flex-1 bg-black/30 rounded-lg px-3 py-2 font-mono text-sm text-amber-200 overflow-hidden text-ellipsis whitespace-nowrap">
+                    {referral ? `${window.location.origin}/?ref=${referral.code}` : 'Loading…'}
+                  </div>
+                  <Button onClick={copyReferralLink} data-testid="account-referral-copy" className="bg-white text-slate-900 hover:bg-white/90">
+                    {copiedRef ? <><Check className="w-4 h-4 mr-1" /> Copied</> : <><Copy className="w-4 h-4 mr-1" /> Copy</>}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-100 p-6">
+              <h3 className="font-display font-bold text-lg mb-3">People you&apos;ve invited</h3>
+              {referralList.length === 0 ? (
+                <div className="text-sm text-slate-500 text-center py-6">You haven&apos;t invited anyone yet. Share your link above to start earning.</div>
+              ) : (
+                <ul className="divide-y divide-slate-100">
+                  {referralList.map(r => (
+                    <li key={r.referral_id} className="py-3 flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-fuchsia-500 to-orange-500 text-white text-sm font-bold flex items-center justify-center">
+                        {(r.referred_name || r.referred_email || '?').slice(0, 1).toUpperCase()}
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm font-medium">{r.referred_name || 'Friend'}</div>
+                        <div className="text-xs text-slate-500">{r.referred_email}</div>
+                      </div>
+                      <span className={`text-xs px-2 py-1 rounded-full ${r.status === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {r.status === 'completed' ? 'Completed +1 ticket' : 'Pending'}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* SUPPORT */}
+        <TabsContent value="support">
+          <div className="bg-white rounded-2xl border border-slate-100 p-6" data-testid="support-panel">
+            <div className="flex items-center gap-2 mb-3">
+              <MessageCircle className="w-5 h-5 text-orange-600" />
+              <h3 className="font-display font-bold text-lg">Get in touch</h3>
+            </div>
+            <p className="text-sm text-slate-500 mb-4">We usually respond within 24 hours.</p>
+            <div className="grid md:grid-cols-2 gap-4">
+              <a href="mailto:support@prizeleague.co.uk" className="p-4 rounded-xl border border-slate-100 hover:border-orange-300 hover:shadow-md transition">
+                <div className="font-semibold text-slate-900">📧 Email support</div>
+                <div className="text-sm text-slate-500 mt-1">support@prizeleague.co.uk</div>
+              </a>
+              <a href="/faq" className="p-4 rounded-xl border border-slate-100 hover:border-orange-300 hover:shadow-md transition">
+                <div className="font-semibold text-slate-900">📚 FAQ</div>
+                <div className="text-sm text-slate-500 mt-1">Common questions answered</div>
+              </a>
+              <a href="/contact" className="p-4 rounded-xl border border-slate-100 hover:border-orange-300 hover:shadow-md transition">
+                <div className="font-semibold text-slate-900">💬 Contact form</div>
+                <div className="text-sm text-slate-500 mt-1">Ticket-based support</div>
+              </a>
+              <a href="tel:+441234567890" className="p-4 rounded-xl border border-slate-100 hover:border-orange-300 hover:shadow-md transition">
+                <div className="font-semibold text-slate-900">📞 Phone</div>
+                <div className="text-sm text-slate-500 mt-1">+44 (0) 1234 567 890 (Mon-Fri, 9-5)</div>
+              </a>
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* POLICIES */}
+        <TabsContent value="policies">
+          <div className="bg-white rounded-2xl border border-slate-100 p-6" data-testid="policies-panel">
+            <div className="flex items-center gap-2 mb-3">
+              <FileText className="w-5 h-5 text-orange-600" />
+              <h3 className="font-display font-bold text-lg">Legal &amp; policies</h3>
+            </div>
+            <ul className="divide-y divide-slate-100">
+              {[
+                { title: 'Terms & Conditions', desc: 'Rules of using Prize League', href: '/terms' },
+                { title: 'Privacy Policy', desc: 'How we handle your data', href: '/privacy' },
+                { title: 'Cookies Policy', desc: 'Cookies we use and why', href: '/cookies' },
+                { title: 'Responsible Play', desc: 'Play safely and know your limits', href: '/responsible' },
+                { title: 'Complaints Procedure', desc: 'How to raise a formal complaint', href: '/complaints' },
+                { title: 'Refund Policy', desc: 'When and how refunds are processed', href: '/refunds' },
+              ].map(p => (
+                <li key={p.title} className="py-3 flex items-center justify-between hover:bg-slate-50 -mx-2 px-2 rounded">
+                  <div>
+                    <div className="font-medium text-slate-900">{p.title}</div>
+                    <div className="text-xs text-slate-500">{p.desc}</div>
+                  </div>
+                  <a href={p.href} className="text-sm text-orange-600 font-semibold inline-flex items-center gap-1">Read <ArrowRight className="w-3 h-3" /></a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </TabsContent>
+
+        {/* PREFERENCES */}
+        <TabsContent value="preferences">
+          <div className="bg-white rounded-2xl border border-slate-100 p-6" data-testid="preferences-panel">
+            <div className="flex items-center gap-2 mb-4">
+              <Settings2 className="w-5 h-5 text-orange-600" />
+              <h3 className="font-display font-bold text-lg">Notifications &amp; account</h3>
+            </div>
+            <div className="space-y-4">
+              {[
+                { key: 'newsletter', label: 'Weekly newsletter', desc: 'Big prize drops + new games' },
+                { key: 'win_email', label: 'Win notifications', desc: 'Email me when I win a prize' },
+                { key: 'reminder_email', label: 'Draw reminders', desc: 'Notify me when a contest I entered is closing' },
+              ].map(p => (
+                <label key={p.key} className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div>
+                    <div className="font-medium text-sm">{p.label}</div>
+                    <div className="text-xs text-slate-500">{p.desc}</div>
+                  </div>
+                  <input type="checkbox" defaultChecked className="w-4 h-4 accent-orange-500" />
+                </label>
+              ))}
+            </div>
+            <div className="border-t border-slate-100 mt-6 pt-6">
+              <h4 className="font-display font-bold text-sm text-rose-700 mb-2">Danger zone</h4>
+              <p className="text-sm text-slate-500 mb-3">Permanently delete your account and all data. This cannot be undone.</p>
+              <Button
+                variant="outline"
+                className="border-rose-200 text-rose-600 hover:bg-rose-50"
+                onClick={() => toast({ title: 'Contact support', description: 'To delete your account, please email support@prizeleague.co.uk from your registered address.' })}
+                data-testid="delete-account-btn"
+              >
+                Request account deletion
+              </Button>
+            </div>
           </div>
         </TabsContent>
       </Tabs>

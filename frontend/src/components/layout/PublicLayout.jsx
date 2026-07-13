@@ -2,8 +2,9 @@ import { Outlet } from 'react-router-dom';
 import AnnouncementBar from './AnnouncementBar';
 import Header from './Header';
 import Footer from './Footer';
-import MeeraChat from '../MeeraChat';
 
+// Meera AI has been removed from the public site (per user request).
+// It's still available inside the Admin and Production panels.
 export default function PublicLayout() {
   return (
     <div className="min-h-screen flex flex-col bg-white">
@@ -13,7 +14,6 @@ export default function PublicLayout() {
         <Outlet />
       </main>
       <Footer />
-      <MeeraChat theme="light" publicMode />
     </div>
   );
 }

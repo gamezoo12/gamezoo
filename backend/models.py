@@ -31,7 +31,53 @@ class Contest(BaseModel):
     jackpot: bool = False
     featured: bool = False
     skill_question: SkillQuestion
+    # Optional game to play after ticket purchase. If None, winner is picked by admin/scheduler.
+    game_type: Optional[str] = None  # e.g. 'jigsaw_3x3', 'memory_match', 'number_sequence', ...
+    game_config: dict = Field(default_factory=dict)  # per-game options (image url, difficulty, time limit)
     status: str = 'live'  # live | drawn | archived
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class Wallet(BaseModel):
+    user_id: str
+    balance: float = 0.0
+    lifetime_topup: float = 0.0
+    lifetime_spend: float = 0.0
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class WalletTx(BaseModel):
+    tx_id: str = Field(default_factory=lambda: new_id('tx'))
+    user_id: str
+    kind: Literal['topup', 'spend', 'refund', 'admin_adjust', 'referral_bonus']
+    amount: float  # positive for credits, negative for debits
+    balance_after: float
+    note: str = ''
+    ref_order_id: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class Referral(BaseModel):
+    referral_id: str = Field(default_factory=lambda: new_id('ref'))
+    referrer_user_id: str  # who invited
+    referred_user_id: str  # who was invited
+    code: str
+    status: Literal['pending', 'completed'] = 'pending'
+    reward_ticket_id: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class GameScore(BaseModel):
+    score_id: str = Field(default_factory=lambda: new_id('s'))
+    contest_id: str
+    ticket_id: str
+    user_id: str
+    user_name: str
+    game_type: str
+    points: int
+    duration_ms: int
+    accuracy: float  # 0.0 - 1.0
+    attempts_used: int = 1
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -64,6 +110,8 @@ class User(BaseModel):
     password_hash: Optional[str] = None  # only for email/password users
     method: Literal['email', 'google'] = 'email'
     role: Literal['user', 'admin'] = 'user'
+    referral_code: str = Field(default_factory=lambda: uuid.uuid4().hex[:8].upper())
+    referred_by: Optional[str] = None  # user_id of referrer
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -80,6 +128,7 @@ class RegisterInput(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8, description="Minimum 8 characters")
     name: str = Field(..., min_length=1)
+    referral_code: Optional[str] = None
 
 
 class LoginInput(BaseModel):

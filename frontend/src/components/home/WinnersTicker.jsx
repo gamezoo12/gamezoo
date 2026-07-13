@@ -28,7 +28,7 @@ export default function WinnersTicker() {
   const doubled = [...items, ...items];
 
   return (
-    <div className="relative w-full overflow-hidden bg-gradient-to-r from-emerald-50 via-white to-emerald-50 border-y border-emerald-100 py-3" data-testid="winners-ticker">
+    <div className="relative w-full overflow-hidden bg-gradient-to-r from-orange-50 via-white to-rose-50 border-y border-orange-100 py-3" data-testid="winners-ticker">
       <div className="marquee flex gap-8 whitespace-nowrap">
         {doubled.map((w, i) => (
           <div key={`${w.user_name}-${i}`} className="inline-flex items-center gap-2 text-sm">
@@ -37,7 +37,7 @@ export default function WinnersTicker() {
             </div>
             <span className="text-slate-600">
               <span className="font-semibold text-slate-900">{w.user_name}</span> just won{' '}
-              <span className="font-bold text-emerald-600">£{Number(w.prize_amount).toLocaleString()}</span>{' '}
+              <span className="font-bold text-orange-600">£{Number(w.prize_amount).toLocaleString()}</span>{' '}
               on <span className="italic">{w.prize_title}</span>
             </span>
           </div>

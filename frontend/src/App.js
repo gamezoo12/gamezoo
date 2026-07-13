@@ -29,6 +29,9 @@ import AdminKyc from './pages/admin/KycPage';
 import AdminPayments from './pages/admin/PaymentsPage';
 import AdminSettings from './pages/admin/SettingsPage';
 import AdminRoles from './pages/admin/RolesPage';
+import AdminWallets from './pages/admin/WalletAdmin';
+import PlayGame from './pages/PlayGame';
+import ContestLeaderboard from './pages/ContestLeaderboard';
 
 import ProductionLayout from './components/admin/ProductionLayout';
 import LiveDrawPage from './pages/production/LiveDraw';
@@ -55,6 +58,8 @@ function AppRouter() {
         <Route path="/my-account" element={<MyAccount />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/free-entry" element={<FreeEntry />} />
+        <Route path="/play/:contestId/:ticketId" element={<PlayGame />} />
+        <Route path="/leaderboard/:contestId" element={<ContestLeaderboard />} />
       </Route>
 
       <Route path="/admin/login" element={<AdminLogin />} />
@@ -64,6 +69,7 @@ function AppRouter() {
         <Route path="users" element={<AdminUsers />} />
         <Route path="kyc" element={<AdminKyc />} />
         <Route path="competitions" element={<AdminCompetitions />} />
+        <Route path="wallets" element={<AdminWallets />} />
         <Route path="orders" element={<AdminOrders />} />
         <Route path="payments" element={<AdminPayments />} />
         <Route path="winners" element={<AdminWinners />} />

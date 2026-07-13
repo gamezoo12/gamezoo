@@ -4,8 +4,8 @@ import WinnersTicker from '../components/home/WinnersTicker';
 import StatsBar from '../components/home/StatsBar';
 import CompetitionSection from '../components/home/CompetitionSection';
 import HowItWorks from '../components/home/HowItWorks';
-import SpinWheel from '../components/home/SpinWheel';
 import TrustBadges from '../components/home/TrustBadges';
+import ReferralPromo from '../components/home/ReferralPromo';
 import { contestsAPI } from '../lib/api';
 
 export default function Home() {
@@ -31,7 +31,7 @@ export default function Home() {
       <StatsBar />
       {endingSoon.length > 0 && <CompetitionSection title="Ending Soon…" subtitle="Don't miss out" items={endingSoon} viewAllHref="/competitions" />}
       {jackpot.length > 0 && <CompetitionSection title="Jackpot Contests…" subtitle="Bigger prizes" items={jackpot} accent="amber" viewAllHref="/competitions" />}
-      <SpinWheel />
+      <ReferralPromo />
       {instantWin.length > 0 && <CompetitionSection title="Instant Wins…" subtitle="Win right now" items={instantWin} accent="orange" viewAllHref="/competitions" />}
       {prizeDraws.length > 0 && <CompetitionSection title="Prize Draws…" subtitle="Live draws" items={prizeDraws} viewAllHref="/competitions" />}
       {newGames.length > 0 && <CompetitionSection title="New Games…" subtitle="Fresh drops" items={newGames} accent="orange" viewAllHref="/competitions" />}

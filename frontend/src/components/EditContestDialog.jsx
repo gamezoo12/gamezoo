@@ -50,6 +50,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
         jackpot: !!form.jackpot,
         featured: !!form.featured,
         skill_question: form.skill_question,
+        game_type: form.game_type || null,
       };
       if (isCreate) {
         payload.status = form.status || 'draft';
@@ -107,6 +108,27 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
             <Label>End date/time</Label>
             <Input type="datetime-local" value={endDateStr} onChange={e => upd('end_date', e.target.value ? new Date(e.target.value).toISOString() : null)} />
           </div>
+          <div className="grid grid-cols-1 gap-2 border-t border-slate-100 pt-4">
+            <Label>Skill game (played after ticket purchase)</Label>
+            <p className="text-xs text-slate-500 -mt-1 mb-1">Optional. If none, winner is picked by admin/random draw.</p>
+            <select
+              value={form.game_type || ''}
+              onChange={e => upd('game_type', e.target.value || null)}
+              data-testid="contest-game-select"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            >
+              <option value="">— None (winner picked manually) —</option>
+              <option value="jigsaw_3x3">Image Jigsaw (3×3)</option>
+              <option value="jigsaw_4x4">Image Jigsaw (4×4)</option>
+              <option value="memory_match">Memory Match (pairs)</option>
+              <option value="number_sequence">Number Sequence 1→20</option>
+              <option value="slider_puzzle">15-Slider Puzzle</option>
+              <option value="emoji_riddle">Emoji Riddle</option>
+              <option value="target_tap">Target Tap</option>
+              <option value="word_unscramble">Word Unscramble</option>
+            </select>
+          </div>
+
           <div>
             <Label>Image URL</Label>
             <Input value={form.image || ''} onChange={e => upd('image', e.target.value)} placeholder="https://…" />

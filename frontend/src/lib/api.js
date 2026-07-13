@@ -76,3 +76,29 @@ export const adminAPI = {
   getSettings: () => api.get('/admin/settings').then(r => r.data),
   updateSettings: (data) => api.put('/admin/settings', data).then(r => r.data),
 };
+
+export const walletAPI = {
+  me: () => api.get('/wallet/me').then(r => r.data),
+  transactions: (limit = 50) => api.get('/wallet/transactions', { params: { limit } }).then(r => r.data),
+  topup: (amount) => api.post('/wallet/topup', { amount }).then(r => r.data),
+};
+
+export const adminWalletAPI = {
+  list: () => api.get('/admin/wallets').then(r => r.data),
+  adjust: (user_id, amount, note) => api.post('/admin/wallets/adjust', { user_id, amount, note }).then(r => r.data),
+  userTransactions: (user_id) => api.get(`/admin/wallets/${user_id}/transactions`).then(r => r.data),
+};
+
+export const referralAPI = {
+  me: () => api.get('/referrals/me').then(r => r.data),
+  list: () => api.get('/referrals/list').then(r => r.data),
+  complete: () => api.post('/referrals/complete').then(r => r.data),
+};
+
+export const gamesAPI = {
+  types: () => api.get('/games/types').then(r => r.data),
+  submit: (data) => api.post('/games/submit', data).then(r => r.data),
+  myAttempts: (ticket_id) => api.get(`/games/attempts/${ticket_id}`).then(r => r.data),
+  leaderboard: (contest_id, limit = 25) => api.get(`/contests/${contest_id}/leaderboard`, { params: { limit } }).then(r => r.data),
+};
+

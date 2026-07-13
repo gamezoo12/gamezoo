@@ -15,18 +15,33 @@ router = APIRouter(prefix='/api/auth', tags=['auth'])
 @router.post('/register')
 async def register(inp: RegisterInput, request: Request):
     from deps import get_db
+    from models import Referral
     db = get_db()
     if await db.users.find_one({'email': inp.email.lower()}):
         raise HTTPException(status_code=400, detail='Email already registered')
+    referred_by = None
+    if inp.referral_code:
+        ref_user = await db.users.find_one({'referral_code': inp.referral_code.upper()}, {'_id': 0, 'user_id': 1})
+        if ref_user:
+            referred_by = ref_user['user_id']
     user = User(
         email=inp.email.lower(),
         name=inp.name,
         password_hash=hash_password(inp.password),
         method='email',
         role='user',
+        referred_by=referred_by,
     )
     doc = user.model_dump()
     await db.users.insert_one(doc)
+    # If they used a referral code, create a pending referral record
+    if referred_by:
+        r = Referral(
+            referrer_user_id=referred_by,
+            referred_user_id=user.user_id,
+            code=inp.referral_code.upper(),
+        )
+        await db.referrals.insert_one(r.model_dump())
     token = create_jwt(user.user_id)
     return {
         'user': UserPublic(**{k: v for k, v in doc.items() if k != 'password_hash'}).model_dump(),

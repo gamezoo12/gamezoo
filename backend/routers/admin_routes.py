@@ -202,7 +202,8 @@ async def update_contest_full(contest_id: str, payload: dict, request: Request):
     from deps import get_db
     db = get_db()
     allowed = {'title', 'subtitle', 'category', 'tag', 'image', 'price', 'tickets_total',
-               'prize_amount', 'end_date', 'jackpot', 'featured', 'status', 'skill_question'}
+               'prize_amount', 'end_date', 'jackpot', 'featured', 'status', 'skill_question',
+               'game_type', 'game_config'}
     updates = {}
     for k, v in (payload or {}).items():
         if k not in allowed:

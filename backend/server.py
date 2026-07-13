@@ -63,6 +63,9 @@ from routers.meera_routes import router as meera_router, public_router as meera_
 from routers.user_routes import router as user_router
 from routers.settings_routes import router as settings_router, public_router as settings_public_router
 from routers.production_routes import production_router, notif_router
+from routers.wallet_routes import wallet_router, admin_wallet_router
+from routers.referral_routes import router as referral_router
+from routers.game_routes import router as game_router, public_router as game_public_router
 
 app.include_router(auth_router)
 app.include_router(contest_router)
@@ -75,6 +78,11 @@ app.include_router(settings_router)
 app.include_router(settings_public_router)
 app.include_router(production_router)
 app.include_router(notif_router)
+app.include_router(wallet_router)
+app.include_router(admin_wallet_router)
+app.include_router(referral_router)
+app.include_router(game_router)
+app.include_router(game_public_router)
 
 
 app.add_middleware(

@@ -1,0 +1,51 @@
+{
+  "summary": "Iteration 8 — Massive P0 verification (wallet + referrals + games + logout + rebrand). ALL 70 pytest suites pass (47 pre-existing regression + 23 new). Frontend Playwright verified every P0 flow: (1) All 3 logout paths clear localStorage.gz_token and redirect correctly — header-logout→/, admin-logout→/admin/login, ghost-session test passed (visiting /admin post-logout redirects to /admin/login); (2) Home rebrand: PrizeWheel absent, Meera absent, logo shows 'PrizeLeague' with orange gradient, hero uses warm orange/purple/rose palette; (3) Meera 'Ask Meera' text confirmed present in /admin only, ABSENT on /, /competitions, /login; (4) Register w/ referral_code creates pending Referral doc, /api/referrals/me returns code+pending count, /api/referrals/complete flips to completed and grants free tickets on both parties (200 when a ≤£5 live contest exists, 404 otherwise — acceptable per pick_reward_contest logic); (5) Wallet: topup £5 → 422, £25 → 200 + balance/lifetime_topup=25, /me returns clean shape (no _id), transactions list includes topup; upper cap £5000 enforced (£100k → 422); (6) Checkout: £0 wallet → 402 with 'Insufficient wallet balance' detail; after £25 topup + qty=1 @ £1 → 200, method='wallet', balance→24, wallet_tx kind='spend' amount=-1.0 created; (7) MyAccount UI: 11 tabs all render with correct data-testid (tab-profile/wallet/tickets/orders/referrals/notifications/verify/security/support/policies/preferences — note: KYC tab uses data-testid='tab-verify' not 'tab-kyc' as review request text hinted); wallet-balance card + £25 preset + topup-btn work end-to-end (£0→£25 verified via UI); (8) Admin /admin/wallets loads (admin-wallet-page, admin-wallet-search, 11 wallet rows, 4 totals cards), adjust +5 API call succeeds with balance 20→25; (9) EditContestDialog game selector: opens 'Skill game (played after ticket purchase)' dropdown with 9 options (None + 8 games incl memory_match, jigsaw_3x3/4x4, number_sequence, slider_puzzle, emoji_riddle, target_tap, word_unscramble); admin contest created with game_type='memory_match' persists (verified via GET /api/admin/contests); (10) Games e2e: /api/games/types lists all 8; POST /api/games/submit — 1st attempt returns points>0 attempts_left=2, 2nd/3rd attempts fill quota, 4th returns 400 'No attempts left'; GET /api/contests/{id}/leaderboard returns array with rank=1 for the user. Backend logs clean (only expected 401s from unauth /api/auth/me pings on public pages).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/login (public sign-in/register)", "issues": ["Left panel still uses the OLD teal→emerald→cyan gradient plus 'Prize League' wordmark in green — inconsistent with the new orange/rose/fuchsia rebrand applied to Home. The review request said 'REBRAND kills light green teal' — this page was missed."]},
+      {"screen": "Header (logged-in state)", "issues": ["header-wallet-chip uses an emerald/teal background (visible on the second screenshot as the '£0.00' chip left of the bell icon) — clashes with the warm palette everywhere else."]},
+      {"screen": "MyAccount / hero stat icons", "issues": ["Small stat icons on Home 'Contests Live / Prize Pool / Skill Questions / Entry From' are still teal-tinted. Rebrand should sweep these too."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_wallet.py",
+    "/app/backend/tests/test_referrals.py",
+    "/app/backend/tests/test_games.py",
+    "/app/backend/tests/test_checkout_wallet.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_scheduler_notifications.py",
+    "/app/backend/tests/test_meera_refactor.py",
+    "/app/backend/tests/test_create_contest.py",
+    "/app/backend/tests/test_profile.py",
+    "/app/test_reports/pytest/iter8_all.xml"
+  ],
+  "action_items": [
+    "MINOR — Rebrand /login page: replace the teal→emerald→cyan gradient on the left panel and change 'Prize League' green wordmark to the new orange/rose palette (kept parity with Home hero).",
+    "MINOR — Retint header-wallet-chip from emerald/teal to a warm-palette hue (rose/amber/orange) so it doesn't clash with the rest of the header.",
+    "MINOR — Retint the four Home hero stat icons (Contests Live / Prize Pool / Skill Questions / Entry From) — currently still teal.",
+    "COSMETIC — data-testid for KYC tab is 'tab-verify' (not 'tab-kyc'). Review request wording says 'data-testid=tab-<name>' with 'KYC' listed. Either rename the testid to 'tab-kyc' or update docs.",
+    "OBSERVED — /api/referrals/complete returns 404 when no live contest with price ≤ £5 exists. Consider either (a) fallback to any live contest, or (b) crediting the referrer/referred with £5 wallet balance instead — otherwise the referral reward silently fails in production if all contests are >£5."
+  ],
+  "critical_code_review_comments": [
+    "referral_routes._pick_reward_contest hard-filters price<=5 — if all live contests are >£5 the referral 'grant' silently no-ops (returns None from _grant_free_ticket, but /complete still marks the referral 'completed' with reward_ticket_id=None, giving referred user a free_ticket_id=None). Suggest asserting a reward was granted or issuing a wallet credit fallback.",
+    "wallet_routes._apply_tx computes 'balance + amount' via a read-then-write pattern with no optimistic locking — under concurrent top-ups + checkouts this could cause lost updates. Consider MongoDB findOneAndUpdate with $inc for atomic operation.",
+    "order_routes.checkout: contest updates ($inc tickets_sold) and ticket insert happen BEFORE the wallet debit. If _apply_tx raises after tickets are committed (e.g. transient DB error), tickets exist but wallet was never debited. Wrap in a transaction or reorder to debit first.",
+    "game_routes.submit_score: no rate limiting on submit — a client can spam identical scores in a loop while attempts_left>0. Minor since capped at 3, but worth adding server-side throttling.",
+    "Ticket ordering fix: order_routes assigns ticket_number = base+n+1 outside a lock. Concurrent checkouts on the same contest can produce duplicate ticket numbers. Should use findOneAndUpdate + $inc to atomically claim ticket numbers.",
+    "Admin wallet adjust does not create a corresponding refund tx when amount<0 — always uses kind='admin_adjust'. Downstream reporting will not treat these as refunds. Cosmetic."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (70/70 pytest)", "frontend": "100% (all P0 flows verified: 3 logout paths, rebrand, Meera scoping, wallet UI, admin wallet page, game dropdown, checkout, referral registration)"},
+  "test_credentials": "Admin: bachanta8@gmail.com / Herts@910022 (per /app/memory/test_credentials.md). Test users created dynamically: test_wallet_*, test_ref_*, test_gamer_*, test_ck_*, test_ui_* — all with pattern @example.com so DB-cleanup is trivial via db.users.delete_many({'email': /^test_/}).",
+  "seed_data_creation": "Created ~11 throwaway test users during pytest + Playwright runs (email prefix test_*). Also created TEST contests via /api/admin/contests that were cleaned up via DELETE in fixture teardown. One orphan 'TEST Memory Match Contest' may remain if the pytest game fixture teardown was interrupted — safe to leave.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Full pytest command: `cd /app/backend && python -m pytest tests/ -v --junitxml=/app/test_reports/pytest/iterN_all.xml` (~2 min, 70 tests, xdist parallel with 2 workers). Wallet admin tests use scope='class' fixtures so they self-provision users — this is intentional because pytest-xdist LoadScope splits classes across workers. All 3 logout data-testids: header-logout (Header.jsx), admin-logout (AdminLayout.jsx), production-logout (ProductionLayout.jsx). Route /admin unauthenticated hard-redirects to /admin/login (verified). Game types are hard-coded in game_routes.GAME_TYPES — memory_match target=45s max_attempts=3. To play memory_match end-to-end via UI, buy a ticket on a contest with game_type='memory_match' then visit /play/{contest_id}/{ticket_id}. Referral complete requires a live contest with price<=£5 in DB or it returns 404.",
+  "rca_of_the_issue": "N/A — this is feature verification, not bug hunting. Two pytest failures during initial run (test_admin_list_wallets, test_admin_adjust_credit) were caused by pytest-xdist LoadScope scheduling: TestWalletTopup and TestAdminWallet in the same module were placed on DIFFERENT workers because LoadScope groups by class not by module. Module-scoped fixture 'new_user' was therefore instantiated twice (once per worker), causing the admin tests to receive a different user_id than expected. Fixed by making TestAdminWallet self-contained with its own class-scoped 'admin_scoped_user' fixture that tops up its own user. No product bug involved."
+}

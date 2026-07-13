@@ -79,7 +79,7 @@ export default function Login() {
           <h2 className="font-display text-5xl font-extrabold leading-tight">Play. Solve.<br />Win real cash.</h2>
           <p className="text-white/85 text-lg max-w-md">Skill-based prize contests from just £1. Answer a puzzle, grab a ticket, win up to £500 tax-free.</p>
           <div className="space-y-3 pt-4">
-            <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center"><Gift className="w-5 h-5" /></div><div><div className="font-semibold">10 free spins on signup</div><div className="text-xs text-white/70">Instant welcome bonus</div></div></div>
+            <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center"><Gift className="w-5 h-5" /></div><div><div className="font-semibold">3 free tickets on signup</div><div className="text-xs text-white/70">Instant welcome bonus</div></div></div>
             <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center"><Trophy className="w-5 h-5" /></div><div><div className="font-semibold">Same-day payouts</div><div className="text-xs text-white/70">Cash straight to your bank</div></div></div>
             <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center"><Zap className="w-5 h-5" /></div><div><div className="font-semibold">Free postal entry</div><div className="text-xs text-white/70">100% UK-legal, no purchase necessary</div></div></div>
           </div>
