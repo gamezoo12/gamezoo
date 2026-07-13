@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Package, ShoppingBag, Trophy, BarChart3, LogOut, Sparkles, Shield, CreditCard, Settings as SettingsIcon, ShieldCheck, Wallet as WalletIcon } from 'lucide-react';
+import { LayoutDashboard, Users, Package, ShoppingBag, Trophy, BarChart3, LogOut, Sparkles, Shield, CreditCard, Settings as SettingsIcon, ShieldCheck, Wallet as WalletIcon, Gamepad2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import MeeraChat from '../MeeraChat';
 
@@ -10,6 +10,7 @@ const LINKS = [
   { to: '/admin/roles', label: 'Roles & Permissions', icon: ShieldCheck },
   { to: '/admin/kyc', label: 'KYC', icon: Shield },
   { to: '/admin/competitions', label: 'Contests', icon: Package },
+  { to: '/admin/games', label: 'Games', icon: Gamepad2 },
   { to: '/admin/wallets', label: 'Wallets', icon: WalletIcon },
   { to: '/admin/orders', label: 'Orders', icon: ShoppingBag },
   { to: '/admin/payments', label: 'Payments', icon: CreditCard },

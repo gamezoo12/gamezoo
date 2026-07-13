@@ -30,6 +30,7 @@ import AdminPayments from './pages/admin/PaymentsPage';
 import AdminSettings from './pages/admin/SettingsPage';
 import AdminRoles from './pages/admin/RolesPage';
 import AdminWallets from './pages/admin/WalletAdmin';
+import AdminGames from './pages/admin/GamesAdmin';
 import PlayGame from './pages/PlayGame';
 import ContestLeaderboard from './pages/ContestLeaderboard';
 
@@ -69,6 +70,7 @@ function AppRouter() {
         <Route path="users" element={<AdminUsers />} />
         <Route path="kyc" element={<AdminKyc />} />
         <Route path="competitions" element={<AdminCompetitions />} />
+        <Route path="games" element={<AdminGames />} />
         <Route path="wallets" element={<AdminWallets />} />
         <Route path="orders" element={<AdminOrders />} />
         <Route path="payments" element={<AdminPayments />} />
