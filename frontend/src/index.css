@@ -49,3 +49,16 @@ h1, h2, h3, h4, h5, h6, .font-display { font-family: 'Poppins', sans-serif; lett
   * { @apply border-border; }
   body { @apply bg-background text-foreground; }
 }
+
+
+/* --- Mobile helpers --- */
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Prevent accidental horizontal page overflow on small screens */
+html, body { overflow-x: hidden; }
+
+/* Prize card hover kept subtle on touch */
+@media (hover: none) {
+  .prize-card:hover img { transform: none !important; }
+}

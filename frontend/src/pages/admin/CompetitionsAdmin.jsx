@@ -54,12 +54,12 @@ export default function CompetitionsAdmin() {
       <div className="flex justify-between items-center flex-wrap gap-3">
         <h2 className="font-display text-2xl font-extrabold">Contests ({contests.length})</h2>
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex gap-1 bg-white border border-slate-100 p-1 rounded-xl">
+          <div className="flex gap-1 bg-white border border-slate-100 p-1 rounded-xl overflow-x-auto no-scrollbar max-w-full">
             {STATUS_TABS.map(t => {
               const count = t.key === 'all' ? contests.length : contests.filter(c => c.status === t.key).length;
               return (
-                <button key={t.key} onClick={() => setTab(t.key)} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${tab === t.key ? 'bg-teal-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
-                  {t.label} <span className={`ml-1 text-xs ${tab === t.key ? 'text-white/80' : 'text-slate-400'}`}>({count})</span>
+                <button key={t.key} onClick={() => setTab(t.key)} className={`px-2.5 md:px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium whitespace-nowrap ${tab === t.key ? 'bg-teal-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
+                  {t.label} <span className={`ml-1 text-[10px] md:text-xs ${tab === t.key ? 'text-white/80' : 'text-slate-400'}`}>({count})</span>
                 </button>
               );
             })}
@@ -68,6 +68,7 @@ export default function CompetitionsAdmin() {
             onClick={bulkLaunch}
             data-testid="bulk-launch-contests-btn"
             variant="outline"
+            size="sm"
             className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
           >
             <PlayCircle className="w-4 h-4 mr-1" /> Launch all
@@ -76,6 +77,7 @@ export default function CompetitionsAdmin() {
             onClick={bulkPause}
             data-testid="bulk-pause-contests-btn"
             variant="outline"
+            size="sm"
             className="border-amber-200 text-amber-700 hover:bg-amber-50"
           >
             <PauseCircle className="w-4 h-4 mr-1" /> Hold all
@@ -83,9 +85,10 @@ export default function CompetitionsAdmin() {
           <Button
             onClick={() => setCreating(true)}
             data-testid="new-contest-btn"
+            size="sm"
             className="bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white shadow-md"
           >
-            <Plus className="w-4 h-4 mr-1" /> New contest
+            <Plus className="w-4 h-4 mr-1" /> New
           </Button>
         </div>
       </div>

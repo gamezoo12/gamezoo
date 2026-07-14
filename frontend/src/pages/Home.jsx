@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import HeroBanner from '../components/home/HeroBanner';
+import LiveNowSection from '../components/home/LiveNowSection';
 import WinnersTicker from '../components/home/WinnersTicker';
 import StatsBar from '../components/home/StatsBar';
 import CompetitionSection from '../components/home/CompetitionSection';
@@ -19,6 +20,13 @@ export default function Home() {
     jackpot: c.jackpot, featured: c.featured, gameType: c.game_type,
   }));
   const endingSoon = [...mapped].sort((a,b) => new Date(a.endDate) - new Date(b.endDate)).slice(0, 4);
+  // Live Now = up to 4 live contests, prioritising game-enabled + featured + jackpot for interest
+  const liveNow = [...mapped]
+    .sort((a, b) => {
+      const score = (c) => (c.gameType ? 3 : 0) + (c.featured ? 2 : 0) + (c.jackpot ? 1 : 0);
+      return score(b) - score(a);
+    })
+    .slice(0, 4);
   const newGames = mapped.filter(c => c.category === 'new-games').slice(0, 4);
   const jackpot = mapped.filter(c => c.jackpot).slice(0, 4);
   const instantWin = mapped.filter(c => c.category === 'instant-wins').slice(0, 4);
@@ -27,6 +35,7 @@ export default function Home() {
   return (
     <>
       <HeroBanner />
+      <LiveNowSection items={liveNow} />
       <WinnersTicker />
       <StatsBar />
       {endingSoon.length > 0 && <CompetitionSection title="Ending Soon…" subtitle="Don't miss out" items={endingSoon} viewAllHref="/competitions" />}

@@ -39,6 +39,8 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - [x] Real-time per-contest leaderboard — `/leaderboard/:contestId`
 - [x] **Global live leaderboard** — `/leaderboard` (public nav link) with podium, per-contest tab switcher, 15s auto-refresh
 - [x] **Per-contest live leaderboard embedded on `/competition/:slug`** — full card (top 10, medals, view-full link) shown whenever contest has a skill game assigned
+- [x] **Live Now section on Home** — always shows up to 4 live contests at the top (game-enabled + featured + jackpot prioritised), pulsing LIVE indicator, mobile horizontal snap-scroll
+- [x] **Mobile responsiveness pass** — no horizontal overflow, admin bulk bars stack on mobile, contest cards use smaller padding on mobile, section titles scale down, admin filters horizontally scroll on small screens
 - [x] **30 skill-based mini-games** — 16 original + **14 new** (sudoku_mini, sequence_predict, countdown_numbers, word_ladder, chess_mate_in_one, tower_of_hanoi, lights_out, minesweeper_mini, nonogram_mini, tf2048_mini, cryptogram, anagram_finder, maze_solver, spot_pattern) — all mount + interactive, backend types endpoint returns 30
 - [x] **Admin bulk launch/hold** — `POST /api/admin/contests/bulk/{launch,pause}` with filters (only_games, category, status_from) surfaced in Games Admin + Contests Admin
 - [x] Rebrand sweep — killed all teal/emerald on public site

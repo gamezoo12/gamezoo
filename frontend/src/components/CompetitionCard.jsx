@@ -36,26 +36,26 @@ export default function CompetitionCard({ c }) {
             <span className="bg-black/60 backdrop-blur px-2 py-1 rounded-md"><Clock className="w-3 h-3 inline mr-1" />{t.days}d {t.hours}h {t.mins}m {String(t.secs).padStart(2,'0')}s</span>
           </div>
         </div>
-        <div className="p-4 flex-1 flex flex-col">
-          <div className="text-xs uppercase tracking-wide text-slate-500 mb-1">{c.subtitle}</div>
-          <h3 className="font-display font-bold text-slate-900 line-clamp-2 min-h-[3rem]">{c.title}</h3>
+        <div className="p-3 md:p-4 flex-1 flex flex-col">
+          <div className="text-[10px] md:text-xs uppercase tracking-wide text-slate-500 mb-1 truncate">{c.subtitle}</div>
+          <h3 className="font-display font-bold text-sm md:text-base text-slate-900 line-clamp-2 min-h-[2.5rem] md:min-h-[3rem]">{c.title}</h3>
 
-          <div className="mt-3">
-            <div className="flex justify-between text-xs text-slate-500 mb-1">
+          <div className="mt-2 md:mt-3">
+            <div className="flex justify-between text-[10px] md:text-xs text-slate-500 mb-1">
               <span>{c.ticketsSold.toLocaleString()} / {c.ticketsTotal.toLocaleString()}</span>
               <span className="font-semibold text-teal-600">{pct}%</span>
             </div>
-            <Progress value={pct} className="h-2 bg-slate-100" />
+            <Progress value={pct} className="h-1.5 md:h-2 bg-slate-100" />
           </div>
 
-          <div className="mt-4 flex items-center justify-between">
-            <div className="flex items-center gap-1 text-slate-900">
-              <Ticket className="w-4 h-4 text-orange-500" />
-              <span className="font-bold">{gbp(c.price)}</span>
-              <span className="text-xs text-slate-500">/entry</span>
+          <div className="mt-3 md:mt-4 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1 text-slate-900 min-w-0">
+              <Ticket className="w-4 h-4 text-orange-500 shrink-0" />
+              <span className="font-bold text-sm md:text-base">{gbp(c.price)}</span>
+              <span className="hidden md:inline text-xs text-slate-500">/entry</span>
             </div>
-            <Button size="sm" className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white">
-              Enter Now
+            <Button size="sm" className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white text-xs md:text-sm px-2.5 md:px-3">
+              Enter
             </Button>
           </div>
         </div>

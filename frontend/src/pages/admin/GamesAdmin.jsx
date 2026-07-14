@@ -101,10 +101,10 @@ export default function GamesAdmin() {
       </div>
 
       {/* Bulk actions bar */}
-      <div className="bg-gradient-to-r from-slate-900 via-fuchsia-900 to-orange-800 text-white rounded-2xl p-5 flex flex-wrap gap-4 items-center justify-between" data-testid="bulk-actions-bar">
+      <div className="bg-gradient-to-r from-slate-900 via-fuchsia-900 to-orange-800 text-white rounded-2xl p-4 md:p-5 flex flex-col md:flex-row gap-3 md:gap-4 md:items-center md:justify-between" data-testid="bulk-actions-bar">
         <div>
-          <div className="text-xs uppercase tracking-widest text-white/70">Bulk actions — all game-enabled contests</div>
-          <div className="font-display text-xl font-extrabold mt-1">
+          <div className="text-[10px] md:text-xs uppercase tracking-widest text-white/70">Bulk actions — all game-enabled contests</div>
+          <div className="font-display text-lg md:text-xl font-extrabold mt-1">
             {liveGames} live · {heldGames} on hold · {totalAssigned} total
           </div>
         </div>
@@ -113,18 +113,18 @@ export default function GamesAdmin() {
             onClick={() => doBulk('launch')}
             disabled={bulkBusy || heldGames === 0}
             data-testid="bulk-launch-btn"
-            className="bg-emerald-500 hover:bg-emerald-600 text-white disabled:opacity-40"
+            className="bg-emerald-500 hover:bg-emerald-600 text-white disabled:opacity-40 flex-1 md:flex-none"
           >
-            <PlayCircle className="w-4 h-4 mr-2" /> Launch all games {heldGames > 0 && `(${heldGames})`}
+            <PlayCircle className="w-4 h-4 mr-2" /> Launch all {heldGames > 0 && `(${heldGames})`}
           </Button>
           <Button
             onClick={() => doBulk('pause')}
             disabled={bulkBusy || liveGames === 0}
             data-testid="bulk-pause-btn"
             variant="outline"
-            className="bg-white/10 border-white/30 text-white hover:bg-white/20 hover:text-white disabled:opacity-40"
+            className="bg-white/10 border-white/30 text-white hover:bg-white/20 hover:text-white disabled:opacity-40 flex-1 md:flex-none"
           >
-            <PauseCircle className="w-4 h-4 mr-2" /> Hold all games {liveGames > 0 && `(${liveGames})`}
+            <PauseCircle className="w-4 h-4 mr-2" /> Hold all {liveGames > 0 && `(${liveGames})`}
           </Button>
         </div>
       </div>
