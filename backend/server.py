@@ -66,6 +66,7 @@ from routers.production_routes import production_router, notif_router
 from routers.wallet_routes import wallet_router, admin_wallet_router
 from routers.referral_routes import router as referral_router
 from routers.game_routes import router as game_router, public_router as game_public_router
+from routers.payments_routes import payments_router
 
 app.include_router(auth_router)
 app.include_router(contest_router)
@@ -83,6 +84,7 @@ app.include_router(admin_wallet_router)
 app.include_router(referral_router)
 app.include_router(game_router)
 app.include_router(game_public_router)
+app.include_router(payments_router)
 
 
 app.add_middleware(

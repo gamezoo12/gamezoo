@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ordersAPI, userAPI, walletAPI, referralAPI } from '../lib/api';
+import { ordersAPI, userAPI, walletAPI, referralAPI, paymentsAPI } from '../lib/api';
 import { gbp } from '../lib/format';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import {
@@ -129,22 +129,57 @@ export default function MyAccount() {
     } finally { setKycBusy(false); }
   };
 
-  const topup = async () => {
-    if (Number(topupAmount) < 10) {
-      toast({ title: 'Minimum £10', description: 'Wallet top-ups must be at least £10.' });
-      return;
-    }
+  const topup = async (lookupKey) => {
     setToppingUp(true);
     try {
-      await walletAPI.topup(Number(topupAmount));
-      const [w, txs] = await Promise.all([walletAPI.me(), walletAPI.transactions(20)]);
-      setWallet(w);
-      setWalletTxs(txs?.transactions || []);
-      toast({ title: '💷 Wallet topped up', description: `£${topupAmount} added to your balance.` });
+      const r = await paymentsAPI.createTopupCheckout(lookupKey);
+      // Redirect to Stripe hosted Checkout
+      window.location.href = r.checkout_url;
     } catch (err) {
-      toast({ title: 'Top-up failed', description: err?.response?.data?.detail || err.message });
-    } finally { setToppingUp(false); }
+      toast({ title: 'Checkout failed', description: err?.response?.data?.detail || err.message });
+      setToppingUp(false);
+    }
   };
+
+  // Handle return from Stripe (success/cancel)
+  useEffect(() => {
+    const topupParam = searchParams.get('topup');
+    const sid = searchParams.get('session_id');
+    if (topupParam === 'cancel') {
+      toast({ title: 'Payment cancelled', description: 'No charge was made.' });
+      nav('/my-account?tab=wallet', { replace: true });
+      return undefined;
+    }
+    if (topupParam !== 'success' || !sid) return undefined;
+    let attempts = 0;
+    const maxAttempts = 15; // 30 seconds
+    const poll = async () => {
+      attempts += 1;
+      try {
+        const s = await paymentsAPI.status(sid);
+        if (s.payment_status === 'paid') {
+          const [w, txs] = await Promise.all([walletAPI.me(), walletAPI.transactions(20)]);
+          setWallet(w);
+          setWalletTxs(txs?.transactions || []);
+          toast({ title: '✅ Payment successful', description: `£${s.amount_gbp.toFixed(2)} added to your wallet.` });
+          nav('/my-account?tab=wallet', { replace: true });
+          return;
+        }
+        if (s.payment_status === 'failed' || s.payment_status === 'expired') {
+          toast({ title: 'Payment did not complete', description: `Status: ${s.payment_status}` });
+          nav('/my-account?tab=wallet', { replace: true });
+          return;
+        }
+        if (attempts < maxAttempts) setTimeout(poll, 2000);
+        else toast({ title: 'Still processing', description: 'Refresh in a moment — your balance will update.' });
+      } catch (err) {
+        if (attempts < maxAttempts) setTimeout(poll, 2000);
+      }
+    };
+    poll();
+    return undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const copyReferralLink = async () => {
     const url = `${window.location.origin}/?ref=${referral?.code}`;
@@ -446,29 +481,38 @@ export default function MyAccount() {
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl border border-slate-100 p-6">
+            <div className="bg-white rounded-2xl border border-slate-100 p-6" data-testid="stripe-topup-panel">
               <h3 className="font-display font-bold text-lg mb-1">Top up wallet</h3>
-              <p className="text-sm text-slate-500 mb-4">Minimum £10. Real card processing coming soon — top-ups are instant for now.</p>
-              <div className="flex flex-wrap items-center gap-3">
-                {[10, 25, 50, 100, 250].map(a => (
+              <p className="text-sm text-slate-500 mb-4">Secure card payment via Stripe. Funds are credited instantly after payment.</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { amount: 10,  key: 'wallet_topup_10',  badge: null },
+                  { amount: 20,  key: 'wallet_topup_20',  badge: null },
+                  { amount: 50,  key: 'wallet_topup_50',  badge: 'Popular' },
+                  { amount: 100, key: 'wallet_topup_100', badge: 'Best value' },
+                ].map(pkg => (
                   <button
-                    key={a}
+                    key={pkg.key}
                     type="button"
-                    onClick={() => setTopupAmount(a)}
-                    data-testid={`topup-preset-${a}`}
-                    className={`px-4 py-2 rounded-full border text-sm font-semibold ${Number(topupAmount) === a ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-slate-700 border-slate-200 hover:border-orange-400'}`}
-                  >£{a}</button>
+                    disabled={toppingUp}
+                    onClick={() => topup(pkg.key)}
+                    data-testid={`stripe-topup-${pkg.amount}`}
+                    className="group relative rounded-2xl border-2 border-slate-200 hover:border-orange-500 p-4 text-left transition disabled:opacity-50"
+                  >
+                    {pkg.badge && (
+                      <span className="absolute -top-2 right-3 bg-gradient-to-r from-orange-500 to-rose-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                        {pkg.badge}
+                      </span>
+                    )}
+                    <div className="text-xs uppercase text-slate-500">Top-up</div>
+                    <div className="font-display text-3xl font-extrabold text-slate-900 group-hover:text-orange-600">£{pkg.amount}</div>
+                    <div className="text-xs text-slate-400 mt-1">Pay with Stripe →</div>
+                  </button>
                 ))}
-                <div className="flex items-center gap-2 ml-auto">
-                  <Label className="text-sm">£</Label>
-                  <Input data-testid="topup-amount" type="number" min={10} max={5000} step={5} value={topupAmount} onChange={e => setTopupAmount(e.target.value)} className="w-28" />
-                  <Button
-                    onClick={topup}
-                    disabled={toppingUp || Number(topupAmount) < 10}
-                    data-testid="topup-btn"
-                    className="bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white shadow-lg"
-                  >{toppingUp ? 'Adding…' : 'Add funds'}</Button>
-                </div>
+              </div>
+              <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                Powered by Stripe. Card details never touch our servers.
               </div>
             </div>
 

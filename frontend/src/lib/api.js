@@ -85,6 +85,14 @@ export const walletAPI = {
   topup: (amount) => api.post('/wallet/topup', { amount }).then(r => r.data),
 };
 
+export const paymentsAPI = {
+  createTopupCheckout: (lookup_key) => api.post('/payments/wallet-topup/checkout', {
+    lookup_key,
+    origin_url: window.location.origin,
+  }).then(r => r.data),
+  status: (session_id) => api.get(`/payments/status/${session_id}`).then(r => r.data),
+};
+
 export const adminWalletAPI = {
   list: () => api.get('/admin/wallets').then(r => r.data),
   adjust: (user_id, amount, note) => api.post('/admin/wallets/adjust', { user_id, amount, note }).then(r => r.data),
