@@ -34,6 +34,8 @@ import AdminGames from './pages/admin/GamesAdmin';
 import PlayGame from './pages/PlayGame';
 import ContestLeaderboard from './pages/ContestLeaderboard';
 import GlobalLeaderboard from './pages/GlobalLeaderboard';
+import HowItWorksPage from './pages/HowItWorks';
+import ReferPage from './pages/ReferPage';
 
 import ProductionLayout from './components/admin/ProductionLayout';
 import LiveDrawPage from './pages/production/LiveDraw';
@@ -63,6 +65,8 @@ function AppRouter() {
         <Route path="/play/:contestId/:ticketId" element={<PlayGame />} />
         <Route path="/leaderboard" element={<GlobalLeaderboard />} />
         <Route path="/leaderboard/:contestId" element={<ContestLeaderboard />} />
+        <Route path="/how-it-works" element={<HowItWorksPage />} />
+        <Route path="/refer" element={<ReferPage />} />
       </Route>
 
       <Route path="/admin/login" element={<AdminLogin />} />

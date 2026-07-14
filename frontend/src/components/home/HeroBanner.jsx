@@ -1,149 +1,175 @@
-import { useEffect, useRef, useState } from 'react';
-import { HERO_SLIDES } from '../../mock/mockData';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Button } from '../ui/button';
-import { Sparkles, Trophy, Zap, Play } from 'lucide-react';
+import { Gamepad2, ChevronLeft, ChevronRight, ShieldCheck } from 'lucide-react';
 
-const BG_VIDEO = 'https://videos.pexels.com/video-files/2795750/2795750-hd_1920_1080_25fps.mp4';
+/**
+ * Prize League premium hero.
+ * Left  = PRIZE LEAGUE brand + Play Now.
+ * Right = Live Contests auto-rotating carousel (fed from `contests` prop).
+ */
+export default function HeroBanner({ contests = [] }) {
+  const live = useMemo(
+    () => (contests || []).filter(c => c.status !== 'drawn' && c.status !== 'archived').slice(0, 6),
+    [contests]
+  );
 
-export default function HeroBanner() {
   const [i, setI] = useState(0);
-  const videoRef = useRef(null);
+  const [paused, setPaused] = useState(false);
 
   useEffect(() => {
-    const t = setInterval(() => setI((n) => (n + 1) % HERO_SLIDES.length), 5500);
+    if (paused || live.length <= 1) return undefined;
+    const t = setInterval(() => setI(n => (n + 1) % live.length), 5000);
     return () => clearInterval(t);
-  }, []);
+  }, [paused, live.length]);
 
-  useEffect(() => {
-    // Attempt autoplay (muted so browsers allow it)
-    if (videoRef.current) {
-      videoRef.current.play().catch(() => {});
-    }
-  }, []);
+  const prev = () => setI(n => (n - 1 + live.length) % live.length);
+  const next = () => setI(n => (n + 1) % live.length);
 
-  const s = HERO_SLIDES[i];
+  // Swipe support
+  const [touchX, setTouchX] = useState(null);
+  const onTouchStart = (e) => setTouchX(e.touches[0].clientX);
+  const onTouchEnd = (e) => {
+    if (touchX == null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (dx > 40) prev();
+    else if (dx < -40) next();
+    setTouchX(null);
+  };
+
+  const current = live[i];
+
+  const timeLeft = (endDate) => {
+    if (!endDate) return '';
+    const diff = new Date(endDate) - Date.now();
+    if (diff <= 0) return 'Ending soon';
+    const d = Math.floor(diff / 86400000);
+    const h = Math.floor((diff % 86400000) / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    return `Ends in ${d > 0 ? d + 'd ' : ''}${h}h ${m}m`;
+  };
 
   return (
-    <section
-      data-testid="hero-banner"
-      className="relative overflow-hidden text-white"
-      style={{ minHeight: '620px' }}
-    >
-      {/* Layer 1 – colorful animated gradient */}
-      <div className="absolute inset-0 gz-hero-gradient" />
+    <section className="relative pl-hero-bg text-white" data-testid="hero-banner">
+      {/* Soft confetti dots */}
+      <div className="pointer-events-none absolute inset-0 opacity-40" style={{
+        backgroundImage: 'radial-gradient(#ffffff22 1px, transparent 1px)',
+        backgroundSize: '22px 22px',
+      }} />
 
-      {/* Layer 2 – background video (muted, looping) */}
-      <video
-        ref={videoRef}
-        data-testid="hero-video"
-        className="absolute inset-0 w-full h-full object-cover opacity-45 mix-blend-screen"
-        src={BG_VIDEO}
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="auto"
-        aria-hidden="true"
-      />
-
-      {/* Layer 3 – dark tint + colored blobs */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-black/10 to-black/60" />
-      <div className="absolute -top-24 -left-24 w-[28rem] h-[28rem] rounded-full bg-fuchsia-500/40 blur-3xl float" />
-      <div className="absolute top-1/3 -right-32 w-[32rem] h-[32rem] rounded-full bg-amber-400/40 blur-3xl float" style={{ animationDelay: '1.4s' }} />
-      <div className="absolute -bottom-32 left-1/3 w-[26rem] h-[26rem] rounded-full bg-fuchsia-400/30 blur-3xl float" style={{ animationDelay: '2.8s' }} />
-
-      {/* Layer 4 – confetti css overlay */}
-      <div className="confetti absolute inset-0 opacity-60 pointer-events-none" />
-
-      {/* Content */}
-      <div className="relative max-w-7xl mx-auto px-4 lg:px-8 py-14 lg:py-24 grid lg:grid-cols-2 gap-10 items-center">
-        <div className="fade-up">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white text-xs font-semibold uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5 text-amber-300" /> UK Skill-Based Contests • 100% Legal
-          </div>
-          <h1 className="mt-5 font-display text-4xl md:text-6xl lg:text-7xl font-extrabold leading-[1.05] tracking-tight">
-            <span className="block bg-gradient-to-r from-amber-200 via-white to-fuchsia-200 bg-clip-text text-transparent">
-              {s.title}
-            </span>
+      <div className="relative max-w-7xl mx-auto px-4 lg:px-8 py-10 md:py-16 lg:py-20 grid lg:grid-cols-[1.05fr,1fr] gap-8 lg:gap-14 items-center">
+        {/* LEFT — brand */}
+        <div>
+          <h1 className="font-display font-extrabold leading-[0.95] tracking-tight">
+            <span className="block pl-gold-text text-5xl md:text-6xl lg:text-7xl">PRIZE LEAGUE</span>
           </h1>
-          <p className="mt-5 text-lg md:text-xl text-white/85 max-w-xl">{s.subtitle}</p>
+          <p className="mt-4 text-white text-2xl md:text-3xl font-display font-bold">
+            Play. Compete. Win Amazing Prizes.
+          </p>
+          <p className="mt-4 text-white/75 text-base md:text-lg max-w-xl">
+            Join exciting skill-based contests, challenge yourself and stand a chance to win amazing prizes.
+          </p>
 
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link to={s.href}>
-              <Button
-                size="lg"
-                data-testid="hero-cta-primary"
-                className="h-12 px-7 bg-gradient-to-r from-orange-500 via-rose-500 to-fuchsia-500 hover:from-orange-600 hover:via-rose-600 hover:to-fuchsia-600 text-white font-bold shadow-2xl shadow-fuchsia-500/40 border-0"
-              >
-                <Play className="w-4 h-4 mr-1 fill-white" /> {s.cta}
-              </Button>
-            </Link>
-            <Link to="/faq">
-              <Button
-                size="lg"
-                variant="outline"
-                data-testid="hero-cta-secondary"
-                className="h-12 px-6 border-white/40 text-white bg-white/10 backdrop-blur-md hover:bg-white/20 hover:text-white font-semibold"
-              >
-                How it works
-              </Button>
-            </Link>
+          <div className="mt-6 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-white/80 text-xs">
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            Skill-based contests for eligible players. Terms &amp; Conditions apply.
           </div>
 
-          <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-white/80">
-            <div className="flex items-center gap-2"><Trophy className="w-4 h-4 text-amber-300" /><span><span className="font-extrabold text-white">50</span> Live Contests</span></div>
-            <div className="h-4 w-px bg-white/30" />
-            <div className="flex items-center gap-2"><Sparkles className="w-4 h-4 text-fuchsia-300" /><span><span className="font-extrabold text-white">£7,500</span> Prize Pool</span></div>
-            <div className="h-4 w-px bg-white/30" />
-            <div className="flex items-center gap-2"><Zap className="w-4 h-4 text-orange-300" /><span>From <span className="font-extrabold text-white">£1</span></span></div>
+          <div className="mt-8">
+            <Link to="/competitions" data-testid="hero-play-now">
+              <button className="pl-btn-gold h-14 px-8 rounded-full font-extrabold text-lg inline-flex items-center gap-3">
+                <Gamepad2 className="w-6 h-6" /> PLAY NOW
+              </button>
+            </Link>
           </div>
         </div>
 
-        {/* Right side – live prize showcase + floating badges */}
-        <div className="relative hidden lg:block">
-          <div className="relative aspect-[4/3] rounded-3xl overflow-hidden shadow-2xl shadow-black/60 border border-white/20 bg-black/30 backdrop-blur-sm">
-            <img src={s.image} alt={s.title} className="w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-
-            <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500 text-white text-[11px] font-bold uppercase tracking-wider shadow-lg">
-              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> Live now
+        {/* RIGHT — live contests carousel */}
+        <div
+          className="relative"
+          onMouseEnter={() => setPaused(true)}
+          onMouseLeave={() => setPaused(false)}
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+          data-testid="hero-carousel"
+        >
+          {live.length === 0 ? (
+            <div className="pl-glass rounded-3xl p-10 text-center">
+              <div className="text-white font-display text-xl font-bold mb-2">New contests coming soon</div>
+              <div className="text-white/60 text-sm">Check back in a bit — we&apos;re dropping fresh contests every week.</div>
             </div>
-            <div className="absolute top-4 right-4 px-3 py-1.5 rounded-full bg-white/95 backdrop-blur text-[11px] font-extrabold text-slate-900 shadow-lg">
-              PLAY & WIN
-            </div>
-
-            <div className="absolute bottom-5 left-5 right-5">
-              <div className="text-white/80 text-xs uppercase tracking-widest">Top prize this week</div>
-              <div className="font-display text-4xl font-extrabold text-white drop-shadow-lg">£500 Cash</div>
-              <div className="mt-3 flex items-center justify-between">
-                <div className="text-xs text-white/85">Buy a ticket · Play the skill game · Highest score wins</div>
-                <div className="flex gap-1">
-                  {HERO_SLIDES.map((slide, idx) => (
-                    <button
-                      key={slide.title}
-                      onClick={() => setI(idx)}
-                      aria-label={`Slide ${idx + 1}`}
-                      className={`h-2 rounded-full transition-all ${idx === i ? 'w-8 bg-white' : 'w-2 bg-white/50'}`}
-                    />
-                  ))}
-                </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-500 text-white text-[11px] font-bold uppercase tracking-widest">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> Live
+                </span>
+                <span className="text-white/70 text-sm font-semibold uppercase tracking-widest">Live Contests</span>
               </div>
-            </div>
-          </div>
 
-          {/* Floating badges */}
-          <div className="absolute -top-5 -left-5 rotate-[-6deg] px-4 py-2 rounded-2xl bg-gradient-to-r from-amber-300 to-orange-400 text-slate-900 font-extrabold text-sm shadow-2xl shadow-amber-500/40 float">
-            🎉 Play to win
-          </div>
-          <div className="absolute -bottom-5 -right-4 rotate-[5deg] px-4 py-2 rounded-2xl bg-gradient-to-r from-fuchsia-500 to-pink-500 text-white font-extrabold text-sm shadow-2xl shadow-fuchsia-500/40 float" style={{ animationDelay: '1s' }}>
-            💷 Same-day payout
-          </div>
+              <div className="relative pl-glass rounded-3xl overflow-hidden shadow-2xl">
+                <div className="relative aspect-[16/10]">
+                  <img
+                    key={current.contest_id}
+                    src={current.image}
+                    alt={current.title}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0B0D1F] via-[#0B0D1F]/40 to-transparent" />
+
+                  <span className="absolute top-4 left-4 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-500 text-white text-[11px] font-bold uppercase tracking-widest">
+                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> Live
+                  </span>
+
+                  <div className="absolute bottom-0 left-0 right-0 p-5">
+                    <div className="text-white font-display text-2xl md:text-3xl font-extrabold mb-2 drop-shadow">{current.title}</div>
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <div className="text-white/85 text-sm">
+                        <span className="font-bold text-[#FFD54A]">£{current.price?.toFixed?.(2) ?? current.price}</span> Entry ·
+                        {' '}<span className="text-white/70">{(current.tickets_sold || 0).toLocaleString()} entries</span>
+                      </div>
+                      <Link to={`/competition/${current.slug || current.contest_id}`}>
+                        <button className="pl-btn-purple px-4 py-2 rounded-full text-sm font-bold" data-testid="hero-view-contest">View Contest</button>
+                      </Link>
+                    </div>
+                    <div className="text-white/70 text-xs mt-2">{timeLeft(current.end_date)}</div>
+                  </div>
+                </div>
+
+                {/* Controls */}
+                {live.length > 1 && (
+                  <>
+                    <button
+                      onClick={prev}
+                      data-testid="hero-carousel-prev"
+                      aria-label="Previous contest"
+                      className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur"
+                    ><ChevronLeft className="w-5 h-5" /></button>
+                    <button
+                      onClick={next}
+                      data-testid="hero-carousel-next"
+                      aria-label="Next contest"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur"
+                    ><ChevronRight className="w-5 h-5" /></button>
+                  </>
+                )}
+              </div>
+
+              {/* Dots */}
+              <div className="mt-3 flex items-center justify-center gap-2">
+                {live.map((_, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setI(idx)}
+                    aria-label={`Slide ${idx + 1}`}
+                    className={`h-1.5 rounded-full transition-all ${idx === i ? 'w-6 bg-[#FFD54A]' : 'w-2 bg-white/30 hover:bg-white/60'}`}
+                  />
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
-
-      {/* Bottom wave into next section */}
-      <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-b from-transparent to-white pointer-events-none" />
     </section>
   );
 }

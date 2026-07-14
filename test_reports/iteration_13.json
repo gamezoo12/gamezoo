@@ -1,0 +1,26 @@
+{
+  "summary": "Iteration 13 — Frontend-only validation of the Prize League premium redesign (deep purple/gold palette, new hero, ticker, nav, /how-it-works, /refer routes, Refer & Earn card, TrustBadges, mobile drawer, profile dropdown with confirm sign-out). ALL 20 test cases from the review passed. Public API GET /api/contests still returns 51 live contests. NO Sarah M., NO 100% Legal, NO Same-day (case-insensitive) anywhere in the rendered DOM or HTML of the homepage. Homepage renders announcement-ticker + hero-banner (PRIZE LEAGUE gold gradient + 'Play. Compete. Win Amazing Prizes.') + single hero-play-now that navigates to /competitions (NOT to a #how-it-works anchor) + hero-carousel with live contest image/title/price/entries/countdown + hero-view-contest + hero-carousel-prev/-next (manual controls work, auto-rotate confirmed via img src change after 6s) + 6 step-N tiles + leaderboard-preview + refer-earn-card (signup CTA when logged out, copy/share when logged in) + trust-badges (Safe & Secure, Trusted Platform, Skill-Based Play, Responsible Play). Header shows header-logo (Trophy+P SVG) + all 5 nav links + gold pl-nav-active underline on the current page. Mobile: mobile-menu-toggle opens mobile-menu with all nav links + Sign in + PLAY NOW; body scroll is locked ('hidden'). Profile dropdown: opens via header-profile-btn, contains profile-signout; Cancel keeps user logged in; Confirm logs out and redirects to /. Regression: Stripe wallet top-up (stripe-topup-10/20/50/100) all rendered at /my-account?tab=wallet after re-login. Login flow with bachanta8@gmail.com works and profile initials/name (A / Hi, Admin) render in header.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Header.jsx line 87: `data-testid={`nav-${l.label.toLowerCase().replace(/\\s|&/g,'-')}`}` produces the ugly testid `nav-refer---earn` (three hyphens) for 'Refer & Earn'. Consider `.replace(/[\\s&]+/g,'-')` so it collapses to a single `-` (`nav-refer-earn`). Purely cosmetic, does not affect functionality but makes selector authoring cleaner.",
+    "HeroBanner.jsx line 112: `key={current.contest_id}` — the `current` object is built from the mapped array in Home.jsx which uses `id: c.contest_id` (not `contest_id`). So `current.contest_id` is `undefined` and React falls back to no key change per slide; visually it still works because `src` change re-renders, but for correctness use `key={current.id}` or key by index `i`. Non-blocking.",
+    "HeroBanner.jsx receives `contests` (raw shape from API with snake_case fields like `tickets_sold`, `end_date`, `contest_id`) but Home.jsx passes the ORIGINAL (unmapped) contests to it — good. Just make sure to keep it that way; if a future refactor passes the `mapped` array in, the hero card fields (`current.tickets_sold`, `current.end_date`, `current.slug`) will break.",
+    "doLogout uses `window.confirm` (native browser dialog). Native dialogs are functional and pass the spec, but on iOS Safari inside an in-app browser they can be dismissed as spam. A future upgrade could be a shadcn AlertDialog for on-brand UX. Not required now.",
+    "Console noise: two 401s on the homepage from an authenticated endpoint (likely /api/wallet/me polled while logged out). Cosmetic only; consider gating the walletAPI.me() effect on `user` being truthy (already done in Header.jsx) and checking Notifications/Referral hooks are also gated."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only request)", "frontend": "100% (20/20 checks passed)"},
+  "test_credentials": "Admin/player: bachanta8@gmail.com / Herts@910022 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Homepage composition verified: HeroBanner → CompetitionSection (Featured) → HowToPlaySection → LeaderboardPreview → ReferAndEarnCard → TrustBadges. Key testids: announcement-ticker, hero-banner, hero-play-now (→ /competitions), hero-carousel, hero-carousel-prev/-next, hero-view-contest, step-1..step-6, how-to-play-section, leaderboard-preview, refer-earn-card, refer-signup (logged out) / refer-copy + refer-share (logged in), trust-badges, header-logo, nav-home, nav-contests, nav-leaderboard, nav-how-it-works, nav-refer---earn (three dashes!), header-profile-btn, profile-dropdown, profile-signout, mobile-menu-toggle, mobile-menu, mobile-signout. Auto-rotate interval is 5s in code but the image src is a query-string-keyed pexels URL — best to compare full src (not just hash) or wait 6s+. Sign-out uses native window.confirm — always attach `page.on('dialog', ...)` before clicking profile-signout in Playwright.",
+  "rca_of_the_issue": "N/A — no bugs found. Only cosmetic code-review notes on testid slugging and key stability."
+}

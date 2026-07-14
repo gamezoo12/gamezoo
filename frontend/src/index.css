@@ -62,3 +62,87 @@ html, body { overflow-x: hidden; }
 @media (hover: none) {
   .prize-card:hover img { transform: none !important; }
 }
+
+
+/* ---------- Prize League Premium Palette + Utilities ---------- */
+:root {
+  --pl-purple: #6C2BFF;
+  --pl-purple-2: #8B5CFF;
+  --pl-gold: #FFD54A;
+  --pl-gold-2: #F5B800;
+  --pl-dark: #0B0D1F;
+  --pl-dark-2: #161433;
+  --pl-success: #2ECC71;
+}
+
+/* Gold-metallic gradient text used for PRIZE LEAGUE */
+.pl-gold-text {
+  background: linear-gradient(180deg, #FFE68A 0%, #FFD54A 45%, #E9A700 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 2px 0 rgba(0,0,0,0.05);
+}
+
+/* Deep-purple radial hero backdrop with subtle star noise */
+.pl-hero-bg {
+  background:
+    radial-gradient(1200px 500px at 15% 0%, rgba(139,92,255,0.35), transparent 60%),
+    radial-gradient(900px 400px at 85% 20%, rgba(108,43,255,0.45), transparent 60%),
+    radial-gradient(600px 300px at 50% 100%, rgba(255,213,74,0.10), transparent 60%),
+    linear-gradient(180deg, var(--pl-dark) 0%, var(--pl-dark-2) 100%);
+}
+
+/* Marquee ticker */
+@keyframes pl-marquee {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.pl-marquee-track {
+  display: inline-flex;
+  gap: 3rem;
+  animation: pl-marquee 30s linear infinite;
+  will-change: transform;
+}
+.pl-marquee:hover .pl-marquee-track { animation-play-state: paused; }
+
+/* Glass card */
+.pl-glass {
+  background: rgba(22, 20, 51, 0.55);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+/* Soft float animation */
+@keyframes pl-float {
+  0%,100% { transform: translateY(0); }
+  50%     { transform: translateY(-6px); }
+}
+.pl-float { animation: pl-float 4s ease-in-out infinite; }
+
+/* Gold primary button */
+.pl-btn-gold {
+  background: linear-gradient(180deg, #FFE68A, #FFD54A);
+  color: #171033;
+  box-shadow: 0 10px 30px rgba(255,213,74,0.35), inset 0 -2px 0 rgba(0,0,0,0.1);
+  transition: transform .15s ease, box-shadow .2s ease;
+}
+.pl-btn-gold:hover { transform: translateY(-1px); box-shadow: 0 14px 36px rgba(255,213,74,0.5), inset 0 -2px 0 rgba(0,0,0,0.1); }
+.pl-btn-gold:active { transform: translateY(0); }
+
+/* Purple secondary */
+.pl-btn-purple {
+  background: linear-gradient(180deg, var(--pl-purple-2), var(--pl-purple));
+  color: #fff;
+  box-shadow: 0 10px 30px rgba(108,43,255,0.35);
+}
+
+/* Nav active underline (gold) */
+.pl-nav-active { position: relative; }
+.pl-nav-active::after {
+  content: '';
+  position: absolute; left: 15%; right: 15%; bottom: -6px;
+  height: 3px; border-radius: 999px;
+  background: linear-gradient(90deg, #FFE68A, #F5B800);
+}

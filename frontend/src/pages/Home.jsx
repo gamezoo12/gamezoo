@@ -1,17 +1,16 @@
 import { useEffect, useState } from 'react';
 import HeroBanner from '../components/home/HeroBanner';
-import LiveNowSection from '../components/home/LiveNowSection';
-import WinnersTicker from '../components/home/WinnersTicker';
-import StatsBar from '../components/home/StatsBar';
 import CompetitionSection from '../components/home/CompetitionSection';
-import HowItWorks from '../components/home/HowItWorks';
+import HowToPlaySection from '../components/home/HowToPlaySection';
+import LeaderboardPreview from '../components/home/LeaderboardPreview';
+import ReferAndEarnCard from '../components/home/ReferAndEarnCard';
 import TrustBadges from '../components/home/TrustBadges';
-import ReferralPromo from '../components/home/ReferralPromo';
 import { contestsAPI } from '../lib/api';
 
 export default function Home() {
   const [contests, setContests] = useState([]);
   useEffect(() => { contestsAPI.list().then(setContests).catch(() => {}); }, []);
+
   const mapped = contests.map(c => ({
     id: c.contest_id, slug: c.slug, title: c.title, subtitle: c.subtitle,
     category: c.category, tag: c.tag, price: c.price,
@@ -19,32 +18,20 @@ export default function Home() {
     prizeAmount: c.prize_amount, endDate: c.end_date, image: c.image,
     jackpot: c.jackpot, featured: c.featured, gameType: c.game_type,
   }));
-  const endingSoon = [...mapped].sort((a,b) => new Date(a.endDate) - new Date(b.endDate)).slice(0, 4);
-  // Live Now = up to 4 live contests, prioritising game-enabled + featured + jackpot for interest
-  const liveNow = [...mapped]
-    .sort((a, b) => {
-      const score = (c) => (c.gameType ? 3 : 0) + (c.featured ? 2 : 0) + (c.jackpot ? 1 : 0);
-      return score(b) - score(a);
-    })
+
+  const featured = [...mapped]
+    .sort((a, b) => (b.featured ? 2 : 0) + (b.jackpot ? 1 : 0) - ((a.featured ? 2 : 0) + (a.jackpot ? 1 : 0)))
     .slice(0, 4);
-  const newGames = mapped.filter(c => c.category === 'new-games').slice(0, 4);
-  const jackpot = mapped.filter(c => c.jackpot).slice(0, 4);
-  const instantWin = mapped.filter(c => c.category === 'instant-wins').slice(0, 4);
-  const prizeDraws = mapped.filter(c => c.category === 'prize-draws').slice(0, 4);
 
   return (
     <>
-      <HeroBanner />
-      <LiveNowSection items={liveNow} />
-      <WinnersTicker />
-      <StatsBar />
-      {endingSoon.length > 0 && <CompetitionSection title="Ending Soon…" subtitle="Don't miss out" items={endingSoon} viewAllHref="/competitions" />}
-      {jackpot.length > 0 && <CompetitionSection title="Jackpot Contests…" subtitle="Bigger prizes" items={jackpot} accent="amber" viewAllHref="/competitions" />}
-      <ReferralPromo />
-      {instantWin.length > 0 && <CompetitionSection title="Instant Wins…" subtitle="Win right now" items={instantWin} accent="orange" viewAllHref="/competitions" />}
-      {prizeDraws.length > 0 && <CompetitionSection title="Prize Draws…" subtitle="Live draws" items={prizeDraws} viewAllHref="/competitions" />}
-      {newGames.length > 0 && <CompetitionSection title="New Games…" subtitle="Fresh drops" items={newGames} accent="orange" viewAllHref="/competitions" />}
-      <div id="how-it-works"><HowItWorks /></div>
+      <HeroBanner contests={contests} />
+      {featured.length > 0 && (
+        <CompetitionSection title="Featured Contests" subtitle="Handpicked for you" items={featured} viewAllHref="/competitions" />
+      )}
+      <HowToPlaySection compact />
+      <LeaderboardPreview />
+      <ReferAndEarnCard />
       <TrustBadges />
     </>
   );
