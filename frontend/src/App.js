@@ -36,6 +36,10 @@ import ContestLeaderboard from './pages/ContestLeaderboard';
 import GlobalLeaderboard from './pages/GlobalLeaderboard';
 import HowItWorksPage from './pages/HowItWorks';
 import ReferPage from './pages/ReferPage';
+import TermsPage from './pages/legal/TermsPage';
+import PrivacyPage from './pages/legal/PrivacyPage';
+import WebsiteTermsPage from './pages/legal/WebsiteTermsPage';
+import MobileTermsPage from './pages/legal/MobileTermsPage';
 
 import ProductionLayout from './components/admin/ProductionLayout';
 import LiveDrawPage from './pages/production/LiveDraw';
@@ -67,6 +71,10 @@ function AppRouter() {
         <Route path="/leaderboard/:contestId" element={<ContestLeaderboard />} />
         <Route path="/how-it-works" element={<HowItWorksPage />} />
         <Route path="/refer" element={<ReferPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/website-terms" element={<WebsiteTermsPage />} />
+        <Route path="/mobile-terms" element={<MobileTermsPage />} />
       </Route>
 
       <Route path="/admin/login" element={<AdminLogin />} />

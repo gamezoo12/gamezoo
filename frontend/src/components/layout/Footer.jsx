@@ -15,7 +15,7 @@ export default function Footer() {
 
   return (
     <footer className="pt-14 pb-8" style={{ background: '#0B0D1F', color: 'rgba(255,255,255,0.7)' }}>
-      <div className="max-w-7xl mx-auto px-4 lg:px-8 grid md:grid-cols-4 gap-10">
+      <div className="max-w-7xl mx-auto px-4 lg:px-8 grid md:grid-cols-5 gap-10">
         <div>
           <PrizeLeagueLogo size={44} stacked />
           <p className="text-sm mt-4 leading-relaxed max-w-xs">
@@ -44,8 +44,17 @@ export default function Footer() {
           <ul className="space-y-2 text-sm">
             <li><Link to="/my-account" className="hover:text-[#FFD54A]">My Account</Link></li>
             <li><a href="/free-entry" className="hover:text-[#FFD54A]">Free Postal Entry</a></li>
-            <li><Link to="/terms" className="hover:text-[#FFD54A]">Terms &amp; Conditions</Link></li>
-            <li><Link to="/privacy" className="hover:text-[#FFD54A]">Privacy Policy</Link></li>
+            <li><a href="mailto:prizeleagueadmin@gmail.com" className="hover:text-[#FFD54A]">Contact Us</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <h4 className="text-white font-bold mb-3 text-sm uppercase tracking-widest">Legal</h4>
+          <ul className="space-y-2 text-sm">
+            <li><Link to="/terms" data-testid="footer-terms" className="hover:text-[#FFD54A]">Terms &amp; Conditions</Link></li>
+            <li><Link to="/privacy" data-testid="footer-privacy" className="hover:text-[#FFD54A]">Privacy Policy</Link></li>
+            <li><Link to="/website-terms" data-testid="footer-website-terms" className="hover:text-[#FFD54A]">Website Terms &amp; AUP</Link></li>
+            <li><Link to="/mobile-terms" data-testid="footer-mobile-terms" className="hover:text-[#FFD54A]">Mobile Terms of Service</Link></li>
             <li><Link to="/responsible" className="hover:text-[#FFD54A]">Responsible Play</Link></li>
           </ul>
         </div>
