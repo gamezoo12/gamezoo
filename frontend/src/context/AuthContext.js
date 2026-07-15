@@ -56,7 +56,7 @@ export function AuthProvider({ children }) {
       localStorage.removeItem('gamezoo_cart');
       sessionStorage.removeItem('gz_meera_history');
       sessionStorage.removeItem('gz_meera_sid');
-    } catch { /* storage unavailable */ }
+    } catch (err) { if (process.env.NODE_ENV !== 'production') console.warn('[auth] storage unavailable during logout:', err); }
     setUser(null);
   }, []);
 

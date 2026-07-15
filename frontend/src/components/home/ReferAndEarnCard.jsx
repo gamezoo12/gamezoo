@@ -26,7 +26,9 @@ export default function ReferAndEarnCard() {
       await navigator.clipboard.writeText(link);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch { /* noop */ }
+    } catch (err) {
+      if (process.env.NODE_ENV !== 'production') console.warn('[refer] clipboard failed:', err);
+    }
   };
 
   const share = async () => {
@@ -37,7 +39,12 @@ export default function ReferAndEarnCard() {
         text: 'Try Prize League — skill-based contests with amazing prizes.',
         url: link,
       });
-    } catch { /* user cancelled */ }
+    } catch (err) {
+      // AbortError = user cancelled the share sheet, which is expected
+      if (err?.name !== 'AbortError' && process.env.NODE_ENV !== 'production') {
+        console.warn('[refer] share failed:', err);
+      }
+    }
   };
 
   return (

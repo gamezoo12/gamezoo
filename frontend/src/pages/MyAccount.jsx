@@ -183,7 +183,8 @@ export default function MyAccount() {
 
   const copyReferralLink = async () => {
     const url = `${window.location.origin}/?ref=${referral?.code}`;
-    try { await navigator.clipboard.writeText(url); setCopiedRef(true); setTimeout(() => setCopiedRef(false), 2000); } catch { /* noop */ }
+    try { await navigator.clipboard.writeText(url); setCopiedRef(true); setTimeout(() => setCopiedRef(false), 2000); }
+    catch (err) { if (process.env.NODE_ENV !== 'production') console.warn('[account] clipboard write failed:', err); toast({ title: 'Copy failed', description: 'Copy manually: ' + url }); }
   };
 
   if (loading || !user) return <div className="max-w-6xl mx-auto p-10 text-slate-500">Loading…</div>;
