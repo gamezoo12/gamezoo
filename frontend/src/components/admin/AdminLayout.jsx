@@ -16,6 +16,7 @@ const LINKS = [
   { to: '/admin/orders',       label: 'Orders',               icon: ShoppingBag },
   { to: '/admin/payments',     label: 'Payments',             icon: CreditCard },
   { to: '/admin/winners',      label: 'Winners',              icon: Trophy },
+  { to: '/admin/winner-selection', label: 'Winner Selection', icon: Trophy },
   { to: '/admin/analytics',    label: 'Analytics',            icon: BarChart3 },
   { to: '/admin/settings',     label: 'Settings',             icon: SettingsIcon },
 ];

@@ -24,6 +24,7 @@ import AdminUsers from './pages/admin/UsersPage';
 import AdminCompetitions from './pages/admin/CompetitionsAdmin';
 import AdminOrders from './pages/admin/OrdersPage';
 import AdminWinners from './pages/admin/WinnersAdmin';
+import WinnerSelectionAdmin from './pages/admin/WinnerSelectionAdmin';
 import AdminAnalytics from './pages/admin/AnalyticsPage';
 import AdminKyc from './pages/admin/KycPage';
 import AdminPayments from './pages/admin/PaymentsPage';
@@ -89,6 +90,7 @@ function AppRouter() {
         <Route path="orders" element={<AdminOrders />} />
         <Route path="payments" element={<AdminPayments />} />
         <Route path="winners" element={<AdminWinners />} />
+        <Route path="winner-selection" element={<WinnerSelectionAdmin />} />
         <Route path="analytics" element={<AdminAnalytics />} />
         <Route path="roles" element={<AdminRoles />} />
         <Route path="settings" element={<AdminSettings />} />

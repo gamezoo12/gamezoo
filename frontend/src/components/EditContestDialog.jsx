@@ -142,6 +142,62 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
             <Label>End date/time</Label>
             <Input type="datetime-local" value={endDateStr} onChange={e => upd('end_date', e.target.value ? new Date(e.target.value).toISOString() : null)} />
           </div>
+
+          {/* Entry Mode + attempts + leaderboard visibility */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-slate-100 pt-4">
+            <div>
+              <Label>Entry Mode</Label>
+              <select
+                value={form.entry_mode || 'skill_game'}
+                onChange={e => upd('entry_mode', e.target.value)}
+                data-testid="contest-entry-mode"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+              >
+                <option value="skill_game">Skill Game</option>
+                <option value="random_tickets">Random Ticket Numbers</option>
+              </select>
+              <div className="text-xs text-slate-500 mt-1">Determines the public flow after payment.</div>
+            </div>
+            <div>
+              <Label>Number of game attempts</Label>
+              <Input
+                type="number" min={1} max={10}
+                value={form.max_attempts ?? 3}
+                onChange={e => upd('max_attempts', Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+                disabled={(form.entry_mode || 'skill_game') !== 'skill_game'}
+                data-testid="contest-max-attempts"
+              />
+              <div className="text-xs text-slate-500 mt-1">Only used for skill-game contests. Default 3.</div>
+            </div>
+            <div>
+              <Label>Leaderboard visibility</Label>
+              <select
+                value={form.leaderboard_visibility || 'live'}
+                onChange={e => upd('leaderboard_visibility', e.target.value)}
+                disabled={(form.entry_mode || 'skill_game') !== 'skill_game'}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+              >
+                <option value="live">Live during contest</option>
+                <option value="after_playing">Visible only after playing</option>
+                <option value="after_close">Visible only after contest closes</option>
+                <option value="hidden">Hidden</option>
+              </select>
+            </div>
+            <div>
+              <Label>Winner selection method</Label>
+              <select
+                value={form.winner_selection_method || 'random_draw'}
+                onChange={e => upd('winner_selection_method', e.target.value)}
+                disabled={(form.entry_mode || 'skill_game') === 'skill_game'}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+              >
+                <option value="random_draw">Random draw (default)</option>
+                <option value="manual">Manual (requires reason)</option>
+              </select>
+              <div className="text-xs text-slate-500 mt-1">Only for random-ticket contests. Skill contests auto-rank by score.</div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 gap-2 border-t border-slate-100 pt-4">
             <Label>Skill game (played after ticket purchase)</Label>
             <p className="text-xs text-slate-500 -mt-1 mb-1">Optional. If none, winner is picked by admin/random draw.</p>

@@ -25,6 +25,13 @@ def _to_public(c: dict) -> dict:
         'skill_question_q': sq.get('q'),
         'skill_question_options': sq.get('options', []),
         'game_type': c.get('game_type'),
+        'entry_mode': c.get('entry_mode', 'skill_game' if c.get('game_type') else 'random_tickets'),
+        'max_attempts': int(c.get('max_attempts', 3)),
+        'leaderboard_visibility': c.get('leaderboard_visibility', 'live'),
+        'winner_selection_method': c.get('winner_selection_method', 'random_draw'),
+        'winner_published': bool(c.get('winner_published', False)),
+        'winning_ticket_number': c.get('winning_ticket_number'),
+        'winner_user_id': c.get('winner_user_id'),
     }
 
 

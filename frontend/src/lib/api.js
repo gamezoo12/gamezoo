@@ -72,6 +72,13 @@ export const adminAPI = {
   bulkLaunch: (filter = {}) => api.post('/admin/contests/bulk/launch', filter).then(r => r.data),
   bulkPause: (filter = {}) => api.post('/admin/contests/bulk/pause', filter).then(r => r.data),
   deleteContest: (contestId) => api.delete(`/admin/contests/${contestId}`).then(r => r.data),
+  // Winner selection
+  wsEligibleTickets: (cid) => api.get(`/admin/winners/${cid}/eligible-tickets`).then(r => r.data),
+  wsDraw: (cid) => api.post(`/admin/winners/${cid}/draw`).then(r => r.data),
+  wsManual: (cid, ticket_number, reason) => api.post(`/admin/winners/${cid}/manual`, { ticket_number, reason }).then(r => r.data),
+  wsPublish: (cid) => api.post(`/admin/winners/${cid}/publish`).then(r => r.data),
+  wsCorrect: (cid, ticket_number, reason) => api.post(`/admin/winners/${cid}/correct`, { ticket_number, reason }).then(r => r.data),
+  wsAudit: (cid) => api.get(`/admin/winners/${cid}/audit`).then(r => r.data),
   kycList: (status = 'all') => api.get('/admin/kyc', { params: { status } }).then(r => r.data),
   kycApprove: (id) => api.post(`/admin/kyc/${id}/approve`).then(r => r.data),
   kycReject: (id, reason) => api.post(`/admin/kyc/${id}/reject`, { reason }).then(r => r.data),

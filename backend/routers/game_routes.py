@@ -86,7 +86,22 @@ async def submit_score(inp: SubmitScoreInput, request: Request):
     if not game_type:
         raise HTTPException(status_code=400, detail='This contest is not tied to a game')
     meta = next((g for g in GAME_TYPES if g['id'] == game_type), None)
-    max_attempts = (meta or {}).get('max_attempts', 3)
+    # Contest-configured attempts override the game default. Clamp to 1-10.
+    max_attempts = int(contest.get('max_attempts') or (meta or {}).get('max_attempts', 3))
+    max_attempts = max(1, min(max_attempts, 10))
+
+    # Enforce contest closing time — no attempts after end_date
+    from datetime import datetime as _dt, timezone as _tz
+    end_raw = contest.get('end_date')
+    if end_raw:
+        try:
+            end_dt = _dt.fromisoformat(str(end_raw).replace('Z', '+00:00'))
+            if end_dt.tzinfo is None:
+                end_dt = end_dt.replace(tzinfo=_tz.utc)
+            if _dt.now(_tz.utc) > end_dt:
+                raise HTTPException(status_code=400, detail='Contest has closed. Attempts are no longer accepted.')
+        except (ValueError, TypeError):
+            pass
 
     prior = await db.game_scores.count_documents({'ticket_id': inp.ticket_id})
     if prior >= max_attempts:
