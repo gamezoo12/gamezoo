@@ -84,7 +84,7 @@ export default function Header() {
                 <Link
                   key={l.href}
                   to={l.href}
-                  data-testid={`nav-${l.label.toLowerCase().replace(/\s|&/g,'-')}`}
+                  data-testid={`nav-${l.label.toLowerCase().replace(/[\s&]+/g,'-')}`}
                   className={`text-sm font-bold uppercase tracking-wider transition-colors ${isActive(l.href) ? 'text-white pl-nav-active' : 'text-white/70 hover:text-white'}`}
                 >
                   {l.label}

@@ -109,7 +109,7 @@ export default function HeroBanner({ contests = [] }) {
               <div className="relative pl-glass rounded-3xl overflow-hidden shadow-2xl">
                 <div className="relative aspect-[16/10]">
                   <img
-                    key={current.contest_id}
+                    key={current.id || current.contest_id || i}
                     src={current.image}
                     alt={current.title}
                     className="w-full h-full object-cover"
