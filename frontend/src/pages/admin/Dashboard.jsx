@@ -27,7 +27,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Stat label="Revenue" value={gbp(stats?.revenue || 0)} sub="All-time" Icon={PoundSterling} gradient="from-teal-500 to-emerald-500" />
+        <Stat label="Revenue" value={gbp(stats?.revenue || 0)} sub="All-time" Icon={PoundSterling} gradient="from-[#8B5CFF] to-[#6C2BFF]" />
         <Stat label="Tickets sold" value={(stats?.tickets_sold || 0).toLocaleString()} sub="Total entries" Icon={Ticket} gradient="from-orange-500 to-rose-500" />
         <Stat label="Users" value={stats?.users || 0} sub="Registered" Icon={Users} gradient="from-amber-400 to-orange-500" />
         <Stat label="Live contests" value={stats?.contests || 0} sub={`£${(stats?.prize_pool || 0).toLocaleString()} prize pool`} Icon={TrendingUp} gradient="from-purple-500 to-indigo-500" />
@@ -43,7 +43,7 @@ export default function Dashboard() {
               <thead className="text-slate-500"><tr><th className="text-left py-2">Order</th><th className="text-left">User</th><th className="text-left">Total</th><th className="text-left">Status</th></tr></thead>
               <tbody>
                 {orders.slice(0, 10).map(o => (
-                  <tr key={o.order_id} className="border-t border-slate-100"><td className="py-2 text-teal-600 font-medium">#{o.order_id.slice(0, 8)}</td><td>{o.user_name}</td><td>{gbp(o.total)}</td><td><span className="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">{o.status}</span></td></tr>
+                  <tr key={o.order_id} className="border-t border-slate-100"><td className="py-2 text-[#6C2BFF] font-medium">#{o.order_id.slice(0, 8)}</td><td>{o.user_name}</td><td>{gbp(o.total)}</td><td><span className="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">{o.status}</span></td></tr>
                 ))}
               </tbody>
             </table>
@@ -59,7 +59,7 @@ export default function Dashboard() {
                   <div className="text-sm font-medium truncate">{c.title}</div>
                   <div className="text-xs text-slate-500">{c.tickets_sold || 0} / {c.tickets_total} tickets</div>
                 </div>
-                <div className="text-sm font-bold text-teal-600">£{c.prize_amount}</div>
+                <div className="text-sm font-bold text-[#6C2BFF]">£{c.prize_amount}</div>
               </div>
             ))}
           </div>

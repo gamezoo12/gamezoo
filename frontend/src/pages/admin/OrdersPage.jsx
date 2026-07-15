@@ -23,7 +23,7 @@ export default function OrdersPage() {
             <tbody>
               {orders.map(o => (
                 <tr key={o.order_id} className="border-t border-slate-100 hover:bg-slate-50">
-                  <td className="p-3 text-teal-600 font-medium">#{o.order_id.slice(0, 10)}</td>
+                  <td className="p-3 text-[#6C2BFF] font-medium">#{o.order_id.slice(0, 10)}</td>
                   <td className="p-3">{o.user_name} <span className="text-xs text-slate-400">({o.user_email})</span></td>
                   <td className="p-3 text-slate-500">{o.items.length} contest(s)</td>
                   <td className="p-3 font-semibold">{gbp(o.total)}</td>

@@ -58,7 +58,7 @@ export default function CompetitionsAdmin() {
             {STATUS_TABS.map(t => {
               const count = t.key === 'all' ? contests.length : contests.filter(c => c.status === t.key).length;
               return (
-                <button key={t.key} onClick={() => setTab(t.key)} className={`px-2.5 md:px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium whitespace-nowrap ${tab === t.key ? 'bg-teal-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
+                <button key={t.key} onClick={() => setTab(t.key)} className={`px-2.5 md:px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium whitespace-nowrap ${tab === t.key ? 'bg-[#6C2BFF] text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
                   {t.label} <span className={`ml-1 text-[10px] md:text-xs ${tab === t.key ? 'text-white/80' : 'text-slate-400'}`}>({count})</span>
                 </button>
               );
@@ -112,7 +112,7 @@ export default function CompetitionsAdmin() {
                 <Button size="sm" variant="outline" onClick={() => setEditing(c)}><Pencil className="w-3.5 h-3.5 mr-1" /> Edit</Button>
                 {c.status === 'draft' && <Button size="sm" onClick={() => launch(c.contest_id)} className="bg-emerald-600 hover:bg-emerald-700"><Play className="w-3.5 h-3.5 mr-1" /> Launch</Button>}
                 {c.status === 'live' && <Button size="sm" variant="outline" onClick={() => pause(c.contest_id)}><Pause className="w-3.5 h-3.5 mr-1" /> Pause</Button>}
-                {c.status === 'live' && <Button size="sm" onClick={() => draw(c.contest_id)} className="bg-teal-600 hover:bg-teal-700"><Trophy className="w-3.5 h-3.5 mr-1" /> Draw</Button>}
+                {c.status === 'live' && <Button size="sm" onClick={() => draw(c.contest_id)} className="bg-[#6C2BFF] hover:bg-[#4A15D9]"><Trophy className="w-3.5 h-3.5 mr-1" /> Draw</Button>}
                 <Button size="sm" variant="outline" onClick={() => remove(c.contest_id)} className="text-rose-600 hover:text-rose-700 border-rose-200"><Trash2 className="w-3.5 h-3.5" /></Button>
               </div>
             </div>

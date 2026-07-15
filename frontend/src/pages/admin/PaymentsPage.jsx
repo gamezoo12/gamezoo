@@ -22,10 +22,10 @@ export default function PaymentsPage() {
 
   return (
     <div className="space-y-4">
-      <h2 className="font-display text-2xl font-extrabold flex items-center gap-2"><CreditCard className="w-6 h-6 text-teal-600" /> Payments</h2>
+      <h2 className="font-display text-2xl font-extrabold flex items-center gap-2"><CreditCard className="w-6 h-6 text-[#6C2BFF]" /> Payments</h2>
 
       <div className="grid grid-cols-3 gap-3">
-        <div className="bg-white rounded-xl border border-slate-100 p-4"><div className="text-xs text-slate-500">Total collected</div><div className="font-display font-bold text-xl text-teal-700">{gbp(total)}</div></div>
+        <div className="bg-white rounded-xl border border-slate-100 p-4"><div className="text-xs text-slate-500">Total collected</div><div className="font-display font-bold text-xl text-[#4A15D9]">{gbp(total)}</div></div>
         <div className="bg-white rounded-xl border border-slate-100 p-4"><div className="text-xs text-slate-500">Refunded</div><div className="font-display font-bold text-xl text-rose-600">{gbp(refunded)}</div></div>
         <div className="bg-white rounded-xl border border-slate-100 p-4"><div className="text-xs text-slate-500">Transactions</div><div className="font-display font-bold text-xl">{payments.length}</div></div>
       </div>
@@ -39,7 +39,7 @@ export default function PaymentsPage() {
             <tbody>
               {payments.map(p => (
                 <tr key={p.order_id} className="border-t border-slate-100 hover:bg-slate-50">
-                  <td className="p-3 text-teal-600 font-medium">#{p.order_id.slice(0, 10)}</td>
+                  <td className="p-3 text-[#6C2BFF] font-medium">#{p.order_id.slice(0, 10)}</td>
                   <td className="p-3">{p.user_name} <span className="text-xs text-slate-400">({p.user_email})</span></td>
                   <td className="p-3 text-slate-500">{p.items.length}</td>
                   <td className="p-3 font-semibold">{gbp(p.total)}</td>

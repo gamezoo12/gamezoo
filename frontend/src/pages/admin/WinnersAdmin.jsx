@@ -35,7 +35,7 @@ export default function WinnersAdmin() {
               <div className="text-xs text-slate-400 mt-1">{new Date(w.drawn_at).toLocaleString('en-GB')}</div>
               <div className="mt-3">
                 {w.paid_out ? <span className="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 inline-flex items-center gap-1"><Check className="w-3 h-3" /> Paid out</span>
-                  : <Button size="sm" onClick={() => markPaid(w.winner_id)} className="bg-teal-600 hover:bg-teal-700">Mark paid</Button>}
+                  : <Button size="sm" onClick={() => markPaid(w.winner_id)} className="bg-[#6C2BFF] hover:bg-[#4A15D9]">Mark paid</Button>}
               </div>
             </div>
           ))}

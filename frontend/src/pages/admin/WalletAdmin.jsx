@@ -65,7 +65,7 @@ export default function WalletAdmin() {
       {/* Totals */}
       <div className="grid md:grid-cols-4 gap-4">
         {[
-          { label: 'Total on platform', value: totals ? gbp(totals.total_balance) : '£0.00', color: 'from-emerald-500 to-teal-600', Icon: Coins },
+          { label: 'Total on platform', value: totals ? gbp(totals.total_balance) : '£0.00', color: 'from-[#8B5CFF] to-[#6C2BFF]', Icon: Coins },
           { label: 'Lifetime top-ups', value: totals ? gbp(totals.total_lifetime_topup) : '£0.00', color: 'from-orange-500 to-rose-500', Icon: TrendingUp },
           { label: 'Lifetime spend', value: totals ? gbp(totals.total_lifetime_spend) : '£0.00', color: 'from-fuchsia-500 to-pink-500', Icon: TrendingDown },
           { label: 'Wallets', value: totals?.wallet_count || 0, color: 'from-indigo-500 to-purple-600', Icon: Wallet },

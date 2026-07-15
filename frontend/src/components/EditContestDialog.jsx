@@ -242,7 +242,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                       key={url}
                       type="button"
                       onClick={() => upd('image', url)}
-                      className={`w-14 h-14 rounded-lg overflow-hidden border-2 ${form.image === url ? 'border-teal-500' : 'border-transparent hover:border-slate-300'}`}
+                      className={`w-14 h-14 rounded-lg overflow-hidden border-2 ${form.image === url ? 'border-[#6C2BFF]' : 'border-transparent hover:border-slate-300'}`}
                     ><img src={url} alt="" className="w-full h-full object-cover" /></button>
                   ))}
                 </div>
@@ -289,7 +289,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
             onClick={save}
             disabled={busy || uploading}
             data-testid="contest-save-btn"
-            className="bg-teal-600 hover:bg-teal-700"
+            className="bg-[#6C2BFF] hover:bg-[#4A15D9]"
           >{busy ? 'Saving…' : uploading ? 'Uploading image…' : (isCreate ? 'Create contest' : 'Save changes')}</Button>
         </DialogFooter>
       </DialogContent>

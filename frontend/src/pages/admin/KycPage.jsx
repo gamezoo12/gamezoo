@@ -25,9 +25,9 @@ export default function KycAdmin() {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center flex-wrap gap-3">
-        <h2 className="font-display text-2xl font-extrabold flex items-center gap-2"><Shield className="w-6 h-6 text-teal-600" /> Identity Verification (KYC)</h2>
+        <h2 className="font-display text-2xl font-extrabold flex items-center gap-2"><Shield className="w-6 h-6 text-[#6C2BFF]" /> Identity Verification (KYC)</h2>
         <div className="flex gap-1 bg-white border border-slate-100 p-1 rounded-xl">
-          {TABS.map(t => <button key={t.key} onClick={() => setTab(t.key)} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${tab === t.key ? 'bg-teal-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>{t.label}</button>)}
+          {TABS.map(t => <button key={t.key} onClick={() => setTab(t.key)} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${tab === t.key ? 'bg-[#6C2BFF] text-white' : 'text-slate-600 hover:bg-slate-50'}`}>{t.label}</button>)}
         </div>
       </div>
 

@@ -25,10 +25,10 @@ export default function RolesPage() {
 
   return (
     <div className="space-y-6">
-      <h2 className="font-display text-2xl font-extrabold flex items-center gap-2"><ShieldCheck className="w-6 h-6 text-teal-600" /> Roles &amp; Permissions</h2>
+      <h2 className="font-display text-2xl font-extrabold flex items-center gap-2"><ShieldCheck className="w-6 h-6 text-[#6C2BFF]" /> Roles &amp; Permissions</h2>
 
       <section className="bg-white rounded-2xl border border-slate-100 p-6">
-        <div className="flex items-center gap-2 mb-3"><Info className="w-4 h-4 text-teal-600" /><h3 className="font-display font-bold">Role guide</h3></div>
+        <div className="flex items-center gap-2 mb-3"><Info className="w-4 h-4 text-[#6C2BFF]" /><h3 className="font-display font-bold">Role guide</h3></div>
         <div className="grid md:grid-cols-2 gap-3">
           {ROLES_INFO.map(r => (
             <div key={r.key} className="border border-slate-100 rounded-xl p-4">
@@ -41,8 +41,8 @@ export default function RolesPage() {
 
       <section className="bg-white rounded-2xl border border-slate-100 p-6">
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2"><Users className="w-4 h-4 text-teal-600" /><h3 className="font-display font-bold">Staff members ({staff.length})</h3></div>
-          <a href="/admin/users" className="text-xs text-teal-600 hover:underline">Manage all users →</a>
+          <div className="flex items-center gap-2"><Users className="w-4 h-4 text-[#6C2BFF]" /><h3 className="font-display font-bold">Staff members ({staff.length})</h3></div>
+          <a href="/admin/users" className="text-xs text-[#6C2BFF] hover:underline">Manage all users →</a>
         </div>
         {staff.length === 0 ? (
           <div className="text-center py-10 text-slate-500 text-sm">Only the seeded super-admin so far. Promote users from the Users page or ask Meera.</div>

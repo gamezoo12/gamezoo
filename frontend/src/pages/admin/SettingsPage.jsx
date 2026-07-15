@@ -31,7 +31,7 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6 max-w-4xl">
       <div className="flex items-center gap-2">
-        <SettingsIcon className="w-6 h-6 text-teal-600" />
+        <SettingsIcon className="w-6 h-6 text-[#6C2BFF]" />
         <h2 className="font-display text-2xl font-extrabold">Site Settings</h2>
       </div>
 
@@ -86,7 +86,7 @@ export default function SettingsPage() {
       </section>
 
       <div className="flex justify-end sticky bottom-0 py-4 bg-slate-50/80 backdrop-blur">
-        <Button onClick={save} disabled={busy} className="bg-teal-600 hover:bg-teal-700"><Save className="w-4 h-4 mr-1" /> {busy ? 'Saving…' : 'Save settings'}</Button>
+        <Button onClick={save} disabled={busy} className="bg-[#6C2BFF] hover:bg-[#4A15D9]"><Save className="w-4 h-4 mr-1" /> {busy ? 'Saving…' : 'Save settings'}</Button>
       </div>
     </div>
   );
