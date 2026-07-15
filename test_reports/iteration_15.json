@@ -1,0 +1,27 @@
+{
+  "summary": "Iteration 15 — Retest of Competition Image upload after token-key fix. ALL 7 review-request scenarios PASS end-to-end (no localStorage manipulation). Logged in as bachanta8@gmail.com via /admin/login, opened /admin/competitions, clicked 'New', and every upload flow worked using the shared axios instance (uploadsAPI.image) which reads gz_token via the interceptor: (1) JPG upload → POST /api/admin/uploads/image = 200, contest-image-preview src = https://…/api/uploads/530d0ceecbb142c9acc2124197fb304c.jpg, NO 401 or error. (2) Save flow → title 'Retest_UploadContest_6b8c88', publish=live, contest-save-btn → POST /api/admin/contests = 200, dialog closed, contest visible in list with the uploaded image as thumbnail. (3) Replace flow → reopened via Edit, uploaded PNG, preview updated to new /api/uploads/…png. (4) Remove flow → contest-image-remove clicked, preview disappeared, save button label reverted to 'Save changes'. (5) Error flow → picked test.txt, contest-image-error shows exact text 'Only JPG, PNG or WEBP files are allowed.' with 0 upload network calls. (6) Regression /my-account?tab=wallet → stripe-topup-10/20/50/100 all render (count=1 each). (7) No paymentsAPI runtime import errors in console.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_uploads.py",
+    "/app/test_reports/pytest/uploads_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Nit (non-blocking): EditContestDialog.jsx uses uploadsAPI.image only for uploads but reads err?.response?.data?.detail — good, matches the FastAPI HTTPException detail contract. The interceptor override of Content-Type: multipart/form-data is fine because axios strips it and lets the browser set the boundary; verified 200 on the wire.",
+    "Nit (non-blocking): the two 'Missing Description or aria-describedby for DialogContent' console warnings appear on both Create and Edit dialogs. Add a <DialogDescription> or aria-describedby to silence them; a11y improvement, not a bug.",
+    "No other new issues found."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only retest)", "frontend": "100% (7/7 review-request scenarios)"},
+  "test_credentials": "Admin: bachanta8@gmail.com / Herts@910022",
+  "seed_data_creation": "Created one new live contest 'Retest_UploadContest_6b8c88' with uploaded image /api/uploads/530d0ceecbb142c9acc2124197fb304c.jpg (later replaced then removed inside the Edit dialog, but changes were not saved because I hit Cancel — so the persisted contest still references the original JPG). Contests total went 53 → 54.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Upload feature is fully working end-to-end. No further retest required. /tmp/uploads/{test.jpg,test.png,test.webp,test.txt,big.jpg} still available for future testing. Data-testids on the dialog: contest-image-input (hidden — use state='attached' when waiting), contest-image-upload-btn, contest-image-preview, contest-image-remove, contest-image-error, contest-save-btn.",
+  "rca_of_the_issue": "Prior 401 bug was caused by EditContestDialog.jsx reading the wrong localStorage key. Fix (verified applied): the dialog now calls uploadsAPI.image(file) from /app/frontend/src/lib/api.js which uses the shared axios instance; the instance's request interceptor attaches 'Authorization: Bearer <gz_token>' from localStorage. Confirmed on the wire: POST /api/admin/uploads/image returned 200 twice during this run (JPG create + PNG replace)."
+}

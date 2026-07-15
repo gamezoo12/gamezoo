@@ -85,6 +85,14 @@ export const walletAPI = {
   topup: (amount) => api.post('/wallet/topup', { amount }).then(r => r.data),
 };
 
+export const uploadsAPI = {
+  image: (file) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return api.post('/admin/uploads/image', fd, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data);
+  },
+};
+
 export const paymentsAPI = {
   createTopupCheckout: (lookup_key) => api.post('/payments/wallet-topup/checkout', {
     lookup_key,

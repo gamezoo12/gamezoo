@@ -3,11 +3,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Button } from './ui/button';
-import { adminAPI } from '../lib/api';
+import { adminAPI, uploadsAPI } from '../lib/api';
 import { useToast } from '../hooks/use-toast';
 import { Upload, X, Loader2 } from 'lucide-react';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
 const CATS = [
   { value: 'prize-draws', label: 'Prize Draws' },
@@ -50,23 +48,11 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
     }
     setUploading(true);
     try {
-      const fd = new FormData();
-      fd.append('file', file);
-      const token = localStorage.getItem('prizeleague_token') || localStorage.getItem('gamezoo_token');
-      const res = await fetch(`${BACKEND_URL}/api/admin/uploads/image`, {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: fd,
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || `Upload failed (HTTP ${res.status})`);
-      }
-      const data = await res.json();
+      const data = await uploadsAPI.image(file);
       upd('image', data.url);
       toast({ title: 'Image uploaded', description: 'Saved. Click "Save changes" to attach it to the contest.' });
     } catch (err) {
-      setUploadErr(err.message || 'Upload failed');
+      setUploadErr(err?.response?.data?.detail || err.message || 'Upload failed');
     } finally {
       setUploading(false);
     }
