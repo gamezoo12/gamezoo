@@ -114,6 +114,15 @@ export default function Header() {
 
               {!user ? (
                 <>
+                  {/* Mobile-only Sign in icon */}
+                  <Link
+                    to="/login"
+                    className="sm:hidden p-2 rounded-lg hover:bg-white/5"
+                    aria-label="Sign in"
+                    data-testid="mobile-signin-icon"
+                  >
+                    <User className="w-5 h-5 text-white/85" />
+                  </Link>
                   <Link to="/login" className="hidden sm:inline-flex" data-testid="header-signin">
                     <Button variant="ghost" size="sm" className="text-white/90 hover:text-white hover:bg-white/10">
                       <User className="w-4 h-4 mr-1" /> Sign in
@@ -124,7 +133,20 @@ export default function Header() {
                   </Link>
                 </>
               ) : (
-                <div ref={profileRef} className="relative hidden sm:block">
+                <>
+                  {/* Mobile-only profile avatar → jumps to My Account */}
+                  <Link
+                    to="/my-account"
+                    className="sm:hidden"
+                    aria-label="My account"
+                    data-testid="mobile-profile-icon"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#8B5CFF] to-[#6C2BFF] text-white text-xs font-bold flex items-center justify-center ring-2 ring-white/20">
+                      {(user.name || user.email || 'U').slice(0, 1).toUpperCase()}
+                    </div>
+                  </Link>
+
+                  <div ref={profileRef} className="relative hidden sm:block">
                   <button
                     onClick={() => setProfileOpen(v => !v)}
                     data-testid="header-profile-btn"
@@ -178,6 +200,7 @@ export default function Header() {
                     </div>
                   )}
                 </div>
+                </>
               )}
 
               {/* Mobile burger */}
