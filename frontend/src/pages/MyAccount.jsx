@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ordersAPI, userAPI, walletAPI, referralAPI, paymentsAPI } from '../lib/api';
+import MyGamesPanel from '../components/account/MyGamesPanel';
 import { gbp } from '../lib/format';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import {
@@ -252,6 +253,7 @@ export default function MyAccount() {
           <TabsTrigger value="profile" data-testid="tab-profile">Profile</TabsTrigger>
           <TabsTrigger value="wallet" data-testid="tab-wallet">Wallet</TabsTrigger>
           <TabsTrigger value="tickets" data-testid="tab-tickets">Tickets</TabsTrigger>
+          <TabsTrigger value="games" data-testid="tab-games">My Games</TabsTrigger>
           <TabsTrigger value="orders" data-testid="tab-orders">Orders</TabsTrigger>
           <TabsTrigger value="referrals" data-testid="tab-referrals">Referrals</TabsTrigger>
           <TabsTrigger value="notifications" data-testid="tab-notifications">Notifications</TabsTrigger>
@@ -356,6 +358,11 @@ export default function MyAccount() {
               </div>
             )}
           </div>
+        </TabsContent>
+
+        {/* MY GAMES — deferred skill-game play */}
+        <TabsContent value="games">
+          <MyGamesPanel />
         </TabsContent>
 
         {/* ORDERS */}

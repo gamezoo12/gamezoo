@@ -102,3 +102,71 @@ async def my_tickets(request: Request):
     db = get_db()
     tickets = await db.tickets.find({'user_id': user['user_id']}, {'_id': 0}).to_list(1000)
     return tickets
+
+
+@router.get('/my-games')
+async def my_games(request: Request):
+    """Skill-game tickets that the player can still play.
+    Returns one row per ticket with contest + attempts + best-score info so the
+    dashboard can show Play / Continue / Expired buttons without extra round-trips.
+    """
+    user = await get_current_user(request)
+    from deps import get_db
+    db = get_db()
+
+    # Only skill-game tickets (contest has game_type set OR entry_mode='skill_game')
+    tickets = await db.tickets.find({'user_id': user['user_id']}, {'_id': 0}).to_list(1000)
+    if not tickets:
+        return {'games': []}
+
+    contest_ids = list({t['contest_id'] for t in tickets})
+    contests = {}
+    async for c in db.contests.find({'contest_id': {'$in': contest_ids}}, {'_id': 0}):
+        if c.get('game_type') and (c.get('entry_mode', 'skill_game') == 'skill_game'):
+            contests[c['contest_id']] = c
+    if not contests:
+        return {'games': []}
+
+    now = datetime.now(timezone.utc)
+    out = []
+    for t in tickets:
+        c = contests.get(t['contest_id'])
+        if not c:
+            continue
+        max_attempts = int(c.get('max_attempts') or 3)
+        max_attempts = max(1, min(max_attempts, 10))
+        attempts = await db.game_scores.find({'ticket_id': t['ticket_id']}, {'_id': 0}).sort('points', -1).to_list(50)
+        used = len(attempts)
+        best = attempts[0] if attempts else None
+
+        end_raw = c.get('end_date')
+        expired = False
+        try:
+            if end_raw:
+                end_dt = datetime.fromisoformat(str(end_raw).replace('Z', '+00:00'))
+                if end_dt.tzinfo is None:
+                    end_dt = end_dt.replace(tzinfo=timezone.utc)
+                expired = now > end_dt
+        except (ValueError, TypeError):
+            pass
+
+        status = 'expired' if expired else ('completed' if used >= max_attempts else ('in_progress' if used > 0 else 'ready'))
+        out.append({
+            'ticket_id': t['ticket_id'],
+            'contest_id': c['contest_id'],
+            'contest_slug': c.get('slug') or c['contest_id'],
+            'contest_title': c.get('title'),
+            'contest_image': c.get('image'),
+            'game_type': c.get('game_type'),
+            'end_date': c.get('end_date'),
+            'attempts_used': used,
+            'attempts_remaining': max(0, max_attempts - used),
+            'max_attempts': max_attempts,
+            'best_points': best.get('points') if best else None,
+            'last_attempt_at': attempts[0].get('completed_at') if attempts else None,
+            'status': status,
+        })
+    # ready first, then in_progress, then completed, then expired
+    order = {'ready': 0, 'in_progress': 1, 'completed': 2, 'expired': 3}
+    out.sort(key=lambda x: (order.get(x['status'], 9), x.get('end_date') or ''))
+    return {'games': out}

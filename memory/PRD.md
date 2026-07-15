@@ -39,6 +39,7 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - [x] Real-time per-contest leaderboard — `/leaderboard/:contestId`
 - [x] **Global live leaderboard** — `/leaderboard` (public nav link) with podium, per-contest tab switcher, 15s auto-refresh
 - [x] **Per-contest live leaderboard embedded on `/competition/:slug`** — full card (top 10, medals, view-full link) shown whenever contest has a skill game assigned
+- [x] **"My Games" dashboard (Feb 2026)** — new tab on `/my-account?tab=games` + linked from header profile dropdown. Backend `GET /api/orders/my-games` returns one row per skill-game ticket with `attempts_used/max/remaining`, `best_points`, `status` (ready | in_progress | completed | expired), sorted playable-first. Frontend `MyGamesPanel` shows contest image + status badge + attempts + Play/Continue button, or a "Leaderboard" link once attempts run out or the contest closes.
 - [x] **Dual entry modes (Feb 2026)** — `entry_mode` field: `skill_game` or `random_tickets`. Contest detail page branches automatically; skill-question card only for skill games; ticket-availability card for random contests.
 - [x] **Configurable game attempts** — `max_attempts` (default 3, 1–10). Server-side enforced in `/api/games/submit`. Contest closing time also enforced (no attempts after end_date).
 - [x] **Leaderboard visibility control** — 4 modes: live / after_playing / after_close / hidden. Public contest detail respects the setting.

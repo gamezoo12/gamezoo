@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ShoppingCart, User, Menu, X, LogOut, Wallet as WalletIcon, ChevronDown, Ticket, Trophy, Gift, Settings2 } from 'lucide-react';
+import { ShoppingCart, User, Menu, X, LogOut, Wallet as WalletIcon, ChevronDown, Ticket, Trophy, Gift, Settings2, Gamepad2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import NotificationsBell from './NotificationsBell';
 import AnnouncementTicker from './AnnouncementTicker';
@@ -173,6 +173,7 @@ export default function Header() {
                         {[
                           { icon: User,     label: 'My Profile',   href: '/my-account?tab=profile' },
                           { icon: Ticket,   label: 'My Entries',   href: '/my-account?tab=tickets' },
+                          { icon: Gamepad2, label: 'My Games',     href: '/my-account?tab=games' },
                           { icon: Trophy,   label: 'My Wins',      href: '/my-account?tab=orders' },
                           { icon: Gift,     label: 'Refer & Earn', href: '/my-account?tab=referrals' },
                           { icon: WalletIcon, label: 'Wallet',     href: '/my-account?tab=wallet' },

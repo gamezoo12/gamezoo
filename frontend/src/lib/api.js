@@ -30,6 +30,7 @@ export const ordersAPI = {
   checkout: (items) => api.post('/orders/checkout', { items }).then(r => r.data),
   mine: () => api.get('/orders/mine').then(r => r.data),
   myTickets: () => api.get('/orders/my-tickets').then(r => r.data),
+  myGames: () => api.get('/orders/my-games').then(r => r.data),
 };
 
 export const publicAPI = {
