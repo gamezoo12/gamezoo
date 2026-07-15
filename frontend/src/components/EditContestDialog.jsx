@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Button } from './ui/button';
 import { adminAPI } from '../lib/api';
 import { useToast } from '../hooks/use-toast';
+import { Upload, X, Loader2 } from 'lucide-react';
+
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
 const CATS = [
   { value: 'prize-draws', label: 'Prize Draws' },
@@ -25,6 +28,51 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
   };
   const [form, setForm] = useState(() => (isCreate ? emptyForm : (contest || {})));
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadErr, setUploadErr] = useState('');
+  const fileInputRef = useRef(null);
+
+  const onPickFile = () => fileInputRef.current?.click();
+
+  const onFileChange = async (e) => {
+    setUploadErr('');
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-picking same file
+    if (!file) return;
+    const okTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!okTypes.includes(file.type)) {
+      setUploadErr('Only JPG, PNG or WEBP files are allowed.');
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setUploadErr('File is too large. Maximum 8 MB.');
+      return;
+    }
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const token = localStorage.getItem('prizeleague_token') || localStorage.getItem('gamezoo_token');
+      const res = await fetch(`${BACKEND_URL}/api/admin/uploads/image`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Upload failed (HTTP ${res.status})`);
+      }
+      const data = await res.json();
+      upd('image', data.url);
+      toast({ title: 'Image uploaded', description: 'Saved. Click "Save changes" to attach it to the contest.' });
+    } catch (err) {
+      setUploadErr(err.message || 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeImage = () => { upd('image', ''); setUploadErr(''); };
 
   useEffect(() => {
     if (open) setForm(isCreate ? emptyForm : (contest || {}));
@@ -146,29 +194,74 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
           </div>
 
           <div>
-            <Label>Image URL</Label>
-            <Input value={form.image || ''} onChange={e => upd('image', e.target.value)} placeholder="https://…" />
-            {form.image && <img src={form.image} alt="" className="mt-2 rounded-lg w-32 h-32 object-cover border" />}
-            <div className="mt-2">
-              <div className="text-xs text-slate-500 mb-1">Or pick from the gallery:</div>
-              <div className="flex gap-2 flex-wrap">
-                {[
-                  'https://images.pexels.com/photos/928187/pexels-photo-928187.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
-                  'https://images.pexels.com/photos/15633962/pexels-photo-15633962.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
-                  'https://images.pexels.com/photos/19240616/pexels-photo-19240616.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
-                  'https://images.pexels.com/photos/9462148/pexels-photo-9462148.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
-                  'https://images.pexels.com/photos/973406/pexels-photo-973406.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
-                  'https://images.pexels.com/photos/27064826/pexels-photo-27064826.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
-                ].map(url => (
+            <Label>Competition Image</Label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,image/webp"
+              className="hidden"
+              onChange={onFileChange}
+              data-testid="contest-image-input"
+            />
+
+            {/* Preview card */}
+            <div className="mt-1 rounded-xl border-2 border-dashed border-slate-200 p-4 flex items-center gap-4">
+              {form.image ? (
+                <div className="relative w-28 h-28 shrink-0">
+                  <img src={form.image} alt="Competition preview" className="w-full h-full object-cover rounded-lg border" data-testid="contest-image-preview" />
                   <button
-                    key={url}
                     type="button"
-                    onClick={() => upd('image', url)}
-                    className={`w-14 h-14 rounded-lg overflow-hidden border-2 ${form.image === url ? 'border-teal-500' : 'border-transparent hover:border-slate-300'}`}
-                  ><img src={url} alt="" className="w-full h-full object-cover" /></button>
-                ))}
+                    onClick={removeImage}
+                    disabled={uploading}
+                    data-testid="contest-image-remove"
+                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-rose-500 text-white flex items-center justify-center shadow hover:bg-rose-600 disabled:opacity-50"
+                    aria-label="Remove image"
+                  ><X className="w-3.5 h-3.5" /></button>
+                </div>
+              ) : (
+                <div className="w-28 h-28 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-300 text-xs shrink-0">No image</div>
+              )}
+
+              <div className="flex-1 min-w-0">
+                <Button
+                  type="button"
+                  onClick={onPickFile}
+                  disabled={uploading}
+                  data-testid="contest-image-upload-btn"
+                  className="bg-slate-900 hover:bg-slate-800 text-white"
+                >
+                  {uploading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading…</> : <><Upload className="w-4 h-4 mr-2" /> {form.image ? 'Replace image' : 'Upload image'}</>}
+                </Button>
+                <div className="text-xs text-slate-500 mt-2">JPG, PNG, or WEBP · up to 8 MB · used across all contest listings automatically.</div>
+                {uploadErr && <div className="text-xs text-rose-600 mt-1" data-testid="contest-image-error">{uploadErr}</div>}
               </div>
             </div>
+
+            {/* Advanced: paste an external URL (kept for backwards compat) */}
+            <details className="mt-3">
+              <summary className="text-xs text-slate-500 cursor-pointer hover:text-slate-700">Advanced — paste an external image URL instead</summary>
+              <Input value={form.image || ''} onChange={e => upd('image', e.target.value)} placeholder="https://…" className="mt-2" />
+              <div className="mt-2">
+                <div className="text-xs text-slate-500 mb-1">Or pick from the gallery:</div>
+                <div className="flex gap-2 flex-wrap">
+                  {[
+                    'https://images.pexels.com/photos/928187/pexels-photo-928187.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+                    'https://images.pexels.com/photos/15633962/pexels-photo-15633962.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+                    'https://images.pexels.com/photos/19240616/pexels-photo-19240616.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+                    'https://images.pexels.com/photos/9462148/pexels-photo-9462148.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+                    'https://images.pexels.com/photos/973406/pexels-photo-973406.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+                    'https://images.pexels.com/photos/27064826/pexels-photo-27064826.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+                  ].map(url => (
+                    <button
+                      key={url}
+                      type="button"
+                      onClick={() => upd('image', url)}
+                      className={`w-14 h-14 rounded-lg overflow-hidden border-2 ${form.image === url ? 'border-teal-500' : 'border-transparent hover:border-slate-300'}`}
+                    ><img src={url} alt="" className="w-full h-full object-cover" /></button>
+                  ))}
+                </div>
+              </div>
+            </details>
           </div>
           <div className="flex flex-wrap items-center gap-4">
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!form.jackpot} onChange={e => upd('jackpot', e.target.checked)} /> Jackpot</label>
@@ -206,7 +299,12 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={save} disabled={busy} className="bg-teal-600 hover:bg-teal-700">{busy ? 'Saving…' : (isCreate ? 'Create contest' : 'Save changes')}</Button>
+          <Button
+            onClick={save}
+            disabled={busy || uploading}
+            data-testid="contest-save-btn"
+            className="bg-teal-600 hover:bg-teal-700"
+          >{busy ? 'Saving…' : uploading ? 'Uploading image…' : (isCreate ? 'Create contest' : 'Save changes')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

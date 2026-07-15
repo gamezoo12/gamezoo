@@ -1,4 +1,5 @@
 from fastapi import FastAPI, APIRouter
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
 import os
 import logging
@@ -7,6 +8,8 @@ from pathlib import Path
 from deps import get_client, get_db
 
 ROOT_DIR = Path(__file__).parent
+UPLOAD_DIR = ROOT_DIR / "uploads"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 # MongoDB connection (owned by deps.py; re-exported for legacy callers)
 client = get_client()
@@ -67,6 +70,7 @@ from routers.wallet_routes import wallet_router, admin_wallet_router
 from routers.referral_routes import router as referral_router
 from routers.game_routes import router as game_router, public_router as game_public_router
 from routers.payments_routes import payments_router
+from routers.uploads_routes import uploads_router
 
 app.include_router(auth_router)
 app.include_router(contest_router)
@@ -85,6 +89,10 @@ app.include_router(referral_router)
 app.include_router(game_router)
 app.include_router(game_public_router)
 app.include_router(payments_router)
+app.include_router(uploads_router)
+
+# Serve uploaded images under /api/uploads/* so k8s ingress routes to the backend pod.
+app.mount("/api/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 
 
 app.add_middleware(

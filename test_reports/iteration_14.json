@@ -1,0 +1,40 @@
+{
+  "summary": "Iteration 14 — Tested the new Competition Image upload feature (both backend + frontend). Backend: 9/9 pytest tests PASSED (auth-gated POST /api/admin/uploads/image, JPG/PNG/WEBP happy paths incl. static-serve content-type, 415 for text, 413 for 9MB file, and end-to-end contest create→GET /api/contests round-trip preserving the uploaded URL, not base64). Frontend: verified admin Create dialog structure (Competition Image label, contest-image-upload-btn, hidden contest-image-input, No image placeholder, collapsed advanced details, contest-save-btn), client-side rejection of .txt showing 'Only JPG, PNG or WEBP files are allowed.', successful JPG upload showing contest-image-preview with an /api/uploads/ src, Remove clears the preview, contest save closes the dialog, /competitions grid AND /competition/:slug detail render the same uploaded src, Edit-existing-contest shows the current image with a 'Replace image' label and re-picking a file swaps the preview, and the Advanced-URL pexels fallback still updates the image. ONE CRITICAL BUG FOUND: EditContestDialog.jsx reads the JWT from localStorage 'prizeleague_token' || 'gamezoo_token', but AuthContext.js stores it as 'gz_token' → real users get 401 'Not authenticated' when trying to upload. Testing had to mirror gz_token→prizeleague_token in localStorage to proceed.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Admin → Competitions → Create/Edit → Upload image",
+        "issue": "EditContestDialog.jsx reads JWT from localStorage 'prizeleague_token' || 'gamezoo_token' but AuthContext.js stores it under key 'gz_token'. As a result every real upload attempt sends no Authorization header, POST /api/admin/uploads/image returns 401 'Not authenticated', and the UI shows 'Not authenticated' under the Upload button. Feature is completely broken for actual admin users.",
+        "affected_selectors": ["[data-testid=contest-image-upload-btn]", "[data-testid=contest-image-input]", "[data-testid=contest-image-error]"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_uploads.py",
+    "/app/test_reports/pytest/uploads_results.xml"
+  ],
+  "action_items": [
+    "CRITICAL: Fix token key in /app/frontend/src/components/EditContestDialog.jsx line 55 — change `localStorage.getItem('prizeleague_token') || localStorage.getItem('gamezoo_token')` to also (or only) read `localStorage.getItem('gz_token')`. Suggested: `const token = localStorage.getItem('gz_token') || localStorage.getItem('prizeleague_token') || localStorage.getItem('gamezoo_token');` — or better, import and use the existing axios instance (adminAPI) which already attaches Authorization from gz_token. Note: the review-request context note incorrectly listed 'prizeleague_token'/'gamezoo_token' — the ACTUAL storage key today is 'gz_token' (see AuthContext.js line 34 & 41)."
+  ],
+  "critical_code_review_comments": [
+    "EditContestDialog.jsx uses raw fetch() for uploads with its own hand-rolled auth-header lookup. Rest of the app uses the axios instance in /app/frontend/src/lib/api.js which auto-attaches the token from gz_token. Refactor uploads to use adminAPI (add adminAPI.uploadImage(file)) so this class of bug can't recur.",
+    "EditContestDialog.jsx: `emptyForm` is recreated on every render inside the component body (it's declared inline in useState initializer). Consider useMemo or constant outside — micro-optimisation, non-blocking.",
+    "uploads_routes.py MIME sniffing for WebP checks `b'WEBP' not in data[:16]`; standard RIFF-WEBP places 'WEBP' at bytes 8-11, so this works but the tolerance to 16 is fine. Consider adding GIF/AVIF later if the product wants them.",
+    "server.py mounts StaticFiles at /api/uploads AFTER all routers — order is fine because FastAPI mounts don't compete with prefixed router paths, but be aware if you later add /api/uploads/... routes on api_router, static mount will shadow them.",
+    "Advanced-URL fallback in the dialog lets users paste any URL — no validation. This is fine as an escape hatch but should be documented so admins don't paste malformed URLs.",
+    "Backend `create_contest_api` defaults `end_date` to +7 days when the payload sends null — good. But the frontend on new-contest builds a datetime-local string; when the admin clears the field the state becomes null → backend fallback kicks in. Verified working."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_uploads.py (new — 9 pytest tests for upload feature)"
+  ],
+  "success_rate": {"backend": "100% (9/9)", "frontend": "93% (14/15; only 'home hero carousel shows uploaded image' was inconclusive because the carousel slices .slice(0,6) of the API list and the newly-created contest sits further down the sort order — same underlying image field IS returned by the API and DOES render on the /competitions grid + /competition/:slug detail, so this is not a code bug, just a carousel-slot allocation)"},
+  "test_credentials": "Admin: bachanta8@gmail.com / Herts@910022 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Created two test contests via the flow (TEST_UploadContest_<hex> via backend integration test with `featured=true`, and TESTUpFE<timestamp> via the UI flow with `live` status). Both persist in Mongo `contests` collection and are visible under /admin/competitions and /competitions.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend upload feature is 100% correct. All frontend testids (contest-image-upload-btn, contest-image-input, contest-image-preview, contest-image-remove, contest-image-error, contest-save-btn) exist and work. The ONE fix needed is a single-line token key change in EditContestDialog.jsx. Admin route is /admin/competitions (NOT /admin/contests — review request said 'contests' but actual React route uses 'competitions'). After the token-key fix, retest the upload+save flow WITHOUT any localStorage mirroring — just log in via /admin/login and open Create dialog. Test files /tmp/uploads/test.jpg (~31KB), test.png (~120KB), test.webp (~31KB), test.txt, big.jpg (9MB random) are still on disk if needed; otherwise re-generate with Pillow. Sample upload URL that already succeeded: https://contest-arena-16.preview.emergentagent.com/api/uploads/149aedd84c064c009a20c3593b8604e2.jpg — you can GET this URL to confirm the /api/uploads static mount is up and returning image/jpeg.",
+  "rca_of_the_issue": "Root cause of the upload-401 UI bug: incorrect localStorage key. AuthContext.js persists the JWT after login as `localStorage.setItem('gz_token', r.token)` (see lines 34 & 41). EditContestDialog.jsx line 55 tries to read `localStorage.getItem('prizeleague_token') || localStorage.getItem('gamezoo_token')` — neither key is ever populated by the app, so `token` becomes null, the Authorization header is omitted, and require_admin(request) inside uploads_routes.py raises 401. Reproduction: log in at /admin/login → open /admin/competitions → New → pick a JPG. Mitigation (1 line): change the fallback list to include 'gz_token' first; even simpler and safer, replace the raw fetch with the adminAPI axios instance in /app/frontend/src/lib/api.js which already attaches the Bearer token."
+}
