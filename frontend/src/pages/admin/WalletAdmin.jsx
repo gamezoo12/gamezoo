@@ -19,7 +19,7 @@ export default function WalletAdmin() {
   const { toast } = useToast();
 
   const load = () => {
-    adminWalletAPI.list().then(r => { setWallets(r?.wallets || []); setTotals(r?.totals); }).catch(err => console.error(err));
+    adminWalletAPI.list().then(r => { setWallets(r?.wallets || []); setTotals(r?.totals); }).catch(err => { if (process.env.NODE_ENV !== 'production') console.error(err); });
   };
 
   useEffect(() => { load(); }, []);
@@ -32,7 +32,7 @@ export default function WalletAdmin() {
       const r = await adminWalletAPI.userTransactions(w.user_id);
       setTxs(r?.transactions || []);
     } catch (err) {
-      console.error(err);
+      console.error(err); /* legacy — will remove when refactoring */
     }
   };
 

@@ -25,7 +25,7 @@ export default function ReferralPromo() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.warn('[referral] clipboard failed', err);
+        if (process.env.NODE_ENV !== 'production') console.warn('[referral] clipboard failed', err);
     }
   };
 

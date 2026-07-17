@@ -17,7 +17,7 @@ export default function LiveDraw() {
     adminAPI.contests().then(list => {
       setContests(list);
       if (list[0]) setSelected(list[0].contest_id);
-    }).catch((err) => console.error('[live-draw] contests:', err?.message));
+    }).catch((err) => { if (process.env.NODE_ENV !== 'production') console.error('[live-draw] contests:', err?.message); });
   }, []);
 
   const contest = contests.find(c => c.contest_id === selected);

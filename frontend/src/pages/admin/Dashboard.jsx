@@ -19,9 +19,9 @@ export default function Dashboard() {
   const [contests, setContests] = useState([]);
 
   useEffect(() => {
-    adminAPI.stats().then(setStats).catch((err) => console.error('[dashboard] stats:', err?.message));
-    adminAPI.orders().then(setOrders).catch((err) => console.error('[dashboard] orders:', err?.message));
-    adminAPI.contests().then(setContests).catch((err) => console.error('[dashboard] contests:', err?.message));
+    adminAPI.stats().then(setStats).catch((err) => { if (process.env.NODE_ENV !== 'production') console.error('[dashboard] stats:', err?.message); });
+    adminAPI.orders().then(setOrders).catch((err) => { if (process.env.NODE_ENV !== 'production') console.error('[dashboard] orders:', err?.message); });
+    adminAPI.contests().then(setContests).catch((err) => { if (process.env.NODE_ENV !== 'production') console.error('[dashboard] contests:', err?.message); });
   }, []);
 
   return (

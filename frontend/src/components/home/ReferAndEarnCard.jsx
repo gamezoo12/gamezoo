@@ -42,7 +42,7 @@ export default function ReferAndEarnCard() {
     } catch (err) {
       // AbortError = user cancelled the share sheet, which is expected
       if (err?.name !== 'AbortError' && process.env.NODE_ENV !== 'production') {
-        console.warn('[refer] share failed:', err);
+        if (process.env.NODE_ENV !== 'production') console.warn('[refer] share failed:', err);
       }
     }
   };

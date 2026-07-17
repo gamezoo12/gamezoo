@@ -7,10 +7,10 @@ export default function StatsBar() {
   return (
     <section className="py-10 border-y border-slate-100 bg-white">
       <div className="max-w-7xl mx-auto px-4 lg:px-8 grid grid-cols-2 md:grid-cols-4 gap-6">
-        {SITE_STATS.map((s, idx) => {
+        {SITE_STATS.map((s) => {
           const Icon = iconMap[s.icon] || Sparkles;
           return (
-            <div key={idx} className="text-center group">
+            <div key={s.label} className="text-center group">
               <div className="mx-auto w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-50 to-rose-50 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
                 <Icon className="w-5 h-5 text-orange-600" />
               </div>

@@ -157,9 +157,9 @@ export default function HeroBanner({ contests = [] }) {
 
               {/* Dots */}
               <div className="mt-3 flex items-center justify-center gap-2">
-                {live.map((_, idx) => (
+                {live.map((slide, idx) => (
                   <button
-                    key={idx}
+                    key={slide.contest_id || slide.slug || `slide-${idx}`}
                     onClick={() => setI(idx)}
                     aria-label={`Slide ${idx + 1}`}
                     className={`h-1.5 rounded-full transition-all ${idx === i ? 'w-6 bg-[#FFD54A]' : 'w-2 bg-white/30 hover:bg-white/60'}`}

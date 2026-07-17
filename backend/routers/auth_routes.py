@@ -60,35 +60,11 @@ async def _generate_username(db, full_name: str, dob: str) -> str:
 
 
 async def _verify_twilio_otp(phone: str, code: str) -> str:
-    """Normalize phone, verify OTP via Twilio Verify. Returns normalized E.164
-    on success or raises 400.
-
-    Test bypass: if env `TEST_OTP_BYPASS_CODE` is set and equals `code`,
-    skip Twilio (used by pytest suites). Not set in prod.
+    """Backward-compat shim → delegates to /app/backend/otp_verify.py which
+    is the single source of truth. Kept so existing imports don't break.
     """
-    from routers.twilio_routes import _normalize_phone, _twilio_client
-    from twilio.base.exceptions import TwilioRestException
-
-    normalized = _normalize_phone(phone)
-
-    bypass = os.environ.get('TEST_OTP_BYPASS_CODE')
-    if bypass and code == bypass:
-        return normalized
-
-    client, service_sid = _twilio_client()
-    try:
-        check = client.verify.v2.services(service_sid).verification_checks.create(
-            to=normalized, code=code
-        )
-    except TwilioRestException as e:
-        logger.warning('twilio verify failed: %s', e)
-        raise HTTPException(status_code=400, detail='Invalid or expired code')
-    except Exception:
-        logger.exception('twilio verify unexpected error')
-        raise HTTPException(status_code=500, detail='Verification service unavailable')
-    if check.status != 'approved':
-        raise HTTPException(status_code=400, detail='Invalid or expired code')
-    return normalized
+    from otp_verify import verify_twilio_otp
+    return await verify_twilio_otp(phone, code)
 
 
 # --- Endpoints ---------------------------------------------------------------

@@ -73,9 +73,9 @@ export default function MyAccount() {
         terms_accepted_at: me.terms_accepted_at || null,
       }))
       .catch(() => setProfile({ name: user.name || '', email: user.email || '', phone: '', username: user.username || '', user_id: user.user_id || '', dob: '', address: '', phone_verified: !!user.phone_verified, terms_accepted_at: null }));
-    ordersAPI.mine().then(setOrders).catch((err) => console.error('[account] orders:', err?.message));
-    ordersAPI.myTickets().then(setTickets).catch((err) => console.error('[account] tickets:', err?.message));
-    userAPI.kycStatus().then(setKyc).catch((err) => console.error('[account] kyc:', err?.message));
+    ordersAPI.mine().then(setOrders).catch((err) => { if (process.env.NODE_ENV !== 'production') console.error('[account] orders:', err?.message); });
+    ordersAPI.myTickets().then(setTickets).catch((err) => { if (process.env.NODE_ENV !== 'production') console.error('[account] tickets:', err?.message); });
+    userAPI.kycStatus().then(setKyc).catch((err) => { if (process.env.NODE_ENV !== 'production') console.error('[account] kyc:', err?.message); });
     userAPI.notifications().then((r) => setNotifications(r?.notifications || [])).catch(() => {});
     walletAPI.me().then(setWallet).catch(() => {});
     walletAPI.transactions(20).then(r => setWalletTxs(r?.transactions || [])).catch(() => {});

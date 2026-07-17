@@ -37,7 +37,7 @@ export default function MeeraChat({ theme = 'light', onActionsExecuted, publicMo
       setMessages(m => [...m, { id: `m_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, role: 'meera', text: r.data.reply, actions: r.data.actions, results: r.data.results }]);
       if (onActionsExecuted && (r.data.results || []).some(x => x.ok)) onActionsExecuted();
     } catch (e) {
-      console.error('[meera] chat failed:', e?.response?.data?.detail || e.message);
+      if (process.env.NODE_ENV !== 'production') console.error('[meera] chat failed:', e?.response?.data?.detail || e.message);
       setMessages(m => [...m, { id: `err_${Date.now()}`, role: 'meera', text: `Sorry, I hit an error: ${e?.response?.data?.detail || e.message}` }]);
     } finally { setBusy(false); }
   };

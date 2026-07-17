@@ -96,11 +96,11 @@ async def verify_and_bind(inp: VerifyOtpInput, request: Request):
     authenticated user. Used post-signup / after Google OAuth.
     """
     from deps import get_db
-    from routers.auth_routes import _verify_twilio_otp
+    from otp_verify import verify_twilio_otp
     db = get_db()
     user = await get_current_user(request)
 
-    phone = await _verify_twilio_otp(inp.phone, inp.code)
+    phone = await verify_twilio_otp(inp.phone, inp.code)
 
     existing = await db.users.find_one(
         {'phone': phone, 'phone_verified': True, 'user_id': {'$ne': user['user_id']}},
@@ -124,10 +124,10 @@ async def verify_and_bind(inp: VerifyOtpInput, request: Request):
 async def login_via_otp(inp: VerifyOtpInput):
     """Verify OTP and return a JWT for the user whose verified phone matches."""
     from deps import get_db
-    from routers.auth_routes import _verify_twilio_otp
+    from otp_verify import verify_twilio_otp
     db = get_db()
 
-    phone = await _verify_twilio_otp(inp.phone, inp.code)
+    phone = await verify_twilio_otp(inp.phone, inp.code)
 
     user = await db.users.find_one({'phone': phone, 'phone_verified': True}, {'_id': 0, 'password_hash': 0})
     if not user:

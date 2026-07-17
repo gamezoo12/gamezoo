@@ -19,7 +19,7 @@ export function AuthProvider({ children }) {
     } catch (err) {
       // 401 is expected for anonymous users – log only unexpected errors
       if (err?.response?.status && err.response.status !== 401) {
-        console.error('[auth] refresh failed:', err);
+        if (process.env.NODE_ENV !== 'production') console.error('[auth] refresh failed:', err);
       }
       setUser(null);
     } finally {
@@ -47,7 +47,7 @@ export function AuthProvider({ children }) {
     try {
       await authAPI.logout();
     } catch (err) {
-      console.warn('[auth] logout API failed (clearing local session anyway):', err?.message);
+      if (process.env.NODE_ENV !== 'production') console.warn('[auth] logout API failed (clearing local session anyway):', err?.message);
     }
     // Aggressively purge every trace of the session
     try {

@@ -110,6 +110,14 @@ See `/app/memory/test_credentials.md`.
 - Winner emails → in-app only
 
 ## Recent milestones
+- **2026-07-17 · Code Review fixes** Critical + medium items applied
+    - **🔴 Circular import fix**: Extracted `_verify_twilio_otp` to `/app/backend/otp_verify.py`. Both `auth_routes` and `twilio_routes` now import from the shared module. `_verify_twilio_otp` kept as a thin backward-compat shim.
+    - **🔴 JWT secret hardening**: `auth.py` now refuses to boot if `JWT_SECRET` is the default dev value AND `ENVIRONMENT=prod` or `STRIPE_MODE=live`. Prevents trivially-forgeable tokens in production.
+    - **🔴 OTP bypass prod-guard**: `verify_twilio_otp` refuses the `TEST_OTP_BYPASS_CODE` shortcut when `_is_prod()` is true — belt-and-braces even if the env var leaks.
+    - **🟢 Console statements guarded**: All 9 unprotected `console.error/warn` calls in frontend now gated by `process.env.NODE_ENV !== 'production'` (AuthContext, MyAccount, NotificationsBell, Dashboard, LiveDraw, MeeraChat, ReferAndEarnCard, ReferralPromo, WalletAdmin).
+    - **🟡 index-as-key on dynamic lists**: HeroBanner slides (use `contest_id`/`slug`), StatsBar (use `label`). Static game components left with index keys (items don't reorder — safe pattern).
+    - Tests: 34/36 auth+profile pass; the 2 CORS failures are pre-existing Cloudflare edge issues (infra, not code).
+
 - **2026-07-17 · Phase 2B** Attempts-per-ticket + Cloudflare Turnstile + Wallet redesign + Notifications audit
     - **Attempts-per-ticket**: Contest model has `attempts_per_ticket` (default 3, kept in sync with legacy `max_attempts`). Backend `/api/games/submit` now enforces pooled attempts: `tickets_owned × attempts_per_ticket`. Admin EditContestDialog relabeled with clear helper (`10 tickets × 3 = 30 pooled attempts`).
     - **Cloudflare Turnstile** (item 12): New `/api/config/turnstile` (public site key) + `/api/games/captcha/verify` (issues signed short-lived challenge tokens). Default `.env` uses Cloudflare TEST keys that always pass — swap in real keys later. `TurnstileGate.jsx` widget component gates PlayGame; challenge token attached to `/api/games/submit`.

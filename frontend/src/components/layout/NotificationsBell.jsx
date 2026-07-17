@@ -16,7 +16,7 @@ export default function NotificationsBell() {
       setItems(notifications || []);
       setUnread(unread || 0);
     }).catch((err) => {
-      console.error('[notifications] load failed:', err?.message || err);
+      if (process.env.NODE_ENV !== 'production') console.warn('[notifications] load failed:', err?.message || err);
     });
   }, [user]);
 
@@ -41,7 +41,7 @@ export default function NotificationsBell() {
         await userAPI.markAllRead();
         setUnread(0);
       } catch (err) {
-        console.warn('[notifications] mark-read failed:', err?.message || err);
+        if (process.env.NODE_ENV !== 'production') console.warn('[notifications] mark-read failed:', err?.message || err);
       }
     }
   };
