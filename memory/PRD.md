@@ -110,7 +110,16 @@ See `/app/memory/test_credentials.md`.
 - Winner emails → in-app only
 
 ## Recent milestones
-- **2026-07-17** Mandatory OTP + T&Cs signup (P0). Twilio Verify wired end-to-end.
+- **2026-07-17 · Phase 2A** Contest page rebuild + Basket controls + Draw Centre + Admin User list expansion + Profile redesign
+    - **CompetitionDetail.jsx** rewritten: image uses `object-contain` on dark #0B0D1F with loading spinner + FALLBACK_IMG on 404, marketing 3-icon row REMOVED, public shows only %sold + status badge (Just launched/Selling fast/Almost full/Closed), NOT exact ticket totals. Ticket qty controls (±/direct input/preset chips 1-500), live summary with wallet + after-purchase preview, 7-section T&Cs accordion auto-populated from admin fields.
+    - **Cart.jsx** rewritten: minus/plus/edit qty per item, trash removes only that item (with confirmation), 'Clear basket' (with confirmation), live wallet balance + after-purchase preview, insufficient-balance flow redirects to /my-account?tab=wallet&topup=1 (also handles 402 from backend). Tickets only created on successful payment.
+    - **DrawCentre.jsx (NEW)** at /draw-centre + /draw-results: Pending Draws tab (contests where user owns tickets, live countdown per contest) + Draw Results tab (real published winners with "You WON!"/"Not selected" per-row status). Header now has a Trophy icon linking here.
+    - **Header.jsx** cleanup: mobile drawer stripped to just "Go to Profile" + "Sign Out"; profile dropdown reduced to "Go to My Profile" + "Sign Out"; Draw Centre trophy icon added.
+    - **Admin Users page** expanded columns: Username · User ID · Full name · Email · Phone · DOB · Registered · Verification · KYC · Tickets · Spent · Role · Status. Newest registrations sort to top. Verification pill shows phone_verified state.
+    - **MyAccount Profile tab** now displays @username + User ID + DOB (read-only) + Address (editable). PATCH /api/users/me accepts `address`.
+    - Tests: 8/8 new Phase 2A tests pass (test_phase2_profile_admin.py). Iteration 17 report at /app/test_reports/iteration_17.json.
+
+- **2026-07-17 · Phase 1** Mandatory OTP + T&Cs signup (P0). Twilio Verify wired end-to-end.
     - New `/api/auth/register` requires `phone`, `otp_code`, `accept_terms`, `dob`. Auto-generates unique username (firstname + DOB day + NN).
     - New `/api/auth/google/finalize` — Google users must complete DOB + phone + T&Cs before proceeding.
     - Multi-step signup wizard (`SignupWizard.jsx`) with 4 steps. No Skip button.
