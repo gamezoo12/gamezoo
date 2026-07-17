@@ -74,6 +74,7 @@ from routers.uploads_routes import uploads_router
 from routers.winners_routes import winners_router
 from routers.twilio_routes import router as twilio_router
 from routers.captcha_routes import router as captcha_router
+from routers.support_routes import router as support_router, admin_router as admin_support_router
 
 app.include_router(auth_router)
 app.include_router(contest_router)
@@ -96,6 +97,8 @@ app.include_router(uploads_router)
 app.include_router(winners_router)
 app.include_router(twilio_router)
 app.include_router(captcha_router)
+app.include_router(support_router)
+app.include_router(admin_support_router)
 
 # Serve uploaded images under /api/uploads/* so k8s ingress routes to the backend pod.
 app.mount("/api/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")

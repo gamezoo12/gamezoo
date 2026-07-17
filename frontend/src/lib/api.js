@@ -27,6 +27,12 @@ export const captchaAPI = {
   verify: (token, contest_id) => api.post('/games/captcha/verify', { token, contest_id }).then(r => r.data),
 };
 
+export const supportAPI = {
+  create: (data) => api.post('/support', data).then(r => r.data),
+  mine: () => api.get('/support/mine').then(r => r.data),
+  reply: (case_id, message) => api.post(`/support/${case_id}/reply`, { message }).then(r => r.data),
+};
+
 export const contestsAPI = {
   list: (params = {}) => api.get('/contests', { params }).then(r => r.data),
   get: (slug) => api.get(`/contests/${slug}`).then(r => r.data),

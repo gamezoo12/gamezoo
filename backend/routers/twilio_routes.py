@@ -10,6 +10,7 @@ Flows supported:
 import os
 import re
 import logging
+from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -73,8 +74,30 @@ class VerifyOtpInput(BaseModel):
 
 @router.post('/send')
 async def send_otp(inp: SendOtpInput):
-    """Send an SMS OTP via Twilio Verify. Public endpoint."""
+    """Send an SMS OTP via Twilio Verify. Public endpoint. Rate limited per-phone
+    to 5 attempts in 15 minutes with a 30-second cooldown between sends.
+    """
+    from deps import get_db
+    db = get_db()
     phone = _normalize_phone(inp.phone)
+    now = datetime.now(timezone.utc)
+
+    recent = await db.otp_attempts.find(
+        {'phone': phone, 'sent_at': {'$gte': now - timedelta(minutes=15)}},
+        {'_id': 0, 'sent_at': 1},
+    ).sort('sent_at', -1).to_list(20)
+
+    if recent:
+        newest = recent[0]['sent_at']
+        if isinstance(newest, str):
+            try: newest = datetime.fromisoformat(newest)
+            except Exception: newest = now
+        secs_since = (now - newest).total_seconds()
+        if secs_since < 30:
+            raise HTTPException(status_code=429, detail=f'Please wait {int(30 - secs_since)}s before requesting another code.')
+        if len(recent) >= 5:
+            raise HTTPException(status_code=429, detail='Too many OTP requests. Please try again in 15 minutes.')
+
     client, service_sid = _twilio_client()
     try:
         v = client.verify.v2.services(service_sid).verifications.create(to=phone, channel='sms')
@@ -87,6 +110,9 @@ async def send_otp(inp: SendOtpInput):
     except Exception:
         logger.exception('twilio send unexpected error')
         raise HTTPException(status_code=500, detail='SMS service temporarily unavailable')
+
+    # Record a successful send attempt for rate-limiting.
+    await db.otp_attempts.insert_one({'phone': phone, 'sent_at': now})
     return {'ok': True, 'status': v.status, 'phone': phone}
 
 

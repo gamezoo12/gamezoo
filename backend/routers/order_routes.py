@@ -17,6 +17,22 @@ async def checkout(inp: CheckoutInput, request: Request):
 
     db = get_db()
 
+    # Idempotency: reject duplicate submissions from the same user within a
+    # 3-second window with an identical basket signature. Prevents refresh /
+    # double-click race conditions from creating duplicate orders.
+    from hashlib import sha256
+    from datetime import timedelta
+    sig_material = user['user_id'] + '|' + '|'.join(sorted(f"{i.contest_id}:{i.qty}" for i in inp.items))
+    sig = sha256(sig_material.encode()).hexdigest()
+    now = datetime.now(timezone.utc)
+    recent = await db.orders.find_one({
+        'user_id': user['user_id'],
+        'idempotency_sig': sig,
+        'created_at': {'$gte': now - timedelta(seconds=3)},
+    }, {'_id': 0, 'order_id': 1, 'total': 1})
+    if recent:
+        raise HTTPException(status_code=409, detail=f"Duplicate checkout detected. Existing order: {recent['order_id']}")
+
     order_items = []
     tickets_to_insert = []
     total = 0.0
@@ -74,6 +90,7 @@ async def checkout(inp: CheckoutInput, request: Request):
 
     order = Order(user_id=user['user_id'], items=order_items, total=total, status='paid', method='wallet')
     order_doc = order.model_dump()
+    order_doc['idempotency_sig'] = sig
     await db.orders.insert_one(order_doc)
     for t in tickets_to_insert:
         t['order_id'] = order.order_id

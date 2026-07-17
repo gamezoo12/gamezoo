@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ordersAPI, userAPI, walletAPI, referralAPI, paymentsAPI } from '../lib/api';
 import WalletPanel from '../components/account/WalletPanel';
+import SupportPanel from '../components/account/SupportPanel';
 import MyGamesPanel from '../components/account/MyGamesPanel';
 import { gbp } from '../lib/format';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
@@ -265,14 +266,13 @@ export default function MyAccount() {
           <TabsTrigger value="wallet" data-testid="tab-wallet">Wallet</TabsTrigger>
           <TabsTrigger value="tickets" data-testid="tab-tickets">Tickets</TabsTrigger>
           <TabsTrigger value="games" data-testid="tab-games">My Games</TabsTrigger>
-          <TabsTrigger value="orders" data-testid="tab-orders">Orders</TabsTrigger>
-          <TabsTrigger value="referrals" data-testid="tab-referrals">Referrals</TabsTrigger>
           <TabsTrigger value="notifications" data-testid="tab-notifications">Notifications</TabsTrigger>
           <TabsTrigger value="verify" data-testid="tab-verify">KYC</TabsTrigger>
           <TabsTrigger value="security" data-testid="tab-security">Security</TabsTrigger>
           <TabsTrigger value="support" data-testid="tab-support">Support</TabsTrigger>
           <TabsTrigger value="policies" data-testid="tab-policies">Policies</TabsTrigger>
           <TabsTrigger value="preferences" data-testid="tab-preferences">Preferences</TabsTrigger>
+          <TabsTrigger value="referrals" data-testid="tab-referrals">Refer &amp; Earn</TabsTrigger>
         </TabsList>
 
         {/* PROFILE */}
@@ -398,35 +398,6 @@ export default function MyAccount() {
         {/* MY GAMES — deferred skill-game play */}
         <TabsContent value="games">
           <MyGamesPanel />
-        </TabsContent>
-
-        {/* ORDERS */}
-        <TabsContent value="orders">
-          <div className="bg-white rounded-2xl border border-slate-100 p-6 overflow-x-auto">
-            {orders.length === 0 ? (
-              <div className="py-8 text-center">
-                <Award className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                <p className="text-slate-500 text-sm">No orders yet.</p>
-              </div>
-            ) : (
-              <table className="w-full text-sm">
-                <thead className="text-slate-500 text-left">
-                  <tr><th className="py-2">Order</th><th>Items</th><th>Total</th><th>Status</th><th>Date</th></tr>
-                </thead>
-                <tbody>
-                  {orders.map(o => (
-                    <tr key={o.order_id} className="border-t border-slate-100">
-                      <td className="py-2 text-teal-600 font-mono">#{o.order_id.slice(0, 8)}</td>
-                      <td>{o.items.length}</td>
-                      <td className="font-semibold">{gbp(o.total)}</td>
-                      <td><span className={`text-xs px-2 py-0.5 rounded-full ${o.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{o.status}</span></td>
-                      <td className="text-slate-500">{new Date(o.created_at).toLocaleDateString('en-GB')}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
         </TabsContent>
 
         {/* NOTIFICATIONS */}
@@ -566,31 +537,7 @@ export default function MyAccount() {
 
         {/* SUPPORT */}
         <TabsContent value="support">
-          <div className="bg-white rounded-2xl border border-slate-100 p-6" data-testid="support-panel">
-            <div className="flex items-center gap-2 mb-3">
-              <MessageCircle className="w-5 h-5 text-orange-600" />
-              <h3 className="font-display font-bold text-lg">Get in touch</h3>
-            </div>
-            <p className="text-sm text-slate-500 mb-4">We usually respond within 24 hours.</p>
-            <div className="grid md:grid-cols-2 gap-4">
-              <a href="mailto:support@prizeleague.co.uk" className="p-4 rounded-xl border border-slate-100 hover:border-orange-300 hover:shadow-md transition">
-                <div className="font-semibold text-slate-900">📧 Email support</div>
-                <div className="text-sm text-slate-500 mt-1">support@prizeleague.co.uk</div>
-              </a>
-              <a href="/faq" className="p-4 rounded-xl border border-slate-100 hover:border-orange-300 hover:shadow-md transition">
-                <div className="font-semibold text-slate-900">📚 FAQ</div>
-                <div className="text-sm text-slate-500 mt-1">Common questions answered</div>
-              </a>
-              <a href="/contact" className="p-4 rounded-xl border border-slate-100 hover:border-orange-300 hover:shadow-md transition">
-                <div className="font-semibold text-slate-900">💬 Contact form</div>
-                <div className="text-sm text-slate-500 mt-1">Ticket-based support</div>
-              </a>
-              <a href="tel:+441234567890" className="p-4 rounded-xl border border-slate-100 hover:border-orange-300 hover:shadow-md transition">
-                <div className="font-semibold text-slate-900">📞 Phone</div>
-                <div className="text-sm text-slate-500 mt-1">+44 (0) 1234 567 890 (Mon-Fri, 9-5)</div>
-              </a>
-            </div>
-          </div>
+          <SupportPanel />
         </TabsContent>
 
         {/* POLICIES */}

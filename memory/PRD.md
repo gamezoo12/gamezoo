@@ -110,6 +110,20 @@ See `/app/memory/test_credentials.md`.
 - Winner emails → in-app only
 
 ## Recent milestones
+- **2026-07-17 · Phase 3 + Phase 4 partial** Production hardening + Support cases + Orders removed + rate limiting + idempotency
+    - **Orders tab removed** from Profile (per spec — wallet transactions are the source of truth). Tab order now: Profile → Wallet → Tickets → My Games → Notifications → KYC → Security → Support → Policies → Preferences → Refer & Earn.
+    - **Support Cases (real DB)**: New `/api/support/*` + `/api/admin/support/cases/*` endpoints. `SupportPanel.jsx` component with list / new-case wizard / thread view. Users can create cases with category + subject + message; admin can reply (creates `support_reply` notification for the user). Statuses: open / awaiting_user / closed.
+    - **OTP rate limiting**: `/api/auth/otp/send` per-phone limits — 30s cooldown between sends, max 5 sends per 15-minute window. Stored in `otp_attempts` collection.
+    - **Idempotency on wallet checkout**: `/api/orders/checkout` now rejects duplicate basket-signature POSTs within 3 seconds with 409 + existing order_id. Prevents refresh / double-click race conditions from double-charging users.
+    - **JWT_SECRET production hardening**: Auth module refuses to boot in prod with the dev default secret. `TEST_OTP_BYPASS_CODE` also disabled in prod even if env leaks.
+    - **Circular import fix**: `_verify_twilio_otp` extracted to `/app/backend/otp_verify.py`.
+    - **Console-log audit**: 9 unprotected console statements now gated by NODE_ENV.
+
+## ⚠️ Still requires user input to fully complete Phase 3/4
+- **Cloud image storage (Cloudinary/S3)** — infrastructure ready in code (uploads_routes.py), but permanent hosting needs your **Cloudinary API key + secret + cloud name** or **AWS S3 bucket + IAM keys**. Currently images persist in `/app/backend/uploads` which survives supervisor restart but not a full re-deploy or Emergent workspace rebuild.
+- **Email verification (Resend/SendGrid)** — needs your provider API key + verified sender domain to send real verification emails. Google-signup email is treated as verified because Google confirms it; email/password signup currently uses phone OTP as the sole mandatory verification step.
+- **Production redeploy** — Phase 1/2/2B/3 code changes ready in preview. Click Deploy to push to prizeleague.co.uk.
+
 - **2026-07-17 · Code Review fixes** Critical + medium items applied
     - **🔴 Circular import fix**: Extracted `_verify_twilio_otp` to `/app/backend/otp_verify.py`. Both `auth_routes` and `twilio_routes` now import from the shared module. `_verify_twilio_otp` kept as a thin backward-compat shim.
     - **🔴 JWT secret hardening**: `auth.py` now refuses to boot if `JWT_SECRET` is the default dev value AND `ENVIRONMENT=prod` or `STRIPE_MODE=live`. Prevents trivially-forgeable tokens in production.
