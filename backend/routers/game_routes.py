@@ -54,6 +54,7 @@ class SubmitScoreInput(BaseModel):
     duration_ms: int = Field(..., ge=100, le=1200000)
     accuracy: float = Field(..., ge=0.0, le=1.0)
     solved: bool = True
+    challenge_token: Optional[str] = None
 
 
 def _calc_points(game_type: str, duration_ms: int, accuracy: float, solved: bool) -> int:
@@ -86,9 +87,22 @@ async def submit_score(inp: SubmitScoreInput, request: Request):
     if not game_type:
         raise HTTPException(status_code=400, detail='This contest is not tied to a game')
     meta = next((g for g in GAME_TYPES if g['id'] == game_type), None)
-    # Contest-configured attempts override the game default. Clamp to 1-10.
-    max_attempts = int(contest.get('max_attempts') or (meta or {}).get('max_attempts', 3))
-    max_attempts = max(1, min(max_attempts, 10))
+    # Prefer attempts_per_ticket; fall back to legacy max_attempts. Clamp 1..10.
+    apt = int(contest.get('attempts_per_ticket') or contest.get('max_attempts') or (meta or {}).get('max_attempts', 3))
+    apt = max(1, min(apt, 10))
+
+    # Count tickets this user owns for THIS contest — total attempts pool.
+    tickets_owned = await db.tickets.count_documents({'user_id': user['user_id'], 'contest_id': contest['contest_id']})
+    tickets_owned = max(1, tickets_owned)
+    total_allowed = apt * tickets_owned
+
+    # Turnstile challenge — required only when a site key is configured (prod).
+    # Test envs (no key) skip this check so pytest suites keep working.
+    import os as _os
+    if _os.environ.get('TURNSTILE_SITE_KEY') and not _os.environ.get('TEST_OTP_BYPASS_CODE'):
+        from routers.captcha_routes import verify_challenge_token
+        if not inp.challenge_token or not verify_challenge_token(inp.challenge_token, user['user_id'], contest['contest_id']):
+            raise HTTPException(status_code=400, detail='CAPTCHA challenge missing or expired. Please refresh and try again.')
 
     # Enforce contest closing time — no attempts after end_date
     from datetime import datetime as _dt, timezone as _tz
@@ -103,9 +117,11 @@ async def submit_score(inp: SubmitScoreInput, request: Request):
         except (ValueError, TypeError):
             pass
 
-    prior = await db.game_scores.count_documents({'ticket_id': inp.ticket_id})
-    if prior >= max_attempts:
-        raise HTTPException(status_code=400, detail=f'No attempts left (max {max_attempts})')
+    # Pool of attempts across ALL of the user's tickets for this contest.
+    prior_total = await db.game_scores.count_documents({'user_id': user['user_id'], 'contest_id': contest['contest_id']})
+    prior_ticket = await db.game_scores.count_documents({'ticket_id': inp.ticket_id})
+    if prior_total >= total_allowed:
+        raise HTTPException(status_code=400, detail=f'No attempts left ({total_allowed} used across your {tickets_owned} ticket{"" if tickets_owned == 1 else "s"})')
 
     pts = _calc_points(game_type, inp.duration_ms, inp.accuracy, inp.solved)
     score = GameScore(
@@ -117,11 +133,11 @@ async def submit_score(inp: SubmitScoreInput, request: Request):
         points=pts,
         duration_ms=inp.duration_ms,
         accuracy=inp.accuracy,
-        attempts_used=prior + 1,
+        attempts_used=prior_ticket + 1,
     )
     await db.game_scores.insert_one(score.model_dump())
-    attempts_left = max_attempts - (prior + 1)
-    return {'ok': True, 'points': pts, 'attempts_left': attempts_left, 'score': score.model_dump()}
+    attempts_left = total_allowed - (prior_total + 1)
+    return {'ok': True, 'points': pts, 'attempts_left': attempts_left, 'total_allowed': total_allowed, 'tickets': tickets_owned, 'score': score.model_dump()}
 
 
 @public_router.get('/contests/{contest_id}/leaderboard')

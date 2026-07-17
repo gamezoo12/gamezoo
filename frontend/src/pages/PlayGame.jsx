@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../hooks/use-toast';
 import { Button } from '../components/ui/button';
 import { Trophy, ArrowLeft, RotateCcw, ArrowRight } from 'lucide-react';
+import TurnstileGate from '../components/games/TurnstileGate';
 
 export default function PlayGame() {
   const { contestId, ticketId } = useParams();
@@ -17,6 +18,7 @@ export default function PlayGame() {
   const [busy, setBusy] = useState(false);
   const [lastScore, setLastScore] = useState(null);
   const [key, setKey] = useState(0); // remount game
+  const [challengeToken, setChallengeToken] = useState(null);
 
   useEffect(() => {
     if (loading) return undefined;
@@ -39,8 +41,11 @@ export default function PlayGame() {
         duration_ms: Math.round(result.duration_ms),
         accuracy: result.accuracy,
         solved: result.solved,
+        challenge_token: challengeToken,
       });
       setLastScore(r);
+      // consume the challenge so next play requires a fresh CAPTCHA
+      setChallengeToken(null);
       const fresh = await gamesAPI.myAttempts(ticketId);
       setAttempts(fresh?.attempts || []);
       toast({
@@ -109,6 +114,8 @@ export default function PlayGame() {
                 <Link to={`/leaderboard/${contestId}`}><Button variant="outline">View leaderboard</Button></Link>
               </div>
             </div>
+          ) : !challengeToken ? (
+            <TurnstileGate contestId={contestId} onVerified={setChallengeToken} />
           ) : (
             <div key={key}>{renderGame(contest.game_config || {}, submit)}</div>
           )}

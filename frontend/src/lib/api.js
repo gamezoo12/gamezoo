@@ -22,6 +22,11 @@ export const authAPI = {
   otpLoginVerify: (phone, code) => api.post('/auth/otp/login-verify', { phone, code }).then(r => r.data),
 };
 
+export const captchaAPI = {
+  config: () => api.get('/config/turnstile').then(r => r.data),
+  verify: (token, contest_id) => api.post('/games/captcha/verify', { token, contest_id }).then(r => r.data),
+};
+
 export const contestsAPI = {
   list: (params = {}) => api.get('/contests', { params }).then(r => r.data),
   get: (slug) => api.get(`/contests/${slug}`).then(r => r.data),
@@ -109,6 +114,14 @@ export const paymentsAPI = {
     lookup_key,
     origin_url: window.location.origin,
   }).then(r => r.data),
+  createCheckoutSession: (lookup_key, origin_url) => api.post('/payments/wallet-topup/checkout', {
+    lookup_key,
+    origin_url: origin_url || window.location.origin,
+  }).then(r => ({ url: r.data.checkout_url, session_id: r.data.session_id })),
+  createCustomTopup: (amount, origin_url) => api.post('/payments/wallet-topup/custom', {
+    amount,
+    origin_url: origin_url || window.location.origin,
+  }).then(r => ({ url: r.data.checkout_url, session_id: r.data.session_id })),
   status: (session_id) => api.get(`/payments/status/${session_id}`).then(r => r.data),
 };
 

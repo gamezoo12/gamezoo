@@ -159,15 +159,22 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
               <div className="text-xs text-slate-500 mt-1">Determines the public flow after payment.</div>
             </div>
             <div>
-              <Label>Number of game attempts</Label>
+              <Label>Attempts per ticket</Label>
               <Input
                 type="number" min={1} max={10}
-                value={form.max_attempts ?? 3}
-                onChange={e => upd('max_attempts', Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+                value={form.attempts_per_ticket ?? form.max_attempts ?? 3}
+                onChange={e => {
+                  const v = Math.max(1, Math.min(10, parseInt(e.target.value) || 1));
+                  upd('attempts_per_ticket', v);
+                  upd('max_attempts', v);  // keep legacy field in sync
+                }}
                 disabled={(form.entry_mode || 'skill_game') !== 'skill_game'}
-                data-testid="contest-max-attempts"
+                data-testid="contest-attempts-per-ticket"
               />
-              <div className="text-xs text-slate-500 mt-1">Only used for skill-game contests. Default 3.</div>
+              <div className="text-xs text-slate-500 mt-1">
+                Total attempts a user gets = <b>tickets bought × attempts per ticket</b>. Default 3.
+                Example: 10 tickets × 3 = 30 total attempts pooled.
+              </div>
             </div>
             <div>
               <Label>Leaderboard visibility</Label>

@@ -12,12 +12,24 @@ that are missing.
 """
 import os
 import uuid
+import inspect
 import requests
 
 _ORIG_POST = requests.Session.post
 _ORIG_MODULE_POST = requests.post
 
 _OTP_BYPASS = os.environ.get('TEST_OTP_BYPASS_CODE', '000000')
+
+
+def _is_signup_test_frame() -> bool:
+    """Test suites that intentionally exercise the NEW registration signature
+    (auth-signup, phase-2 admin/profile) opt out of auto-augmentation.
+    """
+    for f in inspect.stack():
+        fname = f.filename or ''
+        if 'test_auth_signup' in fname or 'test_phase2' in fname:
+            return True
+    return False
 
 
 def _augment_register_payload(json_body):
@@ -38,13 +50,13 @@ def _augment_register_payload(json_body):
 
 
 def _patched_session_post(self, url, *args, **kwargs):
-    if isinstance(url, str) and url.endswith('/api/auth/register') and 'json' in kwargs:
+    if isinstance(url, str) and url.endswith('/api/auth/register') and 'json' in kwargs and not _is_signup_test_frame():
         kwargs['json'] = _augment_register_payload(dict(kwargs['json']))
     return _ORIG_POST(self, url, *args, **kwargs)
 
 
 def _patched_module_post(url, *args, **kwargs):
-    if isinstance(url, str) and url.endswith('/api/auth/register') and 'json' in kwargs:
+    if isinstance(url, str) and url.endswith('/api/auth/register') and 'json' in kwargs and not _is_signup_test_frame():
         kwargs['json'] = _augment_register_payload(dict(kwargs['json']))
     return _ORIG_MODULE_POST(url, *args, **kwargs)
 

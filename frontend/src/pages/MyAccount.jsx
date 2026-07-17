@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { ordersAPI, userAPI, walletAPI, referralAPI, paymentsAPI } from '../lib/api';
+import WalletPanel from '../components/account/WalletPanel';
 import MyGamesPanel from '../components/account/MyGamesPanel';
 import { gbp } from '../lib/format';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import {
   Wallet, Ticket, Award, User, ShieldCheck, Clock, AlertCircle,
   LogOut, Bell, Lock, Mail, Trophy, ArrowRight, Gift, Copy, Check,
-  MessageCircle, FileText, Settings2, TrendingUp, TrendingDown, Coins,
+  MessageCircle, FileText, Settings2,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -497,92 +498,13 @@ export default function MyAccount() {
 
         {/* WALLET */}
         <TabsContent value="wallet">
-          <div className="space-y-6" data-testid="wallet-panel">
-            <div className="bg-gradient-to-br from-orange-500 via-rose-500 to-fuchsia-600 rounded-2xl p-6 text-white shadow-xl">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="text-white/85 text-sm uppercase tracking-wider">Wallet balance</div>
-                  <div className="mt-1 font-display font-extrabold text-5xl" data-testid="wallet-balance">{wallet ? gbp(wallet.balance) : '£0.00'}</div>
-                  <div className="mt-2 text-xs text-white/85">Tickets can only be purchased using this balance.</div>
-                </div>
-                <Coins className="w-10 h-10 text-white/60" />
-              </div>
-              <div className="mt-5 grid grid-cols-3 gap-3 text-white/90">
-                <div className="bg-white/10 backdrop-blur rounded-xl p-3">
-                  <div className="text-xs uppercase">Lifetime top-up</div>
-                  <div className="font-bold text-lg">{wallet ? gbp(wallet.lifetime_topup) : '£0.00'}</div>
-                </div>
-                <div className="bg-white/10 backdrop-blur rounded-xl p-3">
-                  <div className="text-xs uppercase">Lifetime spend</div>
-                  <div className="font-bold text-lg">{wallet ? gbp(wallet.lifetime_spend) : '£0.00'}</div>
-                </div>
-                <div className="bg-white/10 backdrop-blur rounded-xl p-3">
-                  <div className="text-xs uppercase">Total spent</div>
-                  <div className="font-bold text-lg">{gbp(totalSpent)}</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl border border-slate-100 p-6" data-testid="stripe-topup-panel">
-              <h3 className="font-display font-bold text-lg mb-1">Top up wallet</h3>
-              <p className="text-sm text-slate-500 mb-4">Secure card payment via Stripe. Funds are credited instantly after payment.</p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {[
-                  { amount: 10,  key: 'wallet_topup_10',  badge: null },
-                  { amount: 20,  key: 'wallet_topup_20',  badge: null },
-                  { amount: 50,  key: 'wallet_topup_50',  badge: 'Popular' },
-                  { amount: 100, key: 'wallet_topup_100', badge: 'Best value' },
-                ].map(pkg => (
-                  <button
-                    key={pkg.key}
-                    type="button"
-                    disabled={toppingUp}
-                    onClick={() => topup(pkg.key)}
-                    data-testid={`stripe-topup-${pkg.amount}`}
-                    className="group relative rounded-2xl border-2 border-slate-200 hover:border-orange-500 p-4 text-left transition disabled:opacity-50"
-                  >
-                    {pkg.badge && (
-                      <span className="absolute -top-2 right-3 bg-gradient-to-r from-orange-500 to-rose-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                        {pkg.badge}
-                      </span>
-                    )}
-                    <div className="text-xs uppercase text-slate-500">Top-up</div>
-                    <div className="font-display text-3xl font-extrabold text-slate-900 group-hover:text-orange-600">£{pkg.amount}</div>
-                    <div className="text-xs text-slate-400 mt-1">Pay with Stripe →</div>
-                  </button>
-                ))}
-              </div>
-              <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                Powered by Stripe. Card details never touch our servers.
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl border border-slate-100 p-6">
-              <h3 className="font-display font-bold text-lg mb-4">Transaction history</h3>
-              {walletTxs.length === 0 ? (
-                <div className="text-sm text-slate-500 text-center py-6">No transactions yet.</div>
-              ) : (
-                <ul className="divide-y divide-slate-100" data-testid="wallet-tx-list">
-                  {walletTxs.map(tx => (
-                    <li key={tx.tx_id} className="py-3 flex items-center gap-3">
-                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${tx.amount > 0 ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
-                        {tx.amount > 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-slate-800 capitalize">{tx.kind.replace(/_/g, ' ')}</div>
-                        <div className="text-xs text-slate-500 truncate">{tx.note}</div>
-                      </div>
-                      <div className="text-right">
-                        <div className={`font-bold ${tx.amount > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{tx.amount > 0 ? '+' : ''}{gbp(tx.amount)}</div>
-                        <div className="text-xs text-slate-400">{new Date(tx.created_at).toLocaleDateString('en-GB')}</div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
+          <WalletPanel
+            wallet={wallet}
+            walletTxs={walletTxs}
+            setWallet={setWallet}
+            setWalletTxs={setWalletTxs}
+            autoOpenTopup={searchParams.get('topup') === '1'}
+          />
         </TabsContent>
 
         {/* REFERRALS */}

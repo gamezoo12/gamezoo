@@ -88,6 +88,67 @@ async def create_topup_checkout(req: CheckoutRequest, request: Request):
     return {"checkout_url": session.url, "session_id": session.id}
 
 
+class CustomTopupRequest(BaseModel):
+    amount: float = Field(..., ge=5.0, le=1000.0, description='Amount in GBP, min £5, max £1000')
+    origin_url: str
+
+
+@payments_router.post('/payments/wallet-topup/custom')
+async def create_custom_topup(req: CustomTopupRequest, request: Request):
+    """Custom amount wallet top-up. Creates a Stripe Checkout Session with
+    an inline price_data instead of a preconfigured Price lookup_key.
+    """
+    user = await get_current_user(request)
+    amount_pence = int(round(req.amount * 100))
+    if amount_pence < 500:
+        raise HTTPException(400, 'Minimum top-up is £5')
+
+    kwargs = dict(
+        line_items=[{
+            "price_data": {
+                "currency": "gbp",
+                "unit_amount": amount_pence,
+                "product_data": {"name": f"Prize League Wallet — £{req.amount:g} top-up"},
+            },
+            "quantity": 1,
+        }],
+        mode="payment",
+        success_url=f"{req.origin_url}/my-account?tab=wallet&topup=success&session_id={{CHECKOUT_SESSION_ID}}",
+        cancel_url=f"{req.origin_url}/my-account?tab=wallet&topup=cancel",
+        metadata={
+            "user_id": user['user_id'],
+            "user_email": user.get('email', ''),
+            "custom_amount": str(amount_pence),
+            "kind": "wallet_topup",
+        },
+    )
+    try:
+        session = stripe.checkout.Session.create(**kwargs, managed_payments={"enabled": True})
+    except stripe.error.InvalidRequestError as e:
+        msg = (e.user_message or "").lower()
+        if "managed payments" in msg or "ineligible" in msg:
+            session = stripe.checkout.Session.create(
+                **kwargs, automatic_tax={"enabled": True}, billing_address_collection="required",
+            )
+        else:
+            raise
+
+    db = get_db()
+    await db.payment_transactions.insert_one({
+        "session_id": session.id,
+        "user_id": user['user_id'],
+        "lookup_key": None,
+        "amount": amount_pence,
+        "currency": "gbp",
+        "status": "initiated",
+        "payment_status": "pending",
+        "kind": "wallet_topup",
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc),
+    })
+    return {"checkout_url": session.url, "session_id": session.id}
+
+
 async def _credit_wallet_once(db, tx: dict) -> Optional[dict]:
     """Idempotency: only credit if payment_status just flipped to 'paid' AND not yet credited."""
     if tx.get("wallet_credited"):

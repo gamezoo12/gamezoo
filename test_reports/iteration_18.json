@@ -1,0 +1,67 @@
+{
+  "summary": "Iteration 18 — End-to-end verification of Phase 2B: Turnstile CAPTCHA gate, wallet redesign (WalletPanel with hero + presets + custom amount + filters + receipt modal), attempts-per-ticket pool enforcement, and Admin EditContestDialog attempts_per_ticket field. Backend: 8/9 new pytest tests pass — ONE critical Stripe 500 on the new /api/payments/wallet-topup/custom endpoint (missing tax_code on inline price_data). Frontend: all wallet UI, TurnstileGate auto-pass, and Admin EditContestDialog checks green.",
+
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/payments/wallet-topup/custom",
+        "issue": "Returns 500 for valid £5 top-up. Stripe rejects with `Invalid line_items[0]: the product tax code is missing. You must set the product's tax_code to one eligible for Managed Payments.` — the inline `price_data.product_data` has no `tax_code`. Fallback path (automatic_tax + billing_address_collection) also fails with `You must specify a tax code in all line items to calculate taxes`. The legacy /wallet-topup/checkout endpoint works because pre-configured Prices already have the tax code attached. FIX: add `\"tax_code\": \"txcd_10103001\"` (or another digital tax code) inside `product_data`, or drop managed_payments/automatic_tax for custom sessions.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": []
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "PlayGame.jsx",
+        "issue": "Hero card shows `Attempts left: 3/3` — hardcoded (`const attemptsLeft = 3 - attempts.length`). Should reflect pooled attempts (tickets_owned × attempts_per_ticket) coming from /api/orders/my-games or the /api/games/submit response. UI-only cosmetic — enforcement is server-side and works.",
+        "selector": "[data-testid=\"play-game-page\"]",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+
+  "test_report_links": [
+    "/app/backend/tests/test_phase2b_captcha_wallet_attempts.py",
+    "/app/test_reports/pytest/iter18_phase2b.xml"
+  ],
+
+  "action_items": [
+    "Fix /api/payments/wallet-topup/custom Stripe tax_code — add `\"tax_code\": \"txcd_10103001\"` inside `line_items[0].price_data.product_data` (or move to a non-managed / non-automatic-tax session for custom amounts). This blocks the £5 preset and custom-amount top-ups from the WalletPanel UI. Repro: `curl -X POST $API/payments/wallet-topup/custom -H 'Authorization: Bearer <token>' -d '{\"amount\":5.0,\"origin_url\":\"https://example.com\"}'` → 500.",
+    "PlayGame.jsx: replace hardcoded `Attempts left: 3/3` with pooled attempts from /api/orders/my-games (attempts_remaining / max_attempts). Optional but user-facing.",
+    "Consider min £5 alignment across surface: `/api/wallet/topup` (mock player top-up) still has MIN_TOPUP=£10 in wallet_routes.py — new UI advertises min £5 everywhere. Not user-hit today (mock endpoint is not called by WalletPanel) but drift will bite later."
+  ],
+
+  "critical_code_review_comments": [
+    "MyAccount.jsx is 663 lines — still over the 700-line soft limit warning; wallet tab is now cleanly extracted to WalletPanel.jsx, so continuing the split (Profile / KYC / Referrals / Preferences into their own files) would keep it healthy.",
+    "PlayGame.jsx still uses `contestsAPI.list()` and filters by contest_id client-side to find the current contest. Two issues: (1) list() only returns LIVE contests, so a contest paused mid-session breaks the play page; (2) fetches N contests to find 1. Prefer a dedicated `GET /api/contests/{contest_id}` endpoint (or /api/games/contest/{id}).",
+    "TurnstileGate: on `enabled=true && site_key` present, if the Cloudflare script fails to load (blocked / offline), the widget never renders and the user has no way to submit — component polls forever. Add a 15s timeout that surfaces an error toast with a Retry button.",
+    "captcha_routes.py: `verify_challenge_token` compares user + contest but the /api/games/submit path doesn't gate the check when `TEST_OTP_BYPASS_CODE` is set (line 102: `and not os.environ.get('TEST_OTP_BYPASS_CODE')`). That's convenient for tests but means anyone knowing the env has a bypass. Fine for preview, but production must drop TEST_OTP_BYPASS_CODE.",
+    "payments_routes.py: `_apply_tx` is invoked inside `_credit_wallet_once` even after an update_one sets `wallet_credited`; if two webhooks arrive concurrently a race could still double-credit. Consider a Mongo unique index on `(session_id)` for the credit doc or a `$set:{wallet_credited:true}` conditional update inside `_apply_tx`.",
+    "order_routes.py my-games: `tickets_owned = sum(1 for t2 in tickets if t2['contest_id'] == c['contest_id'])` is O(N²) across all tickets and contests. Fine for MVP; group tickets by contest once at the top if you cross ~1000 tickets/user."
+  ],
+
+  "updated_files": [
+    "/app/backend/tests/test_phase2b_captcha_wallet_attempts.py (NEW — 9 tests, 8 pass, 1 failure documents the /wallet-topup/custom bug)"
+  ],
+
+  "success_rate": {
+    "backend": "89% (8/9 new phase-2B tests pass; 1 CRITICAL failure on /wallet-topup/custom is a real backend bug, not a test bug)",
+    "frontend": "100% for the review-request scenarios exercised (WalletPanel hero + balance + plus button + presets 5/10/20/50/100 + custom amount input with min=5, ?topup=1 auto-opens panel, filter chips today/week/month/year/all, tx-receipt modal with tx_id + date + amount + balance before/after + status Completed + Prize League logo, Admin EditContestDialog attempts_per_ticket field visible w/ correct helper text, TurnstileGate auto-passes with test key and game-arena renders on /play/<cid>/<tid>)"
+  },
+
+  "test_credentials": "Admin: bachanta8@gmail.com / Herts@910022 (verified working). Fresh player minted per test via /api/auth/register + otp_code=000000. Session bootstrapped in UI by setting localStorage['gz_token'].",
+
+  "seed_data_creation": "Registered ~10 fresh e2e users (e2e_p2b_*, e2e_wallet_*, e2e_play_*, e2e_cap/cust/cmin/cmax/leg/apt) via /api/auth/register. Created ~3 temporary skill-game contests via /api/admin/contests; each is deleted at the end of its test. Two mock wallet top-ups via /api/wallet/topup on the wallet-UI test user to seed transactions for the receipt modal check.",
+
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+
+  "context_for_next_testing_agent": "Phase 2B regression suite: /app/backend/tests/test_phase2b_captcha_wallet_attempts.py (9 tests — expect 8 pass / 1 CRITICAL failure on TestWalletTopup.test_custom_topup_happy_path until Stripe tax_code is added). Wallet UI data-testids validated: wallet-panel, wallet-hero, wallet-balance, wallet-topup-plus, wallet-topup-panel, wallet-custom-amount, wallet-custom-topup, wallet-filters, filter-today/week/month/year/all, wallet-tx-list, wallet-tx-<tx_id>, tx-receipt, stripe-topup-5/10/20/50/100. TurnstileGate: turnstile-gate (transient — hidden after auto-pass with test key), game-arena renders within ~1s. Admin edit contest: data-testid=contest-attempts-per-ticket present w/ correct helper text ('tickets bought × attempts per ticket'). Attempts pool enforcement: `POST /api/games/submit` with 2 tickets × apt=3 accepts 6 attempts then rejects 7th with 400 'No attempts left'; `/api/orders/my-games` returns tickets_owned + attempts_per_ticket + attempts_remaining + max_attempts (pooled). Turnstile config exposed via public GET /api/config/turnstile. Cloudflare TEST secret 1x0000000000000000000000000000000AA always returns success=true for any token.",
+
+  "rca_of_the_issue": "CRITICAL — /api/payments/wallet-topup/custom (£5 valid amount → 500): 1) Reproduction: `POST /api/payments/wallet-topup/custom` with `{amount:5.0, origin_url:'https://example.com'}` and a valid Bearer token. 2) Backend log shows `stripe._error.InvalidRequestError: Invalid line_items[0]: the product tax code is missing. You must set the product's tax_code to one eligible for Managed Payments.` from stripe.checkout.Session.create with managed_payments={enabled: true}. 3) Fallback path (automatic_tax + billing_address_collection) then fails with a similar error: `You must specify a tax code in all line items to calculate taxes.` 4) Legacy /wallet-topup/checkout works because pre-configured Prices already carry the tax code attached in the Stripe dashboard; the custom endpoint uses inline `price_data` with only `currency`, `unit_amount`, and `product_data.name` — no tax code. 5) Fix options: (a) Simplest — add `'tax_code': 'txcd_10103001'` (Digital: Software as a Service) inside `product_data` for both the primary and fallback Session.create calls. (b) Alternatively — drop `managed_payments` + `automatic_tax` for custom sessions and rely on manual tax handling if allowed by SMP rules. (c) Or — mint the Stripe Price server-side once + attach tax_code, then reuse it. Note: the endpoint's Pydantic input validation (`amount: float = Field(..., ge=5.0, le=1000.0)`) correctly returns 422 for out-of-range values, so those tests pass."
+}

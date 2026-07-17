@@ -203,7 +203,7 @@ async def update_contest_full(contest_id: str, payload: dict, request: Request):
     db = get_db()
     allowed = {'title', 'subtitle', 'category', 'tag', 'image', 'price', 'tickets_total',
                'prize_amount', 'end_date', 'jackpot', 'featured', 'status', 'skill_question',
-               'game_type', 'game_config', 'entry_mode', 'max_attempts',
+               'game_type', 'game_config', 'entry_mode', 'max_attempts', 'attempts_per_ticket',
                'leaderboard_visibility', 'winner_selection_method'}
     updates = {}
     for k, v in (payload or {}).items():

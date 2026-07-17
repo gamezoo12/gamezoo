@@ -133,10 +133,14 @@ async def my_games(request: Request):
         c = contests.get(t['contest_id'])
         if not c:
             continue
-        max_attempts = int(c.get('max_attempts') or 3)
-        max_attempts = max(1, min(max_attempts, 10))
+        apt = int(c.get('attempts_per_ticket') or c.get('max_attempts') or 3)
+        apt = max(1, min(apt, 10))
+        # Total attempts pool = tickets_owned * apt (all tickets for this contest by this user)
+        tickets_owned = sum(1 for t2 in tickets if t2['contest_id'] == c['contest_id'])
+        total_allowed = apt * max(1, tickets_owned)
+        # Attempts used across ALL tickets for this contest by this user
+        used = await db.game_scores.count_documents({'user_id': user['user_id'], 'contest_id': c['contest_id']})
         attempts = await db.game_scores.find({'ticket_id': t['ticket_id']}, {'_id': 0}).sort('points', -1).to_list(50)
-        used = len(attempts)
         best = attempts[0] if attempts else None
 
         end_raw = c.get('end_date')
@@ -150,7 +154,7 @@ async def my_games(request: Request):
         except (ValueError, TypeError):
             pass
 
-        status = 'expired' if expired else ('completed' if used >= max_attempts else ('in_progress' if used > 0 else 'ready'))
+        status = 'expired' if expired else ('completed' if used >= total_allowed else ('in_progress' if used > 0 else 'ready'))
         out.append({
             'ticket_id': t['ticket_id'],
             'contest_id': c['contest_id'],
@@ -160,8 +164,10 @@ async def my_games(request: Request):
             'game_type': c.get('game_type'),
             'end_date': c.get('end_date'),
             'attempts_used': used,
-            'attempts_remaining': max(0, max_attempts - used),
-            'max_attempts': max_attempts,
+            'attempts_remaining': max(0, total_allowed - used),
+            'max_attempts': total_allowed,  # legacy key = pooled total
+            'attempts_per_ticket': apt,
+            'tickets_owned': tickets_owned,
             'best_points': best.get('points') if best else None,
             'last_attempt_at': attempts[0].get('completed_at') if attempts else None,
             'status': status,

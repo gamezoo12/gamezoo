@@ -34,6 +34,8 @@ class Contest(BaseModel):
     # Optional game to play after ticket purchase. If None, winner is picked by admin/scheduler.
     game_type: Optional[str] = None  # e.g. 'jigsaw_3x3', 'memory_match', 'number_sequence', ...
     game_config: dict = Field(default_factory=dict)  # per-game options (image url, difficulty, time limit)
+    max_attempts: int = 3  # legacy alias for attempts_per_ticket — kept for back-compat
+    attempts_per_ticket: int = 3  # Total attempts = tickets_bought * attempts_per_ticket (1..10)
     status: str = 'live'  # live | drawn | archived
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
