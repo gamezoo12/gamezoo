@@ -112,6 +112,8 @@ export default function DrawCentre() {
                   <img
                     src={contest.image}
                     alt={contest.title}
+                    loading="lazy"
+                    decoding="async"
                     onError={(e) => { e.currentTarget.src = FALLBACK_IMG; }}
                     className="w-24 h-24 object-cover rounded-xl bg-slate-100 shrink-0"
                   />

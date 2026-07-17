@@ -95,6 +95,7 @@ function AppRouter() {
         <Route path="analytics" element={<AdminAnalytics />} />
         <Route path="roles" element={<AdminRoles />} />
         <Route path="settings" element={<AdminSettings />} />
+        <Route path="audit-logs" element={<AdminAuditLogs />} />
       </Route>
 
       <Route path="/production" element={<ProductionLayout />}>

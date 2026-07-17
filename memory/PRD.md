@@ -110,6 +110,13 @@ See `/app/memory/test_credentials.md`.
 - Winner emails → in-app only
 
 ## Recent milestones
+- **2026-07-17 · Phase 4 partial** Admin Audit Logs + Lazy images + Reduced motion + Support surface
+    - **Admin Audit Logs page** (`/admin/audit-logs`) — combines `winner_audit` (draw/publish/correct) and support case status changes. Read-only, searchable. Sidebar link added.
+    - **Lazy-loading images** on Cart + Draw Centre (`loading="lazy" decoding="async"`).
+    - **`prefers-reduced-motion` CSS** — all decorative animations respect the OS-level accessibility setting.
+    - **User → admin authorization verified** (403 on `/api/admin/*` for regular JWT — separation is enforced backend-side, not just via UI).
+    - Tests: 24/26 pass. Same 2 pre-existing Cloudflare CORS-preflight failures. Admin audit-logs + admin support-cases endpoints verified via curl.
+
 - **2026-07-17 · Phase 3 + Phase 4 partial** Production hardening + Support cases + Orders removed + rate limiting + idempotency
     - **Orders tab removed** from Profile (per spec — wallet transactions are the source of truth). Tab order now: Profile → Wallet → Tickets → My Games → Notifications → KYC → Security → Support → Policies → Preferences → Refer & Earn.
     - **Support Cases (real DB)**: New `/api/support/*` + `/api/admin/support/cases/*` endpoints. `SupportPanel.jsx` component with list / new-case wizard / thread view. Users can create cases with category + subject + message; admin can reply (creates `support_reply` notification for the user). Statuses: open / awaiting_user / closed.

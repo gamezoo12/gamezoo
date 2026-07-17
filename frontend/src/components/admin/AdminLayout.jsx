@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Package, ShoppingBag, Trophy, BarChart3, LogOut, Shield, CreditCard, Settings as SettingsIcon, ShieldCheck, Wallet as WalletIcon, Gamepad2, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Users, Package, ShoppingBag, Trophy, BarChart3, LogOut, Shield, CreditCard, Settings as SettingsIcon, ShieldCheck, Wallet as WalletIcon, Gamepad2, Menu, X, ClipboardList } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import PrizeLeagueLogo from '../layout/PrizeLeagueLogo';
 import MeeraChat from '../MeeraChat';
@@ -19,6 +19,7 @@ const LINKS = [
   { to: '/admin/winner-selection', label: 'Winner Selection', icon: Trophy },
   { to: '/admin/analytics',    label: 'Analytics',            icon: BarChart3 },
   { to: '/admin/settings',     label: 'Settings',             icon: SettingsIcon },
+  { to: '/admin/audit-logs',   label: 'Audit logs',           icon: ClipboardList },
 ];
 
 /**

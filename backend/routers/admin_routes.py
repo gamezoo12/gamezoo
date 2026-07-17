@@ -35,6 +35,34 @@ async def stats(request: Request):
     }
 
 
+@router.get('/audit-logs')
+async def audit_logs(request: Request, limit: int = 200):
+    """All admin audit logs across the platform. Combines winner_audit and any
+    future admin_audit collection. Read-only.
+    """
+    await require_admin(request)
+    from deps import get_db
+    db = get_db()
+    limit = max(10, min(1000, limit))
+    winner_logs = await db.winner_audit.find({}, {'_id': 0}).sort('at', -1).to_list(limit)
+    for e in winner_logs:
+        e['source'] = 'winner_selection'
+    # Support cases activity (create + status changes)
+    support_cases = await db.support_cases.find({}, {'_id': 0}).sort('updated_at', -1).to_list(limit)
+    support_logs = []
+    for c in support_cases:
+        support_logs.append({
+            'at': c.get('updated_at') or c.get('created_at'),
+            'source': 'support_case',
+            'action': f'case_{c.get("status", "open")}',
+            'admin_id': c.get('closed_by'),
+            'target': c.get('case_id'),
+            'meta': {'subject': c.get('subject'), 'user_id': c.get('user_id')},
+        })
+    combined = sorted(winner_logs + support_logs, key=lambda x: x.get('at') or '', reverse=True)
+    return {'logs': combined[:limit], 'count': len(combined)}
+
+
 @router.get('/users')
 async def all_users(request: Request):
     await require_admin(request)

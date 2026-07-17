@@ -94,7 +94,7 @@ export default function Cart() {
           <div className="lg:col-span-2 space-y-3">
             {items.map(i => (
               <div key={i.contest_id} className="flex flex-col sm:flex-row gap-4 bg-white rounded-2xl border border-slate-100 p-4" data-testid={`cart-item-${i.contest_id}`}>
-                <img src={i.image} alt={i.title} className="w-full sm:w-28 h-32 sm:h-28 object-cover rounded-lg bg-slate-100" />
+                <img src={i.image} alt={i.title} loading="lazy" decoding="async" className="w-full sm:w-28 h-32 sm:h-28 object-cover rounded-lg bg-slate-100" />
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-slate-900 break-words">{i.title}</div>
                   <div className="text-xs text-slate-500 mt-0.5">
