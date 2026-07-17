@@ -118,6 +118,6 @@ async def get_current_user(request: Request, db=None):
 
 async def require_admin(request: Request):
     user = await get_current_user(request)
-    if user.get('role') != 'admin':
+    if user.get('role') not in ('admin', 'super_admin', 'operator', 'support'):
         raise HTTPException(status_code=403, detail='Admin only')
     return user

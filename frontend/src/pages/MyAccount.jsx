@@ -3,18 +3,21 @@ import { ordersAPI, userAPI, walletAPI, referralAPI, paymentsAPI } from '../lib/
 import WalletPanel from '../components/account/WalletPanel';
 import SupportPanel from '../components/account/SupportPanel';
 import MyGamesPanel from '../components/account/MyGamesPanel';
-import { gbp } from '../lib/format';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import {
-  Wallet, Ticket, Award, User, ShieldCheck, Clock, AlertCircle,
-  LogOut, Bell, Lock, Mail, Trophy, ArrowRight, Gift, Copy, Check,
-  MessageCircle, FileText, Settings2,
+  User, Wallet, Ticket, Gamepad2, Bell, ShieldCheck, Lock,
+  LifeBuoy, FileText, Settings2, Gift, LogOut, ArrowRight,
+  Trophy, Copy, Check, Clock, AlertCircle, Mail,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Button } from '../components/ui/button';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
+  AlertDialogTitle, AlertDialogTrigger,
+} from '../components/ui/alert-dialog';
 import { useToast } from '../hooks/use-toast';
 import BackButton from '../components/BackButton';
 
@@ -34,50 +37,61 @@ const KycBadge = ({ status }) => {
   );
 };
 
+// 12 navigation tokens — order & colours locked per spec
+const TOKENS = [
+  { id: 'profile',       label: 'Profile',        Icon: User,        color: 'from-violet-500 to-purple-600',   ring: 'ring-violet-400/40' },
+  { id: 'wallet',        label: 'Wallet',         Icon: Wallet,      color: 'from-amber-500 to-orange-600',    ring: 'ring-amber-400/40' },
+  { id: 'tickets',       label: 'Tickets',        Icon: Ticket,      color: 'from-teal-500 to-emerald-600',    ring: 'ring-teal-400/40' },
+  { id: 'games',         label: 'My Games',       Icon: Gamepad2,    color: 'from-fuchsia-500 to-pink-600',    ring: 'ring-fuchsia-400/40' },
+  { id: 'notifications', label: 'Notifications',  Icon: Bell,        color: 'from-sky-500 to-blue-600',        ring: 'ring-sky-400/40' },
+  { id: 'kyc',           label: 'KYC',            Icon: ShieldCheck, color: 'from-emerald-500 to-green-600',   ring: 'ring-emerald-400/40' },
+  { id: 'security',      label: 'Security',       Icon: Lock,        color: 'from-slate-700 to-slate-900',     ring: 'ring-slate-400/40' },
+  { id: 'support',       label: 'Support',        Icon: LifeBuoy,    color: 'from-cyan-500 to-teal-600',       ring: 'ring-cyan-400/40' },
+  { id: 'policies',      label: 'Policies',       Icon: FileText,    color: 'from-indigo-500 to-blue-700',     ring: 'ring-indigo-400/40' },
+  { id: 'preferences',   label: 'Preferences',    Icon: Settings2,   color: 'from-stone-500 to-neutral-700',   ring: 'ring-stone-400/40' },
+  { id: 'referrals',     label: 'Refer & Earn',   Icon: Gift,        color: 'from-rose-500 to-red-600',        ring: 'ring-rose-400/40' },
+  { id: 'signout',       label: 'Sign Out',       Icon: LogOut,      color: 'from-red-600 to-rose-800',        ring: 'ring-red-500/50', danger: true },
+];
+
 export default function MyAccount() {
   const { user, loading, logout, refresh } = useAuth();
   const nav = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
-  const [orders, setOrders] = useState([]);
+
+  const [active, setActive] = useState(searchParams.get('tab') || 'profile');
+  const [signOutOpen, setSignOutOpen] = useState(false);
+
   const [tickets, setTickets] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [kyc, setKyc] = useState({ status: 'none' });
-  const [profile, setProfile] = useState({ name: '', email: '', phone: '', username: '', user_id: '', dob: '', address: '', phone_verified: false, terms_accepted_at: null });
+  const [profile, setProfile] = useState({ name: '', email: '', phone: '', username: '', dob: '', address: '', phone_verified: false });
   const [wallet, setWallet] = useState(null);
   const [walletTxs, setWalletTxs] = useState([]);
   const [referral, setReferral] = useState(null);
   const [referralList, setReferralList] = useState([]);
-  const [topupAmount, setTopupAmount] = useState(10);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPw, setSavingPw] = useState(false);
   const [kycBusy, setKycBusy] = useState(false);
-  const [toppingUp, setToppingUp] = useState(false);
   const [copiedRef, setCopiedRef] = useState(false);
-
-  const defaultTab = searchParams.get('tab') || 'profile';
 
   useEffect(() => {
     if (loading) return undefined;
     if (!user) { nav('/login', { replace: true }); return undefined; }
-    // Fetch the FULL profile (includes phone/kyc/counts) — /api/auth/me only returns UserPublic
     userAPI.me()
       .then(me => setProfile({
         name: me.name || '',
         email: me.email || '',
         phone: me.phone || '',
         username: me.username || '',
-        user_id: me.user_id || '',
         dob: me.dob || '',
         address: me.address || '',
         phone_verified: !!me.phone_verified,
-        terms_accepted_at: me.terms_accepted_at || null,
       }))
-      .catch(() => setProfile({ name: user.name || '', email: user.email || '', phone: '', username: user.username || '', user_id: user.user_id || '', dob: '', address: '', phone_verified: !!user.phone_verified, terms_accepted_at: null }));
-    ordersAPI.mine().then(setOrders).catch((err) => { if (process.env.NODE_ENV !== 'production') console.error('[account] orders:', err?.message); });
-    ordersAPI.myTickets().then(setTickets).catch((err) => { if (process.env.NODE_ENV !== 'production') console.error('[account] tickets:', err?.message); });
-    userAPI.kycStatus().then(setKyc).catch((err) => { if (process.env.NODE_ENV !== 'production') console.error('[account] kyc:', err?.message); });
-    userAPI.notifications().then((r) => setNotifications(r?.notifications || [])).catch(() => {});
+      .catch(() => setProfile(p => ({ ...p, name: user.name || '', email: user.email || '', username: user.username || '', phone_verified: !!user.phone_verified })));
+    ordersAPI.myTickets().then(setTickets).catch(() => {});
+    userAPI.kycStatus().then(setKyc).catch(() => {});
+    userAPI.notifications().then(r => setNotifications(r?.notifications || [])).catch(() => {});
     walletAPI.me().then(setWallet).catch(() => {});
     walletAPI.transactions(20).then(r => setWalletTxs(r?.transactions || [])).catch(() => {});
     referralAPI.me().then(setReferral).catch(() => {});
@@ -87,12 +101,8 @@ export default function MyAccount() {
 
   const doLogout = async () => {
     await logout();
+    setSignOutOpen(false);
     window.location.href = '/';
-  };
-
-  const goAdmin = async () => {
-    await logout();
-    window.location.href = '/admin/login';
   };
 
   const saveProfile = async (e) => {
@@ -142,19 +152,7 @@ export default function MyAccount() {
     } finally { setKycBusy(false); }
   };
 
-  const topup = async (lookupKey) => {
-    setToppingUp(true);
-    try {
-      const r = await paymentsAPI.createTopupCheckout(lookupKey);
-      // Redirect to Stripe hosted Checkout
-      window.location.href = r.checkout_url;
-    } catch (err) {
-      toast({ title: 'Checkout failed', description: err?.response?.data?.detail || err.message });
-      setToppingUp(false);
-    }
-  };
-
-  // Handle return from Stripe (success/cancel)
+  // Handle return from Stripe checkout
   useEffect(() => {
     const topupParam = searchParams.get('topup');
     const sid = searchParams.get('session_id');
@@ -165,7 +163,7 @@ export default function MyAccount() {
     }
     if (topupParam !== 'success' || !sid) return undefined;
     let attempts = 0;
-    const maxAttempts = 15; // 30 seconds
+    const maxAttempts = 15;
     const poll = async () => {
       attempts += 1;
       try {
@@ -175,6 +173,7 @@ export default function MyAccount() {
           setWallet(w);
           setWalletTxs(txs?.transactions || []);
           toast({ title: '✅ Payment successful', description: `£${s.amount_gbp.toFixed(2)} added to your wallet.` });
+          setActive('wallet');
           nav('/my-account?tab=wallet', { replace: true });
           return;
         }
@@ -185,7 +184,7 @@ export default function MyAccount() {
         }
         if (attempts < maxAttempts) setTimeout(poll, 2000);
         else toast({ title: 'Still processing', description: 'Refresh in a moment — your balance will update.' });
-      } catch (err) {
+      } catch {
         if (attempts < maxAttempts) setTimeout(poll, 2000);
       }
     };
@@ -196,101 +195,83 @@ export default function MyAccount() {
 
   const copyReferralLink = async () => {
     const url = `${window.location.origin}/?ref=${referral?.code}`;
-    try { await navigator.clipboard.writeText(url); setCopiedRef(true); setTimeout(() => setCopiedRef(false), 2000); }
-    catch (err) { if (process.env.NODE_ENV !== 'production') console.warn('[account] clipboard write failed:', err); toast({ title: 'Copy failed', description: 'Copy manually: ' + url }); }
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedRef(true);
+      setTimeout(() => setCopiedRef(false), 2000);
+    } catch {
+      toast({ title: 'Copy failed', description: 'Copy manually: ' + url });
+    }
   };
 
-  if (loading || !user) return <div className="max-w-6xl mx-auto p-10 text-slate-500">Loading…</div>;
-  const totalSpent = orders.reduce((s, o) => s + (o.total || 0), 0);
-  const initials = (user.name || user.email || 'U').slice(0, 1).toUpperCase();
+  const selectToken = (id) => {
+    if (id === 'signout') { setSignOutOpen(true); return; }
+    setActive(id);
+    nav(`/my-account?tab=${id}`, { replace: true });
+  };
+
+  if (loading || !user) {
+    return <div className="max-w-6xl mx-auto p-10 text-slate-500">Loading…</div>;
+  }
   const isPasswordAccount = user.method !== 'google';
 
   return (
-    <div className="max-w-6xl mx-auto px-4 lg:px-8 py-8" data-testid="my-account-page">
+    <div className="max-w-6xl mx-auto px-4 lg:px-8 py-6" data-testid="my-account-page">
       <BackButton to="/" label="Back to home" className="mb-4" />
 
-      {/* Header card with avatar + name + explicit action buttons */}
-      <div className="rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-6 md:p-8 mb-8 shadow-2xl overflow-hidden relative">
-        <div className="absolute -top-16 -right-16 w-60 h-60 bg-teal-500/20 rounded-full blur-3xl" />
-        <div className="absolute -bottom-16 -left-10 w-60 h-60 bg-fuchsia-500/15 rounded-full blur-3xl" />
-        <div className="relative flex flex-col md:flex-row md:items-center gap-5">
-          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-teal-400 to-emerald-500 flex items-center justify-center text-3xl font-extrabold shrink-0">{initials}</div>
-          <div className="flex-1">
-            <h1 className="font-display text-3xl font-extrabold">Hi, {user.name} 👋</h1>
-            <div className="text-slate-300 mt-1 flex items-center gap-2 flex-wrap">
-              <span className="flex items-center gap-1"><Mail className="w-4 h-4" /> {user.email}</span>
-              <KycBadge status={kyc.status} />
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {['admin', 'super_admin', 'operator', 'support'].includes(user.role) && (
-              <Button
-                onClick={goAdmin}
-                data-testid="account-go-admin"
-                variant="outline"
-                className="border-teal-400/50 text-teal-300 bg-teal-400/10 hover:bg-teal-400/20 hover:text-white"
-              >
-                <ShieldCheck className="w-4 h-4 mr-1" /> Sign out → Admin
-              </Button>
-            )}
-            <Button
-              onClick={doLogout}
-              data-testid="account-signout"
-              className="bg-rose-500 hover:bg-rose-600 text-white shadow-lg shadow-rose-500/30"
+      {/* 12 Navigation Tokens */}
+      <div
+        className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4 mb-8"
+        data-testid="account-tokens"
+      >
+        {TOKENS.map(t => {
+          const isActive = active === t.id && t.id !== 'signout';
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => selectToken(t.id)}
+              data-testid={`token-${t.id}`}
+              className={`group relative overflow-hidden rounded-2xl p-4 text-white text-left transition-all duration-200 bg-gradient-to-br ${t.color} shadow-md hover:shadow-xl hover:-translate-y-0.5 focus:outline-none focus-visible:ring-4 ${t.ring} ${isActive ? 'ring-4 ' + t.ring + ' scale-[1.02]' : ''}`}
             >
-              <LogOut className="w-4 h-4 mr-1" /> Sign out
-            </Button>
-          </div>
-        </div>
+              <div className="absolute -top-6 -right-6 w-20 h-20 rounded-full bg-white/10 blur-xl opacity-60 group-hover:opacity-100 transition-opacity" />
+              <t.Icon className="w-6 h-6 mb-2 drop-shadow" />
+              <div className="font-display font-extrabold text-sm sm:text-base leading-tight">
+                {t.label}
+              </div>
+            </button>
+          );
+        })}
       </div>
 
-      {/* Stat cards */}
-      <div className="grid md:grid-cols-4 gap-4 mb-8">
-        {[
-          { label: 'Wallet balance', value: wallet ? gbp(wallet.balance) : '£0.00', Icon: Wallet, color: 'from-orange-500 to-rose-500' },
-          { label: 'Active tickets', value: tickets.length, Icon: Ticket, color: 'from-amber-400 to-orange-500' },
-          { label: 'Orders', value: orders.length, Icon: Award, color: 'from-fuchsia-500 to-pink-500' },
-          { label: 'Referrals', value: referral?.completed || 0, Icon: Gift, color: 'from-indigo-500 to-purple-600' },
-        ].map((s) => (
-          <div key={s.label} className={`rounded-2xl p-5 text-white bg-gradient-to-br ${s.color} shadow-lg`}>
-            <s.Icon className="w-6 h-6 opacity-80" />
-            <div className="mt-3 text-2xl font-extrabold font-display capitalize">{s.value}</div>
-            <div className="text-sm opacity-90">{s.label}</div>
-          </div>
-        ))}
-      </div>
-
-      <Tabs defaultValue={defaultTab}>
-        <TabsList data-testid="account-tabs" className="flex flex-wrap h-auto">
-          <TabsTrigger value="profile" data-testid="tab-profile">Profile</TabsTrigger>
-          <TabsTrigger value="wallet" data-testid="tab-wallet">Wallet</TabsTrigger>
-          <TabsTrigger value="tickets" data-testid="tab-tickets">Tickets</TabsTrigger>
-          <TabsTrigger value="games" data-testid="tab-games">My Games</TabsTrigger>
-          <TabsTrigger value="notifications" data-testid="tab-notifications">Notifications</TabsTrigger>
-          <TabsTrigger value="verify" data-testid="tab-verify">KYC</TabsTrigger>
-          <TabsTrigger value="security" data-testid="tab-security">Security</TabsTrigger>
-          <TabsTrigger value="support" data-testid="tab-support">Support</TabsTrigger>
-          <TabsTrigger value="policies" data-testid="tab-policies">Policies</TabsTrigger>
-          <TabsTrigger value="preferences" data-testid="tab-preferences">Preferences</TabsTrigger>
-          <TabsTrigger value="referrals" data-testid="tab-referrals">Refer &amp; Earn</TabsTrigger>
-        </TabsList>
-
-        {/* PROFILE */}
-        <TabsContent value="profile">
-          <div className="bg-white rounded-2xl border border-slate-100 p-6">
+      {/* Panel area */}
+      <div className="min-h-[300px]">
+        {active === 'profile' && (
+          <div className="bg-white rounded-2xl border border-slate-100 p-6" data-testid="panel-profile">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#8B5CFF] to-[#6C2BFF] text-white text-xl font-extrabold flex items-center justify-center shrink-0">
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 text-white text-xl font-extrabold flex items-center justify-center shrink-0">
                 {(profile.name || user.name || 'U').slice(0, 1).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-display font-extrabold text-xl text-slate-900 truncate">@{profile.username || '—'}</div>
-                <div className="text-xs text-slate-500 font-mono truncate">{profile.user_id}</div>
+                <div className="font-display font-extrabold text-xl text-slate-900 truncate">
+                  @{profile.username || '—'}
+                </div>
+                <div className="text-sm text-slate-500 flex items-center gap-1.5 mt-0.5 truncate">
+                  <Mail className="w-3.5 h-3.5" /> {profile.email}
+                </div>
               </div>
-              {profile.phone_verified && (
-                <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-700"><ShieldCheck className="w-3 h-3" /> Phone verified</span>
-              )}
+              <div className="flex flex-col items-end gap-1">
+                <KycBadge status={kyc.status} />
+                {profile.phone_verified && (
+                  <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                    <ShieldCheck className="w-3 h-3" /> Phone verified
+                  </span>
+                )}
+              </div>
             </div>
-            <p className="text-sm text-slate-500 mb-5">Keep your account info up-to-date so we can pay you out and notify winners.</p>
+            <p className="text-sm text-slate-500 mb-5">
+              Keep your account info up-to-date so we can pay you out and notify winners.
+            </p>
             <form onSubmit={saveProfile} className="grid md:grid-cols-2 gap-4">
               <div>
                 <Label>Full name</Label>
@@ -302,7 +283,7 @@ export default function MyAccount() {
               </div>
               <div>
                 <Label>Phone</Label>
-                <Input data-testid="profile-phone" type="tel" value={profile.phone || ''} onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))} placeholder="+44 …" disabled />
+                <Input data-testid="profile-phone" type="tel" value={profile.phone || ''} placeholder="+44 …" disabled />
                 <p className="text-[11px] text-slate-500 mt-1">Verified numbers can&apos;t be edited here — contact support to change.</p>
               </div>
               <div>
@@ -313,14 +294,6 @@ export default function MyAccount() {
                 <Label>Address</Label>
                 <Input data-testid="profile-address" value={profile.address || ''} onChange={e => setProfile(p => ({ ...p, address: e.target.value }))} placeholder="Street, city, postcode…" />
               </div>
-              <div>
-                <Label>Account type</Label>
-                <Input value={user.method === 'google' ? 'Google (social login)' : 'Email + password'} disabled />
-              </div>
-              <div>
-                <Label>Username format</Label>
-                <Input value="firstname + DOB day + running number" disabled />
-              </div>
               <div className="md:col-span-2">
                 <Button type="submit" disabled={savingProfile} data-testid="save-profile-btn" className="pl-btn-purple text-white">
                   {savingProfile ? 'Saving…' : 'Save changes'}
@@ -328,58 +301,29 @@ export default function MyAccount() {
               </div>
             </form>
           </div>
-        </TabsContent>
+        )}
 
-        {/* SECURITY */}
-        <TabsContent value="security">
-          <div className="bg-white rounded-2xl border border-slate-100 p-6">
-            <h3 className="font-display font-bold text-lg mb-1 flex items-center gap-2"><Lock className="w-5 h-5 text-teal-600" /> Change password</h3>
-            <p className="text-sm text-slate-500 mb-5">Choose a strong password of 8+ characters.</p>
-            {isPasswordAccount ? (
-              <form onSubmit={changePassword} className="grid md:grid-cols-2 gap-4 max-w-2xl">
-                <div className="md:col-span-2">
-                  <Label>Current password</Label>
-                  <Input data-testid="pw-current" name="current_password" type="password" required />
-                </div>
-                <div>
-                  <Label>New password</Label>
-                  <Input data-testid="pw-new" name="new_password" type="password" minLength={8} required />
-                </div>
-                <div>
-                  <Label>Confirm new password</Label>
-                  <Input data-testid="pw-confirm" name="confirm_password" type="password" minLength={8} required />
-                </div>
-                <div className="md:col-span-2">
-                  <Button type="submit" disabled={savingPw} data-testid="change-password-btn" className="bg-teal-600 hover:bg-teal-700">
-                    {savingPw ? 'Updating…' : 'Update password'}
-                  </Button>
-                </div>
-              </form>
-            ) : (
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm text-slate-600">
-                You signed in with Google — password is managed by Google. Manage it at
-                <a className="text-teal-600 hover:underline ml-1" href="https://myaccount.google.com/security" target="_blank" rel="noreferrer">Google Account Security</a>.
-              </div>
-            )}
-
-            <div className="border-t border-slate-100 mt-8 pt-6">
-              <h4 className="font-display font-bold text-sm text-slate-800 mb-2">Sessions</h4>
-              <p className="text-sm text-slate-500 mb-3">Sign out of this device instantly.</p>
-              <Button onClick={doLogout} variant="outline" className="border-rose-200 text-rose-600 hover:bg-rose-50" data-testid="security-signout">
-                <LogOut className="w-4 h-4 mr-1" /> Sign out now
-              </Button>
-            </div>
+        {active === 'wallet' && (
+          <div data-testid="panel-wallet">
+            <WalletPanel
+              wallet={wallet}
+              walletTxs={walletTxs}
+              setWallet={setWallet}
+              setWalletTxs={setWalletTxs}
+              autoOpenTopup={searchParams.get('topup') === '1'}
+            />
           </div>
-        </TabsContent>
+        )}
 
-        {/* TICKETS */}
-        <TabsContent value="tickets">
-          <div className="bg-white rounded-2xl border border-slate-100 p-6">
+        {active === 'tickets' && (
+          <div className="bg-white rounded-2xl border border-slate-100 p-6" data-testid="panel-tickets">
             {tickets.length === 0 ? (
               <div className="py-8 text-center">
                 <Ticket className="w-10 h-10 text-slate-300 mx-auto mb-3" />
                 <p className="text-slate-500 text-sm">You have no tickets yet.</p>
-                <a href="/competitions" className="inline-flex items-center gap-1 text-teal-600 font-semibold mt-2">Browse contests <ArrowRight className="w-4 h-4" /></a>
+                <a href="/competitions" className="inline-flex items-center gap-1 text-teal-600 font-semibold mt-2">
+                  Browse contests <ArrowRight className="w-4 h-4" />
+                </a>
               </div>
             ) : (
               <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
@@ -393,16 +337,14 @@ export default function MyAccount() {
               </div>
             )}
           </div>
-        </TabsContent>
+        )}
 
-        {/* MY GAMES — deferred skill-game play */}
-        <TabsContent value="games">
-          <MyGamesPanel />
-        </TabsContent>
+        {active === 'games' && (
+          <div data-testid="panel-games"><MyGamesPanel /></div>
+        )}
 
-        {/* NOTIFICATIONS */}
-        <TabsContent value="notifications">
-          <div className="bg-white rounded-2xl border border-slate-100 p-6">
+        {active === 'notifications' && (
+          <div className="bg-white rounded-2xl border border-slate-100 p-6" data-testid="panel-notifications">
             {notifications.length === 0 ? (
               <div className="py-8 text-center">
                 <Bell className="w-10 h-10 text-slate-300 mx-auto mb-3" />
@@ -425,13 +367,12 @@ export default function MyAccount() {
               </ul>
             )}
           </div>
-        </TabsContent>
+        )}
 
-        {/* KYC */}
-        <TabsContent value="verify">
-          <div className="bg-white rounded-2xl border border-slate-100 p-6">
+        {active === 'kyc' && (
+          <div className="bg-white rounded-2xl border border-slate-100 p-6" data-testid="panel-kyc">
             <div className="flex items-center gap-2 mb-4">
-              <ShieldCheck className="w-5 h-5 text-teal-600" />
+              <ShieldCheck className="w-5 h-5 text-emerald-600" />
               <h3 className="font-display font-bold text-lg">Identity verification (KYC)</h3>
               <KycBadge status={kyc.status} />
             </div>
@@ -456,7 +397,7 @@ export default function MyAccount() {
                   </div>
                   <div><Label>ID number</Label><Input name="id_number" required /></div>
                   <div className="md:col-span-2">
-                    <Button type="submit" disabled={kycBusy} className="bg-teal-600 hover:bg-teal-700">
+                    <Button type="submit" disabled={kycBusy} className="bg-emerald-600 hover:bg-emerald-700">
                       {kycBusy ? 'Submitting…' : (kyc.status === 'pending' || kyc.status === 'rejected' ? 'Re-submit verification' : 'Submit verification')}
                     </Button>
                   </div>
@@ -465,86 +406,53 @@ export default function MyAccount() {
               </>
             )}
           </div>
-        </TabsContent>
+        )}
 
-        {/* WALLET */}
-        <TabsContent value="wallet">
-          <WalletPanel
-            wallet={wallet}
-            walletTxs={walletTxs}
-            setWallet={setWallet}
-            setWalletTxs={setWalletTxs}
-            autoOpenTopup={searchParams.get('topup') === '1'}
-          />
-        </TabsContent>
-
-        {/* REFERRALS */}
-        <TabsContent value="referrals">
-          <div className="space-y-6" data-testid="referrals-panel">
-            <div className="bg-gradient-to-br from-indigo-600 via-fuchsia-600 to-orange-500 text-white rounded-2xl p-6 shadow-xl">
-              <div className="grid md:grid-cols-3 gap-4">
-                <div>
-                  <div className="text-white/85 text-xs uppercase tracking-wider">Free tickets earned</div>
-                  <div className="font-display text-4xl font-extrabold">{referral?.tickets_earned ?? 0}</div>
+        {active === 'security' && (
+          <div className="bg-white rounded-2xl border border-slate-100 p-6" data-testid="panel-security">
+            <h3 className="font-display font-bold text-lg mb-1 flex items-center gap-2">
+              <Lock className="w-5 h-5 text-slate-700" /> Change password
+            </h3>
+            <p className="text-sm text-slate-500 mb-5">Choose a strong password of 8+ characters.</p>
+            {isPasswordAccount ? (
+              <form onSubmit={changePassword} className="grid md:grid-cols-2 gap-4 max-w-2xl">
+                <div className="md:col-span-2">
+                  <Label>Current password</Label>
+                  <Input data-testid="pw-current" name="current_password" type="password" required />
                 </div>
                 <div>
-                  <div className="text-white/85 text-xs uppercase tracking-wider">Completed</div>
-                  <div className="font-display text-4xl font-extrabold">{referral?.completed ?? 0}</div>
+                  <Label>New password</Label>
+                  <Input data-testid="pw-new" name="new_password" type="password" minLength={8} required />
                 </div>
                 <div>
-                  <div className="text-white/85 text-xs uppercase tracking-wider">Pending</div>
-                  <div className="font-display text-4xl font-extrabold">{referral?.pending ?? 0}</div>
+                  <Label>Confirm new password</Label>
+                  <Input data-testid="pw-confirm" name="confirm_password" type="password" minLength={8} required />
                 </div>
-              </div>
-              <div className="mt-6 bg-white/10 backdrop-blur rounded-xl p-4">
-                <div className="text-xs uppercase text-white/85 mb-2">Your referral link — share it</div>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <div className="flex-1 bg-black/30 rounded-lg px-3 py-2 font-mono text-sm text-amber-200 overflow-hidden text-ellipsis whitespace-nowrap">
-                    {referral ? `${window.location.origin}/?ref=${referral.code}` : 'Loading…'}
-                  </div>
-                  <Button onClick={copyReferralLink} data-testid="account-referral-copy" className="bg-white text-slate-900 hover:bg-white/90">
-                    {copiedRef ? <><Check className="w-4 h-4 mr-1" /> Copied</> : <><Copy className="w-4 h-4 mr-1" /> Copy</>}
+                <div className="md:col-span-2">
+                  <Button type="submit" disabled={savingPw} data-testid="change-password-btn" className="bg-slate-800 hover:bg-slate-900">
+                    {savingPw ? 'Updating…' : 'Update password'}
                   </Button>
                 </div>
+              </form>
+            ) : (
+              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm text-slate-600">
+                You signed in with Google — password is managed by Google. Manage it at
+                <a className="text-teal-600 hover:underline ml-1" href="https://myaccount.google.com/security" target="_blank" rel="noreferrer">
+                  Google Account Security
+                </a>.
               </div>
-            </div>
-
-            <div className="bg-white rounded-2xl border border-slate-100 p-6">
-              <h3 className="font-display font-bold text-lg mb-3">People you&apos;ve invited</h3>
-              {referralList.length === 0 ? (
-                <div className="text-sm text-slate-500 text-center py-6">You haven&apos;t invited anyone yet. Share your link above to start earning.</div>
-              ) : (
-                <ul className="divide-y divide-slate-100">
-                  {referralList.map(r => (
-                    <li key={r.referral_id} className="py-3 flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-fuchsia-500 to-orange-500 text-white text-sm font-bold flex items-center justify-center">
-                        {(r.referred_name || r.referred_email || '?').slice(0, 1).toUpperCase()}
-                      </div>
-                      <div className="flex-1">
-                        <div className="text-sm font-medium">{r.referred_name || 'Friend'}</div>
-                        <div className="text-xs text-slate-500">{r.referred_email}</div>
-                      </div>
-                      <span className={`text-xs px-2 py-1 rounded-full ${r.status === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                        {r.status === 'completed' ? 'Completed +1 ticket' : 'Pending'}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+            )}
           </div>
-        </TabsContent>
+        )}
 
-        {/* SUPPORT */}
-        <TabsContent value="support">
-          <SupportPanel />
-        </TabsContent>
+        {active === 'support' && (
+          <div data-testid="panel-support"><SupportPanel /></div>
+        )}
 
-        {/* POLICIES */}
-        <TabsContent value="policies">
-          <div className="bg-white rounded-2xl border border-slate-100 p-6" data-testid="policies-panel">
+        {active === 'policies' && (
+          <div className="bg-white rounded-2xl border border-slate-100 p-6" data-testid="panel-policies">
             <div className="flex items-center gap-2 mb-3">
-              <FileText className="w-5 h-5 text-orange-600" />
+              <FileText className="w-5 h-5 text-indigo-600" />
               <h3 className="font-display font-bold text-lg">Legal &amp; policies</h3>
             </div>
             <ul className="divide-y divide-slate-100">
@@ -561,18 +469,19 @@ export default function MyAccount() {
                     <div className="font-medium text-slate-900">{p.title}</div>
                     <div className="text-xs text-slate-500">{p.desc}</div>
                   </div>
-                  <a href={p.href} className="text-sm text-orange-600 font-semibold inline-flex items-center gap-1">Read <ArrowRight className="w-3 h-3" /></a>
+                  <a href={p.href} className="text-sm text-indigo-600 font-semibold inline-flex items-center gap-1">
+                    Read <ArrowRight className="w-3 h-3" />
+                  </a>
                 </li>
               ))}
             </ul>
           </div>
-        </TabsContent>
+        )}
 
-        {/* PREFERENCES */}
-        <TabsContent value="preferences">
-          <div className="bg-white rounded-2xl border border-slate-100 p-6" data-testid="preferences-panel">
+        {active === 'preferences' && (
+          <div className="bg-white rounded-2xl border border-slate-100 p-6" data-testid="panel-preferences">
             <div className="flex items-center gap-2 mb-4">
-              <Settings2 className="w-5 h-5 text-orange-600" />
+              <Settings2 className="w-5 h-5 text-stone-600" />
               <h3 className="font-display font-bold text-lg">Notifications &amp; account</h3>
             </div>
             <div className="space-y-4">
@@ -603,8 +512,88 @@ export default function MyAccount() {
               </Button>
             </div>
           </div>
-        </TabsContent>
-      </Tabs>
+        )}
+
+        {active === 'referrals' && (
+          <div className="space-y-6" data-testid="panel-referrals">
+            <div className="bg-gradient-to-br from-rose-500 via-red-500 to-orange-500 text-white rounded-2xl p-6 shadow-xl">
+              <div className="grid md:grid-cols-3 gap-4">
+                <div>
+                  <div className="text-white/85 text-xs uppercase tracking-wider">Free tickets earned</div>
+                  <div className="font-display text-4xl font-extrabold">{referral?.tickets_earned ?? 0}</div>
+                </div>
+                <div>
+                  <div className="text-white/85 text-xs uppercase tracking-wider">Completed</div>
+                  <div className="font-display text-4xl font-extrabold">{referral?.completed ?? 0}</div>
+                </div>
+                <div>
+                  <div className="text-white/85 text-xs uppercase tracking-wider">Pending</div>
+                  <div className="font-display text-4xl font-extrabold">{referral?.pending ?? 0}</div>
+                </div>
+              </div>
+              <div className="mt-6 bg-white/10 backdrop-blur rounded-xl p-4">
+                <div className="text-xs uppercase text-white/85 mb-2">Your referral link — share it</div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="flex-1 bg-black/30 rounded-lg px-3 py-2 font-mono text-sm text-amber-200 overflow-hidden text-ellipsis whitespace-nowrap">
+                    {referral ? `${window.location.origin}/?ref=${referral.code}` : 'Loading…'}
+                  </div>
+                  <Button onClick={copyReferralLink} data-testid="account-referral-copy" className="bg-white text-slate-900 hover:bg-white/90">
+                    {copiedRef ? <><Check className="w-4 h-4 mr-1" /> Copied</> : <><Copy className="w-4 h-4 mr-1" /> Copy</>}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-100 p-6">
+              <h3 className="font-display font-bold text-lg mb-3">People you&apos;ve invited</h3>
+              {referralList.length === 0 ? (
+                <div className="text-sm text-slate-500 text-center py-6">
+                  You haven&apos;t invited anyone yet. Share your link above to start earning.
+                </div>
+              ) : (
+                <ul className="divide-y divide-slate-100">
+                  {referralList.map(r => (
+                    <li key={r.referral_id} className="py-3 flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-fuchsia-500 to-orange-500 text-white text-sm font-bold flex items-center justify-center">
+                        {(r.referred_name || r.referred_email || '?').slice(0, 1).toUpperCase()}
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm font-medium">{r.referred_name || 'Friend'}</div>
+                        <div className="text-xs text-slate-500">{r.referred_email}</div>
+                      </div>
+                      <span className={`text-xs px-2 py-1 rounded-full ${r.status === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {r.status === 'completed' ? 'Completed +1 ticket' : 'Pending'}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Sign out confirmation */}
+      <AlertDialog open={signOutOpen} onOpenChange={setSignOutOpen}>
+        <AlertDialogContent data-testid="signout-confirm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sign out of Prize League?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You&apos;ll need to sign in again to access your account, wallet and tickets.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="signout-cancel">Stay signed in</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="signout-confirm-btn"
+              onClick={doLogout}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Sign out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

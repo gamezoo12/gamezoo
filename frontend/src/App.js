@@ -32,6 +32,7 @@ import AdminSettings from './pages/admin/SettingsPage';
 import AdminRoles from './pages/admin/RolesPage';
 import AdminWallets from './pages/admin/WalletAdmin';
 import AdminGames from './pages/admin/GamesAdmin';
+import AdminAuditLogs from './pages/admin/AuditLogsPage';
 import PlayGame from './pages/PlayGame';
 import ContestLeaderboard from './pages/ContestLeaderboard';
 import GlobalLeaderboard from './pages/GlobalLeaderboard';

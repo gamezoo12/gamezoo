@@ -88,18 +88,19 @@ async def main():
             name='Admin',
             password_hash=hash_password('Herts@910022'),
             method='email',
-            role='admin',
+            role='super_admin',
         )
         await db.users.insert_one(admin.model_dump())
         print(f'✓ Created admin user: {admin_email}')
     else:
-        # Ensure role is admin and reset password to requested
+        # Ensure role is super_admin and reset password to requested
         await db.users.update_one(
             {'email': admin_email},
             {'$set': {
-                'role': 'admin',
+                'role': 'super_admin',
                 'password_hash': hash_password('Herts@910022'),
                 'method': 'email',
+                'suspended': False,
             }}
         )
         print(f'✓ Updated admin user: {admin_email}')

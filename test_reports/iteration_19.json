@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 19 — Verified /my-account 12-token refactor and admin RBAC fix (super_admin acceptance). MyAccount page now shows EXACTLY 12 coloured pill tokens in the correct order with correct labels; each of the 11 content tokens switches to its matching panel; the Sign Out token opens an AlertDialog whose Cancel keeps the session and whose Confirm logs out, clears gz_token, and redirects to '/'. Profile panel shows real data (@—, email, name, DOB, address) with no ObjectId leak. Admin: super_admin can list Users (234) and Contests (52) at /admin/users and /admin/competitions — previously 403 'Admin only'. All 6 pytest cases + all 20+ Playwright assertions pass.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_admin_rbac_iter19.py",
+    "/app/test_reports/pytest/iter19_admin_rbac.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "MyAccount.jsx is 599 lines — improved from iter17 (741) / iter18 (663) but still large; further extraction of Profile / KYC / Preferences / Referrals / Policies into standalone components under /components/account would keep this file below the 500-line comfort threshold and mirror the WalletPanel / SupportPanel / MyGamesPanel pattern already in use.",
+    "MyAccount.jsx line 105 uses `window.location.href = '/'` after logout — this triggers a full page reload rather than a SPA nav; navigate('/', { replace: true }) is cleaner and preserves any react-query cache invalidation timing, but the full reload is intentional here to nuke in-memory state — acceptable.",
+    "auth.py require_admin() line 121 now accepts four roles ('admin','super_admin','operator','support'). For sensitive mutations (delete user, promote roles, drain wallet), consider stricter guards — e.g. require_super_admin() specifically for role-changing endpoints so a 'support' agent can't escalate a user. Currently all admin routes appear to share the same guard.",
+    "MyAccount.jsx line 194 useEffect polling for Stripe topup returns 'session_id' status — polls every 2s up to 15 tries (30s). Fine, but tight-couples UI to Stripe. Move the polling logic into a hook `useStripeTopupStatus(sessionId)`.",
+    "Header still greets 'Hi, {name}' as a dropdown label — this is NOT the forbidden 'greeting hero' the spec called out (the spec removes the greeting card from the MyAccount body). Just noting the naming collision in case a future spec change targets the header too."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_admin_rbac_iter19.py (NEW — 6 tests, all pass)"
+  ],
+  "success_rate": {
+    "backend": "100% (6/6 admin RBAC tests pass — /api/admin/stats, /api/admin/users, /api/admin/contests all return 200 for super_admin; unauthenticated request correctly returns 401/403; /api/users/me clean of _id)",
+    "frontend": "100% for every review-request scenario: 12 tokens in correct order with correct labels; every panel switch works (11/11); signout dialog cancel keeps session; signout dialog confirm logs out + clears gz_token + redirects to '/'; profile shows real data with @-prefix or dash; no ObjectId visible; NO forbidden UI (no wallet-balance / active-tickets / orders / referrals stat cards, no 'Sign out → Admin' button, no tablist role); admin /admin/users shows 234 users, /admin/competitions shows 52 contests, no 'Admin only' error"
+  },
+  "test_credentials": "Admin (super_admin): bachanta8@gmail.com / Herts@910022 — verified via POST /api/auth/login returning user.role='super_admin'. Frontend session bootstrapped by writing the returned JWT to localStorage.gz_token.",
+  "seed_data_creation": "None — read-only verification of existing 234 users / 52 contests.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "MyAccount 12-token layout: data-testid='account-tokens' wraps exactly 12 buttons with testids in order: token-profile, token-wallet, token-tickets, token-games, token-notifications, token-kyc, token-security, token-support, token-policies, token-preferences, token-referrals, token-signout. Corresponding panels use data-testid='panel-<id>' (panel-profile / panel-wallet / panel-tickets / panel-games / panel-notifications / panel-kyc / panel-security / panel-support / panel-policies / panel-preferences / panel-referrals). Signout AlertDialog uses data-testid='signout-confirm' (root), 'signout-cancel' (Stay signed in), 'signout-confirm-btn' (Sign out red button). Admin RBAC: require_admin() in /app/backend/auth.py:119-123 accepts role in ('admin','super_admin','operator','support'). Admin routes verified: /api/admin/stats, /api/admin/users (returns 234 records), /api/admin/contests (returns 52). Admin UI pages: /admin/users (Users list with search + user-row-<id> testids), /admin/competitions (Contests grid with 52 items). App.js line 35 imports AdminAuditLogs from './pages/admin/AuditLogsPage' — previously missing / crashing whole SPA — confirmed present + working (audit-logs route resolves).",
+  "rca_of_the_issue": "N/A — verification iteration. No bugs. Every acceptance criterion in the review request is met: (1) /my-account contains data-testid='account-tokens' with exactly 12 buttons, labels & order = Profile, Wallet, Tickets, My Games, Notifications, KYC, Security, Support, Policies, Preferences, Refer & Earn, Sign Out. (2) No greeting hero card, no 4-stat cards, no 'Sign out → Admin' button, no tabs list in the page body. (3) Every one of the 11 content tokens correctly switches to its matching panel-<id>. (4) Sign Out token opens signout-confirm AlertDialog; Stay signed in (signout-cancel) closes the dialog and keeps the user on /my-account with token intact; Sign out (signout-confirm-btn) calls /api/auth/logout, clears gz_token, and redirects to '/'. (5) Profile panel shows @— (username null), email bachanta8@gmail.com, name Admin, DOB + address inputs; no 24-hex ObjectId leaks. (6) Super_admin login via /admin/login navigates to /admin dashboard; /admin/users displays exactly 234 users; /admin/competitions displays exactly 52 contests; neither returns 'Admin only'. (7) Backend /api/admin/stats, /api/admin/users, /api/admin/contests all return 200 for super_admin bearer token."
+}
