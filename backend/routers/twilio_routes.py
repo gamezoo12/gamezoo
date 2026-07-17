@@ -10,7 +10,6 @@ Flows supported:
 import os
 import re
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -19,6 +18,11 @@ from twilio.base.exceptions import TwilioRestException
 
 from auth import create_jwt, get_current_user
 from models import UserPublic
+
+
+def _to_public(user_doc: dict) -> dict:
+    payload = {k: user_doc.get(k) for k in UserPublic.model_fields.keys() if user_doc.get(k) is not None}
+    return UserPublic(**payload).model_dump()
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +43,7 @@ def _normalize_phone(raw: str) -> str:
     if p.startswith('00'):
         p = '+' + p[2:]
     if not p.startswith('+'):
-        # naive UK fallback: 07xxx -> +447xxx (avoids silent rejections in test env)
+        # naive UK fallback: 07xxx -> +447xxx
         if p.startswith('0') and len(p) >= 10:
             p = '+44' + p[1:]
         else:
@@ -76,12 +80,11 @@ async def send_otp(inp: SendOtpInput):
         v = client.verify.v2.services(service_sid).verifications.create(to=phone, channel='sms')
     except TwilioRestException as e:
         logger.warning('twilio send failed: %s', e)
-        # 60200 invalid, 60203 max attempts, 60212 too many concurrent
         detail = 'Could not send SMS. Check the number and try again.'
         if e.code in (60203, 60212):
             detail = 'Too many attempts. Please wait and try again.'
         raise HTTPException(status_code=400, detail=detail)
-    except Exception as e:
+    except Exception:
         logger.exception('twilio send unexpected error')
         raise HTTPException(status_code=500, detail='SMS service temporarily unavailable')
     return {'ok': True, 'status': v.status, 'phone': phone}
@@ -93,24 +96,12 @@ async def verify_and_bind(inp: VerifyOtpInput, request: Request):
     authenticated user. Used post-signup / after Google OAuth.
     """
     from deps import get_db
+    from routers.auth_routes import _verify_twilio_otp
     db = get_db()
     user = await get_current_user(request)
 
-    phone = _normalize_phone(inp.phone)
-    client, service_sid = _twilio_client()
-    try:
-        check = client.verify.v2.services(service_sid).verification_checks.create(to=phone, code=inp.code)
-    except TwilioRestException as e:
-        logger.warning('twilio verify failed: %s', e)
-        raise HTTPException(status_code=400, detail='Invalid or expired code')
-    except Exception:
-        logger.exception('twilio verify unexpected error')
-        raise HTTPException(status_code=500, detail='Verification service unavailable')
+    phone = await _verify_twilio_otp(inp.phone, inp.code)
 
-    if check.status != 'approved':
-        raise HTTPException(status_code=400, detail='Invalid or expired code')
-
-    # Ensure no other user has this verified phone
     existing = await db.users.find_one(
         {'phone': phone, 'phone_verified': True, 'user_id': {'$ne': user['user_id']}},
         {'_id': 0, 'user_id': 1},
@@ -125,32 +116,18 @@ async def verify_and_bind(inp: VerifyOtpInput, request: Request):
     updated = await db.users.find_one({'user_id': user['user_id']}, {'_id': 0, 'password_hash': 0})
     return {
         'ok': True,
-        'user': UserPublic(**{k: updated.get(k) for k in [
-            'user_id', 'email', 'name', 'picture', 'role', 'method', 'phone', 'phone_verified'
-        ]}).model_dump(),
+        'user': _to_public(updated),
     }
 
 
 @router.post('/login-verify')
 async def login_via_otp(inp: VerifyOtpInput):
-    """Verify OTP and return a JWT for the user whose verified phone matches.
-    Used when a user chooses to sign in via the phone tab.
-    """
+    """Verify OTP and return a JWT for the user whose verified phone matches."""
     from deps import get_db
+    from routers.auth_routes import _verify_twilio_otp
     db = get_db()
 
-    phone = _normalize_phone(inp.phone)
-    client, service_sid = _twilio_client()
-    try:
-        check = client.verify.v2.services(service_sid).verification_checks.create(to=phone, code=inp.code)
-    except TwilioRestException:
-        raise HTTPException(status_code=400, detail='Invalid or expired code')
-    except Exception:
-        logger.exception('twilio verify unexpected error')
-        raise HTTPException(status_code=500, detail='Verification service unavailable')
-
-    if check.status != 'approved':
-        raise HTTPException(status_code=400, detail='Invalid or expired code')
+    phone = await _verify_twilio_otp(inp.phone, inp.code)
 
     user = await db.users.find_one({'phone': phone, 'phone_verified': True}, {'_id': 0, 'password_hash': 0})
     if not user:
@@ -158,8 +135,6 @@ async def login_via_otp(inp: VerifyOtpInput):
 
     token = create_jwt(user['user_id'])
     return {
-        'user': UserPublic(**{k: user.get(k) for k in [
-            'user_id', 'email', 'name', 'picture', 'role', 'method', 'phone', 'phone_verified'
-        ]}).model_dump(),
+        'user': _to_public(user),
         'token': token,
     }

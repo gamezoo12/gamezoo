@@ -78,7 +78,13 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - Custom domain + SSL via Emergent Deploy
 
 ### P1
-- Twilio SMS OTP login
+- **Profile page redesign** — show User ID, auto-generated Username, DOB, Address, Edit Profile
+- **Wallet tab redesign** — min £5, tabs (Deposit / History / Spending) with date filters, transaction receipts, Withdraw (future)
+- **Tickets tab** — Valid / Winning / Expired sections + ticket detail view (replaces Orders as primary)
+- **My Games** — show remaining/used attempts per contest (tickets × contest.max_attempts)
+- **Notifications real system** — topup success, purchase success, draw reminder, draw closed, winner announcements, wallet, game reminder, profile, security; red-dot unread counter + Mark All Read
+- **Admin Dashboard user list** — show newly-registered users with Username, User ID, Full Name, Email, Phone, DOB, Registration Date, Verification Status
+- **Mobile menu cleanup** — remove Account/My Profile/My Entries/My Wins/Wallet/Refer from mobile top-right; leave only Logout; move everything to Profile page
 - Real KYC provider (SumSub/Onfido)
 - httpOnly cookies migration (CSP mitigates for now)
 
@@ -87,6 +93,9 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - Atomic ticket-number assignment (avoid duplicate numbers under concurrent checkouts)
 - Order.checkout ordering: debit wallet BEFORE inserting tickets (rollback safety)
 - Rate-limit /api/games/submit
+- Break down MyAccount.jsx (~700 lines) into smaller components
+- Full responsive audit across Mobile/Tablet/Desktop
+- Route /otp/login-verify through _verify_twilio_otp helper (partially done — twilio_routes now uses helper)
 
 ### Nice-to-have
 - More games (word ladder, sudoku mini, spot-the-difference, reaction time, etc. — currently 8)
@@ -97,7 +106,16 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 See `/app/memory/test_credentials.md`.
 
 ## Known mocked / disabled flows
-- Wallet top-up → **mock** (instant credit, no card charge)
-- SMS OTP → disabled
+- Wallet top-up → **Stripe test mode** (real Stripe Checkout; test cards only)
 - Winner emails → in-app only
-- Auth stored in localStorage (CSP + strict referrer mitigation active)
+
+## Recent milestones
+- **2026-07-17** Mandatory OTP + T&Cs signup (P0). Twilio Verify wired end-to-end.
+    - New `/api/auth/register` requires `phone`, `otp_code`, `accept_terms`, `dob`. Auto-generates unique username (firstname + DOB day + NN).
+    - New `/api/auth/google/finalize` — Google users must complete DOB + phone + T&Cs before proceeding.
+    - Multi-step signup wizard (`SignupWizard.jsx`) with 4 steps. No Skip button.
+    - `GoogleFinalizeModal.jsx` — mandatory post-OAuth modal, cannot be dismissed.
+    - After signup: redirect to `/` (Home), not `/my-account`.
+    - Session persistence root-cause fix: CORS was `allow_origins=['*'] + allow_credentials=True` (spec-invalid). Now uses `allow_origin_regex` matching preview + prizeleague.co.uk + emergent.host.
+    - `TEST_OTP_BYPASS_CODE=000000` in .env for automated pytest coverage.
+    - Test suite: `/app/backend/tests/test_auth_signup.py` (17/18 passing); legacy tests unchanged via `conftest.py` shim that auto-injects new required fields.

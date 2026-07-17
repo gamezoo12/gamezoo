@@ -17,6 +17,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix='/api/auth', tags=['auth'])
 
 
+def _to_public(user_doc: dict) -> dict:
+    """Build a UserPublic from a Mongo user doc, tolerating legacy docs that
+    lack newer fields (phone_verified, dob, address, terms_accepted_at, ...).
+    """
+    payload = {k: user_doc.get(k) for k in UserPublic.model_fields.keys() if user_doc.get(k) is not None}
+    return UserPublic(**payload).model_dump()
+
+
 # --- Shared helpers -----------------------------------------------------------
 def _parse_dob(dob: str) -> date:
     try:
@@ -150,7 +158,7 @@ async def register(inp: RegisterInput, request: Request):
 
     token = create_jwt(user.user_id)
     return {
-        'user': UserPublic(**{k: doc.get(k) for k in UserPublic.model_fields.keys()}).model_dump(),
+        'user': _to_public(doc),
         'token': token,
     }
 
@@ -164,7 +172,7 @@ async def login(inp: LoginInput):
         raise HTTPException(status_code=401, detail='Invalid email or password')
     token = create_jwt(user['user_id'])
     return {
-        'user': UserPublic(**{k: user.get(k) for k in UserPublic.model_fields.keys()}).model_dump(),
+        'user': _to_public(user),
         'token': token,
     }
 
@@ -214,7 +222,7 @@ async def google_session(request: Request):
     )
 
     resp = JSONResponse({
-        'user': UserPublic(**{k: user.get(k) for k in UserPublic.model_fields.keys()}).model_dump(),
+        'user': _to_public(user),
         'session_token': session_token,
     })
     resp.set_cookie(
@@ -275,14 +283,14 @@ async def finalize_google_signup(inp: GoogleFinalizeInput, request: Request):
     fresh = await db.users.find_one({'user_id': user['user_id']}, {'_id': 0, 'password_hash': 0})
     return {
         'ok': True,
-        'user': UserPublic(**{k: fresh.get(k) for k in UserPublic.model_fields.keys()}).model_dump(),
+        'user': _to_public(fresh),
     }
 
 
 @router.get('/me')
 async def me(request: Request):
     user = await get_current_user(request)
-    return UserPublic(**{k: user.get(k) for k in UserPublic.model_fields.keys()}).model_dump()
+    return _to_public(user)
 
 
 @router.post('/logout')
