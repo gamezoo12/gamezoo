@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ShoppingCart, User, Menu, X, LogOut, Wallet as WalletIcon, ChevronDown, Ticket, Trophy, Gift, Settings2, Gamepad2 } from 'lucide-react';
+import { ShoppingCart, User, Menu, X, LogOut, Wallet as WalletIcon, ChevronDown, Trophy } from 'lucide-react';
 import { Button } from '../ui/button';
 import NotificationsBell from './NotificationsBell';
 import AnnouncementTicker from './AnnouncementTicker';
@@ -107,6 +107,11 @@ export default function Header() {
 
               <NotificationsBell />
 
+              {/* Draw Centre icon — pending draws + results (Phase 2 spec item 14) */}
+              <Link to="/draw-centre" className="relative p-2 rounded-lg hover:bg-white/5" aria-label="Draw centre" data-testid="header-draw-centre">
+                <Trophy className="w-5 h-5 text-[#FFD54A]" />
+              </Link>
+
               <Link to="/cart" className="relative p-2 rounded-lg hover:bg-white/5" aria-label="Cart">
                 <ShoppingCart className="w-5 h-5 text-white/85" />
                 {cartCount > 0 && <span className="absolute -top-1 -right-1 bg-[#FFD54A] text-slate-900 text-[10px] font-bold rounded-full h-4 min-w-[16px] flex items-center justify-center px-1">{cartCount}</span>}
@@ -170,24 +175,14 @@ export default function Header() {
                         <div className="text-white/60 text-xs truncate">{user.email}</div>
                       </div>
                       <div className="py-1">
-                        {[
-                          { icon: User,     label: 'My Profile',   href: '/my-account?tab=profile' },
-                          { icon: Ticket,   label: 'My Entries',   href: '/my-account?tab=tickets' },
-                          { icon: Gamepad2, label: 'My Games',     href: '/my-account?tab=games' },
-                          { icon: Trophy,   label: 'My Wins',      href: '/my-account?tab=orders' },
-                          { icon: Gift,     label: 'Refer & Earn', href: '/my-account?tab=referrals' },
-                          { icon: WalletIcon, label: 'Wallet',     href: '/my-account?tab=wallet' },
-                          { icon: Settings2, label: 'Account Settings', href: '/my-account?tab=preferences' },
-                        ].map(({ icon: Icon, label, href }) => (
-                          <Link
-                            key={label}
-                            to={href}
-                            onClick={() => setProfileOpen(false)}
-                            className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/85 hover:bg-white/5 hover:text-white transition"
-                          >
-                            <Icon className="w-4 h-4 text-white/50" /> {label}
-                          </Link>
-                        ))}
+                        <Link
+                          to="/my-account"
+                          onClick={() => setProfileOpen(false)}
+                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/85 hover:bg-white/5 hover:text-white transition"
+                          data-testid="dropdown-my-profile"
+                        >
+                          <User className="w-4 h-4 text-white/50" /> Go to My Profile
+                        </Link>
                       </div>
                       <div className="border-t border-white/10 py-1">
                         <button
@@ -246,20 +241,24 @@ export default function Header() {
 
               {user ? (
                 <>
-                  <div className="mt-4 mb-2 px-3 text-xs uppercase tracking-widest text-white/50">Account</div>
-                  {[
-                    { label: 'My Profile',   href: '/my-account?tab=profile' },
-                    { label: 'My Entries',   href: '/my-account?tab=tickets' },
-                    { label: 'My Wins',      href: '/my-account?tab=orders' },
-                    { label: 'Wallet',       href: '/my-account?tab=wallet' },
-                    { label: 'Refer & Earn', href: '/my-account?tab=referrals' },
-                  ].map(x => (
-                    <Link key={x.label} to={x.href} onClick={() => setOpen(false)} className="block py-3 px-3 text-white/80 hover:text-white">{x.label}</Link>
-                  ))}
+                  <Link
+                    to="/my-account"
+                    onClick={() => setOpen(false)}
+                    data-testid="mobile-profile-link"
+                    className="mt-4 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white"
+                  >
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#8B5CFF] to-[#6C2BFF] text-white text-xs font-bold flex items-center justify-center">
+                      {(user.name || user.email || 'U').slice(0, 1).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-sm truncate">{user.name || user.email}</div>
+                      <div className="text-white/60 text-xs">Go to Profile →</div>
+                    </div>
+                  </Link>
                   <button
                     onClick={async () => { setOpen(false); await doLogout(); }}
                     data-testid="mobile-signout"
-                    className="mt-2 w-full flex items-center gap-2 py-4 px-3 rounded-xl text-rose-300 hover:bg-rose-500/10"
+                    className="mt-3 w-full flex items-center justify-center gap-2 py-4 px-3 rounded-xl border border-rose-500/30 text-rose-300 hover:bg-rose-500/10 font-bold"
                   >
                     <LogOut className="w-5 h-5" /> Sign Out
                   </button>

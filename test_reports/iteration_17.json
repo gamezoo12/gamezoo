@@ -1,0 +1,51 @@
+{
+  "summary": "Iteration 17 — End-to-end verification of Phase 2A: CompetitionDetail rewrite, Cart ± / confirmations / top-up flow, Draw Centre (/draw-centre + /draw-results), Header Trophy icon + stripped mobile drawer, Admin Users page new columns + newest-first ordering, Profile tab (username / User ID / DOB read-only / address editable), and PATCH /api/users/me address persistence. Backend: 8/8 new pytest tests pass. Frontend: all UI checks green.",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+
+  "test_report_links": [
+    "/app/backend/tests/test_phase2_profile_admin.py",
+    "/app/test_reports/pytest/iter17_phase2.xml"
+  ],
+
+  "action_items": [],
+
+  "critical_code_review_comments": [
+    "MyAccount.jsx is 741 lines — should be split by tab (Profile / Wallet / Tickets / KYC / Security / Support / Preferences / Referrals). Beyond the 700-line guideline and will keep growing.",
+    "Cart.jsx uses two localStorage keys `gamezoo_cart` (write) and Header.jsx tries both `prizeleague_cart` + `gamezoo_cart` (read). Cart writes only to gamezoo_cart. Consolidate to a single canonical key and provide a one-shot migration to remove ambiguity.",
+    "DrawCentre.jsx fetches ALL winners on every mount (up to 200) then filters client-side. For a signed-in user with N tickets, this is O(200 x N) client-side. Prefer a dedicated /api/me/draws endpoint returning only the pending contests + past winners relevant to this user. Not a bug, but a scale concern.",
+    "CompetitionDetail.jsx image loading state uses `imgState === 'loading'` initially but the <img> is present with opacity-0 — this works because opacity transitions on onLoad. However, if the contest.image URL is null/empty (e.g. contest not yet uploaded), the <img> src will be '' and neither onLoad nor onError fires reliably in some browsers. Consider defaulting to FALLBACK_IMG when c.image is falsy.",
+    "Header.jsx cart-badge polls localStorage every 1500ms with setInterval — cheap but unnecessary re-renders. A single custom storage event on cart-write (or a shared cart context) is cleaner.",
+    "Cart.jsx wallet checkout success path navigates to /my-account?tab=tickets — good — but the failure path detects 402 by response.status only. If the backend returns 400 with 'insufficient' in the detail (legacy paths do that in ordersAPI), the redirect to top-up won't trigger. Consider fuzzy-matching the error detail as a fallback.",
+    "UsersPage.jsx `list.filter` runs on every keystroke over full users[] (149 rows today, will grow). Fine for MVP but debounce the search or paginate server-side once we cross a few hundred users."
+  ],
+
+  "updated_files": [
+    "/app/backend/tests/test_phase2_profile_admin.py (NEW — 8 tests)"
+  ],
+
+  "success_rate": {
+    "backend": "100% (8/8 new phase-2 tests pass)",
+    "frontend": "100% for the review-request scenarios exercised (contest detail, cart, draw centre both routes, header trophy + mobile drawer stripped, admin users columns/order/verification pill, profile tab @username + user_id + DOB read-only + address editable & persisted)"
+  },
+
+  "test_credentials": "Admin: bachanta8@gmail.com / Herts@910022 (verified working). Player: fresh user minted per test via /api/auth/register with otp_code=000000. Session bootstrapped in UI by setting localStorage['gz_token'].",
+
+  "seed_data_creation": "Registered ~5 fresh test users (e2e_p2_*, e2e_profile_*) via /api/auth/register during this iteration. User count now 149. Consider a periodic cleanup of TEST_/e2e_ prefixed users to keep the admin list tidy.",
+
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+
+  "context_for_next_testing_agent": "Regression suite for this iteration: /app/backend/tests/test_phase2_profile_admin.py (8 tests). Combined with test_auth_signup.py (18 tests) this covers the full new auth+profile+admin surface. Localstorage session key is `gz_token` (not gamezoo_token). Cart storage key is `gamezoo_cart` (Cart.jsx) but Header.jsx also reads `prizeleague_cart` — the app writes only to gamezoo_cart. Data-testids covered: contest-detail, contest-image, sale-status-badge, sale-progress, ticket-qty-controls, qty-minus, qty-input, qty-plus, qty-presets, summary-box, buy-tickets-btn, contest-terms, cart-page, cart-empty, cart-item-<id>, item-minus/qty/plus-<id>, item-remove-<id>, clear-basket-btn, clear-basket-confirm, wallet-preview, cart-signin-btn, cart-topup-btn, cart-checkout-btn, checkout-summary, draw-centre, tab-pending, tab-results, results-table, header-draw-centre, mobile-menu-toggle, mobile-menu, mobile-profile-link, mobile-signout, dropdown-my-profile, profile-signout, admin-users-page, admin-users-search, user-row-<user_id>, verified-yes, verified-no, profile-address, profile-dob. Admin user endpoint /api/admin/users returns users sorted newest-first with keys: user_id, email, name, username, phone, phone_verified, dob, address, terms_accepted_at, created_at, tickets, spent, role, kyc_status (and optionally suspended when true).",
+
+  "rca_of_the_issue": "N/A — feature-verification iteration, no bugs found. Every acceptance criterion in the review request is met:\n • CompetitionDetail: object-contain on #0B0D1F bg, no marketing 3-icon row, status badge (Just launched / Selling fast / Almost full / Closed), %sold shown NOT '3/150', ± controls (1..500), preset chips, summary card with Tickets+Total+Wallet+After-purchase, 7 T&Cs sections (spec asks >=6), Buy → /cart.\n • Cart: minus decrements (does not delete), trash + clear each have confirmation dialogs, sign-in CTA for anon, wallet-preview + top-up CTA for insufficient balance (redirect to /my-account?tab=wallet&topup=1), 402 handler in walletCheckout catch block.\n • Draw Centre: both /draw-centre and /draw-results routes render DrawCentre with tab-pending + tab-results. Anon users see 'Sign in' CTA. Results tab pulls real winners from /api/public/winners. 'Your result' column matches contest-id against user tickets.\n • Header: trophy icon (data-testid=header-draw-centre) between notifications and cart. Mobile drawer for signed-in users has ONLY 'Go to Profile' + big 'Sign Out'. Desktop dropdown ONLY has 'Go to My Profile' + 'Sign Out'.\n • Admin Users: columns Username | User ID | Full name | Email | Phone | DOB | Registered | Verification | KYC | Tickets | Spent | Role | Status — in exact requested order. Sort is newest-first (fresh registration lands in top 5 within 200ms). Verification pill uses verified-yes / verified-no.\n • Profile tab: @username, user_id (mono), DOB (disabled, value=1997-06-15), Address editable, Full name + Email editable, Phone read-only with verified-phone note. PATCH /api/users/me with {address:'...'} returns 200 and GET /me returns the new address.\n • PATCH /api/users/me accepts address field (verified via pytest and via UI Save + GET round-trip).\n • Registration OTP-bypass and email login regression both green.\n • Backend twilio import present and static (server.py line 75); /api/ health returns 200 so import cycle is clean."
+}

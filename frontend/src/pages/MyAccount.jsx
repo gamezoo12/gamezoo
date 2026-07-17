@@ -41,7 +41,7 @@ export default function MyAccount() {
   const [tickets, setTickets] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [kyc, setKyc] = useState({ status: 'none' });
-  const [profile, setProfile] = useState({ name: '', email: '', phone: '' });
+  const [profile, setProfile] = useState({ name: '', email: '', phone: '', username: '', user_id: '', dob: '', address: '', phone_verified: false, terms_accepted_at: null });
   const [wallet, setWallet] = useState(null);
   const [walletTxs, setWalletTxs] = useState([]);
   const [referral, setReferral] = useState(null);
@@ -60,8 +60,18 @@ export default function MyAccount() {
     if (!user) { nav('/login', { replace: true }); return undefined; }
     // Fetch the FULL profile (includes phone/kyc/counts) — /api/auth/me only returns UserPublic
     userAPI.me()
-      .then(me => setProfile({ name: me.name || '', email: me.email || '', phone: me.phone || '' }))
-      .catch(() => setProfile({ name: user.name || '', email: user.email || '', phone: '' }));
+      .then(me => setProfile({
+        name: me.name || '',
+        email: me.email || '',
+        phone: me.phone || '',
+        username: me.username || '',
+        user_id: me.user_id || '',
+        dob: me.dob || '',
+        address: me.address || '',
+        phone_verified: !!me.phone_verified,
+        terms_accepted_at: me.terms_accepted_at || null,
+      }))
+      .catch(() => setProfile({ name: user.name || '', email: user.email || '', phone: '', username: user.username || '', user_id: user.user_id || '', dob: '', address: '', phone_verified: !!user.phone_verified, terms_accepted_at: null }));
     ordersAPI.mine().then(setOrders).catch((err) => console.error('[account] orders:', err?.message));
     ordersAPI.myTickets().then(setTickets).catch((err) => console.error('[account] tickets:', err?.message));
     userAPI.kycStatus().then(setKyc).catch((err) => console.error('[account] kyc:', err?.message));
@@ -87,7 +97,7 @@ export default function MyAccount() {
     e.preventDefault();
     setSavingProfile(true);
     try {
-      await userAPI.updateMe({ name: profile.name, phone: profile.phone, email: profile.email });
+      await userAPI.updateMe({ name: profile.name, address: profile.address, email: profile.email });
       toast({ title: 'Profile updated' });
       await refresh?.();
     } catch (err) {
@@ -267,8 +277,19 @@ export default function MyAccount() {
         {/* PROFILE */}
         <TabsContent value="profile">
           <div className="bg-white rounded-2xl border border-slate-100 p-6">
-            <h3 className="font-display font-bold text-lg mb-1">Personal details</h3>
-            <p className="text-sm text-slate-500 mb-5">Keep your account info up-to-date so we can pay you out and email winners.</p>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#8B5CFF] to-[#6C2BFF] text-white text-xl font-extrabold flex items-center justify-center shrink-0">
+                {(profile.name || user.name || 'U').slice(0, 1).toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-display font-extrabold text-xl text-slate-900 truncate">@{profile.username || '—'}</div>
+                <div className="text-xs text-slate-500 font-mono truncate">{profile.user_id}</div>
+              </div>
+              {profile.phone_verified && (
+                <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-700"><ShieldCheck className="w-3 h-3" /> Phone verified</span>
+              )}
+            </div>
+            <p className="text-sm text-slate-500 mb-5">Keep your account info up-to-date so we can pay you out and notify winners.</p>
             <form onSubmit={saveProfile} className="grid md:grid-cols-2 gap-4">
               <div>
                 <Label>Full name</Label>
@@ -279,15 +300,28 @@ export default function MyAccount() {
                 <Input data-testid="profile-email" type="email" value={profile.email} onChange={e => setProfile(p => ({ ...p, email: e.target.value }))} required />
               </div>
               <div>
-                <Label>Phone (optional)</Label>
-                <Input data-testid="profile-phone" type="tel" value={profile.phone || ''} onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))} placeholder="+44 …" />
+                <Label>Phone</Label>
+                <Input data-testid="profile-phone" type="tel" value={profile.phone || ''} onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))} placeholder="+44 …" disabled />
+                <p className="text-[11px] text-slate-500 mt-1">Verified numbers can&apos;t be edited here — contact support to change.</p>
+              </div>
+              <div>
+                <Label>Date of birth</Label>
+                <Input data-testid="profile-dob" value={profile.dob || ''} disabled />
+              </div>
+              <div className="md:col-span-2">
+                <Label>Address</Label>
+                <Input data-testid="profile-address" value={profile.address || ''} onChange={e => setProfile(p => ({ ...p, address: e.target.value }))} placeholder="Street, city, postcode…" />
               </div>
               <div>
                 <Label>Account type</Label>
                 <Input value={user.method === 'google' ? 'Google (social login)' : 'Email + password'} disabled />
               </div>
+              <div>
+                <Label>Username format</Label>
+                <Input value="firstname + DOB day + running number" disabled />
+              </div>
               <div className="md:col-span-2">
-                <Button type="submit" disabled={savingProfile} data-testid="save-profile-btn" className="bg-teal-600 hover:bg-teal-700">
+                <Button type="submit" disabled={savingProfile} data-testid="save-profile-btn" className="pl-btn-purple text-white">
                   {savingProfile ? 'Saving…' : 'Save changes'}
                 </Button>
               </div>

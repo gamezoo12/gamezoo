@@ -8,7 +8,7 @@ import Home from './pages/Home';
 import Competitions from './pages/Competitions';
 import CompetitionDetail from './pages/CompetitionDetail';
 import Winners from './pages/Winners';
-import DrawResults from './pages/DrawResults';
+import DrawCentre from './pages/DrawCentre';
 import Stories from './pages/Stories';
 import FAQ from './pages/FAQ';
 import Login from './pages/Login';
@@ -60,7 +60,8 @@ function AppRouter() {
         <Route path="/competitions" element={<Competitions />} />
         <Route path="/competition/:slug" element={<CompetitionDetail />} />
         <Route path="/winners" element={<Winners />} />
-        <Route path="/draw-results" element={<DrawResults />} />
+        <Route path="/draw-results" element={<DrawCentre />} />
+        <Route path="/draw-centre" element={<DrawCentre />} />
         <Route path="/stories" element={<Stories />} />
         <Route path="/faq" element={<FAQ />} />
         <Route path="/login" element={<Login />} />

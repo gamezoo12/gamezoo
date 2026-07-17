@@ -13,6 +13,7 @@ class ProfileUpdate(BaseModel):
     name: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[EmailStr] = None
+    address: Optional[str] = None
 
 
 class PasswordChange(BaseModel):
@@ -50,6 +51,8 @@ async def update_me(inp: ProfileUpdate, request: Request):
         updates['name'] = inp.name.strip()
     if inp.phone is not None:
         updates['phone'] = inp.phone.strip() or None
+    if inp.address is not None:
+        updates['address'] = inp.address.strip() or None
     if inp.email is not None:
         new_email = inp.email.lower()
         if new_email != user['email']:
