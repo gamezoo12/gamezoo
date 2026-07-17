@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ShoppingCart, User, Menu, X, LogOut, Wallet as WalletIcon, ChevronDown, Trophy } from 'lucide-react';
 import { Button } from '../ui/button';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '../ui/alert-dialog';
 import NotificationsBell from './NotificationsBell';
 import AnnouncementTicker from './AnnouncementTicker';
 import PrizeLeagueLogo from './PrizeLeagueLogo';
@@ -19,6 +23,7 @@ const NAV = [
 export default function Header() {
   const [open, setOpen] = useState(false);         // mobile menu
   const [profileOpen, setProfileOpen] = useState(false);
+  const [signOutOpen, setSignOutOpen] = useState(false);
   const [balance, setBalance] = useState(null);
   const [cartCount, setCartCount] = useState(0);
   const { pathname } = useLocation();
@@ -61,10 +66,17 @@ export default function Header() {
   }, []);
 
   const doLogout = async () => {
-    if (!window.confirm('Sign out of Prize League?')) return;
     setProfileOpen(false);
+    setOpen(false);
+    setSignOutOpen(false);
     await logout();
     window.location.href = '/';
+  };
+
+  const askLogout = () => {
+    setProfileOpen(false);
+    setOpen(false);
+    setSignOutOpen(true);
   };
 
   const isActive = (href) => href === '/' ? pathname === '/' : pathname.startsWith(href);
@@ -186,7 +198,7 @@ export default function Header() {
                       </div>
                       <div className="border-t border-white/10 py-1">
                         <button
-                          onClick={doLogout}
+                          onClick={askLogout}
                           data-testid="profile-signout"
                           className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-rose-300 hover:bg-rose-500/10 hover:text-rose-200 transition"
                         >
@@ -256,7 +268,7 @@ export default function Header() {
                     </div>
                   </Link>
                   <button
-                    onClick={async () => { setOpen(false); await doLogout(); }}
+                    onClick={askLogout}
                     data-testid="mobile-signout"
                     className="mt-3 w-full flex items-center justify-center gap-2 py-4 px-3 rounded-xl border border-rose-500/30 text-rose-300 hover:bg-rose-500/10 font-bold"
                   >
@@ -277,6 +289,28 @@ export default function Header() {
           </aside>
         </div>
       )}
+
+      {/* Global sign-out confirmation */}
+      <AlertDialog open={signOutOpen} onOpenChange={setSignOutOpen}>
+        <AlertDialogContent data-testid="header-signout-confirm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sign out of Prize League?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You&apos;ll need to sign in again to access your account, wallet and tickets.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="header-signout-cancel">Stay signed in</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="header-signout-confirm-btn"
+              onClick={doLogout}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Sign out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

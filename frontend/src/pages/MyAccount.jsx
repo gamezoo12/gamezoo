@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ordersAPI, userAPI, walletAPI, referralAPI, paymentsAPI } from '../lib/api';
 import WalletPanel from '../components/account/WalletPanel';
 import SupportPanel from '../components/account/SupportPanel';
@@ -39,7 +39,7 @@ const KycBadge = ({ status }) => {
 
 // 12 navigation tokens — order & colours locked per spec
 const TOKENS = [
-  { id: 'profile',       label: 'Profile',        Icon: User,        color: 'from-violet-500 to-purple-600',   ring: 'ring-violet-400/40' },
+  { id: 'profile',       label: 'Profile',        Icon: User,        color: 'from-violet-500 to-purple-600',   ring: 'ring-violet-400/40', hero: true },
   { id: 'wallet',        label: 'Wallet',         Icon: Wallet,      color: 'from-amber-500 to-orange-600',    ring: 'ring-amber-400/40' },
   { id: 'tickets',       label: 'Tickets',        Icon: Ticket,      color: 'from-teal-500 to-emerald-600',    ring: 'ring-teal-400/40' },
   { id: 'games',         label: 'My Games',       Icon: Gamepad2,    color: 'from-fuchsia-500 to-pink-600',    ring: 'ring-fuchsia-400/40' },
@@ -61,6 +61,7 @@ export default function MyAccount() {
 
   const [active, setActive] = useState(searchParams.get('tab') || 'profile');
   const [signOutOpen, setSignOutOpen] = useState(false);
+  const panelRef = useRef(null);
 
   const [tickets, setTickets] = useState([]);
   const [notifications, setNotifications] = useState([]);
@@ -207,7 +208,10 @@ export default function MyAccount() {
   const selectToken = (id) => {
     if (id === 'signout') { setSignOutOpen(true); return; }
     setActive(id);
-    nav(`/my-account?tab=${id}`, { replace: true });
+    // Smoothly bring the panel into view — solves "clicked but nothing happened" on mobile
+    setTimeout(() => {
+      panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
   };
 
   if (loading || !user) {
@@ -226,26 +230,51 @@ export default function MyAccount() {
       >
         {TOKENS.map(t => {
           const isActive = active === t.id && t.id !== 'signout';
+          const isHero = !!t.hero;
           return (
             <button
               key={t.id}
               type="button"
               onClick={() => selectToken(t.id)}
               data-testid={`token-${t.id}`}
-              className={`group relative overflow-hidden rounded-2xl p-4 text-white text-left transition-all duration-200 bg-gradient-to-br ${t.color} shadow-md hover:shadow-xl hover:-translate-y-0.5 focus:outline-none focus-visible:ring-4 ${t.ring} ${isActive ? 'ring-4 ' + t.ring + ' scale-[1.02]' : ''}`}
+              className={`group relative overflow-hidden rounded-2xl text-white text-left transition-all duration-200 bg-gradient-to-br ${t.color} shadow-md hover:shadow-xl hover:-translate-y-0.5 focus:outline-none focus-visible:ring-4 ${t.ring} ${isActive ? 'ring-4 ' + t.ring + ' scale-[1.02]' : ''} ${isHero ? 'col-span-2 sm:col-span-2 md:col-span-2 lg:col-span-2 row-span-2 p-5 min-h-[140px]' : 'p-4'}`}
             >
-              <div className="absolute -top-6 -right-6 w-20 h-20 rounded-full bg-white/10 blur-xl opacity-60 group-hover:opacity-100 transition-opacity" />
-              <t.Icon className="w-6 h-6 mb-2 drop-shadow" />
-              <div className="font-display font-extrabold text-sm sm:text-base leading-tight">
-                {t.label}
-              </div>
+              <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-white/10 blur-xl opacity-60 group-hover:opacity-100 transition-opacity" />
+              {isHero ? (
+                <div className="relative flex flex-col h-full justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-12 h-12 rounded-full bg-white/25 backdrop-blur flex items-center justify-center text-xl font-extrabold shrink-0 border border-white/30">
+                      {(profile.name || user.name || 'U').slice(0, 1).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-display font-extrabold text-lg sm:text-xl leading-tight truncate">
+                        {profile.name || user.name || 'Player'}
+                      </div>
+                      <div className="text-white/85 text-sm font-mono truncate">
+                        @{profile.username || '—'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <t.Icon className="w-4 h-4 opacity-90" />
+                    <span className="font-display font-extrabold text-sm uppercase tracking-wider">Profile</span>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <t.Icon className="w-6 h-6 mb-2 drop-shadow" />
+                  <div className="font-display font-extrabold text-sm sm:text-base leading-tight">
+                    {t.label}
+                  </div>
+                </>
+              )}
             </button>
           );
         })}
       </div>
 
       {/* Panel area */}
-      <div className="min-h-[300px]">
+      <div ref={panelRef} className="min-h-[300px] scroll-mt-24">
         {active === 'profile' && (
           <div className="bg-white rounded-2xl border border-slate-100 p-6" data-testid="panel-profile">
             <div className="flex items-center gap-3 mb-4">
