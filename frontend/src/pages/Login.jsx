@@ -7,11 +7,74 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs'
 import { useToast } from '../hooks/use-toast';
 import { Mail, Phone, Shield, Gift, Trophy, Zap } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { authAPI } from '../lib/api';
 import PrizeLeagueLogo from '../components/layout/PrizeLeagueLogo';
+import SignupWizard from '../components/auth/SignupWizard';
 
 function GoogleIcon() {
   return (
     <svg viewBox="0 0 48 48" className="w-5 h-5"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+  );
+}
+
+// --- Phone tab (login-only for existing users): send OTP → verify → JWT ---
+function PhoneLoginForm({ onLoggedIn }) {
+  const [step, setStep] = useState('phone');
+  const [phone, setPhone] = useState('');
+  const [normalizedPhone, setNormalizedPhone] = useState('');
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const { toast } = useToast();
+
+  const send = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const r = await authAPI.otpSend(phone);
+      setNormalizedPhone(r.phone || phone);
+      setStep('code');
+      toast({ title: 'Code sent', description: `We texted a code to ${r.phone || phone}` });
+    } catch (err) {
+      toast({ title: 'Could not send code', description: err?.response?.data?.detail || 'Try again.' });
+    } finally { setBusy(false); }
+  };
+
+  const verify = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const r = await authAPI.otpLoginVerify(normalizedPhone, code);
+      onLoggedIn(r);
+    } catch (err) {
+      toast({ title: 'Sign-in failed', description: err?.response?.data?.detail || 'Invalid code' });
+    } finally { setBusy(false); }
+  };
+
+  if (step === 'phone') {
+    return (
+      <form onSubmit={send} className="space-y-3">
+        <div><Label className="mb-1 block">Mobile number</Label>
+          <Input data-testid="phone-login-input" type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+44 7700 900123" />
+          <p className="text-[11px] text-slate-500 mt-1">Only for accounts that have completed OTP signup.</p>
+        </div>
+        <Button data-testid="phone-login-send" type="submit" disabled={busy || phone.length < 8} className="w-full h-11 pl-btn-purple text-white font-bold">
+          {busy ? 'Sending…' : 'Send OTP'}
+        </Button>
+        <p className="text-[11px] text-slate-500 text-center"><Shield className="w-3 h-3 inline mr-1" /> Verified numbers only.</p>
+      </form>
+    );
+  }
+  return (
+    <form onSubmit={verify} className="space-y-3">
+      <div><Label className="mb-1 block">6-digit code</Label>
+        <Input data-testid="phone-login-code" inputMode="numeric" maxLength={6} required value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="123456" className="text-center text-xl tracking-[0.4em] font-bold h-12" />
+        <p className="text-[11px] text-slate-500 mt-1">Sent to {normalizedPhone}</p>
+      </div>
+      <Button data-testid="phone-login-verify" type="submit" disabled={busy || code.length !== 6} className="w-full h-11 pl-btn-gold text-slate-900 font-extrabold">
+        {busy ? 'Verifying…' : 'Verify & sign in →'}
+      </Button>
+      <button type="button" onClick={() => { setStep('phone'); setCode(''); }} className="text-xs text-slate-500 hover:text-slate-900 block mx-auto">← Use a different number</button>
+    </form>
   );
 }
 
@@ -20,36 +83,33 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
   const nav = useNavigate();
   const { toast } = useToast();
-  const { login, register } = useAuth();
+  const { login, setGoogleUser } = useAuth();
 
   const emailSubmit = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     setBusy(true);
     try {
-      if (mode === 'login') {
-        await login({ email: fd.get('email'), password: fd.get('password') });
-        toast({ title: 'Welcome back!' });
-      } else {
-        await register({ email: fd.get('email'), password: fd.get('password'), name: fd.get('name') });
-        toast({ title: 'Account created!', description: 'Welcome to Prize League 🎉' });
-      }
-      nav('/my-account');
+      await login({ email: fd.get('email'), password: fd.get('password') });
+      toast({ title: 'Welcome back!' });
+      nav('/');
     } catch (err) {
       const raw = err?.response?.data?.detail;
       const detail = Array.isArray(raw) ? raw.map(e => e.msg).join('. ') : (raw || 'Please check your details and try again.');
-      if (mode === 'register' && /already/i.test(detail)) {
-        toast({ title: 'Email already registered', description: 'Switch to "Log in" and try your password.' });
-        setMode('login');
-      } else {
-        toast({ title: mode === 'login' ? 'Sign in failed' : 'Sign up failed', description: detail });
-      }
+      toast({ title: 'Sign in failed', description: detail });
     } finally { setBusy(false); }
   };
 
   const google = () => {
     const redirectUrl = window.location.origin + '/my-account';
     window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
+  };
+
+  const onPhoneLoggedIn = (r) => {
+    if (r?.token) localStorage.setItem('gz_token', r.token);
+    if (r?.user) setGoogleUser(r.user);
+    toast({ title: `Welcome back, ${r?.user?.name || 'friend'} 👋` });
+    nav('/');
   };
 
   return (
@@ -107,7 +167,7 @@ export default function Login() {
             {mode === 'login' ? 'Welcome back!' : 'Create your free account'}
           </h1>
           <p className="text-sm text-slate-500 mb-5">
-            {mode === 'login' ? 'Great to see you again.' : 'Takes less than 30 seconds.'}
+            {mode === 'login' ? 'Great to see you again.' : 'Takes less than a minute. Mobile verification required.'}
           </p>
 
           <Button onClick={google} variant="outline" className="w-full h-11 gap-2 border-slate-200 hover:bg-slate-50 hover:border-[#6C2BFF]/40 font-semibold" data-testid="google-signin">
@@ -120,36 +180,33 @@ export default function Login() {
             <div className="flex-1 h-px bg-slate-100" />
           </div>
 
-          <Tabs defaultValue="email">
-            <TabsList className="grid grid-cols-2 w-full">
-              <TabsTrigger value="email"><Mail className="w-4 h-4 mr-1" /> Email</TabsTrigger>
-              <TabsTrigger value="phone"><Phone className="w-4 h-4 mr-1" /> Mobile</TabsTrigger>
-            </TabsList>
-            <TabsContent value="email" className="mt-4">
-              <form onSubmit={emailSubmit} className="space-y-3">
-                {mode === 'register' && (
-                  <div><Label className="mb-1 block">Your name</Label><Input name="name" required placeholder="Alex Smith" /></div>
-                )}
-                <div><Label className="mb-1 block">Email</Label><Input name="email" type="email" required placeholder="you@email.com" /></div>
-                <div><Label className="mb-1 block">Password</Label><Input name="password" type="password" required minLength={8} placeholder="At least 8 characters" /></div>
-                <Button
-                  type="submit"
-                  disabled={busy}
-                  data-testid="email-submit"
-                  className="w-full h-11 pl-btn-gold font-extrabold text-slate-900 hover:brightness-105"
-                >
-                  {busy ? 'Please wait…' : (mode === 'login' ? 'Log in →' : 'Create free account →')}
-                </Button>
-              </form>
-            </TabsContent>
-            <TabsContent value="phone" className="mt-4">
-              <form onSubmit={(e) => { e.preventDefault(); toast({ title: 'SMS OTP disabled', description: 'Add Twilio credentials to activate.' }); }} className="space-y-3">
-                <div><Label className="mb-1 block">Mobile number</Label><Input type="tel" required placeholder="07xxx xxx xxx" /></div>
-                <Button type="submit" className="w-full h-11 pl-btn-purple text-white font-bold">Send OTP</Button>
-                <p className="text-[11px] text-slate-500 text-center"><Shield className="w-3 h-3 inline mr-1" /> Twilio required – currently disabled.</p>
-              </form>
-            </TabsContent>
-          </Tabs>
+          {mode === 'register' ? (
+            <SignupWizard />
+          ) : (
+            <Tabs defaultValue="email">
+              <TabsList className="grid grid-cols-2 w-full">
+                <TabsTrigger value="email" data-testid="tab-email"><Mail className="w-4 h-4 mr-1" /> Email</TabsTrigger>
+                <TabsTrigger value="phone" data-testid="tab-phone"><Phone className="w-4 h-4 mr-1" /> Mobile</TabsTrigger>
+              </TabsList>
+              <TabsContent value="email" className="mt-4">
+                <form onSubmit={emailSubmit} className="space-y-3">
+                  <div><Label className="mb-1 block">Email</Label><Input name="email" type="email" required placeholder="you@email.com" data-testid="login-email" /></div>
+                  <div><Label className="mb-1 block">Password</Label><Input name="password" type="password" required placeholder="Your password" data-testid="login-password" /></div>
+                  <Button
+                    type="submit"
+                    disabled={busy}
+                    data-testid="email-submit"
+                    className="w-full h-11 pl-btn-gold font-extrabold text-slate-900 hover:brightness-105"
+                  >
+                    {busy ? 'Please wait…' : 'Log in →'}
+                  </Button>
+                </form>
+              </TabsContent>
+              <TabsContent value="phone" className="mt-4">
+                <PhoneLoginForm onLoggedIn={onPhoneLoggedIn} />
+              </TabsContent>
+            </Tabs>
+          )}
 
           <p className="text-[11px] text-slate-400 text-center mt-5">
             By continuing you agree to our <Link to="/terms" className="underline hover:text-[#6C2BFF]">Terms</Link> and <Link to="/privacy" className="underline hover:text-[#6C2BFF]">Privacy Policy</Link>. You confirm you&apos;re 18 or older.

@@ -106,12 +106,18 @@ class User(BaseModel):
     user_id: str = Field(default_factory=lambda: new_id('user'))
     email: EmailStr
     name: str
+    username: Optional[str] = None  # auto-generated: firstname + DOB-day + NN
     picture: Optional[str] = None
     password_hash: Optional[str] = None  # only for email/password users
     method: Literal['email', 'google'] = 'email'
     role: Literal['user', 'admin'] = 'user'
     referral_code: str = Field(default_factory=lambda: uuid.uuid4().hex[:8].upper())
     referred_by: Optional[str] = None  # user_id of referrer
+    phone: Optional[str] = None  # E.164 format, e.g. +447xxxxxxxxx
+    phone_verified: bool = False
+    dob: Optional[str] = None  # ISO date YYYY-MM-DD
+    address: Optional[str] = None
+    terms_accepted_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -119,15 +125,26 @@ class UserPublic(BaseModel):
     user_id: str
     email: str
     name: str
+    username: Optional[str] = None
     picture: Optional[str] = None
     role: str
     method: str
+    phone: Optional[str] = None
+    phone_verified: bool = False
+    dob: Optional[str] = None
+    address: Optional[str] = None
+    terms_accepted_at: Optional[datetime] = None
 
 
 class RegisterInput(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8, description="Minimum 8 characters")
     name: str = Field(..., min_length=1)
+    phone: str = Field(..., min_length=6, max_length=32)
+    otp_code: str = Field(..., min_length=4, max_length=10)
+    accept_terms: bool = Field(..., description="Must be true")
+    dob: str = Field(..., description="YYYY-MM-DD, 18+ enforced server-side")
+    address: Optional[str] = None
     referral_code: Optional[str] = None
 
 

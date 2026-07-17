@@ -17,6 +17,9 @@ export const authAPI = {
   me: () => api.get('/auth/me').then(r => r.data),
   logout: () => api.post('/auth/logout').then(r => r.data),
   googleSession: (sessionId) => api.post('/auth/session', {}, { headers: { 'X-Session-ID': sessionId } }).then(r => r.data),
+  otpSend: (phone) => api.post('/auth/otp/send', { phone }).then(r => r.data),
+  otpVerifyBind: (phone, code) => api.post('/auth/otp/verify-bind', { phone, code }).then(r => r.data),
+  otpLoginVerify: (phone, code) => api.post('/auth/otp/login-verify', { phone, code }).then(r => r.data),
 };
 
 export const contestsAPI = {
