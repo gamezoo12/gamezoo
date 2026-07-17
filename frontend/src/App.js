@@ -67,6 +67,7 @@ function AppRouter() {
         <Route path="/faq" element={<FAQ />} />
         <Route path="/login" element={<Login />} />
         <Route path="/my-account" element={<MyAccount />} />
+        <Route path="/my-account/:section" element={<MyAccount />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/free-entry" element={<FreeEntry />} />
         <Route path="/play/:contestId/:ticketId" element={<PlayGame />} />

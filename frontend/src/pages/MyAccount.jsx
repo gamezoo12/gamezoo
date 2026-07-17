@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ordersAPI, userAPI, walletAPI, referralAPI, paymentsAPI } from '../lib/api';
 import WalletPanel from '../components/account/WalletPanel';
 import SupportPanel from '../components/account/SupportPanel';
@@ -9,7 +9,7 @@ import {
   Trophy, Copy, Check, Clock, AlertCircle, Mail, ChevronRight, Upload,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Button } from '../components/ui/button';
@@ -57,16 +57,16 @@ export default function MyAccount() {
   const { user, loading, logout, refresh } = useAuth();
   const nav = useNavigate();
   const [searchParams] = useSearchParams();
+  const { section } = useParams();
   const { toast } = useToast();
 
-  const [active, setActive] = useState(searchParams.get('tab') || 'profile');
+  const active = section || null;   // null → show tab list; else show selected panel
   const [signOutOpen, setSignOutOpen] = useState(false);
-  const panelRef = useRef(null);
 
   const [tickets, setTickets] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [kyc, setKyc] = useState({ status: 'none' });
-  const [profile, setProfile] = useState({ name: '', email: '', phone: '', username: '', dob: '', address: '', phone_verified: false });
+  const [profile, setProfile] = useState({ name: '', email: '', phone: '', username: '', user_id: '', dob: '', address: '', phone_verified: false });
   const [wallet, setWallet] = useState(null);
   const [walletTxs, setWalletTxs] = useState([]);
   const [referral, setReferral] = useState(null);
@@ -85,11 +85,12 @@ export default function MyAccount() {
         email: me.email || '',
         phone: me.phone || '',
         username: me.username || '',
+        user_id: me.user_id || '',
         dob: me.dob || '',
         address: me.address || '',
         phone_verified: !!me.phone_verified,
       }))
-      .catch(() => setProfile(p => ({ ...p, name: user.name || '', email: user.email || '', username: user.username || '', phone_verified: !!user.phone_verified })));
+      .catch(() => setProfile(p => ({ ...p, name: user.name || '', email: user.email || '', username: user.username || '', user_id: user.user_id || '', phone_verified: !!user.phone_verified })));
     ordersAPI.myTickets().then(setTickets).catch(() => {});
     userAPI.kycStatus().then(setKyc).catch(() => {});
     userAPI.notifications().then(r => setNotifications(r?.notifications || [])).catch(() => {});
@@ -180,7 +181,7 @@ export default function MyAccount() {
     const sid = searchParams.get('session_id');
     if (topupParam === 'cancel') {
       toast({ title: 'Payment cancelled', description: 'No charge was made.' });
-      nav('/my-account?tab=wallet', { replace: true });
+      nav('/my-account/wallet', { replace: true });
       return undefined;
     }
     if (topupParam !== 'success' || !sid) return undefined;
@@ -195,13 +196,12 @@ export default function MyAccount() {
           setWallet(w);
           setWalletTxs(txs?.transactions || []);
           toast({ title: '✅ Payment successful', description: `£${s.amount_gbp.toFixed(2)} added to your wallet.` });
-          setActive('wallet');
-          nav('/my-account?tab=wallet', { replace: true });
+          nav('/my-account/wallet', { replace: true });
           return;
         }
         if (s.payment_status === 'failed' || s.payment_status === 'expired') {
           toast({ title: 'Payment did not complete', description: `Status: ${s.payment_status}` });
-          nav('/my-account?tab=wallet', { replace: true });
+          nav('/my-account/wallet', { replace: true });
           return;
         }
         if (attempts < maxAttempts) setTimeout(poll, 2000);
@@ -228,11 +228,9 @@ export default function MyAccount() {
 
   const selectToken = (id) => {
     if (id === 'signout') { setSignOutOpen(true); return; }
-    setActive(id);
-    // Smoothly bring the panel into view — solves "clicked but nothing happened" on mobile
-    setTimeout(() => {
-      panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 60);
+    // Each token opens as its own dedicated page
+    nav(`/my-account/${id}`);
+    window.scrollTo({ top: 0, behavior: 'instant' });
   };
 
   if (loading || !user) {
@@ -242,58 +240,63 @@ export default function MyAccount() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 lg:px-8 py-6" data-testid="my-account-page">
-      <BackButton to="/" label="Back to home" className="mb-4" />
+      <BackButton to={active ? '/my-account' : '/'} label={active ? 'Back to menu' : 'Back to home'} className="mb-4" />
 
-      {/* 12 stacked full-width tabs — one per row */}
-      <div
-        className="flex flex-col gap-2.5 mb-8"
-        data-testid="account-tokens"
-      >
-        {TOKENS.map(t => {
-          const isActive = active === t.id && t.id !== 'signout';
-          const isProfile = t.id === 'profile';
-          return (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => selectToken(t.id)}
-              data-testid={`token-${t.id}`}
-              className={`group relative overflow-hidden w-full flex items-center gap-4 rounded-2xl bg-gradient-to-r ${t.color} text-white pl-4 pr-5 py-4 text-left transition-all duration-200 shadow-md hover:shadow-xl hover:translate-x-1 focus:outline-none focus-visible:ring-4 ${t.ring} ${isActive ? 'ring-4 ' + t.ring : ''}`}
-            >
-              <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full bg-white/10 blur-xl opacity-60 group-hover:opacity-100 transition-opacity" />
-              <div className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center shrink-0 border border-white/25">
-                {isProfile ? (
-                  <span className="text-lg font-extrabold">
-                    {(profile.name || user.name || 'U').slice(0, 1).toUpperCase()}
-                  </span>
-                ) : (
-                  <t.Icon className="w-5 h-5 sm:w-6 sm:h-6 drop-shadow" />
-                )}
-              </div>
-              <div className="relative flex-1 min-w-0">
-                {isProfile ? (
-                  <>
-                    <div className="font-display font-extrabold text-base sm:text-lg leading-tight truncate">
-                      {profile.name || user.name || 'Player'}
+      {/* MENU MODE — 12 stacked full-width tabs, only shown on /my-account root */}
+      {!active && (
+        <div
+          className="flex flex-col gap-2.5 mb-8"
+          data-testid="account-tokens"
+        >
+          {TOKENS.map(t => {
+            const isProfile = t.id === 'profile';
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => selectToken(t.id)}
+                data-testid={`token-${t.id}`}
+                className={`group relative overflow-hidden w-full flex items-center gap-4 rounded-2xl bg-gradient-to-r ${t.color} text-white pl-4 pr-5 text-left transition-all duration-200 shadow-md hover:shadow-xl hover:translate-x-1 focus:outline-none focus-visible:ring-4 ${t.ring} ${isProfile ? 'py-6 sm:py-7' : 'py-4'}`}
+              >
+                <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-white/10 blur-2xl opacity-60 group-hover:opacity-100 transition-opacity" />
+                <div className={`relative rounded-xl bg-white/20 backdrop-blur flex items-center justify-center shrink-0 border border-white/25 ${isProfile ? 'w-16 h-16 sm:w-20 sm:h-20' : 'w-11 h-11 sm:w-12 sm:h-12'}`}>
+                  {isProfile ? (
+                    <span className="text-2xl sm:text-3xl font-extrabold">
+                      {(profile.name || user.name || 'U').slice(0, 1).toUpperCase()}
+                    </span>
+                  ) : (
+                    <t.Icon className="w-5 h-5 sm:w-6 sm:h-6 drop-shadow" />
+                  )}
+                </div>
+                <div className="relative flex-1 min-w-0">
+                  {isProfile ? (
+                    <>
+                      <div className="font-display font-extrabold text-lg sm:text-2xl leading-tight truncate">
+                        {profile.name || user.name || 'Player'}
+                      </div>
+                      <div className="text-white/90 text-sm sm:text-base font-mono truncate">
+                        @{profile.username || '—'}
+                      </div>
+                      <div className="text-white/70 text-[10px] sm:text-xs font-mono truncate mt-0.5">
+                        ID: {profile.user_id || user.user_id || '—'}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="font-display font-extrabold text-base sm:text-lg leading-tight">
+                      {t.label}
                     </div>
-                    <div className="text-white/85 text-xs sm:text-sm font-mono truncate">
-                      @{profile.username || '—'} · Profile
-                    </div>
-                  </>
-                ) : (
-                  <div className="font-display font-extrabold text-base sm:text-lg leading-tight">
-                    {t.label}
-                  </div>
-                )}
-              </div>
-              <ChevronRight className="relative w-5 h-5 opacity-70 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all shrink-0" />
-            </button>
-          );
-        })}
-      </div>
+                  )}
+                </div>
+                <ChevronRight className={`relative opacity-70 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all shrink-0 ${isProfile ? 'w-6 h-6' : 'w-5 h-5'}`} />
+              </button>
+            );
+          })}
+        </div>
+      )}
 
-      {/* Panel area */}
-      <div ref={panelRef} className="min-h-[300px] scroll-mt-24">
+      {/* PANEL MODE — single-focus page for the selected section */}
+      {active && (
+        <div className="min-h-[300px]">
         {active === 'profile' && (
           <div className="bg-white rounded-2xl border border-slate-100 p-6" data-testid="panel-profile">
             <div className="flex items-center gap-3 mb-4">
@@ -306,6 +309,9 @@ export default function MyAccount() {
                 </div>
                 <div className="text-sm text-slate-500 flex items-center gap-1.5 mt-0.5 truncate">
                   <Mail className="w-3.5 h-3.5" /> {profile.email}
+                </div>
+                <div className="text-[11px] text-slate-400 font-mono mt-0.5 truncate" data-testid="profile-user-id">
+                  ID: {profile.user_id || '—'}
                 </div>
               </div>
               <div className="flex flex-col items-end gap-1">
@@ -663,6 +669,7 @@ export default function MyAccount() {
           </div>
         )}
       </div>
+      )}
 
       {/* Sign out confirmation */}
       <AlertDialog open={signOutOpen} onOpenChange={setSignOutOpen}>
