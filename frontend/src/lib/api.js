@@ -58,6 +58,14 @@ export const userAPI = {
   changePassword: (data) => api.post('/users/me/password', data).then(r => r.data),
   kycSubmit: (data) => api.post('/users/kyc/submit', data).then(r => r.data),
   kycStatus: () => api.get('/users/kyc/status').then(r => r.data),
+  kycUpload: (kind, file) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return api.post('/users/kyc/upload', fd, {
+      params: { kind },
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then(r => r.data);
+  },
   notifications: (onlyUnread = false) => api.get('/users/notifications', { params: { only_unread: onlyUnread } }).then(r => r.data),
   markAllRead: () => api.post('/users/notifications/mark-read').then(r => r.data),
 };

@@ -1,12 +1,40 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, UploadFile, File
 from datetime import datetime, timezone
 from pydantic import BaseModel, EmailStr
 from typing import Optional
+from pathlib import Path
 import uuid
 
 from auth import get_current_user, hash_password, verify_password
 
 router = APIRouter(prefix='/api/users', tags=['users'])
+
+KYC_UPLOAD_DIR = Path("/app/backend/uploads/kyc")
+KYC_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+KYC_MAX_BYTES = 8 * 1024 * 1024  # 8 MB
+KYC_SIGNATURES = {
+    b"\xff\xd8\xff": ("image/jpeg", ".jpg"),
+    b"\x89PNG\r\n\x1a\n": ("image/png", ".png"),
+    b"RIFF": ("image/webp", ".webp"),
+    b"%PDF": ("application/pdf", ".pdf"),
+}
+
+
+def _kyc_sniff(data: bytes):
+    for sig, meta in KYC_SIGNATURES.items():
+        if data.startswith(sig):
+            if meta[0] == "image/webp" and b"WEBP" not in data[:16]:
+                continue
+            return meta
+    return None
+
+
+def _public_base_url(request: Request) -> str:
+    proto = request.headers.get("x-forwarded-proto") or request.url.scheme or "https"
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+    if host:
+        return f"{proto}://{host}"
+    return str(request.base_url).rstrip("/")
 
 
 class ProfileUpdate(BaseModel):
@@ -95,6 +123,34 @@ class KycSubmit(BaseModel):
     id_type: str = 'passport'   # passport | driving-licence | national-id
     id_number: str
     phone: Optional[str] = None
+    passport_url: Optional[str] = None      # uploaded doc URL
+    address_proof_url: Optional[str] = None  # uploaded doc URL
+
+
+@router.post('/kyc/upload')
+async def upload_kyc_document(request: Request, kind: str, file: UploadFile = File(...)):
+    """Upload a KYC document (passport OR address proof). Returns a URL to be
+    submitted alongside the KYC form. `kind` = 'passport' | 'address_proof'."""
+    user = await get_current_user(request)
+    if kind not in ('passport', 'address_proof'):
+        raise HTTPException(400, "kind must be 'passport' or 'address_proof'")
+
+    data = await file.read(KYC_MAX_BYTES + 1)
+    if len(data) > KYC_MAX_BYTES:
+        raise HTTPException(413, "File too large (max 8 MB)")
+
+    sniffed = _kyc_sniff(data)
+    if not sniffed:
+        raise HTTPException(415, "Unsupported file type. Use JPG, PNG, WEBP or PDF.")
+    mime, ext = sniffed
+
+    name = f"{user['user_id']}_{kind}_{uuid.uuid4().hex[:10]}{ext}"
+    dest = KYC_UPLOAD_DIR / name
+    dest.write_bytes(data)
+
+    base = _public_base_url(request).rstrip("/")
+    url = f"{base}/api/uploads/kyc/{name}"
+    return {"url": url, "kind": kind, "size": len(data), "mime": mime}
 
 
 @router.post('/kyc/submit')
@@ -114,6 +170,8 @@ async def submit_kyc(inp: KycSubmit, request: Request):
         'id_type': inp.id_type,
         'id_number': inp.id_number,
         'phone': inp.phone,
+        'passport_url': inp.passport_url,
+        'address_proof_url': inp.address_proof_url,
         'status': 'pending',
         'submitted_at': datetime.now(timezone.utc),
     }

@@ -6,7 +6,7 @@ import MyGamesPanel from '../components/account/MyGamesPanel';
 import {
   User, Wallet, Ticket, Gamepad2, Bell, ShieldCheck, Lock,
   LifeBuoy, FileText, Settings2, Gift, LogOut, ArrowRight,
-  Trophy, Copy, Check, Clock, AlertCircle, Mail,
+  Trophy, Copy, Check, Clock, AlertCircle, Mail, ChevronRight, Upload,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -139,12 +139,33 @@ export default function MyAccount() {
     } finally { setSavingPw(false); }
   };
 
+  const [kycFiles, setKycFiles] = useState({ passport: null, address_proof: null });
+  const [kycUrls, setKycUrls] = useState({ passport_url: '', address_proof_url: '' });
+  const [uploadingKyc, setUploadingKyc] = useState({ passport: false, address_proof: false });
+
+  const uploadKycFile = async (kind, file) => {
+    if (!file) return;
+    setUploadingKyc(u => ({ ...u, [kind]: true }));
+    try {
+      const r = await userAPI.kycUpload(kind, file);
+      setKycUrls(u => ({ ...u, [`${kind}_url`]: r.url }));
+      setKycFiles(f => ({ ...f, [kind]: file.name }));
+      toast({ title: `${kind === 'passport' ? 'ID' : 'Address proof'} uploaded`, description: 'File attached to your submission.' });
+    } catch (err) {
+      toast({ title: 'Upload failed', description: err?.response?.data?.detail || err.message });
+    } finally {
+      setUploadingKyc(u => ({ ...u, [kind]: false }));
+    }
+  };
+
   const submitKyc = async (e) => {
     e.preventDefault();
     setKycBusy(true);
     try {
       const fd = new FormData(e.currentTarget);
       const data = Object.fromEntries(fd.entries());
+      if (kycUrls.passport_url) data.passport_url = kycUrls.passport_url;
+      if (kycUrls.address_proof_url) data.address_proof_url = kycUrls.address_proof_url;
       await userAPI.kycSubmit(data);
       toast({ title: 'Verification submitted', description: 'We’ll email you when it’s reviewed.' });
       const s = await userAPI.kycStatus(); setKyc(s);
@@ -223,51 +244,49 @@ export default function MyAccount() {
     <div className="max-w-6xl mx-auto px-4 lg:px-8 py-6" data-testid="my-account-page">
       <BackButton to="/" label="Back to home" className="mb-4" />
 
-      {/* 12 Navigation Tokens */}
+      {/* 12 stacked full-width tabs — one per row */}
       <div
-        className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4 mb-8"
+        className="flex flex-col gap-2.5 mb-8"
         data-testid="account-tokens"
       >
         {TOKENS.map(t => {
           const isActive = active === t.id && t.id !== 'signout';
-          const isHero = !!t.hero;
+          const isProfile = t.id === 'profile';
           return (
             <button
               key={t.id}
               type="button"
               onClick={() => selectToken(t.id)}
               data-testid={`token-${t.id}`}
-              className={`group relative overflow-hidden rounded-2xl text-white text-left transition-all duration-200 bg-gradient-to-br ${t.color} shadow-md hover:shadow-xl hover:-translate-y-0.5 focus:outline-none focus-visible:ring-4 ${t.ring} ${isActive ? 'ring-4 ' + t.ring + ' scale-[1.02]' : ''} ${isHero ? 'col-span-2 sm:col-span-2 md:col-span-2 lg:col-span-2 row-span-2 p-5 min-h-[140px]' : 'p-4'}`}
+              className={`group relative overflow-hidden w-full flex items-center gap-4 rounded-2xl bg-gradient-to-r ${t.color} text-white pl-4 pr-5 py-4 text-left transition-all duration-200 shadow-md hover:shadow-xl hover:translate-x-1 focus:outline-none focus-visible:ring-4 ${t.ring} ${isActive ? 'ring-4 ' + t.ring : ''}`}
             >
-              <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-white/10 blur-xl opacity-60 group-hover:opacity-100 transition-opacity" />
-              {isHero ? (
-                <div className="relative flex flex-col h-full justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    <div className="w-12 h-12 rounded-full bg-white/25 backdrop-blur flex items-center justify-center text-xl font-extrabold shrink-0 border border-white/30">
-                      {(profile.name || user.name || 'U').slice(0, 1).toUpperCase()}
+              <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full bg-white/10 blur-xl opacity-60 group-hover:opacity-100 transition-opacity" />
+              <div className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center shrink-0 border border-white/25">
+                {isProfile ? (
+                  <span className="text-lg font-extrabold">
+                    {(profile.name || user.name || 'U').slice(0, 1).toUpperCase()}
+                  </span>
+                ) : (
+                  <t.Icon className="w-5 h-5 sm:w-6 sm:h-6 drop-shadow" />
+                )}
+              </div>
+              <div className="relative flex-1 min-w-0">
+                {isProfile ? (
+                  <>
+                    <div className="font-display font-extrabold text-base sm:text-lg leading-tight truncate">
+                      {profile.name || user.name || 'Player'}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-display font-extrabold text-lg sm:text-xl leading-tight truncate">
-                        {profile.name || user.name || 'Player'}
-                      </div>
-                      <div className="text-white/85 text-sm font-mono truncate">
-                        @{profile.username || '—'}
-                      </div>
+                    <div className="text-white/85 text-xs sm:text-sm font-mono truncate">
+                      @{profile.username || '—'} · Profile
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <t.Icon className="w-4 h-4 opacity-90" />
-                    <span className="font-display font-extrabold text-sm uppercase tracking-wider">Profile</span>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <t.Icon className="w-6 h-6 mb-2 drop-shadow" />
-                  <div className="font-display font-extrabold text-sm sm:text-base leading-tight">
+                  </>
+                ) : (
+                  <div className="font-display font-extrabold text-base sm:text-lg leading-tight">
                     {t.label}
                   </div>
-                </>
-              )}
+                )}
+              </div>
+              <ChevronRight className="relative w-5 h-5 opacity-70 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all shrink-0" />
             </button>
           );
         })}
@@ -425,8 +444,51 @@ export default function MyAccount() {
                     </select>
                   </div>
                   <div><Label>ID number</Label><Input name="id_number" required /></div>
+
+                  <div className="md:col-span-2 grid sm:grid-cols-2 gap-3 pt-2">
+                    <label className={`flex flex-col gap-2 border-2 border-dashed rounded-xl p-4 cursor-pointer transition ${kycUrls.passport_url ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/40'}`}>
+                      <div className="flex items-center gap-2">
+                        <Upload className="w-5 h-5 text-emerald-600" />
+                        <span className="text-sm font-semibold text-slate-900">ID / Passport photo</span>
+                      </div>
+                      <div className="text-xs text-slate-500">JPG, PNG, WEBP or PDF · max 8 MB</div>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,application/pdf"
+                        className="hidden"
+                        onChange={(e) => e.target.files?.[0] && uploadKycFile('passport', e.target.files[0])}
+                        data-testid="kyc-upload-passport"
+                      />
+                      <div className="text-xs mt-1 truncate">
+                        {uploadingKyc.passport ? <span className="text-amber-600">Uploading…</span> :
+                          kycFiles.passport ? <span className="text-emerald-700 font-medium">✓ {kycFiles.passport}</span> :
+                          <span className="text-slate-400">Click to select a file</span>}
+                      </div>
+                    </label>
+
+                    <label className={`flex flex-col gap-2 border-2 border-dashed rounded-xl p-4 cursor-pointer transition ${kycUrls.address_proof_url ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/40'}`}>
+                      <div className="flex items-center gap-2">
+                        <Upload className="w-5 h-5 text-emerald-600" />
+                        <span className="text-sm font-semibold text-slate-900">Address proof</span>
+                      </div>
+                      <div className="text-xs text-slate-500">Utility bill / bank statement, &lt; 3 months old</div>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,application/pdf"
+                        className="hidden"
+                        onChange={(e) => e.target.files?.[0] && uploadKycFile('address_proof', e.target.files[0])}
+                        data-testid="kyc-upload-address"
+                      />
+                      <div className="text-xs mt-1 truncate">
+                        {uploadingKyc.address_proof ? <span className="text-amber-600">Uploading…</span> :
+                          kycFiles.address_proof ? <span className="text-emerald-700 font-medium">✓ {kycFiles.address_proof}</span> :
+                          <span className="text-slate-400">Click to select a file</span>}
+                      </div>
+                    </label>
+                  </div>
+
                   <div className="md:col-span-2">
-                    <Button type="submit" disabled={kycBusy} className="bg-emerald-600 hover:bg-emerald-700">
+                    <Button type="submit" disabled={kycBusy} className="bg-emerald-600 hover:bg-emerald-700" data-testid="kyc-submit-btn">
                       {kycBusy ? 'Submitting…' : (kyc.status === 'pending' || kyc.status === 'rejected' ? 'Re-submit verification' : 'Submit verification')}
                     </Button>
                   </div>

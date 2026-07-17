@@ -57,6 +57,20 @@ export default function KycAdmin() {
                 <div><span className="text-slate-400 w-20 inline-block">Address</span> {k.address}</div>
                 <div><span className="text-slate-400 w-20 inline-block">ID {k.id_type}</span> {k.id_number}</div>
                 {k.phone && <div><span className="text-slate-400 w-20 inline-block">Phone</span> {k.phone}</div>}
+                {(k.passport_url || k.address_proof_url) && (
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    {k.passport_url && (
+                      <a href={k.passport_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-teal-100 text-teal-800 hover:bg-teal-200 font-medium">
+                        📄 View ID / Passport
+                      </a>
+                    )}
+                    {k.address_proof_url && (
+                      <a href={k.address_proof_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-800 hover:bg-indigo-200 font-medium">
+                        📄 View Address Proof
+                      </a>
+                    )}
+                  </div>
+                )}
                 <div className="text-xs text-slate-400 pt-1">Submitted {new Date(k.submitted_at).toLocaleString('en-GB')}</div>
                 {k.reject_reason && <div className="text-xs text-rose-600">Rejected: {k.reject_reason}</div>}
               </div>
