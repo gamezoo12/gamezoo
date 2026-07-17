@@ -62,7 +62,12 @@ export default function PlayGame() {
 
   const gameType = contest.game_type;
   const renderGame = gameType && GAME_MAP[gameType];
-  const attemptsLeft = 3 - attempts.length;
+  // Pooled attempts from contest.attempts_per_ticket × user's tickets for this contest.
+  // We approximate via contest.attempts_per_ticket (ticket-level enforcement is server-side).
+  const apt = contest?.attempts_per_ticket ?? contest?.max_attempts ?? 3;
+  // If lastScore contains total_allowed use it (most accurate); otherwise fall back to apt.
+  const totalAllowed = lastScore?.total_allowed ?? apt;
+  const attemptsLeft = lastScore?.attempts_left ?? Math.max(0, apt - attempts.length);
   const bestScore = attempts.reduce((max, a) => Math.max(max, a.points), 0);
 
   return (
@@ -78,7 +83,7 @@ export default function PlayGame() {
           <div className="text-white/80 text-xs uppercase tracking-widest">Now playing</div>
           <h1 className="font-display text-3xl font-extrabold">{contest.title}</h1>
           <div className="mt-2 text-white/80 text-sm">
-            Ticket #{ticketId.slice(-6)} · Attempts left: <b>{attemptsLeft}/3</b> · Your best: <b>{bestScore}</b> pts
+            Ticket #{ticketId.slice(-6)} · Attempts left: <b>{attemptsLeft}/{totalAllowed}</b> · Your best: <b>{bestScore}</b> pts
           </div>
         </div>
       </div>
@@ -94,7 +99,7 @@ export default function PlayGame() {
         <div className="bg-white rounded-2xl border border-slate-100 p-10 text-center" data-testid="game-no-attempts">
           <Trophy className="w-12 h-12 text-amber-500 mx-auto mb-3" />
           <div className="font-display font-bold text-xl">Attempts used up</div>
-          <p className="text-slate-500 mt-2">You&apos;ve used all 3 attempts. Your best score of <b className="text-orange-600">{bestScore}</b> pts is on the leaderboard.</p>
+          <p className="text-slate-500 mt-2">You&apos;ve used all {totalAllowed} attempts. Your best score of <b className="text-orange-600">{bestScore}</b> pts is on the leaderboard.</p>
           <Link to={`/leaderboard/${contestId}`}><Button className="mt-4 bg-orange-500 hover:bg-orange-600">View leaderboard</Button></Link>
         </div>
       ) : (

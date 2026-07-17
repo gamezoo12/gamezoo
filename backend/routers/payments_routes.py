@@ -108,7 +108,11 @@ async def create_custom_topup(req: CustomTopupRequest, request: Request):
             "price_data": {
                 "currency": "gbp",
                 "unit_amount": amount_pence,
-                "product_data": {"name": f"Prize League Wallet — £{req.amount:g} top-up"},
+                "product_data": {
+                    "name": f"Prize League Wallet — £{req.amount:g} top-up",
+                    # Digital: Software as a Service — required by Stripe Managed Payments.
+                    "tax_code": "txcd_10103001",
+                },
             },
             "quantity": 1,
         }],
@@ -162,6 +166,16 @@ async def _credit_wallet_once(db, tx: dict) -> Optional[dict]:
     await db.payment_transactions.update_one(
         {"session_id": tx["session_id"]},
         {"$set": {"wallet_credited": True, "credited_at": datetime.now(timezone.utc)}},
+    )
+    # In-app notification
+    from notifications import notify
+    await notify(
+        db,
+        user_id=tx["user_id"],
+        kind='topup_success',
+        title=f'£{amount_gbp:.2f} added to wallet 💰',
+        body='Your Stripe top-up completed. You can now enter contests.',
+        ref_tx_id=(r.get('tx_id') if isinstance(r, dict) else None),
     )
     return r
 

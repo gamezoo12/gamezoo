@@ -144,7 +144,28 @@ async def publish_winner(contest_id: str, request: Request):
         'status': 'drawn',
     }})
     await _log(db, contest_id, admin, 'publish', {'ticket_number': int(tn), 'winner_user_id': c.get('preview_winner_user_id'), 'method': c.get('preview_method')})
-    return {'ok': True, 'locked': True}
+
+    # In-app notifications: winner gets a big win alert; every other paid participant gets a "not selected" note.
+    from notifications import notify
+    winner_uid = c.get('preview_winner_user_id')
+    ticket_holders = await db.tickets.find(
+        {'contest_id': contest_id, 'user_id': {'$exists': True}},
+        {'_id': 0, 'user_id': 1}
+    ).to_list(10000)
+    unique_uids = {t['user_id'] for t in ticket_holders if t.get('user_id')}
+    prize_amt = c.get('prize_amount', 0)
+    for uid in unique_uids:
+        if uid == winner_uid:
+            await notify(db, user_id=uid, kind='winner_alert',
+                         title=f'🏆 You won “{c.get("title", "the contest")}”!',
+                         body=f'Ticket #{int(tn)} is the winning number. Prize £{prize_amt:.0f} — our team will be in touch to arrange payout.',
+                         contest_id=contest_id)
+        else:
+            await notify(db, user_id=uid, kind='draw_result',
+                         title=f'Draw published — “{c.get("title", "contest")}”',
+                         body=f'Winning ticket: #{int(tn)}. See Draw Centre for full result.',
+                         contest_id=contest_id)
+    return {'ok': True, 'locked': True, 'notified_users': len(unique_uids)}
 
 
 @winners_router.post('/{contest_id}/correct')

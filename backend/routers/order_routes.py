@@ -83,6 +83,26 @@ async def checkout(inp: CheckoutInput, request: Request):
     # Debit wallet
     await _apply_tx(db, user['user_id'], 'spend', -total, note=f'Order {order.order_id}', ref_order_id=order.order_id)
 
+    # In-app notification per contest so users see the winning tickets grouped.
+    from notifications import notify
+    for item in inp.items:
+        c = contest_by_id.get(item.contest_id, {})
+        entry_mode = c.get('entry_mode', 'skill_game')
+        title = 'Tickets confirmed 🎟️'
+        if entry_mode == 'random_tickets':
+            body = f"{item.qty} ticket{'s' if item.qty != 1 else ''} in “{c.get('title', 'contest')}”. Your numbers are ready in My Tickets."
+        else:
+            body = f"{item.qty} ticket{'s' if item.qty != 1 else ''} in “{c.get('title', 'contest')}”. Head to My Games to play."
+        await notify(
+            db,
+            user_id=user['user_id'],
+            kind='purchase_success',
+            title=title,
+            body=body,
+            contest_id=item.contest_id,
+            ref_order_id=order.order_id,
+        )
+
     return {'order_id': order.order_id, 'total': total, 'tickets': len(tickets_to_insert), 'method': 'wallet'}
 
 
