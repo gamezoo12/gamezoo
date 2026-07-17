@@ -139,6 +139,16 @@ See `/app/memory/test_credentials.md`.
     - **🟡 index-as-key on dynamic lists**: HeroBanner slides (use `contest_id`/`slug`), StatsBar (use `label`). Static game components left with index keys (items don't reorder — safe pattern).
     - Tests: 34/36 auth+profile pass; the 2 CORS failures are pre-existing Cloudflare edge issues (infra, not code).
 
+
+- **2026-07-17 · Phase 4A** MyAccount 12-Token Refactor + Admin RBAC Fix (P0)
+    - **MyAccount.jsx fully rewritten** to strict 12-token layout: Profile / Wallet / Tickets / My Games / Notifications / KYC / Security / Support / Policies / Preferences / Refer & Earn / Sign Out. Each token is a coloured gradient pill/card with a unique lucide icon (violet/amber/teal/fuchsia/sky/emerald/slate/cyan/indigo/stone/rose/red). Grid responsive: 2-col mobile → 3 sm → 4 md → 6 lg.
+    - REMOVED from `/my-account`: greeting hero banner, 4 gradient stat cards (Wallet balance / Active tickets / Orders / Referrals), 'Sign out → Admin' button, entire `<Tabs>` API, and all summary widgets.
+    - **Sign Out** now opens a shadcn `AlertDialog` (data-testid="signout-confirm") with 'Sign out' + 'Stay signed in' — confirm clears session and redirects to `/`.
+    - **Admin RBAC fix**: `auth.py::require_admin()` previously only accepted `role=='admin'`, rejecting `super_admin` / `operator` / `support`. Now accepts all four staff roles → /api/admin/users, /admin/contests, /admin/stats work for super_admin. Admin panel Users list now shows all 234 users, Contests list shows all 52 contests.
+    - **App.js fix**: Added missing `import AdminAuditLogs from './pages/admin/AuditLogsPage'` — its absence was crashing the entire SPA with "AdminAuditLogs is not defined".
+    - **Seed script** updated to persist admin as `super_admin` (was `admin`).
+    - Tests: iteration_19.json — 6/6 backend RBAC pass, 20+/20+ frontend Playwright assertions pass (100%).
+
 - **2026-07-17 · Phase 2B** Attempts-per-ticket + Cloudflare Turnstile + Wallet redesign + Notifications audit
     - **Attempts-per-ticket**: Contest model has `attempts_per_ticket` (default 3, kept in sync with legacy `max_attempts`). Backend `/api/games/submit` now enforces pooled attempts: `tickets_owned × attempts_per_ticket`. Admin EditContestDialog relabeled with clear helper (`10 tickets × 3 = 30 pooled attempts`).
     - **Cloudflare Turnstile** (item 12): New `/api/config/turnstile` (public site key) + `/api/games/captcha/verify` (issues signed short-lived challenge tokens). Default `.env` uses Cloudflare TEST keys that always pass — swap in real keys later. `TurnstileGate.jsx` widget component gates PlayGame; challenge token attached to `/api/games/submit`.
