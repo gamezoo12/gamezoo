@@ -1,0 +1,49 @@
+{
+  "base_url": "https://contest-arena-16.preview.emergentagent.com",
+  "asset_url": "https://customer-assets.emergentagent.com/job_contest-arena-16/artifacts/t9zu926h_image.png",
+  "files": {
+    "local_logo": {
+      "path": "/app/frontend/public/logo.png",
+      "size": 2203469,
+      "md5": "8271193d33c5b9382cce1a6dabdcdbe5"
+    },
+    "user_asset": {
+      "url": "https://customer-assets.emergentagent.com/job_contest-arena-16/artifacts/t9zu926h_image.png",
+      "status": 200,
+      "size": 2203469,
+      "md5": "8271193d33c5b9382cce1a6dabdcdbe5",
+      "content_type": "image/png",
+      "cache_control": null,
+      "dimensions": {
+        "width": 1402,
+        "height": 1122
+      }
+    }
+  },
+  "network": {
+    "served_logo_v3": {
+      "url": "https://contest-arena-16.preview.emergentagent.com/logo.png?v=3",
+      "status": 200,
+      "size": 2203469,
+      "md5": "8271193d33c5b9382cce1a6dabdcdbe5",
+      "content_type": "image/png",
+      "cache_control": "no-store, no-cache, must-revalidate",
+      "dimensions": {
+        "width": 1402,
+        "height": 1122
+      }
+    },
+    "served_logo_plain": {
+      "url": "https://contest-arena-16.preview.emergentagent.com/logo.png",
+      "status": 200,
+      "size": 2203469,
+      "md5": "8271193d33c5b9382cce1a6dabdcdbe5",
+      "content_type": "image/png",
+      "cache_control": "no-store, no-cache, must-revalidate",
+      "dimensions": {
+        "width": 1402,
+        "height": 1122
+      }
+    }
+  }
+}

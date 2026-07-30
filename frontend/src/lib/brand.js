@@ -6,7 +6,9 @@
 
 export const BRAND = {
   name: 'Prize League',
-  logoUrl: '/logo.png',
+  // Cache-bust suffix — bump when replacing the logo image so browsers
+  // never serve a stale cached copy from a previous deploy.
+  logoUrl: '/logo.png?v=3',
   logoAlt: 'Prize League',
   primary: '#6C2BFF',
   gold: '#FFD54A',

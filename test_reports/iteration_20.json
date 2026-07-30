@@ -1,0 +1,69 @@
+{
+  "verdict": "not_fixed",
+  "user_reported_bug": "in the homepage it shows different logo, this is the third time, you literally wasting the credits, I need P logo in the homepage",
+  "summary": "No relevant testing skill found. Focused logo verification shows the header, login, my-account, and admin sidebar now render an <img src=\"/logo.png?v=3\"> and /logo.png returns HTTP 200 with the expected 2,203,469-byte file, but the actual visible logo is a tiny full homepage/mockup/trophy image, not the requested crown/\u00a3/P logo. Therefore the user-visible homepage logo bug is still reproducible.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "PrizeLeagueLogo / Header",
+        "issue": "The rendered top-left logo on the homepage is not the requested crown/\u00a3/P logo. It displays the full 1402x1122 uploaded/mockup image squeezed into a 64x64 icon, visually appearing as a tiny website screenshot/trophy mockup next to the PRIZE LEAGUE wordmark.",
+        "selector": "[data-testid=\"header-logo\"] img",
+        "priority": "CRITICAL"
+      },
+      {
+        "component": "AdminLayout sidebar logo",
+        "issue": "Admin sidebar uses the same /logo.png?v=3 asset and also displays the tiny mockup image instead of the P logo.",
+        "selector": "aside img[alt=\"Prize League\"]",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Homepage, /login, /my-account, /admin",
+        "issues": [
+          "The image file is 1402x1122 and contains a full page/mockup/trophy design; object-contain squeezes it into 64x64/44x44/40x40 logo slots, making the header logo visibly wrong."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/test_reports/logo_http_file_checks_20.py",
+    "/app/test_reports/logo_http_file_checks_20.json",
+    "/app/test_reports/logo_player_register_20.py",
+    "/app/test_reports/logo_player_register_20.json",
+    "/app/test_reports/bug_verification_20.json",
+    "/app/test_reports/iteration_20.json"
+  ],
+  "action_items": [
+    "Replace /app/frontend/public/logo.png with the actual standalone crown/\u00a3/P logo image, not the full homepage/mockup image currently served from /logo.png.",
+    "After replacing the asset, bump BRAND.logoUrl cache-bust again and verify the rendered 64x64 header image visually shows only the P logo.",
+    "Consider adding a simple automated asset dimension/content sanity check so a 1402x1122 page mockup cannot be used as the favicon/header logo asset."
+  ],
+  "critical_code_review_comments": [
+    "Code wiring is mostly correct (BRAND.logoUrl is /logo.png?v=3 and PrizeLeagueLogo renders an img with no inline SVG fallback), but the actual logo file content is wrong for the user-visible requirement.",
+    "HTTP/file checks: local /app/frontend/public/logo.png, served /logo.png?v=3, and the provided asset URL all have md5 8271193d33c5b9382cce1a6dabdcdbe5, size 2,203,469 bytes, dimensions 1402x1122. That proves the deployed bytes match the URL but not the requested P-logo visual outcome."
+  ],
+  "updated_files": [
+    "/app/test_reports/bug_verification_20.json",
+    "/app/test_reports/iteration_20.json",
+    "/app/test_reports/logo_http_file_checks_20.py",
+    "/app/test_reports/logo_http_file_checks_20.json",
+    "/app/test_reports/logo_player_register_20.py",
+    "/app/test_reports/logo_player_register_20.json",
+    "/app/test_reports/browser_logo_check/"
+  ],
+  "success_rate": {
+    "backend": "N/A",
+    "frontend": "25%"
+  },
+  "seed_data_creation": "Attempted API player registration for optional /my-account testing, but /api/auth/register returned HTTP 403. Used the provided super admin credentials through public login instead to verify /my-account header logo; no confirmed new seed user was created.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Do not stop at checking the src attribute. The DOM src is /logo.png?v=3 and the network file matches the supplied URL, but the visible image is a mini full-page/mockup/trophy screenshot, not the P logo. Retest by screenshotting [data-testid=\"header-logo\"] img after the real standalone P-logo asset is replaced.",
+  "rca_of_the_issue": "The fix changed the component to use /logo.png?v=3, but the PNG file currently served is a 1402x1122 full page/mockup image (md5 8271193d33c5b9382cce1a6dabdcdbe5). Because it is rendered with object-contain in small logo slots, users see a different/tiny mockup logo instead of the requested crown/\u00a3/P logo. Reproduction: open the homepage, inspect [data-testid=\"header-logo\"] img, observe src /logo.png?v=3 and visual content as a tiny page screenshot rather than the P logo."
+}
