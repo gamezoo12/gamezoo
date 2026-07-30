@@ -1,35 +1,27 @@
 /**
  * Prize League — logo component.
- * Uses the official uploaded PNG (crown/£/P). Central config in lib/brand.js.
- * Prop `stacked` = true renders "PRIZE / LEAGUE" wordmark beside the icon.
+ * Renders the official PNG (trophy + "PRIZE LEAGUE" wordmark baked-in).
+ * The `size` prop controls the RENDERED HEIGHT in pixels; width is computed
+ * from the shipped asset's aspect ratio so nothing squashes or stretches.
  */
 import { BRAND } from '../../lib/brand';
 
-export default function PrizeLeagueLogo({ stacked = true, size = 44, showText = true, invert = false }) {
+export default function PrizeLeagueLogo({ size = 48, className = '' }) {
+  // The logo asset already contains the "PRIZE LEAGUE" wordmark, so we render
+  // it as one horizontal image at the exact aspect ratio of the source PNG.
+  const height = size;
+  const width = Math.round(size * (BRAND.logoAspect || 2.1));
   return (
-    <div className="inline-flex items-center gap-2.5 select-none">
-      <img
-        src={BRAND.logoUrl}
-        alt={BRAND.logoAlt}
-        width={size}
-        height={size}
-        style={{ width: size, height: size }}
-        className="object-contain shrink-0 drop-shadow-[0_0_12px_rgba(255,213,74,0.35)]"
-        loading="eager"
-        decoding="async"
-      />
-      {showText && (
-        stacked ? (
-          <div className="leading-[0.95]">
-            <div className={`font-display font-extrabold text-lg tracking-wider ${invert ? 'text-slate-900' : 'text-white'}`}>PRIZE</div>
-            <div className="font-display font-extrabold text-lg tracking-wider pl-gold-text">LEAGUE</div>
-          </div>
-        ) : (
-          <div className={`font-display font-extrabold text-xl tracking-wide ${invert ? 'text-slate-900' : 'text-white'}`}>
-            PRIZE<span className="pl-gold-text ml-1">LEAGUE</span>
-          </div>
-        )
-      )}
-    </div>
+    <img
+      src={BRAND.logoUrl}
+      alt={BRAND.logoAlt}
+      width={width}
+      height={height}
+      style={{ width, height }}
+      className={`object-contain shrink-0 select-none ${className}`}
+      loading="eager"
+      decoding="async"
+      data-testid="prizeleague-logo"
+    />
   );
 }

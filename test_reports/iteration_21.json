@@ -1,0 +1,35 @@
+{
+  "verdict": "fixed",
+  "user_reported_bug": "in the homepage it shows different logo, this is the third time, you literally wasting the credits, I need P logo in the homepage",
+  "summary": "No relevant testing skill found. Focused verification confirmed the homepage header now renders the cropped Prize League logo asset, not the prior full-page mockup. Browser UI checks verified /logo.png?v=4 on homepage, /login, authenticated /my-account, /admin/login, and /admin sidebar; the preview asset is 17,996 bytes and 210x100, with homepage header rendering 134x64.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/logo_static_checks_21.py",
+    "/app/test_reports/logo_bug_verification_playwright.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/test_reports/logo_static_checks_21.py",
+    "/app/test_reports/logo_bug_verification_playwright.py",
+    "/app/test_reports/bug_verification_21.json",
+    "/app/test_reports/iteration_21.json"
+  ],
+  "success_rate": {
+    "backend": "N/A - frontend only",
+    "frontend": "100%"
+  },
+  "seed_data_creation": "None. Used existing super_admin credentials only to reach /admin sidebar and authenticated /my-account.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Browser automation was executed through mcp_browser_automation and passed. The saved Playwright script documents the browser flow; running it directly via shell requires the Playwright Python package, which is not installed in the shell environment. The static/network script was executed successfully and verified local and preview /logo.png?v=4 asset size/dimensions plus relevant code references.",
+  "rca_of_the_issue": "Prior RCA was that /logo.png served the full 1402x1122 uploaded website mockup. The fix replaces it with a cropped 210x100 logo and bumps BRAND.logoUrl to /logo.png?v=4. Verification evidence: network requests returned /logo.png?v=4 with content-length 17996; DOM natural dimensions were 210x100 on all tested routes; homepage header rendered 134x64 and showed the trophy + PRIZE LEAGUE wordmark on dark purple/violet rather than a full-page screenshot."
+}

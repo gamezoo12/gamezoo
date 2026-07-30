@@ -6,12 +6,13 @@
 
 export const BRAND = {
   name: 'Prize League',
-  // Cache-bust suffix — bump when replacing the logo image so browsers
-  // never serve a stale cached copy from a previous deploy.
-  logoUrl: '/logo.png?v=3',
+  // Cache-bust — bump when the logo asset is replaced so browsers refetch.
+  logoUrl: '/logo.png?v=4',
   logoAlt: 'Prize League',
   primary: '#6C2BFF',
   gold: '#FFD54A',
+  // Aspect ratio of the shipped logo asset (width / height).
+  logoAspect: 210 / 100,
 };
 
 export const COMPANY = {
