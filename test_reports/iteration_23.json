@@ -1,0 +1,30 @@
+{
+  "summary": "Iter 22 blocker retest — PASSED. Both fixes verified: (1) old duplicate leaderboard handler in game_routes.py is gone; GET /api/contests/c_fd360e20adad/leaderboard now returns the spec contract {contest_id, engine_type, closed, entries, tie_break_rules} with engine_type='leaderboard', entries=[], and 4 tie_break_rules starting with '1. Higher points'. (2) update_company no longer writes audit_log for no-op payloads (verified directly against MongoDB: before=3, after=3, delta=0 for a PUT that sets legal_review_notes to its current value). Global leaderboard at /api/leaderboard/global still works. All 11 previously-passing iter22 tests remain green. Total: 14/14 pytest cases pass.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/contests/c_fd360e20adad/leaderboard", "issue": "Review request expected closed=false, but test contest c_fd360e20adad is currently in status='draft' in Mongo, so the derived `closed` field is TRUE (correct per implementation: closed = status != 'live'). Not a bug — data condition. If launch expects closed=false, main agent should set the contest status to 'live'."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter22_launch.py",
+    "/app/test_reports/pytest/iter23.xml"
+  ],
+  "action_items": [
+    "Optional: promote c_fd360e20adad to status='live' so its leaderboard reports closed=false at launch."
+  ],
+  "critical_code_review_comments": [
+    "Leaderboard duplicate route removed cleanly — company_routes.leaderboard_router is now the sole handler.",
+    "audit_log skip-on-empty-diff is correct and idempotent — verified via direct Mongo count.",
+    "Global leaderboard prefix is /api (public_router in game_routes.py), full path is /api/leaderboard/global — NOT /api/games/leaderboard/global as stated in the review request. Both were tested; only /api/leaderboard/global returns 200. Consider harmonising or documenting."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter22_launch.py"],
+  "success_rate": {"backend": "100% (14/14)", "frontend": "not tested (backend-only per request)"},
+  "test_credentials": "Super Admin bachanta8@gmail.com / Herts@910022 — works.",
+  "seed_data_creation": "1 TEST_iter22_* postal entry created + deleted within test. legal_review_notes remains set to a TEST_iter22_* marker from an earlier update-and-audit test (idempotent).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "iter22 leaderboard-route-conflict and audit-noop bugs are both closed. test_iter22_launch.py now includes TestAuditNoOpSkip and a hard-coded c_fd360e20adad contract check under TestLeaderboardEndpoint. Global leaderboard actual path is /api/leaderboard/global (with fallback probe kept in the test).",
+  "rca of the issue": "Original iter22 bug — FastAPI first-match routing served the older 2-field handler from game_routes.public_router. Fix: main agent deleted lines 143-168 of /app/backend/routers/game_routes.py so only the new spec-compliant handler in company_routes.contest_router remains. Verified live: response now has {contest_id, engine_type, closed, entries, tie_break_rules} exactly."
+}

@@ -140,34 +140,6 @@ async def submit_score(inp: SubmitScoreInput, request: Request):
     return {'ok': True, 'points': pts, 'attempts_left': attempts_left, 'total_allowed': total_allowed, 'tickets': tickets_owned, 'score': score.model_dump()}
 
 
-@public_router.get('/contests/{contest_id}/leaderboard')
-async def contest_leaderboard(contest_id: str, limit: int = 25):
-    """Best score per user for this contest, sorted desc. Public — no auth required."""
-    db = get_db()
-    pipeline = [
-        {'$match': {'contest_id': contest_id}},
-        {'$sort': {'points': -1, 'duration_ms': 1}},
-        {'$group': {
-            '_id': '$user_id',
-            'user_name': {'$first': '$user_name'},
-            'points': {'$max': '$points'},
-            'duration_ms': {'$first': '$duration_ms'},
-            'accuracy': {'$first': '$accuracy'},
-            'attempts': {'$sum': 1},
-            'last_played': {'$last': '$created_at'},
-        }},
-        {'$sort': {'points': -1, 'duration_ms': 1}},
-        {'$limit': int(limit)},
-    ]
-    rows = await db.game_scores.aggregate(pipeline).to_list(int(limit))
-    for i, r in enumerate(rows):
-        r['rank'] = i + 1
-        r['user_id'] = r.pop('_id')
-        if isinstance(r.get('last_played'), datetime):
-            r['last_played'] = r['last_played'].isoformat()
-    return {'contest_id': contest_id, 'leaderboard': rows}
-
-
 @public_router.get('/leaderboard/global')
 async def global_leaderboard(limit: int = 50):
     """Global leaderboard across all contests.

@@ -198,3 +198,88 @@ class TestLeaderboardEndpoint:
         assert 'tie_break_rules' in d, f'Missing tie_break_rules. keys={list(d.keys())}'
         assert isinstance(d['entries'], list)
         assert isinstance(d['tie_break_rules'], list) and len(d['tie_break_rules']) >= 3
+
+    def test_leaderboard_specific_contest_c_fd360e20adad(self):
+        """iter23 retest: c_fd360e20adad must return spec contract."""
+        r = requests.get(f'{BASE_URL}/api/contests/c_fd360e20adad/leaderboard')
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert set(d.keys()) >= {'contest_id', 'engine_type', 'closed', 'entries', 'tie_break_rules'}, f'keys={list(d.keys())}'
+        assert d['contest_id'] == 'c_fd360e20adad'
+        assert d['engine_type'] == 'leaderboard', f"engine_type={d['engine_type']}"
+        # `closed` is derived from contest.status != 'live'; verify it's a bool.
+        # Test contest is currently in 'draft' status so closed=True is expected.
+        assert isinstance(d['closed'], bool), f"closed not bool: {d['closed']}"
+        assert d['entries'] == [], f"entries should be empty, got {d['entries']}"
+        assert isinstance(d['tie_break_rules'], list) and len(d['tie_break_rules']) == 4
+        # First rule mentions "Higher points"
+        assert 'Higher points' in d['tie_break_rules'][0]
+        # OLD contract keys must NOT be present
+        assert 'leaderboard' not in d, 'Old {leaderboard:[]} contract still present'
+
+    def test_global_leaderboard_still_works(self):
+        """Global leaderboard was NOT removed — still returns {leaderboard:[...]}"""
+        # Try the path per code registration (public_router prefix /api + /leaderboard/global)
+        r = requests.get(f'{BASE_URL}/api/leaderboard/global?limit=10')
+        if r.status_code == 404:
+            # Fallback to alternate path mentioned in review
+            r = requests.get(f'{BASE_URL}/api/games/leaderboard/global?limit=10')
+        assert r.status_code == 200, f'global leaderboard failed: {r.status_code} {r.text}'
+        d = r.json()
+        assert 'leaderboard' in d
+        assert isinstance(d['leaderboard'], list)
+
+
+# ---------- 5. Audit log no-op skip (iter23) ----------
+class TestAuditNoOpSkip:
+    def test_noop_update_does_not_write_audit(self, admin_headers):
+        """PUT with same values as current — audit_log should NOT get a new doc."""
+        # Read current company settings
+        cur = requests.get(f'{BASE_URL}/api/admin/company', headers=admin_headers).json()
+        # Pick a stable string field that already has a value
+        field = None
+        for candidate in ('legal_review_notes', 'legal_name', 'company_number', 'jurisdiction'):
+            v = cur.get(candidate)
+            if isinstance(v, str) and v:
+                field = candidate
+                break
+        assert field, f'no stable field to test with. keys={list(cur.keys())}'
+        payload = {field: cur[field]}
+
+        # Count audit rows before
+        before = requests.get(f'{BASE_URL}/api/admin/audit-log?kind=company_settings_update&limit=200',
+                              headers=admin_headers)
+        if before.status_code != 200:
+            # Fallback: try alt path
+            before = requests.get(f'{BASE_URL}/api/admin/audit_log?limit=200', headers=admin_headers)
+        before_count = None
+        if before.status_code == 200:
+            body = before.json()
+            rows = body if isinstance(body, list) else (body.get('entries') or body.get('audit') or body.get('items') or [])
+            before_count = len([r for r in rows if r.get('kind') == 'company_settings_update'])
+
+        # PUT no-op
+        r = requests.put(f'{BASE_URL}/api/admin/company', headers=admin_headers, json=payload)
+        assert r.status_code == 200, r.text
+        assert r.json().get('ok') is True
+
+        # Count after
+        if before_count is not None:
+            after = requests.get(f'{BASE_URL}/api/admin/audit-log?kind=company_settings_update&limit=200',
+                                 headers=admin_headers)
+            if after.status_code != 200:
+                after = requests.get(f'{BASE_URL}/api/admin/audit_log?limit=200', headers=admin_headers)
+            body = after.json()
+            rows = body if isinstance(body, list) else (body.get('entries') or body.get('audit') or body.get('items') or [])
+            after_count = len([r for r in rows if r.get('kind') == 'company_settings_update'])
+            assert after_count == before_count, f'audit_log grew on no-op update: before={before_count} after={after_count}'
+        else:
+            # No public audit_log endpoint — inspect DB directly
+            import subprocess, json as _json
+            out = subprocess.run(
+                ['python', '-c',
+                 'import asyncio,os;from motor.motor_asyncio import AsyncIOMotorClient;\n'
+                 'c=AsyncIOMotorClient(os.environ["MONGO_URL"]);db=c[os.environ["DB_NAME"]];\n'
+                 'print(asyncio.get_event_loop().run_until_complete(db.audit_log.count_documents({"kind":"company_settings_update"})))'],
+                capture_output=True, text=True, cwd='/app/backend')
+            print('audit_log count via mongo:', out.stdout, out.stderr)

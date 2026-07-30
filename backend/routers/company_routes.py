@@ -150,16 +150,17 @@ async def update_company(payload: CompanyUpdate, request: Request):
         {'$set': incoming},
         upsert=True,
     )
-    # Audit
+    # Audit — only when something actually changed.
     diff = {k: {'before': current.get(k), 'after': v} for k, v in incoming.items() if current.get(k) != v}
-    await db.audit_log.insert_one({
-        'audit_id': f'aud_{uuid.uuid4().hex[:12]}',
-        'kind': 'company_settings_update',
-        'admin_email': admin['email'],
-        'admin_user_id': admin['user_id'],
-        'diff': diff,
-        'at': datetime.now(timezone.utc),
-    })
+    if diff:
+        await db.audit_log.insert_one({
+            'audit_id': f'aud_{uuid.uuid4().hex[:12]}',
+            'kind': 'company_settings_update',
+            'admin_email': admin['email'],
+            'admin_user_id': admin['user_id'],
+            'diff': diff,
+            'at': datetime.now(timezone.utc),
+        })
     return {'ok': True, 'updated_fields': list(incoming.keys())}
 
 
