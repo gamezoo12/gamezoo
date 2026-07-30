@@ -1,0 +1,42 @@
+{
+  "summary": "Iteration 22 — Prize League launch spec. Tested backend (11 pytest cases) and frontend UI (contest detail, admin company, admin postal, sidebar). 10/11 backend tests pass. All 4 frontend flows visually verified. ONE CRITICAL BUG: GET /api/contests/:id/leaderboard returns the wrong contract because the OLD game_routes.public_router route is registered before the new company_routes.leaderboard_router. Response is {contest_id, leaderboard[]} instead of the spec-required {contest_id, engine_type, entries[], tie_break_rules[]}.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/contests/{contest_id}/leaderboard",
+        "issue": "Response contract does not match spec. Returns {contest_id, leaderboard:[]} (from routers/game_routes.py line 143 public_router) instead of the required {contest_id, engine_type, entries[], tie_break_rules[]} (from routers/company_routes.py contest_router). Root cause: server.py includes game_public_router (line 96) before leaderboard_router (line 108), so FastAPI first-match routing serves the old handler. The new tie-break-aware handler and 'closed' flag are unreachable.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter22_launch.py",
+    "/app/test_reports/pytest/iter22.xml"
+  ],
+  "action_items": [
+    "Fix leaderboard route conflict: either (a) remove/rename the old public_router.get('/contests/{contest_id}/leaderboard') in /app/backend/routers/game_routes.py (lines 143-168), or (b) reorder server.py so leaderboard_router is included BEFORE game_public_router. Option (a) is cleaner because the new handler in company_routes.py already supersedes it with tie-break rules + engine_type + user public_id enrichment.",
+    "After fix, re-run: pytest /app/backend/tests/test_iter22_launch.py::TestLeaderboardEndpoint -v"
+  ],
+  "critical_code_review_comments": [
+    "Duplicate route registration between routers/game_routes.py (public_router) and routers/company_routes.py (contest_router) for /api/contests/{id}/leaderboard — a foot-gun. Add a startup route-uniqueness check or delete the superseded handler.",
+    "DEFAULT_COMPANY merge in _get_company (company_routes.py line 100) means newly added defaults appear automatically for existing records — good pattern. Verified working.",
+    "company_routes.py update_company only writes audit_log when there IS a diff, but the diff dict only contains fields that changed; if a PUT sets a field to its current value, audit still writes an audit_log doc with empty diff. Minor — consider skipping audit_log write when diff is empty.",
+    "Postal delete requires super_admin but create/update do not — intentional per spec (only received/reviewed by admin; deletion is destructive). Consistent."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter22_launch.py (new)"
+  ],
+  "success_rate": {"backend": "91% (10/11)", "frontend": "100% (all flows verified)"},
+  "test_credentials": "Super Admin bachanta8@gmail.com / Herts@910022 — works. Login returns token, must_change_password=true (expected).",
+  "seed_data_creation": "Created and cleaned up 1 postal entry (TEST_iter22_*). Company legal_review_notes was set to a TEST_iter22_* marker as part of audit-write verification — remains in settings.company doc; may need cleanup by main agent if a clean launch state is desired.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "The single blocker is the leaderboard route ordering/duplication. Everything else — 30-item numbered list, before-you-buy checkbox+block, Company Settings page (all fields render, Save button, random-draw toggle visible & OFF), Postal Entries page (7 status tab data-testids, Log received entry button, No entries empty state), admin sidebar (Legal Docs/Company Settings/Postal Entries) — verified working via Playwright. Backend tests cover: company defaults, RBAC, audit_log write, postal CRUD + status transitions received→under_review→validated→allocated with per-transition audit entries, contest extended-field persistence via admin PUT + public GET readback.",
+  "rca of the issue": "GET /api/contests/{id}/leaderboard: FastAPI routes are matched in registration order. server.py registers game_public_router (which contains the older 2-field leaderboard route) at line 96, before company_routes.leaderboard_router at line 108. Since both routers declare an identical path pattern, the first-registered handler always wins, and the new spec-compliant handler is dead code. Reproduction: `curl <BASE>/api/contests/<any>/leaderboard` → returns {contest_id, leaderboard:[]}. Expected: {contest_id, engine_type, entries:[], tie_break_rules:[...]}. Mitigation: delete lines 143-168 of /app/backend/routers/game_routes.py (the old handler) — the new one covers all its functionality plus tie-break + engine_type + public_id enrichment."
+}

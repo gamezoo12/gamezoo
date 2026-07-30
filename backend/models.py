@@ -37,6 +37,43 @@ class Contest(BaseModel):
     max_attempts: int = 3  # legacy alias for attempts_per_ticket — kept for back-compat
     attempts_per_ticket: int = 3  # Total attempts = tickets_bought * attempts_per_ticket (1..10)
     status: str = 'live'  # live | drawn | archived
+
+    # ----- Extended admin-editable fields (added for Phase-1 launch spec) -----
+    short_description: Optional[str] = None
+    full_description: Optional[str] = None
+    how_to_enter: Optional[str] = None
+    skill_instructions: Optional[str] = None
+    eligibility: Optional[str] = None
+    max_tickets_per_user: Optional[int] = None
+    open_date: Optional[datetime] = None
+    draw_date: Optional[datetime] = None
+    prize_details: Optional[str] = None
+    num_prizes: int = 1
+    prize_values: Optional[str] = None   # free-text or JSON list — admin manages
+    winner_method: Optional[str] = None  # human-readable
+    scoring_method: Optional[str] = None
+    tiebreak_method: Optional[str] = None
+    verification_method: Optional[str] = None
+    prize_credit_timeframe: Optional[str] = None
+    refund_conditions: Optional[str] = None
+    important_info: Optional[str] = None
+    contest_rules: Optional[str] = None
+    terms_acknowledgement: Optional[str] = None
+    country_restrictions: Optional[str] = None
+    age_restriction: Optional[str] = '18+'
+    mobile_image: Optional[str] = None
+    seo_title: Optional[str] = None
+    seo_description: Optional[str] = None
+    publication_status: Literal['draft', 'published'] = 'published'
+
+    # Contest engine (Type 1 = leaderboard shipped; 2 & 3 are locked behind a
+    # Super Admin feature flag pending legal review — see Company Settings).
+    engine_type: Literal['leaderboard', 'random_draw', 'instant_win'] = 'leaderboard'
+
+    # Free postal entry per-contest toggle
+    free_postal_entry_available: bool = False
+    free_postal_entry_instructions: Optional[str] = None
+
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 

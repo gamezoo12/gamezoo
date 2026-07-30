@@ -3,14 +3,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button } from '../components/ui/button';
 import { Progress } from '../components/ui/progress';
 import { Badge } from '../components/ui/badge';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion';
 import { Minus, Plus, Ticket, Clock, Brain, Check, X, Image as ImageIcon, ShoppingBag } from 'lucide-react';
 import { countdown, percent, gbp } from '../lib/format';
 import { useToast } from '../hooks/use-toast';
 import { contestsAPI, walletAPI } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import BackButton from '../components/BackButton';
-import ContestLeaderboardCard from '../components/ContestLeaderboardCard';
 
 const FALLBACK_IMG = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400"><rect width="400" height="400" fill="%23111828"/><text x="50%" y="50%" text-anchor="middle" dy=".35em" fill="%236C2BFF" font-family="sans-serif" font-size="28" font-weight="bold">Prize League</text></svg>';
 
@@ -229,6 +227,21 @@ export default function CompetitionDetail() {
               )}
             </div>
 
+            <label className="flex items-start gap-2 mb-3 text-xs text-slate-600 cursor-pointer" data-testid="before-you-buy">
+              <input
+                type="checkbox"
+                checked={verified ? undefined : undefined}
+                onChange={(e) => { window.__pl_confirm = e.target.checked; }}
+                data-testid="before-you-buy-check"
+                defaultChecked={false}
+                className="mt-0.5 w-4 h-4 accent-[#6C2BFF]"
+              />
+              <span>
+                <strong>Before you buy —</strong> I confirm I have read the contest information above, I&apos;m aged 18+ and resident in the UK, I understand that I am purchasing {tickets} entry ticket{tickets > 1 ? 's' : ''} to <em>{c.title}</em> for <strong>{gbp(subtotal)}</strong>, and I accept the {' '}
+                <Link to="/legal/terms" className="text-[#6C2BFF] underline">Terms &amp; Conditions</Link>.
+              </span>
+            </label>
+
             <Button onClick={addToCart} disabled={isSkillGame && !verified} data-testid="buy-tickets-btn"
               className="w-full h-12 pl-btn-gold text-slate-900 text-base font-extrabold disabled:opacity-50 disabled:cursor-not-allowed">
               <ShoppingBag className="w-4 h-4 mr-2" /> {isSkillGame && !verified ? 'Answer skill question first' : `Buy ${tickets} ticket${tickets > 1 ? 's' : ''} → Basket`}
@@ -236,67 +249,49 @@ export default function CompetitionDetail() {
             <p className="text-[11px] text-slate-500 text-center mt-2"><Link to="/free-entry" className="text-[#6C2BFF] hover:underline">Free postal entry route</Link> available — no purchase necessary.</p>
           </div>
 
-          {/* Contest T&Cs accordion — auto-generated from admin fields */}
-          <Accordion type="single" collapsible className="mt-6 rounded-2xl border border-slate-200 bg-white px-4" data-testid="contest-terms">
-            <AccordionItem value="overview" className="border-slate-100">
-              <AccordionTrigger className="font-semibold text-slate-900">Contest overview</AccordionTrigger>
-              <AccordionContent className="text-sm text-slate-600">{c.subtitle || c.title}</AccordionContent>
-            </AccordionItem>
-            <AccordionItem value="prize" className="border-slate-100">
-              <AccordionTrigger className="font-semibold text-slate-900">Prize &amp; value</AccordionTrigger>
-              <AccordionContent className="text-sm text-slate-600 space-y-1">
-                <div><strong>Prize:</strong> {c.title}</div>
-                <div><strong>Value:</strong> {gbp(c.prize_amount)}</div>
-                <div><strong>Distribution:</strong> Paid to the verified winner within 14 days per T&amp;Cs.</div>
-              </AccordionContent>
-            </AccordionItem>
-            <AccordionItem value="dates" className="border-slate-100">
-              <AccordionTrigger className="font-semibold text-slate-900">Opening &amp; closing</AccordionTrigger>
-              <AccordionContent className="text-sm text-slate-600 space-y-1">
-                <div><strong>Status:</strong> {c.status}</div>
-                <div><strong>Closes:</strong> {new Date(c.end_date).toLocaleString('en-GB')}</div>
-                <div><strong>Draw:</strong> Within 24 hours of closing.</div>
-              </AccordionContent>
-            </AccordionItem>
-            <AccordionItem value="entry" className="border-slate-100">
-              <AccordionTrigger className="font-semibold text-slate-900">Entry rules &amp; price</AccordionTrigger>
-              <AccordionContent className="text-sm text-slate-600 space-y-1">
-                <div><strong>Entry price:</strong> {gbp(c.price)} per ticket</div>
-                <div><strong>Entry mode:</strong> {isSkillGame ? 'Skill game — best valid score wins' : 'Random ticket draw'}</div>
-                <div><strong>Free postal entry:</strong> Available — see the <Link to="/free-entry" className="text-[#6C2BFF] underline">free entry route</Link>.</div>
-              </AccordionContent>
-            </AccordionItem>
-            {isSkillGame && (
-              <AccordionItem value="game" className="border-slate-100">
-                <AccordionTrigger className="font-semibold text-slate-900">Skill game &amp; scoring</AccordionTrigger>
-                <AccordionContent className="text-sm text-slate-600 space-y-1">
-                  <div><strong>Game:</strong> {c.game_type ? c.game_type.replace(/_/g, ' ') : 'Assigned after purchase'}</div>
-                  <div><strong>Attempts per ticket:</strong> {c.max_attempts || 3}</div>
-                  <div><strong>Scoring:</strong> Highest valid score. Ties broken by earliest valid submission time.</div>
-                </AccordionContent>
-              </AccordionItem>
-            )}
-            <AccordionItem value="eligibility" className="border-slate-100">
-              <AccordionTrigger className="font-semibold text-slate-900">Eligibility &amp; age</AccordionTrigger>
-              <AccordionContent className="text-sm text-slate-600 space-y-1">
-                <div><strong>Age:</strong> 18+ only. Photo ID may be required for prize payout.</div>
-                <div><strong>Geography:</strong> UK residents only.</div>
-                <div><strong>Restrictions:</strong> Staff, contractors, and their household members are excluded.</div>
-              </AccordionContent>
-            </AccordionItem>
-            <AccordionItem value="fraud" className="border-slate-100">
-              <AccordionTrigger className="font-semibold text-slate-900">Anti-fraud &amp; disqualification</AccordionTrigger>
-              <AccordionContent className="text-sm text-slate-600">
-                Multiple accounts, bot activity, payment fraud, or manipulated game scores may result in immediate disqualification and forfeited prize. All scores are server-validated. Please play responsibly.
-              </AccordionContent>
-            </AccordionItem>
-            <AccordionItem value="privacy" className="border-slate-100">
-              <AccordionTrigger className="font-semibold text-slate-900">Data &amp; privacy</AccordionTrigger>
-              <AccordionContent className="text-sm text-slate-600">
-                Your data is handled per our <Link to="/privacy" className="text-[#6C2BFF] underline">Privacy Policy</Link>. Winners consent to public announcement of first name + partial ticket number unless they opt out.
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
+          {/* Contest T&Cs — single long-scroll list per admin-editable fields */}
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6" data-testid="contest-terms">
+            <h2 className="font-display font-extrabold text-xl text-slate-900 mb-4">Contest information &amp; rules</h2>
+            <ol className="space-y-4 text-sm text-slate-700 leading-relaxed list-decimal list-outside pl-5" data-testid="contest-info-list">
+              {[
+                ['Contest overview', c.full_description || c.short_description || c.subtitle || c.title],
+                ['How to enter', c.how_to_enter || `Buy at least one entry ticket at ${gbp(c.price)} and complete the required skill task. A free postal entry route is also available where enabled by the operator.`],
+                ['Skill game instructions', c.skill_instructions || (isSkillGame ? `Complete the ${c.game_type ? c.game_type.replace(/_/g, ' ') : 'assigned skill task'} within the allowed attempts. Your best valid score counts.` : 'Answer the skill question correctly to become eligible.')],
+                ['Eligibility', c.eligibility || 'Open to UK residents aged 18 or over. Staff, contractors and their household members are excluded from prize eligibility.'],
+                ['Ticket price', `${gbp(c.price)} per entry ticket.`],
+                ['Total ticket allocation', `${c.tickets_total} tickets available in this competition.`],
+                ['Maximum entries per user', c.max_tickets_per_user ? `${c.max_tickets_per_user} tickets per person.` : 'Reasonable limits may be enforced by the operator to prevent misuse.'],
+                ['Free postal entry availability', c.free_postal_entry_available ? 'Available for this competition.' : 'Not available for this competition.'],
+                ['Free postal entry instructions', c.free_postal_entry_instructions || 'See the Free Postal Entry Policy for the current instructions and postal address.'],
+                ['Contest opening date', c.open_date ? new Date(c.open_date).toLocaleString('en-GB') : 'This contest is currently open.'],
+                ['Contest closing date', c.end_date ? new Date(c.end_date).toLocaleString('en-GB') : '—'],
+                ['Draw / result date', c.draw_date ? new Date(c.draw_date).toLocaleString('en-GB') : 'Within 24 hours of closing.'],
+                ['Prize details', c.prize_details || `Grand prize: ${gbp(c.prize_amount)}.`],
+                ['Number of prizes', String(c.num_prizes || 1)],
+                ['Prize values', c.prize_values || `Total prize pool value: ${gbp(c.prize_amount)}.`],
+                ['Winner determination', c.winner_method || (c.engine_type === 'leaderboard' ? 'Highest verified skill-game score at contest close.' : 'Determined per the engine described on this page.')],
+                ['Scoring method', c.scoring_method || 'Points based on accuracy, correctness and completion time as configured by the operator.'],
+                ['Tie-break method', c.tiebreak_method || '1) Higher points 2) Higher accuracy 3) Faster valid completion 4) Earlier submission timestamp.'],
+                ['Result verification', c.verification_method || 'Every winning score is independently server-verified before the prize is released.'],
+                ['Prize credit timeframe', c.prize_credit_timeframe || 'Prizes are credited within 5-10 UK business days following identity verification.'],
+                ['Refund conditions', c.refund_conditions || 'Refund requests must be submitted before the contest closing time. See our Refund Policy.'],
+                ['Important information', c.important_info || 'Please review the linked Terms & Conditions and Privacy Policy before entering.'],
+                ['Contest-specific rules', c.contest_rules || 'Standard Competition Terms apply. Any contest-specific rule stated by the operator overrides this template.'],
+                ['Terms acknowledgement', c.terms_acknowledgement || 'By entering you confirm you are 18+, resident in the UK, and accept the Prize League Terms & Conditions and Privacy Policy.'],
+                ['Country restrictions', c.country_restrictions || 'United Kingdom only.'],
+                ['Age restrictions', c.age_restriction || '18+ only.'],
+                ['Anti-fraud', 'Multiple accounts, bot activity, payment fraud or manipulated scores may result in immediate disqualification and forfeited prize.'],
+                ['Data & privacy', <>Your data is handled per our <Link key="pp" to="/legal/privacy" className="text-[#6C2BFF] underline">Privacy Policy</Link>.</>],
+                ['Complaints', <>See our <Link key="cx" to="/legal/complaints" className="text-[#6C2BFF] underline">Complaints Policy</Link> — you can raise a concern via support@prizeleague.co.uk.</>],
+                ['Full Terms & Conditions', <><Link key="tc" to="/legal/terms" className="text-[#6C2BFF] underline">Read the full Terms &amp; Conditions</Link> before entering.</>],
+              ].map(([title, body], i) => (
+                <li key={i} data-testid={`contest-info-item-${i}`}>
+                  <div className="font-bold text-slate-900">{title}</div>
+                  <div className="mt-0.5 whitespace-pre-wrap">{body}</div>
+                </li>
+              ))}
+            </ol>
+          </div>
         </div>
       </div>
 

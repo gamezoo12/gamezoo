@@ -35,6 +35,8 @@ import AdminWallets from './pages/admin/WalletAdmin';
 import AdminGames from './pages/admin/GamesAdmin';
 import AdminAuditLogs from './pages/admin/AuditLogsPage';
 import AdminLegalDocs from './pages/admin/LegalDocsAdmin';
+import CompanySettingsAdmin from './pages/admin/CompanySettings';
+import PostalEntriesAdmin from './pages/admin/PostalEntriesAdmin';
 import LegalDocPage from './pages/legal/LegalDocPage';
 import PlayGame from './pages/PlayGame';
 import ContestLeaderboard from './pages/ContestLeaderboard';
@@ -103,6 +105,8 @@ function AppRouter() {
         <Route path="settings" element={<AdminSettings />} />
         <Route path="audit-logs" element={<AdminAuditLogs />} />
         <Route path="legal" element={<AdminLegalDocs />} />
+        <Route path="company" element={<CompanySettingsAdmin />} />
+        <Route path="postal" element={<PostalEntriesAdmin />} />
       </Route>
 
       <Route path="/production" element={<ProductionLayout />}>

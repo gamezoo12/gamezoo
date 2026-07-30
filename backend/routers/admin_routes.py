@@ -232,20 +232,34 @@ async def update_contest_full(contest_id: str, payload: dict, request: Request):
     allowed = {'title', 'subtitle', 'category', 'tag', 'image', 'price', 'tickets_total',
                'prize_amount', 'end_date', 'jackpot', 'featured', 'status', 'skill_question',
                'game_type', 'game_config', 'entry_mode', 'max_attempts', 'attempts_per_ticket',
-               'leaderboard_visibility', 'winner_selection_method'}
+               'leaderboard_visibility', 'winner_selection_method',
+               # ---- Extended editable fields (Phase-1 launch spec) ----
+               'short_description', 'full_description', 'how_to_enter', 'skill_instructions',
+               'eligibility', 'max_tickets_per_user', 'open_date', 'draw_date',
+               'prize_details', 'num_prizes', 'prize_values', 'winner_method', 'scoring_method',
+               'tiebreak_method', 'verification_method', 'prize_credit_timeframe',
+               'refund_conditions', 'important_info', 'contest_rules',
+               'terms_acknowledgement', 'country_restrictions', 'age_restriction',
+               'mobile_image', 'seo_title', 'seo_description', 'publication_status',
+               'engine_type', 'free_postal_entry_available', 'free_postal_entry_instructions'}
     updates = {}
     for k, v in (payload or {}).items():
         if k not in allowed:
             continue
-        if k == 'end_date' and isinstance(v, str):
+        if k in {'end_date', 'open_date', 'draw_date'} and isinstance(v, str) and v:
             try:
                 updates[k] = datetime.fromisoformat(v.replace('Z', '+00:00'))
             except Exception:
                 continue
         elif k in {'price', 'prize_amount'}:
             updates[k] = float(v)
-        elif k == 'tickets_total':
-            updates[k] = int(v)
+        elif k in {'tickets_total', 'num_prizes', 'max_tickets_per_user'}:
+            try:
+                updates[k] = int(v)
+            except (TypeError, ValueError):
+                continue
+        elif k in {'free_postal_entry_available', 'jackpot', 'featured'}:
+            updates[k] = bool(v)
         elif k == 'skill_question' and isinstance(v, dict):
             if all(x in v for x in ('q', 'options', 'answer')):
                 updates[k] = {'q': v['q'], 'options': list(v['options']), 'answer': v['answer'], 'type': v.get('type', 'trivia')}
