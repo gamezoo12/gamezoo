@@ -14,7 +14,7 @@ export default function PrizeLeagueLogo({ stacked = true, size = 44, showText = 
         width={size}
         height={size}
         style={{ width: size, height: size }}
-        className="object-contain rounded-lg shrink-0"
+        className="object-contain shrink-0 drop-shadow-[0_0_12px_rgba(255,213,74,0.35)]"
         loading="eager"
         decoding="async"
       />

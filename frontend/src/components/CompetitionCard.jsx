@@ -22,7 +22,7 @@ export default function CompetitionCard({ c }) {
           <img src={c.image} alt={c.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
           <Badge className="absolute top-3 left-3 bg-white text-teal-700 hover:bg-white shadow">{c.tag}</Badge>
           {c.jackpot && (
-            <Badge className="absolute top-3 right-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white border-0">JACKPOT</Badge>
+            <Badge className="absolute top-3 right-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white border-0">BIG PRIZE</Badge>
           )}
           {c.gameType && (
             <Badge

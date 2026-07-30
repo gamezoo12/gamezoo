@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import './App.css';
 import { Toaster } from './components/ui/toaster';
 import { AuthProvider } from './context/AuthContext';
+import TermsGate from './components/TermsGate';
 
 import PublicLayout from './components/layout/PublicLayout';
 import Home from './pages/Home';
@@ -121,6 +122,7 @@ function App() {
       <AuthProvider>
         <BrowserRouter>
           <AppRouter />
+          <TermsGate />
           <Toaster />
         </BrowserRouter>
       </AuthProvider>

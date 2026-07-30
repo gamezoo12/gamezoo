@@ -114,7 +114,7 @@ export default function CompetitionDetail() {
         <div>
           <div className="flex flex-wrap gap-2 mb-3">
             <Badge className="bg-[#6C2BFF]/10 text-[#6C2BFF] hover:bg-[#6C2BFF]/10">{c.tag}</Badge>
-            {c.jackpot && <Badge className="bg-gradient-to-r from-amber-400 to-orange-500 text-white">JACKPOT</Badge>}
+            {c.jackpot && <Badge className="bg-gradient-to-r from-amber-400 to-orange-500 text-white">BIG PRIZE</Badge>}
             <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100" data-testid="entry-mode-badge">
               {isSkillGame ? 'Skill Contest' : 'Random Ticket Draw'}
             </Badge>
@@ -300,15 +300,7 @@ export default function CompetitionDetail() {
         </div>
       </div>
 
-      {/* Leaderboard only for skill contests when visibility allows */}
-      {isSkillGame && c.game_type && (
-        (c.leaderboard_visibility || 'live') === 'live' ||
-        (c.leaderboard_visibility === 'after_close' && new Date(c.end_date) < new Date())
-      ) && (
-        <div className="mt-10 md:mt-12">
-          <ContestLeaderboardCard contestId={c.contest_id} contestTitle={c.title} limit={10} />
-        </div>
-      )}
+      {/* Live leaderboard section removed — per launch spec, results appear only after the contest closes on the Winners page. */}
     </div>
   );
 }

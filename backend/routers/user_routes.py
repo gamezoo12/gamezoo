@@ -115,6 +115,21 @@ async def change_password(inp: PasswordChange, request: Request):
     return {'ok': True}
 
 
+@router.post('/me/accept-terms')
+async def accept_terms(request: Request):
+    """Marks the current user as having accepted the Terms & Conditions.
+    Used by the post-login T&C gate for accounts created before the T&C
+    workflow was in place."""
+    user = await get_current_user(request)
+    from deps import get_db
+    db = get_db()
+    await db.users.update_one(
+        {'user_id': user['user_id']},
+        {'$set': {'terms_accepted_at': datetime.now(timezone.utc)}},
+    )
+    return {'ok': True}
+
+
 class KycSubmit(BaseModel):
     full_name: str
     dob: str

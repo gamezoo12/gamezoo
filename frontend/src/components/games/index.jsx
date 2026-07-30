@@ -155,7 +155,7 @@ export function TargetTap({ onComplete }) {
 }
 
 // ---------- Word Unscramble ----------
-const WORDS = ['PRIZE', 'JACKPOT', 'WINNER', 'TICKET', 'LUCKY', 'FORTUNE', 'REWARD', 'BONUS'];
+const WORDS = ['PRIZE', 'CHAMPION', 'WINNER', 'TICKET', 'CONTEST', 'REWARD', 'TROPHY', 'BONUS'];
 export function WordUnscramble({ onComplete }) {
   const target = useMemo(() => WORDS[Math.floor(Math.random() * WORDS.length)], []);
   const scrambled = useMemo(() => shuffle(target.split('')).join(''), [target]);

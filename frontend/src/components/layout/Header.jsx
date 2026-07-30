@@ -87,7 +87,7 @@ export default function Header() {
         <div style={{ background: 'linear-gradient(180deg, #0B0D1F 0%, #161433 100%)' }} className="border-b border-white/5">
           <div className="max-w-7xl mx-auto flex items-center justify-between px-4 lg:px-8 h-16 md:h-[70px]">
             <Link to="/" className="shrink-0" data-testid="header-logo">
-              <PrizeLeagueLogo size={40} stacked />
+              <PrizeLeagueLogo size={64} stacked />
             </Link>
 
             {/* Desktop nav */}
@@ -233,7 +233,7 @@ export default function Header() {
           <div className="absolute inset-0 bg-black/60" onClick={() => setOpen(false)} />
           <aside className="absolute top-0 right-0 h-full w-[85%] max-w-sm p-6 flex flex-col" style={{ background: '#0B0D1F' }}>
             <div className="flex items-center justify-between mb-6">
-              <PrizeLeagueLogo size={36} stacked />
+              <PrizeLeagueLogo size={52} stacked />
               <button onClick={() => setOpen(false)} className="p-2 text-white" aria-label="Close">
                 <X className="w-6 h-6" />
               </button>

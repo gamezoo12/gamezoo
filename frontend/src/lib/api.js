@@ -68,6 +68,7 @@ export const userAPI = {
   },
   notifications: (onlyUnread = false) => api.get('/users/notifications', { params: { only_unread: onlyUnread } }).then(r => r.data),
   markAllRead: () => api.post('/users/notifications/mark-read').then(r => r.data),
+  acceptTerms: () => api.post('/users/me/accept-terms').then(r => r.data),
 };
 
 export const productionAPI = {
