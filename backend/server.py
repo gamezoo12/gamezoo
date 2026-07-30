@@ -75,6 +75,7 @@ from routers.winners_routes import winners_router
 from routers.twilio_routes import router as twilio_router
 from routers.captcha_routes import router as captcha_router
 from routers.support_routes import router as support_router, admin_router as admin_support_router
+from routers.legal_routes import public_router as legal_public_router, admin_router as legal_admin_router, ensure_legal_docs_seeded
 
 app.include_router(auth_router)
 app.include_router(contest_router)
@@ -99,6 +100,18 @@ app.include_router(twilio_router)
 app.include_router(captcha_router)
 app.include_router(support_router)
 app.include_router(admin_support_router)
+app.include_router(legal_public_router)
+app.include_router(legal_admin_router)
+
+
+@app.on_event('startup')
+async def _seed_legal_docs():
+    from deps import get_db
+    try:
+        await ensure_legal_docs_seeded(get_db())
+    except Exception as e:
+        import logging
+        logging.warning(f'[startup] legal seed failed: {e}')
 
 # Serve uploaded images under /api/uploads/* so k8s ingress routes to the backend pod.
 app.mount("/api/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")

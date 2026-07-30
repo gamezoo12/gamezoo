@@ -4,6 +4,7 @@ import PrizeLeagueLogo from './PrizeLeagueLogo';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { useToast } from '../../hooks/use-toast';
+import { COMPANY, LEGAL_FOOTER } from '../../lib/brand';
 
 export default function Footer() {
   const { toast } = useToast();
@@ -69,9 +70,18 @@ export default function Footer() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 lg:px-8 mt-10 pt-6 border-t border-white/10 flex flex-col md:flex-row justify-between gap-4 text-xs text-white/50">
-        <p>© {new Date().getFullYear()} Prize League. All rights reserved.</p>
-        <p>18+ · Please play responsibly · UK residents only. Prize fulfilment is subject to winner verification and terms.</p>
+      <div className="max-w-7xl mx-auto px-4 lg:px-8 mt-10 pt-6 border-t border-white/10 space-y-3 text-xs text-white/60">
+        <p className="leading-relaxed" data-testid="legal-footer-statement">{LEGAL_FOOTER}</p>
+        <div className="flex flex-col md:flex-row justify-between gap-3 text-white/50">
+          <div>
+            <span>© {new Date().getFullYear()} {COMPANY.legalName}. All rights reserved.</span>
+            <span className="mx-2">·</span>
+            <span>Company No. {COMPANY.companyNumber}</span>
+            <span className="mx-2">·</span>
+            <a href={`mailto:${COMPANY.emails.support}`} className="hover:text-white">{COMPANY.emails.support}</a>
+          </div>
+          <p>18+ · UK residents only · Prize fulfilment subject to winner verification and terms.</p>
+        </div>
       </div>
     </footer>
   );

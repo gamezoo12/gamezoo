@@ -105,40 +105,16 @@ async def main():
         )
         print(f'✓ Updated admin user: {admin_email}')
 
-    # Contests
-    existing_count = await db.contests.count_documents({})
-    if existing_count >= 50:
-        print(f'✓ Contests already seeded ({existing_count})')
-    else:
-        await db.contests.delete_many({})
-        contests = []
-        for i in range(50):
-            prize, tickets = PRIZE_POOL[i % len(PRIZE_POOL)]
-            cat, tag = CATS[i % len(CATS)]
-            qb = QBANK[i % len(QBANK)]
-            is_big = prize >= 250
-            c = Contest(
-                slug=f'contest-{i + 1}',
-                title=f'Win £{prize} Cash – Contest #{i + 1}',
-                subtitle=(f'£{prize} tax-free cash prize' if is_big else f'£{prize} cash prize'),
-                category=cat,
-                tag=tag,
-                price=1.0,
-                tickets_total=tickets,
-                prize_amount=float(prize),
-                end_date=days_from_now(30 + (i % 60)),
-                image=IMG_LIST[i % len(IMG_LIST)],
-                jackpot=is_big,
-                featured=i < 3,
-                skill_question=SkillQuestion(q=qb[0], options=qb[1], answer=qb[2], type=qb[3]),
-                status='live',
-            )
-            contests.append(c.model_dump())
-        await db.contests.insert_many(contests)
-        print(f'✓ Seeded {len(contests)} contests')
+    # Contests — production launch: NO auto-seeded contests.
+    # Admins create real contests via /admin/competitions. This prevents demo
+    # data leaking into production.
+    contest_count = await db.contests.count_documents({})
+    print(f'✓ Contests present: {contest_count} (admins create contests manually)')
 
     # Indexes
     await db.users.create_index('email', unique=True)
+    await db.users.create_index('public_id', unique=True, sparse=True)
+    await db.counters.create_index('_id', unique=True)
     await db.contests.create_index('slug', unique=True)
     await db.user_sessions.create_index('session_token', unique=True)
     print('✓ Indexes ensured')

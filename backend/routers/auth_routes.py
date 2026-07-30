@@ -12,6 +12,7 @@ from auth import (
     exchange_emergent_session, get_current_user,
 )
 from models import RegisterInput, LoginInput, User, UserPublic
+from counters import allocate_user_public_id
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix='/api/auth', tags=['auth'])
@@ -106,11 +107,13 @@ async def register(inp: RegisterInput, request: Request):
             referred_by = ref_user['user_id']
 
     username = await _generate_username(db, inp.name, inp.dob)
+    public_id = await allocate_user_public_id(db)
 
     user = User(
         email=inp.email.lower(),
         name=inp.name.strip(),
         username=username,
+        public_id=public_id,
         password_hash=hash_password(inp.password),
         method='email',
         role='user',
@@ -168,9 +171,11 @@ async def google_session(request: Request):
     email = data['email'].lower()
     user = await db.users.find_one({'email': email}, {'_id': 0})
     if not user:
+        public_id = await allocate_user_public_id(db)
         user_obj = User(
             email=email,
             name=data.get('name') or email,
+            public_id=public_id,
             picture=data.get('picture'),
             method='google',
             role='user',

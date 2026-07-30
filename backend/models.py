@@ -106,13 +106,15 @@ class ContestPublic(BaseModel):
 
 class User(BaseModel):
     user_id: str = Field(default_factory=lambda: new_id('user'))
+    public_id: Optional[str] = None  # sequential PLxxxxx — assigned atomically at register
     email: EmailStr
     name: str
     username: Optional[str] = None  # auto-generated: firstname + DOB-day + NN
     picture: Optional[str] = None
     password_hash: Optional[str] = None  # only for email/password users
     method: Literal['email', 'google'] = 'email'
-    role: Literal['user', 'admin'] = 'user'
+    role: Literal['user', 'admin', 'super_admin', 'operator', 'support'] = 'user'
+    must_change_password: bool = False  # forced on Super Admin first login
     referral_code: str = Field(default_factory=lambda: uuid.uuid4().hex[:8].upper())
     referred_by: Optional[str] = None  # user_id of referrer
     phone: Optional[str] = None  # E.164 format, e.g. +447xxxxxxxxx
@@ -125,6 +127,7 @@ class User(BaseModel):
 
 class UserPublic(BaseModel):
     user_id: str
+    public_id: Optional[str] = None
     email: str
     name: str
     username: Optional[str] = None
@@ -136,6 +139,7 @@ class UserPublic(BaseModel):
     dob: Optional[str] = None
     address: Optional[str] = None
     terms_accepted_at: Optional[datetime] = None
+    must_change_password: bool = False
 
 
 class RegisterInput(BaseModel):

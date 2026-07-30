@@ -111,6 +111,17 @@ export const adminAPI = {
   kycReject: (id, reason) => api.post(`/admin/kyc/${id}/reject`, { reason }).then(r => r.data),
   getSettings: () => api.get('/admin/settings').then(r => r.data),
   updateSettings: (data) => api.put('/admin/settings', data).then(r => r.data),
+  // Legal documents
+  legalList: () => api.get('/admin/legal/documents').then(r => r.data),
+  legalGet: (slug) => api.get(`/admin/legal/documents/${slug}`).then(r => r.data),
+  legalSave: (slug, payload) => api.put(`/admin/legal/documents/${slug}`, payload).then(r => r.data),
+  legalPublish: (slug) => api.post(`/admin/legal/documents/${slug}/publish`).then(r => r.data),
+  legalDownloadUrl: (slug) => `${API}/admin/legal/documents/${slug}/download`,
+};
+
+export const legalAPI = {
+  list: () => api.get('/legal/documents').then(r => r.data),
+  get: (slug) => api.get(`/legal/documents/${slug}`).then(r => r.data),
 };
 
 export const walletAPI = {
