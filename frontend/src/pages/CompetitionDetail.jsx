@@ -246,6 +246,11 @@ export default function CompetitionDetail() {
               className="w-full h-12 pl-btn-gold text-slate-900 text-base font-extrabold disabled:opacity-50 disabled:cursor-not-allowed">
               <ShoppingBag className="w-4 h-4 mr-2" /> {isSkillGame && !verified ? 'Answer skill question first' : `Buy ${tickets} ticket${tickets > 1 ? 's' : ''} → Basket`}
             </Button>
+            <Link to={`/results/${c.slug}`} className="block mt-2" data-testid="see-results-link">
+              <Button variant="outline" className="w-full h-10 text-sm">
+                🏆 See results &amp; leaderboard
+              </Button>
+            </Link>
             <p className="text-[11px] text-slate-500 text-center mt-2"><Link to="/free-entry" className="text-[#6C2BFF] hover:underline">Free postal entry route</Link> available — no purchase necessary.</p>
           </div>
 

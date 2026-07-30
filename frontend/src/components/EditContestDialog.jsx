@@ -85,6 +85,37 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
         featured: !!form.featured,
         skill_question: form.skill_question,
         game_type: form.game_type || null,
+
+        // Extended editable fields (Phase-1 launch spec)
+        short_description: form.short_description || null,
+        full_description: form.full_description || null,
+        how_to_enter: form.how_to_enter || null,
+        skill_instructions: form.skill_instructions || null,
+        eligibility: form.eligibility || null,
+        max_tickets_per_user: form.max_tickets_per_user ? parseInt(form.max_tickets_per_user, 10) : null,
+        open_date: form.open_date || null,
+        draw_date: form.draw_date || null,
+        prize_details: form.prize_details || null,
+        num_prizes: form.num_prizes ? parseInt(form.num_prizes, 10) : 1,
+        prize_values: form.prize_values || null,
+        winner_method: form.winner_method || null,
+        scoring_method: form.scoring_method || null,
+        tiebreak_method: form.tiebreak_method || null,
+        verification_method: form.verification_method || null,
+        prize_credit_timeframe: form.prize_credit_timeframe || null,
+        refund_conditions: form.refund_conditions || null,
+        important_info: form.important_info || null,
+        contest_rules: form.contest_rules || null,
+        terms_acknowledgement: form.terms_acknowledgement || null,
+        country_restrictions: form.country_restrictions || null,
+        age_restriction: form.age_restriction || '18+',
+        mobile_image: form.mobile_image || null,
+        seo_title: form.seo_title || null,
+        seo_description: form.seo_description || null,
+        publication_status: form.publication_status || 'published',
+        engine_type: form.engine_type || 'leaderboard',
+        free_postal_entry_available: !!form.free_postal_entry_available,
+        free_postal_entry_instructions: form.free_postal_entry_instructions || null,
       };
       if (isCreate) {
         payload.status = form.status || 'draft';
@@ -344,6 +375,98 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
               </select>
             </div>
           </div>
+
+          {/* ---- Extended admin fields (23 optional) ---- */}
+          <details className="pt-3 border-t border-slate-100" data-testid="advanced-contest-fields">
+            <summary className="cursor-pointer text-base font-semibold text-[#6C2BFF] py-2 select-none">
+              Advanced fields (contest info, T&amp;Cs, SEO, postal entry) — 23 fields
+            </summary>
+            <div className="grid md:grid-cols-2 gap-3 mt-3">
+              <div className="md:col-span-2">
+                <Label>Short description</Label>
+                <Input value={form.short_description || ''} onChange={e => upd('short_description', e.target.value)} data-testid="fld-short-description" />
+              </div>
+              <div className="md:col-span-2">
+                <Label>Full description</Label>
+                <textarea rows={3} value={form.full_description || ''} onChange={e => upd('full_description', e.target.value)} className="w-full rounded-lg border border-slate-200 p-2 text-sm" data-testid="fld-full-description" />
+              </div>
+              <div className="md:col-span-2">
+                <Label>How to enter</Label>
+                <textarea rows={2} value={form.how_to_enter || ''} onChange={e => upd('how_to_enter', e.target.value)} className="w-full rounded-lg border border-slate-200 p-2 text-sm" />
+              </div>
+              <div className="md:col-span-2">
+                <Label>Skill game instructions</Label>
+                <textarea rows={2} value={form.skill_instructions || ''} onChange={e => upd('skill_instructions', e.target.value)} className="w-full rounded-lg border border-slate-200 p-2 text-sm" />
+              </div>
+              <div className="md:col-span-2">
+                <Label>Eligibility</Label>
+                <textarea rows={2} value={form.eligibility || ''} onChange={e => upd('eligibility', e.target.value)} className="w-full rounded-lg border border-slate-200 p-2 text-sm" />
+              </div>
+              <div>
+                <Label>Max tickets per user</Label>
+                <Input type="number" value={form.max_tickets_per_user || ''} onChange={e => upd('max_tickets_per_user', e.target.value)} />
+              </div>
+              <div>
+                <Label>Number of prizes</Label>
+                <Input type="number" value={form.num_prizes || 1} onChange={e => upd('num_prizes', e.target.value)} />
+              </div>
+              <div>
+                <Label>Open date</Label>
+                <Input type="datetime-local" value={form.open_date ? new Date(form.open_date).toISOString().slice(0, 16) : ''} onChange={e => upd('open_date', e.target.value ? new Date(e.target.value).toISOString() : null)} />
+              </div>
+              <div>
+                <Label>Draw / result date</Label>
+                <Input type="datetime-local" value={form.draw_date ? new Date(form.draw_date).toISOString().slice(0, 16) : ''} onChange={e => upd('draw_date', e.target.value ? new Date(e.target.value).toISOString() : null)} />
+              </div>
+              <div className="md:col-span-2">
+                <Label>Prize details</Label>
+                <textarea rows={2} value={form.prize_details || ''} onChange={e => upd('prize_details', e.target.value)} className="w-full rounded-lg border border-slate-200 p-2 text-sm" />
+              </div>
+              <div className="md:col-span-2">
+                <Label>Prize values (breakdown)</Label>
+                <Input value={form.prize_values || ''} onChange={e => upd('prize_values', e.target.value)} placeholder="e.g. 1st £500 · 2nd £250 · 3rd £100" />
+              </div>
+              <div><Label>Winner determination method</Label><Input value={form.winner_method || ''} onChange={e => upd('winner_method', e.target.value)} /></div>
+              <div><Label>Scoring method</Label><Input value={form.scoring_method || ''} onChange={e => upd('scoring_method', e.target.value)} /></div>
+              <div><Label>Tie-break method</Label><Input value={form.tiebreak_method || ''} onChange={e => upd('tiebreak_method', e.target.value)} /></div>
+              <div><Label>Result verification method</Label><Input value={form.verification_method || ''} onChange={e => upd('verification_method', e.target.value)} /></div>
+              <div><Label>Prize crediting timeframe</Label><Input value={form.prize_credit_timeframe || ''} onChange={e => upd('prize_credit_timeframe', e.target.value)} /></div>
+              <div><Label>Refund conditions</Label><Input value={form.refund_conditions || ''} onChange={e => upd('refund_conditions', e.target.value)} /></div>
+              <div className="md:col-span-2"><Label>Important information</Label><textarea rows={2} value={form.important_info || ''} onChange={e => upd('important_info', e.target.value)} className="w-full rounded-lg border border-slate-200 p-2 text-sm" /></div>
+              <div className="md:col-span-2"><Label>Contest-specific rules</Label><textarea rows={2} value={form.contest_rules || ''} onChange={e => upd('contest_rules', e.target.value)} className="w-full rounded-lg border border-slate-200 p-2 text-sm" /></div>
+              <div className="md:col-span-2"><Label>Terms acknowledgement</Label><textarea rows={2} value={form.terms_acknowledgement || ''} onChange={e => upd('terms_acknowledgement', e.target.value)} className="w-full rounded-lg border border-slate-200 p-2 text-sm" /></div>
+              <div><Label>Country restrictions</Label><Input value={form.country_restrictions || ''} onChange={e => upd('country_restrictions', e.target.value)} placeholder="United Kingdom only" /></div>
+              <div><Label>Age restriction</Label><Input value={form.age_restriction || '18+'} onChange={e => upd('age_restriction', e.target.value)} /></div>
+              <div><Label>Mobile image URL</Label><Input value={form.mobile_image || ''} onChange={e => upd('mobile_image', e.target.value)} placeholder="Optional smaller image for mobile" /></div>
+              <div>
+                <Label>Contest engine</Label>
+                <select value={form.engine_type || 'leaderboard'} onChange={e => upd('engine_type', e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" data-testid="fld-engine-type">
+                  <option value="leaderboard">Skill Leaderboard (Engine 1) — active</option>
+                  <option value="random_draw">Random draw (Engine 2) — requires legal flag</option>
+                  <option value="instant_win">Instant win (Engine 3) — requires legal flag</option>
+                </select>
+              </div>
+              <div>
+                <Label>Publication status</Label>
+                <select value={form.publication_status || 'published'} onChange={e => upd('publication_status', e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                  <option value="draft">Draft</option>
+                  <option value="published">Published</option>
+                </select>
+              </div>
+              <div><Label>SEO title</Label><Input value={form.seo_title || ''} onChange={e => upd('seo_title', e.target.value)} /></div>
+              <div><Label>SEO description</Label><Input value={form.seo_description || ''} onChange={e => upd('seo_description', e.target.value)} /></div>
+              <div className="md:col-span-2 flex items-center gap-2 mt-1">
+                <input type="checkbox" checked={!!form.free_postal_entry_available} onChange={e => upd('free_postal_entry_available', e.target.checked)} data-testid="fld-postal-toggle" className="w-4 h-4 accent-emerald-600" />
+                <Label className="!m-0">Free postal entry available for this contest</Label>
+              </div>
+              {form.free_postal_entry_available && (
+                <div className="md:col-span-2">
+                  <Label>Free postal entry instructions (contest-specific)</Label>
+                  <textarea rows={2} value={form.free_postal_entry_instructions || ''} onChange={e => upd('free_postal_entry_instructions', e.target.value)} className="w-full rounded-lg border border-slate-200 p-2 text-sm" />
+                </div>
+              )}
+            </div>
+          </details>
         </div>
 
         <DialogFooter>

@@ -8,6 +8,7 @@ import PublicLayout from './components/layout/PublicLayout';
 import Home from './pages/Home';
 import Competitions from './pages/Competitions';
 import CompetitionDetail from './pages/CompetitionDetail';
+import WinnersReveal from './pages/WinnersReveal';
 import Winners from './pages/Winners';
 import DrawCentre from './pages/DrawCentre';
 import Stories from './pages/Stories';
@@ -65,6 +66,7 @@ function AppRouter() {
         <Route path="/" element={<Home />} />
         <Route path="/competitions" element={<Competitions />} />
         <Route path="/competition/:slug" element={<CompetitionDetail />} />
+        <Route path="/results/:slug" element={<WinnersReveal />} />
         <Route path="/winners" element={<Winners />} />
         <Route path="/draw-results" element={<DrawCentre />} />
         <Route path="/draw-centre" element={<DrawCentre />} />

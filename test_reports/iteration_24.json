@@ -1,0 +1,28 @@
+{
+  "summary": "Iteration 24 UI-focused verification. All 6 UI test cases PASS and iter22 backend regression suite (14/14) PASS. Verified: (1) Advanced fields section in EditContestDialog with all required data-testids; short_description + free_postal_entry_available persist end-to-end via admin edit UI. (2) engine_type dropdown offers 3 options {leaderboard, random_draw, instant_win}; all three persist via admin API. (3) /free-entry postal address, 5-bullet required list, and /legal/postal-entry link render correctly from /api/public/company. (4) Updating postal_address_line1 to 'PO Box 999' via PUT /api/admin/company is reflected on hard-reload of /free-entry; restored to '118 Windsor Road' after test. (5) /results/test-skill-leaderboard-contest-a0e33a renders winners-reveal-page hero with £500 prize pool, 0 entries, 1 winner; winners-empty and winners-tiebreak (4 rules) shown. (6) /competition/:slug shows see-results-link -> /results/:slug. Contest short_description + free_postal_entry_available restored to null/false after test.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter22_launch.py",
+    "/app/test_reports/pytest/iter24_regression.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "EditContestDialog.jsx is ~485 lines with a very large save() payload block. Consider splitting the Advanced fields section into a sub-component to keep the parent under 400 lines and to make the 30+ fields easier to maintain.",
+    "WinnersReveal.jsx currently fetches /contests/:slug then /contests/:contest_id/leaderboard sequentially — two round trips. A single /contests/:slug/results-summary endpoint would remove one round trip and reduce flicker on the reveal page.",
+    "FreeEntry.jsx swallows all errors from /public/company silently (catch(()=>setC(null))). At minimum, add a Sentry-style console.warn so ops can detect if the company endpoint 500s in production.",
+    "Winners Reveal share text uses navigator.clipboard.writeText which throws in insecure contexts — the catch handler shows 'Copy failed' but no fallback (execCommand) is provided. Low priority since the deployed URL is HTTPS."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (14/14 iter22 regression)", "frontend": "100% (6/6 UI cases)"},
+  "test_credentials": "Super admin bachanta8@gmail.com / Herts@910022 (worked). Test contest slug test-skill-leaderboard-contest-a0e33a / contest_id c_fd360e20adad (live).",
+  "seed_data_creation": "None. Temporary edits made and reverted: contest short_description set then cleared to null; free_postal_entry_available toggled True then False; company.postal_address_line1 set to 'PO Box 999' then restored to '118 Windsor Road'; contest engine_type cycled through random_draw/instant_win and restored to leaderboard. Verified via public GET after restore.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter24 is production-ready from a UI standpoint. Admin flows require accepting a Terms & Privacy modal on first visit to /admin/competitions per session — use label 'I confirm I am aged 18' + 'Accept and continue' button. Admin edit uses PUT /api/admin/contests/{contest_id} (not slug). All new data-testids are stable: advanced-contest-fields, fld-short-description, fld-full-description, fld-engine-type, fld-postal-toggle, postal-address, postal-required-list, winners-reveal-page, winners-empty, winners-tiebreak, winner-podium-{1,2,3}, winners-share, share-twitter, share-facebook, share-copy, full-leaderboard, see-results-link.",
+  "rca of the issue": "No functional bugs found this iteration."
+}
