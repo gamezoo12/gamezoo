@@ -33,6 +33,8 @@ import AdminRoles from './pages/admin/RolesPage';
 import AdminWallets from './pages/admin/WalletAdmin';
 import AdminGames from './pages/admin/GamesAdmin';
 import AdminAuditLogs from './pages/admin/AuditLogsPage';
+import AdminLegalDocs from './pages/admin/LegalDocsAdmin';
+import LegalDocPage from './pages/legal/LegalDocPage';
 import PlayGame from './pages/PlayGame';
 import ContestLeaderboard from './pages/ContestLeaderboard';
 import GlobalLeaderboard from './pages/GlobalLeaderboard';
@@ -68,6 +70,7 @@ function AppRouter() {
         <Route path="/login" element={<Login />} />
         <Route path="/my-account" element={<MyAccount />} />
         <Route path="/my-account/:section" element={<MyAccount />} />
+        <Route path="/legal/:slug" element={<LegalDocPage />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/free-entry" element={<FreeEntry />} />
         <Route path="/play/:contestId/:ticketId" element={<PlayGame />} />
@@ -98,6 +101,7 @@ function AppRouter() {
         <Route path="roles" element={<AdminRoles />} />
         <Route path="settings" element={<AdminSettings />} />
         <Route path="audit-logs" element={<AdminAuditLogs />} />
+        <Route path="legal" element={<AdminLegalDocs />} />
       </Route>
 
       <Route path="/production" element={<ProductionLayout />}>

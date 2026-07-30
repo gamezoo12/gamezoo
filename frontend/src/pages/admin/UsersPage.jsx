@@ -48,6 +48,7 @@ export default function UsersPage() {
     (u.email || '').toLowerCase().includes(term) ||
     (u.username || '').toLowerCase().includes(term) ||
     (u.phone || '').toLowerCase().includes(term) ||
+    (u.public_id || '').toLowerCase().includes(term) ||
     (u.user_id || '').toLowerCase().includes(term)
   );
 
@@ -70,6 +71,7 @@ export default function UsersPage() {
           <table className="w-full text-sm min-w-[1100px]">
             <thead className="bg-slate-50 text-slate-600">
               <tr>
+                <th className="text-left p-3">Public ID</th>
                 <th className="text-left p-3">Username</th>
                 <th className="text-left p-3">User ID</th>
                 <th className="text-left p-3">Full name</th>
@@ -89,6 +91,7 @@ export default function UsersPage() {
             <tbody>
               {list.map(u => (
                 <tr key={u.user_id} className="border-t border-slate-100 hover:bg-slate-50" data-testid={`user-row-${u.user_id}`}>
+                  <td className="p-3 font-mono text-xs font-bold text-indigo-700">{u.public_id || <span className="text-slate-300">—</span>}</td>
                   <td className="p-3 font-semibold text-slate-900">{u.username || <span className="text-slate-400">—</span>}</td>
                   <td className="p-3 text-slate-500 font-mono text-xs">{u.user_id}</td>
                   <td className="p-3 text-slate-800">{u.name}</td>

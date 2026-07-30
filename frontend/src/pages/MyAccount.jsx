@@ -66,7 +66,7 @@ export default function MyAccount() {
   const [tickets, setTickets] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [kyc, setKyc] = useState({ status: 'none' });
-  const [profile, setProfile] = useState({ name: '', email: '', phone: '', username: '', user_id: '', dob: '', address: '', phone_verified: false });
+  const [profile, setProfile] = useState({ name: '', email: '', phone: '', username: '', user_id: '', public_id: '', dob: '', address: '', phone_verified: false });
   const [wallet, setWallet] = useState(null);
   const [walletTxs, setWalletTxs] = useState([]);
   const [referral, setReferral] = useState(null);
@@ -86,11 +86,12 @@ export default function MyAccount() {
         phone: me.phone || '',
         username: me.username || '',
         user_id: me.user_id || '',
+        public_id: me.public_id || '',
         dob: me.dob || '',
         address: me.address || '',
         phone_verified: !!me.phone_verified,
       }))
-      .catch(() => setProfile(p => ({ ...p, name: user.name || '', email: user.email || '', username: user.username || '', user_id: user.user_id || '', phone_verified: !!user.phone_verified })));
+      .catch(() => setProfile(p => ({ ...p, name: user.name || '', email: user.email || '', username: user.username || '', user_id: user.user_id || '', public_id: user.public_id || '', phone_verified: !!user.phone_verified })));
     ordersAPI.myTickets().then(setTickets).catch(() => {});
     userAPI.kycStatus().then(setKyc).catch(() => {});
     userAPI.notifications().then(r => setNotifications(r?.notifications || [])).catch(() => {});
@@ -278,7 +279,7 @@ export default function MyAccount() {
                         @{profile.username || '—'}
                       </div>
                       <div className="text-white/70 text-[10px] sm:text-xs font-mono truncate mt-0.5">
-                        ID: {profile.user_id || user.user_id || '—'}
+                        ID: {profile.public_id || 'PL——'}
                       </div>
                     </>
                   ) : (
@@ -311,7 +312,7 @@ export default function MyAccount() {
                   <Mail className="w-3.5 h-3.5" /> {profile.email}
                 </div>
                 <div className="text-[11px] text-slate-400 font-mono mt-0.5 truncate" data-testid="profile-user-id">
-                  ID: {profile.user_id || '—'}
+                  ID: {profile.public_id || 'PL——'}
                 </div>
               </div>
               <div className="flex flex-col items-end gap-1">
@@ -554,12 +555,12 @@ export default function MyAccount() {
             </div>
             <ul className="divide-y divide-slate-100">
               {[
-                { title: 'Terms & Conditions', desc: 'Rules of using Prize League', href: '/terms' },
-                { title: 'Privacy Policy', desc: 'How we handle your data', href: '/privacy' },
-                { title: 'Cookies Policy', desc: 'Cookies we use and why', href: '/cookies' },
-                { title: 'Responsible Play', desc: 'Play safely and know your limits', href: '/responsible' },
-                { title: 'Complaints Procedure', desc: 'How to raise a formal complaint', href: '/complaints' },
-                { title: 'Refund Policy', desc: 'When and how refunds are processed', href: '/refunds' },
+                { title: 'Terms & Conditions', desc: 'Rules of using Prize League', href: '/legal/terms' },
+                { title: 'Privacy Policy', desc: 'How we handle your data', href: '/legal/privacy' },
+                { title: 'Cookie Policy', desc: 'Cookies we use and why', href: '/legal/cookies' },
+                { title: 'Responsible Participation', desc: 'Play safely and know your limits', href: '/legal/responsible' },
+                { title: 'Complaints Procedure', desc: 'How to raise a formal complaint', href: '/legal/complaints' },
+                { title: 'Refund Policy', desc: 'When and how refunds are processed', href: '/legal/refunds' },
               ].map(p => (
                 <li key={p.title} className="py-3 flex items-center justify-between hover:bg-slate-50 -mx-2 px-2 rounded">
                   <div>
