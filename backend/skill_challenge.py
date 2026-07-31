@@ -52,11 +52,18 @@ DEFAULT_TTL_SECONDS = 300  # 5 minutes
 
 def _key() -> bytes:
     """HMAC signing key. Reuse INSTANT_WIN_KEY so ops does not have to
-    manage another secret. Falls back to a fixed dev key ONLY when running
-    outside a configured environment."""
+    manage another secret. Falls back to a per-process ephemeral key ONLY
+    when running without any configured env — this keeps the app boot-able
+    in a mis-configured production pod (challenges just won't survive a
+    restart) instead of taking down `/health` and preventing any triage."""
     k = os.environ.get('SKILL_CHALLENGE_KEY') or os.environ.get('INSTANT_WIN_KEY')
     if not k:
-        raise RuntimeError('SKILL_CHALLENGE_KEY / INSTANT_WIN_KEY must be set in the backend env.')
+        global _EPHEMERAL_KEY
+        try:
+            return _EPHEMERAL_KEY
+        except NameError:
+            _EPHEMERAL_KEY = secrets.token_urlsafe(48).encode('utf-8')
+            return _EPHEMERAL_KEY
     return k.encode('utf-8')
 
 

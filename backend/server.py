@@ -33,6 +33,26 @@ async def root():
     return {'service': 'gamezoo', 'status': 'ok'}
 
 
+# ---- Kubernetes health probes -------------------------------------------
+# The Emergent K8s cluster probes `GET /health` and `GET /ready` on the
+# backend pod directly (no `/api` prefix stripping). If we don't answer
+# these at the ROOT path the pod is marked NotReady, nginx sees connection
+# refused-style failures, and no client traffic reaches the app.
+# Keep these endpoints trivially cheap so a slow DB never fails a probe.
+@app.get('/health')
+@app.get('/healthz')
+async def health():
+    return {'status': 'ok'}
+
+
+@app.get('/ready')
+@app.get('/readyz')
+async def ready():
+    # Do NOT touch the DB here — a transient Mongo blip should not evict the
+    # pod. Real DB checks belong in a separate /diagnostics endpoint later.
+    return {'status': 'ready'}
+
+
 @api_router.get('/public/winners')
 async def public_winners(limit: int = 50):
     limit = max(1, min(limit, 200))

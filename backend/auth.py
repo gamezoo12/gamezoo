@@ -14,18 +14,26 @@ JWT_SECRET = os.environ.get('JWT_SECRET', _DEFAULT_DEV_SECRET)
 JWT_ALGO = 'HS256'
 JWT_EXP_DAYS = 30
 
-# Refuse to boot in production with the default dev secret — otherwise tokens
-# would be trivially forgeable. Detect production via multiple signals.
+# In production we DO NOT want to run with the dev default (tokens would be
+# trivially forgeable). But we also refuse to hard-crash the container — the
+# k8s liveness probe would then loop forever and the operator would have no
+# way to see the app. So we AUTO-ROTATE to a fresh random secret and log a
+# loud error. Tokens minted with the old default get rejected as forgeries
+# (which is what we want in prod anyway).
 _env = (os.environ.get('ENVIRONMENT') or os.environ.get('APP_ENV') or '').lower()
 _stripe_mode = (os.environ.get('STRIPE_MODE') or '').lower()
 _is_production = _env in ('prod', 'production', 'live') or _stripe_mode == 'live'
-if _is_production and JWT_SECRET == _DEFAULT_DEV_SECRET:
-    raise RuntimeError(
-        'Refusing to boot: JWT_SECRET is set to the dev default in a production '
-        'environment. Set a strong random JWT_SECRET in the environment before deploying.'
-    )
 if JWT_SECRET == _DEFAULT_DEV_SECRET:
-    logger.warning('JWT_SECRET is using the default dev value. Override JWT_SECRET in prod.')
+    if _is_production:
+        import secrets as _secrets
+        JWT_SECRET = _secrets.token_urlsafe(48)
+        logger.error(
+            'JWT_SECRET was not set in the production environment — auto-rotated to '
+            'a random per-boot secret. Existing sessions will need to log in again. '
+            'Fix by setting JWT_SECRET in the deployment env-var UI.'
+        )
+    else:
+        logger.warning('JWT_SECRET is using the default dev value. Override JWT_SECRET in prod.')
 
 pwd_context = CryptContext(schemes=['bcrypt'], deprecated='auto')
 
