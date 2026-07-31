@@ -117,18 +117,36 @@ async def all_orders(request: Request):
 async def refund_order(order_id: str, request: Request):
     await require_admin(request)
     from deps import get_db
+    from routers.wallet_routes import _apply_tx
     db = get_db()
     o = await db.orders.find_one({'order_id': order_id}, {'_id': 0})
     if not o:
         raise HTTPException(status_code=404, detail='Order not found')
     if o.get('status') == 'refunded':
         return {'ok': True, 'already': True}
-    # Decrement tickets_sold and delete tickets
+
+    # Credit the buyer's wallet back BEFORE mutating inventory so an
+    # accidental double-refund attempt can't remove tickets twice. The
+    # idempotency guard above (status == 'refunded') keeps this safe on
+    # retries — we only ever credit money once per order.
+    total_to_refund = float(o.get('total', 0) or 0)
+    if total_to_refund > 0 and o.get('method') == 'wallet':
+        await _apply_tx(
+            db,
+            o['user_id'],
+            'refund',
+            total_to_refund,
+            note=f'Refund for order {order_id}',
+            ref_order_id=order_id,
+        )
+
+    # Decrement tickets_sold and delete tickets so the seat becomes available
+    # again for future buyers.
     for item in o.get('items', []):
         await db.contests.update_one({'contest_id': item['contest_id']}, {'$inc': {'tickets_sold': -item['qty']}})
     await db.tickets.delete_many({'order_id': order_id})
     await db.orders.update_one({'order_id': order_id}, {'$set': {'status': 'refunded'}})
-    return {'ok': True}
+    return {'ok': True, 'refunded_amount': total_to_refund}
 
 
 @router.get('/payments')

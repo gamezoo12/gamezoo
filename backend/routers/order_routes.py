@@ -5,8 +5,31 @@ from auth import get_current_user
 from deps import get_db
 from models import CheckoutInput, Order, Ticket
 from routers.wallet_routes import _apply_tx, _get_or_create_wallet
+from skill_challenge import verify_challenge
 
 router = APIRouter(prefix='/api/orders', tags=['orders'])
+
+
+def _validate_skill(c: dict, item) -> None:
+    """Enforce the skill gate at purchase time.
+
+    Three paths in priority order:
+      1. Random-ticket contests (`entry_mode != 'skill_game'`) — no skill check.
+      2. Dynamic engine (contest has `skill_question_type` set) — verify the
+         signed challenge_token carried in the cart item.
+      3. Legacy static question — string-match the user's answer against the
+         stored `skill_question.answer`.
+    """
+    if c.get('entry_mode', 'skill_game') != 'skill_game':
+        return
+    if c.get('skill_question_type'):
+        r = verify_challenge(c['contest_id'], (item.skill_answer or '').strip(), item.challenge_token or '')
+        if not r['ok']:
+            raise HTTPException(status_code=400, detail=f"Skill check failed for '{c['title']}': {r.get('reason', 'incorrect')}. Return to the contest page and try a fresh question.")
+        return
+    sq = c.get('skill_question') or {}
+    if (item.skill_answer or '').strip() != sq.get('answer'):
+        raise HTTPException(status_code=400, detail=f'Incorrect skill answer for: {c["title"]}')
 
 
 @router.post('/checkout')
@@ -34,23 +57,23 @@ async def checkout(inp: CheckoutInput, request: Request):
         raise HTTPException(status_code=409, detail=f"Duplicate checkout detected. Existing order: {recent['order_id']}")
 
     order_items = []
-    tickets_to_insert = []
     total = 0.0
     contest_by_id = {}
 
+    # Pass 1: pure validation (skill answer, quantity, contest status). NO
+    # writes yet. If any item fails here we haven't touched inventory so
+    # nothing needs to be rolled back.
     for item in inp.items:
         c = await db.contests.find_one({'contest_id': item.contest_id}, {'_id': 0})
         if not c:
             raise HTTPException(status_code=404, detail=f'Contest not found: {item.contest_id}')
         if c.get('status') != 'live':
             raise HTTPException(status_code=400, detail=f'Contest closed: {c["title"]}')
-        # Validate skill answer
-        sq = c.get('skill_question') or {}
-        if (item.skill_answer or '').strip() != sq.get('answer'):
-            raise HTTPException(status_code=400, detail=f'Incorrect skill answer for: {c["title"]}')
+        _validate_skill(c, item)
         if item.qty <= 0 or item.qty > 500:
             raise HTTPException(status_code=400, detail='Invalid quantity')
 
+        # Preliminary capacity check — a real ATOMIC guard runs in pass 2.
         available = c['tickets_total'] - c.get('tickets_sold', 0)
         if item.qty > available:
             raise HTTPException(status_code=400, detail=f'Only {available} tickets left for {c["title"]}')
@@ -67,7 +90,8 @@ async def checkout(inp: CheckoutInput, request: Request):
             'line_total': line_total,
         })
 
-    # Wallet balance check BEFORE mutating anything
+    # Wallet balance check BEFORE mutating anything (cheap early rejection so
+    # we don't burn ticket reservations for buyers who can't pay).
     wallet = await _get_or_create_wallet(db, user['user_id'])
     if wallet['balance'] < total:
         raise HTTPException(
@@ -75,30 +99,62 @@ async def checkout(inp: CheckoutInput, request: Request):
             detail=f'Insufficient wallet balance. You have £{wallet["balance"]:.2f}, need £{total:.2f}. Top up your wallet to continue.',
         )
 
-    # All checks passed — commit ticket numbers, order, and wallet debit
-    for item in inp.items:
-        c = contest_by_id[item.contest_id]
-        base = c.get('tickets_sold', 0)
-        for n in range(item.qty):
-            tickets_to_insert.append(Ticket(
-                order_id='',  # set below
-                user_id=user['user_id'],
-                contest_id=c['contest_id'],
-                ticket_number=base + n + 1,
-            ).model_dump())
-        await db.contests.update_one({'contest_id': c['contest_id']}, {'$inc': {'tickets_sold': item.qty}})
+    # Pass 2: ATOMIC ticket reservations. Each `$inc` is guarded by a filter
+    # on `tickets_sold` so two buyers can't oversell the last N tickets. If
+    # any reservation fails we roll back the earlier ones before responding.
+    reserved: list[tuple[str, int]] = []  # (contest_id, base_before, qty)
+    tickets_to_insert = []
+    try:
+        for item in inp.items:
+            c = contest_by_id[item.contest_id]
+            res = await db.contests.find_one_and_update(
+                {
+                    'contest_id': c['contest_id'],
+                    'status': 'live',
+                    # Only reserve if there's still room. This is the atomic
+                    # equivalent of the earlier `available >= qty` check.
+                    '$expr': {'$lte': [{'$add': [{'$ifNull': ['$tickets_sold', 0]}, item.qty]}, '$tickets_total']},
+                },
+                {'$inc': {'tickets_sold': item.qty}},
+                projection={'_id': 0, 'tickets_sold': 1, 'tickets_total': 1},
+                return_document=False,  # BEFORE — we want the base index
+            )
+            if not res:
+                # Someone beat us to the last tickets between pass 1 and now.
+                raise HTTPException(status_code=409, detail=f'Tickets just sold out for {c["title"]}. Please refresh and try again.')
+            base = res.get('tickets_sold', 0)
+            reserved.append((c['contest_id'], base, item.qty))
+            for n in range(item.qty):
+                tickets_to_insert.append(Ticket(
+                    order_id='',  # set once the order_id is minted below
+                    user_id=user['user_id'],
+                    contest_id=c['contest_id'],
+                    ticket_number=base + n + 1,
+                ).model_dump())
 
-    order = Order(user_id=user['user_id'], items=order_items, total=total, status='paid', method='wallet')
-    order_doc = order.model_dump()
-    order_doc['idempotency_sig'] = sig
-    await db.orders.insert_one(order_doc)
-    for t in tickets_to_insert:
-        t['order_id'] = order.order_id
-    if tickets_to_insert:
-        await db.tickets.insert_many(tickets_to_insert)
+        order = Order(user_id=user['user_id'], items=order_items, total=total, status='paid', method='wallet')
+        for t in tickets_to_insert:
+            t['order_id'] = order.order_id
 
-    # Debit wallet
-    await _apply_tx(db, user['user_id'], 'spend', -total, note=f'Order {order.order_id}', ref_order_id=order.order_id)
+        # Debit wallet ATOMICALLY (find_one_and_update with balance guard).
+        # If insufficient (a race between check and here), this raises 400
+        # and the outer except reverses ticket reservations.
+        await _apply_tx(db, user['user_id'], 'spend', -total, note=f'Order {order.order_id}', ref_order_id=order.order_id)
+
+        order_doc = order.model_dump()
+        order_doc['idempotency_sig'] = sig
+        await db.orders.insert_one(order_doc)
+        if tickets_to_insert:
+            await db.tickets.insert_many(tickets_to_insert)
+    except HTTPException:
+        # Roll back any reservations we already made this request.
+        for contest_id, _base, qty in reserved:
+            await db.contests.update_one({'contest_id': contest_id}, {'$inc': {'tickets_sold': -qty}})
+        raise
+    except Exception:
+        for contest_id, _base, qty in reserved:
+            await db.contests.update_one({'contest_id': contest_id}, {'$inc': {'tickets_sold': -qty}})
+        raise
 
     # In-app notification per contest so users see the winning tickets grouped.
     from notifications import notify

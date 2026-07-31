@@ -16,8 +16,13 @@ answer we call `verify_challenge()` which:
 
 Because the correct answer never appears in the response body sent to the
 browser, users cannot inspect network traffic to cheat. Because the token is
-bound to a specific contest and single question, users cannot replay one
-successful token against another contest or question.
+bound to a specific contest and single question via HMAC, users cannot re-use
+a token issued for contest A to submit a purchase against contest B. Tokens
+do remain valid for their 5-minute TTL, so a user who refreshes could submit
+the same answer against the same contest multiple times — this is acceptable
+because knowing the answer is not a security barrier (the correct answer is
+one of four public options); the token exists to prove the challenge was
+issued by us, not to make each answer single-use.
 """
 from __future__ import annotations
 

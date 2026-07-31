@@ -37,21 +37,53 @@ async def _get_or_create_wallet(db, user_id: str) -> dict:
 
 
 async def _apply_tx(db, user_id: str, kind: str, amount: float, note: str = '', ref_order_id: Optional[str] = None) -> dict:
-    """Apply a delta to the wallet and record a transaction. Returns the new balance dict."""
-    w = await _get_or_create_wallet(db, user_id)
-    new_balance = round(w['balance'] + amount, 2)
-    if new_balance < 0:
+    """Apply a delta to the wallet atomically and record a transaction.
+
+    Uses `find_one_and_update` with `$inc` so concurrent writers cannot
+    clobber each other's balances (lost-update bug). For debits (amount < 0)
+    the update is guarded with a `balance >= abs(amount)` filter so a race
+    can never leave the balance negative — the update simply fails and we
+    raise 400 to the loser.
+    """
+    # Ensure the wallet document exists so the subsequent atomic $inc has
+    # something to hit. Any create-race is safe: unique index on user_id in
+    # the Wallet model (upsert=True keeps us idempotent).
+    await _get_or_create_wallet(db, user_id)
+
+    delta = round(float(amount), 2)
+    now = datetime.now(timezone.utc)
+
+    # Build atomic mutation. Lifetime counters must also change in-doc so no
+    # separate read+set exists in this function.
+    inc = {'balance': delta}
+    if delta > 0 and kind in ('topup', 'referral_bonus'):
+        inc['lifetime_topup'] = round(delta, 2)
+    elif delta < 0 and kind == 'spend':
+        inc['lifetime_spend'] = round(abs(delta), 2)
+
+    filt = {'user_id': user_id}
+    if delta < 0:
+        # Prevent overdraft under concurrency: only debit if we still have the
+        # money at the exact moment we mutate.
+        filt['balance'] = {'$gte': abs(delta)}
+
+    updated = await db.wallets.find_one_and_update(
+        filt,
+        {'$inc': inc, '$set': {'updated_at': now}},
+        return_document=True,  # pymongo maps this to ReturnDocument.AFTER
+        projection={'_id': 0, 'balance': 1},
+    )
+    if not updated:
+        # If it wasn't a debit filter that failed, some other race happened;
+        # either way the safe response is 400 with the same message we've
+        # always shown to users.
         raise HTTPException(status_code=400, detail='Insufficient wallet balance')
-    updates = {'balance': new_balance, 'updated_at': datetime.now(timezone.utc)}
-    if amount > 0 and kind in ('topup', 'referral_bonus'):
-        updates['lifetime_topup'] = round(w.get('lifetime_topup', 0) + amount, 2)
-    elif amount < 0 and kind == 'spend':
-        updates['lifetime_spend'] = round(w.get('lifetime_spend', 0) + abs(amount), 2)
-    await db.wallets.update_one({'user_id': user_id}, {'$set': updates})
+
+    new_balance = round(updated['balance'], 2)
     tx = WalletTx(
         user_id=user_id,
         kind=kind,
-        amount=amount,
+        amount=delta,
         balance_after=new_balance,
         note=note,
         ref_order_id=ref_order_id,

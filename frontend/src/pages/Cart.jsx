@@ -58,7 +58,7 @@ export default function Cart() {
     if (!user) { toast({ title: 'Please sign in first' }); nav('/login'); return; }
     setBusy(true);
     try {
-      const payload = items.map(i => ({ contest_id: i.contest_id, qty: i.qty, skill_answer: i.skill_answer || 'n/a' }));
+      const payload = items.map(i => ({ contest_id: i.contest_id, qty: i.qty, skill_answer: i.skill_answer || 'n/a', challenge_token: i.challenge_token || null }));
       const r = await ordersAPI.checkout(payload);
       localStorage.removeItem(STORAGE_KEY);
       setItems([]);

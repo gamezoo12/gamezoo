@@ -200,6 +200,10 @@ class CartItem(BaseModel):
     contest_id: str
     qty: int
     skill_answer: str  # user's answer, will be validated server-side
+    # New (Feb 2026): HMAC-signed token proving the user's answer belongs to a
+    # dynamic skill challenge that was actually issued by us. Optional to
+    # preserve backward compatibility with legacy static-question contests.
+    challenge_token: Optional[str] = None
 
 
 class CheckoutInput(BaseModel):

@@ -38,6 +38,9 @@ export default function CompetitionDetail() {
   // answers or manual "New question" clicks.
   const [challenge, setChallenge] = useState(null);   // { question, options, challenge_token, op, difficulty }
   const [challengeLoading, setChallengeLoading] = useState(false);
+  // Mandatory "Before you buy" confirmation — must be ticked before the Buy
+  // button becomes active. Resets when the user changes contest.
+  const [confirmed, setConfirmed] = useState(false);
 
   useEffect(() => { contestsAPI.get(slug).then(setC).catch(() => nav('/competitions')); }, [slug, nav]);
 
@@ -106,13 +109,20 @@ export default function CompetitionDetail() {
     const raw = localStorage.getItem('gamezoo_cart');
     const cart = raw ? JSON.parse(raw) : [];
     const idx = cart.findIndex(x => x.contest_id === c.contest_id);
+    const token = challenge?.challenge_token || null;
     const item = {
       contest_id: c.contest_id, slug: c.slug, title: c.title, image: c.image,
       price: c.price, qty: tickets, skill_answer: answer || 'n/a',
+      challenge_token: token,
       entry_mode: entryMode, added_at: new Date().toISOString(),
     };
-    if (idx >= 0) { cart[idx].qty += tickets; cart[idx].skill_answer = answer || 'n/a'; }
-    else cart.push(item);
+    if (idx >= 0) {
+      cart[idx].qty += tickets;
+      cart[idx].skill_answer = answer || 'n/a';
+      cart[idx].challenge_token = token;
+    } else {
+      cart.push(item);
+    }
     localStorage.setItem('gamezoo_cart', JSON.stringify(cart));
     toast({ title: 'Added to basket', description: `${tickets} ticket${tickets > 1 ? 's' : ''} for “${c.title}”` });
     nav('/cart');
@@ -284,10 +294,9 @@ export default function CompetitionDetail() {
             <label className="flex items-start gap-2 mb-3 text-xs text-slate-600 cursor-pointer" data-testid="before-you-buy">
               <input
                 type="checkbox"
-                checked={verified ? undefined : undefined}
-                onChange={(e) => { window.__pl_confirm = e.target.checked; }}
+                checked={confirmed}
+                onChange={(e) => setConfirmed(e.target.checked)}
                 data-testid="before-you-buy-check"
-                defaultChecked={false}
                 className="mt-0.5 w-4 h-4 accent-[#6C2BFF]"
               />
               <span>
@@ -296,9 +305,14 @@ export default function CompetitionDetail() {
               </span>
             </label>
 
-            <Button onClick={addToCart} disabled={isSkillGame && !verified} data-testid="buy-tickets-btn"
+            <Button
+              onClick={addToCart}
+              disabled={(isSkillGame && !verified) || !confirmed}
+              data-testid="buy-tickets-btn"
               className="w-full h-12 pl-btn-gold text-slate-900 text-base font-extrabold disabled:opacity-50 disabled:cursor-not-allowed">
-              <ShoppingBag className="w-4 h-4 mr-2" /> {isSkillGame && !verified ? 'Answer skill question first' : `Buy ${tickets} ticket${tickets > 1 ? 's' : ''} → Basket`}
+              <ShoppingBag className="w-4 h-4 mr-2" /> {isSkillGame && !verified
+                ? 'Answer skill question first'
+                : (!confirmed ? 'Tick the confirmation to buy' : `Buy ${tickets} ticket${tickets > 1 ? 's' : ''} → Basket`)}
             </Button>
             <Link to={`/results/${c.slug}`} className="block mt-2" data-testid="see-results-link">
               <Button variant="outline" className="w-full h-10 text-sm">
