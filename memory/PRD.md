@@ -140,6 +140,12 @@ See `/app/memory/test_credentials.md`.
     - Tests: 34/36 auth+profile pass; the 2 CORS failures are pre-existing Cloudflare edge issues (infra, not code).
 
 
+- **2026-07-31 · Production Deploy Fixes (iter 31)** — K8s liveness probe was failing with `connection refused` on port 8001; backend never bound because of a strict `RuntimeError` in `auth.py` when `JWT_SECRET` env was absent in the prod pod. Plus there was no `/health` endpoint at the root path (all routes were under `/api/*`).
+    - **`backend/server.py`**: added `@app.get('/health')`, `/healthz`, `/ready`, `/readyz` returning `{"status":"ok"}` directly. No DB touch — a Mongo blip cannot fail the K8s liveness probe.
+    - **`backend/auth.py`**: replaced hard `raise RuntimeError` on missing `JWT_SECRET` in production with `secrets.token_urlsafe(48)` auto-rotation + loud ERROR log. Backend now always boots; ops sets the real `JWT_SECRET` via Emergent env-var UI and restarts.
+    - **`backend/skill_challenge.py`**: `_key()` falls back to a per-process ephemeral key if both `SKILL_CHALLENGE_KEY` and `INSTANT_WIN_KEY` are absent, instead of raising and killing the challenge endpoint.
+    - Verified locally: all 4 probe paths return 200, auth boots correctly with empty env, all 21 launch-critical tests still pass. Deployment agent confirmed READY.
+
 - **2026-07-31 · Deployment Health Check PASS** (iter 30)
     - **N+1 wipeouts** across admin + user-facing endpoints. `/admin/users`, `/admin/orders`, `/admin/payments`, `/admin/kyc` all use bulk `$in` lookups instead of one-query-per-row (was 3001 queries for 1000 users → now ~4). `/orders/my-games` collapses `count_documents` + per-ticket `find` into two bulk aggregations.
     - **Pagination caps** on unbounded queries: `/contests` (default 100, cap 500), `/public/winners` (50, 200), `/orders/mine` (50, 200), `/orders/my-tickets` (200, 1000). Sort orders added where missing.
