@@ -69,12 +69,36 @@ async def all_users(request: Request):
     from deps import get_db
     db = get_db()
     users = await db.users.find({}, {'_id': 0, 'password_hash': 0}).sort('created_at', -1).to_list(1000)
+    if not users:
+        return users
+
+    # Bulk-join tickets / orders / kyc in 3 aggregations instead of 3 per user.
+    # Previously this endpoint fired 1 + 3×N queries (3001 for 1000 users) and
+    # timed out at scale — deployment blocker flagged in the launch review.
+    user_ids = [u['user_id'] for u in users]
+
+    tickets_agg = await db.tickets.aggregate([
+        {'$match': {'user_id': {'$in': user_ids}}},
+        {'$group': {'_id': '$user_id', 'count': {'$sum': 1}}},
+    ]).to_list(None)
+    tickets_by_user = {t['_id']: t['count'] for t in tickets_agg}
+
+    orders_agg = await db.orders.aggregate([
+        {'$match': {'user_id': {'$in': user_ids}}},
+        {'$group': {'_id': '$user_id', 'total': {'$sum': '$total'}}},
+    ]).to_list(None)
+    spent_by_user = {o['_id']: o['total'] for o in orders_agg}
+
+    kyc_docs = await db.kyc.find(
+        {'user_id': {'$in': user_ids}},
+        {'_id': 0, 'user_id': 1, 'status': 1},
+    ).to_list(None)
+    kyc_by_user = {k['user_id']: k.get('status', 'none') for k in kyc_docs}
+
     for u in users:
-        u['tickets'] = await db.tickets.count_documents({'user_id': u['user_id']})
-        agg = await db.orders.aggregate([{'$match': {'user_id': u['user_id']}}, {'$group': {'_id': None, 't': {'$sum': '$total'}}}]).to_list(1)
-        u['spent'] = agg[0]['t'] if agg else 0
-        kyc = await db.kyc.find_one({'user_id': u['user_id']}, {'_id': 0, 'status': 1})
-        u['kyc_status'] = kyc['status'] if kyc else 'none'
+        u['tickets'] = tickets_by_user.get(u['user_id'], 0)
+        u['spent'] = spent_by_user.get(u['user_id'], 0)
+        u['kyc_status'] = kyc_by_user.get(u['user_id'], 'none')
     return users
 
 
