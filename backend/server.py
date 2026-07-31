@@ -77,7 +77,7 @@ from routers.captcha_routes import router as captcha_router
 from routers.support_routes import router as support_router, admin_router as admin_support_router
 from routers.legal_routes import public_router as legal_public_router, admin_router as legal_admin_router, ensure_legal_docs_seeded
 from routers.company_routes import public_router as company_public_router, admin_router as company_admin_router, contest_router as leaderboard_router
-from routers.engines_routes import router as engines_router
+from routers.engines_routes import router as engines_router, public_router as engines_public_router
 from routers.user360_routes import router as user360_router
 
 app.include_router(auth_router)
@@ -109,6 +109,7 @@ app.include_router(company_public_router)
 app.include_router(company_admin_router)
 app.include_router(leaderboard_router)
 app.include_router(engines_router)
+app.include_router(engines_public_router)
 app.include_router(user360_router)
 
 

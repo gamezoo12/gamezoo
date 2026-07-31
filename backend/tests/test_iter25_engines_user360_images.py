@@ -222,6 +222,9 @@ class TestRandomDraw:
         db.contest_draws.delete_many({'contest_id': cid})
         db.audit_log.delete_many({'contest_id': cid})
         db.contests.delete_one({'contest_id': cid})
+        # Restore feature flag to safe default (must remain OFF pending legal review).
+        super_client.put(f'{BASE_URL}/api/admin/company',
+                         json={'random_draw_engine_enabled': False}, timeout=15)
 
 
 # =====================================================================
@@ -283,7 +286,7 @@ class TestInstantWin:
         db.game_scores.insert_one({'contest_id': cid, 'user_id': uid, 'ticket_number': 7,
                                     'score': 100, 'created_at': datetime.now(timezone.utc)})
         r = super_client.post(
-            f'{BASE_URL}/api/admin/engines/instant-win/{cid}/reveal?ticket_number=7', timeout=15)
+            f'{BASE_URL}/api/engines/instant-win/{cid}/reveal?ticket_number=7', timeout=15)
         # Note reveal is under /api/admin — should still work as super_admin is logged in
         assert r.status_code == 200, r.text
         first = r.json()
@@ -291,7 +294,7 @@ class TestInstantWin:
         assert first['prize']['amount'] == 50
         # Idempotent
         r2 = super_client.post(
-            f'{BASE_URL}/api/admin/engines/instant-win/{cid}/reveal?ticket_number=7', timeout=15)
+            f'{BASE_URL}/api/engines/instant-win/{cid}/reveal?ticket_number=7', timeout=15)
         assert r2.status_code == 200
         assert r2.json() == first
 
@@ -303,6 +306,8 @@ class TestInstantWin:
         db.instant_win_reveals.delete_many({'contest_id': cid})
         db.audit_log.delete_many({'contest_id': cid})
         db.contests.delete_one({'contest_id': cid})
+        super_client.put(f'{BASE_URL}/api/admin/company',
+                         json={'instant_win_engine_enabled': False}, timeout=15)
 
 
 # =====================================================================
