@@ -100,3 +100,16 @@ async def verify_skill(slug: str, payload: dict):
     sq = doc.get('skill_question') or {}
     correct = (payload.get('answer', '') or '').strip() == sq.get('answer')
     return {'correct': correct}
+
+
+@router.post('/{contest_id}/track-view')
+async def track_contest_view(contest_id: str, is_mobile: bool = False):
+    """Bump card-view counters used by admin's mobile-optimisation hint.
+    No auth required — anonymous view tracking with rate-limit-safe increments."""
+    from deps import get_db
+    db = get_db()
+    field = 'mobile_views' if is_mobile else 'desktop_views'
+    r = await db.contests.update_one({'contest_id': contest_id}, {'$inc': {field: 1}})
+    if r.matched_count == 0:
+        raise HTTPException(404, 'Contest not found')
+    return {'ok': True}

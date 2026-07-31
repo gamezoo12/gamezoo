@@ -264,6 +264,23 @@ async def commit_instant_win(contest_id: str, payload: InstantWinCommit, request
     return {'ok': True, 'config_hash': config_hash, 'num_winning_tickets': len(payload.prizes)}
 
 
+@public_router.get('/instant-win/verify')
+async def verify_committed_instant_win():
+    """Public verification feed — lists every contest with a committed
+    instant-win configuration (config_hash only, never the plain map).
+    Anyone can consult this feed to prove the winners list was pre-committed."""
+    from deps import get_db
+    db = get_db()
+    rows = await db.instant_win_configs.find({}, {'_id': 0, 'encrypted_map': 0}).sort('committed_at', -1).to_list(500)
+    # Join contest title/slug
+    contest_ids = [r['contest_id'] for r in rows]
+    titles = {}
+    if contest_ids:
+        async for c in db.contests.find({'contest_id': {'$in': contest_ids}}, {'_id': 0, 'contest_id': 1, 'slug': 1, 'title': 1}):
+            titles[c['contest_id']] = c
+    return {'feed': [{**r, 'contest': titles.get(r['contest_id'])} for r in rows]}
+
+
 @public_router.post('/instant-win/{contest_id}/reveal')
 async def reveal_instant_win(contest_id: str, ticket_number: int, request: Request):
     """Called by the frontend AFTER a user completes the required skill task.
