@@ -7,12 +7,12 @@
 export const BRAND = {
   name: 'Prize League',
   // Cache-bust — bump when the logo asset is replaced so browsers refetch.
-  logoUrl: '/logo.png?v=4',
+  logoUrl: '/logo.png?v=5',
   logoAlt: 'Prize League',
   primary: '#6C2BFF',
   gold: '#FFD54A',
-  // Aspect ratio of the shipped logo asset (width / height).
-  logoAspect: 210 / 100,
+  // Aspect ratio of the shipped logo asset (width / height). Crown emblem is ~0.836.
+  logoAspect: 428 / 512,
 };
 
 export const COMPANY = {

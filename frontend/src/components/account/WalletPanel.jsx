@@ -47,7 +47,7 @@ function TxReceipt({ tx, open, onClose, walletBefore }) {
  </DialogHeader>
  <div className="rounded-2xl border-2 border-dashed border-slate-200 p-5 bg-slate-50">
  <div className="flex items-center justify-between mb-4">
- <PrizeLeagueLogo size={28} />
+ <PrizeLeagueLogo size={28} emblemOnly />
  <div className={`text-xs px-2 py-0.5 rounded-full font-bold uppercase ${tx.amount > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
  {tx.amount > 0 ? 'Credit' : 'Debit'}
  </div>

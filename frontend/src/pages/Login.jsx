@@ -148,7 +148,7 @@ export default function Login() {
  {/* Right form panel */}
  <div className="flex items-center justify-center px-4 py-12">
  <div className="w-full max-w-md">
- <div className="lg:hidden mb-6"><PrizeLeagueLogo size={40} /></div>
+ <div className="lg:hidden mb-6"><PrizeLeagueLogo size={40} emblemOnly /></div>
 
  <div className="flex gap-1 p-1 bg-slate-100 rounded-xl mb-6" data-testid="auth-mode-tabs">
  <button
