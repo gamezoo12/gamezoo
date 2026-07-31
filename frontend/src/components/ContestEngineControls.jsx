@@ -63,7 +63,7 @@ export function ContestImageFocalPicker({ initialImage, onUploaded }) {
     <div className="space-y-3" data-testid="focal-picker">
       <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 rounded-lg px-3 py-2">
         <Crosshair className="w-4 h-4 text-indigo-600" />
-        <span>Click anywhere on the preview to set the focal point — cropping will keep this point visible on every device size.</span>
+        <span>Click anywhere on the preview to set the focal point — cropping will keep this point visible on every device size. Use the rule-of-thirds grid to position the subject on an intersection.</span>
       </div>
 
       <input
@@ -94,6 +94,17 @@ export function ContestImageFocalPicker({ initialImage, onUploaded }) {
             onClick={handleClick}
             className="w-full max-h-80 object-contain bg-slate-100"
           />
+          {/* Rule-of-thirds grid overlay */}
+          <div className="pointer-events-none absolute inset-0" data-testid="focal-grid-overlay" aria-hidden="true">
+            <div className="absolute left-1/3 top-0 bottom-0 w-px bg-white/70 shadow-[0_0_0_1px_rgba(0,0,0,0.15)]" />
+            <div className="absolute left-2/3 top-0 bottom-0 w-px bg-white/70 shadow-[0_0_0_1px_rgba(0,0,0,0.15)]" />
+            <div className="absolute top-1/3 left-0 right-0 h-px bg-white/70 shadow-[0_0_0_1px_rgba(0,0,0,0.15)]" />
+            <div className="absolute top-2/3 left-0 right-0 h-px bg-white/70 shadow-[0_0_0_1px_rgba(0,0,0,0.15)]" />
+            {/* Intersection dots */}
+            {[[33.33,33.33],[66.66,33.33],[33.33,66.66],[66.66,66.66]].map(([l,t],i)=>(
+              <div key={i} className="absolute w-1.5 h-1.5 -ml-0.5 -mt-0.5 rounded-full bg-white/90 ring-1 ring-black/20" style={{ left: `${l}%`, top: `${t}%` }} />
+            ))}
+          </div>
           {file && (
             <div
               className="absolute w-6 h-6 -ml-3 -mt-3 rounded-full border-2 border-white shadow-xl bg-indigo-600 flex items-center justify-center pointer-events-none"

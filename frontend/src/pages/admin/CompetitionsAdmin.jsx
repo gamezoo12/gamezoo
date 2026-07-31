@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/button';
 import { Progress } from '../../components/ui/progress';
 import { gbp, percent } from '../../lib/format';
 import { useToast } from '../../hooks/use-toast';
-import { Play, Pause, Trash2, Trophy, Pencil, Plus, PlayCircle, PauseCircle } from 'lucide-react';
+import { Play, Pause, Trash2, Trophy, Pencil, Plus, PlayCircle, PauseCircle, Smartphone } from 'lucide-react';
 import EditContestDialog from '../../components/EditContestDialog';
 
 const STATUS_TABS = [

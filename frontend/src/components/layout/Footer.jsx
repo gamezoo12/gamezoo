@@ -56,6 +56,7 @@ export default function Footer() {
  <li><Link to="/privacy" data-testid="footer-privacy" className="hover:text-[#FFD54A]">Privacy Policy</Link></li>
  <li><Link to="/website-terms" data-testid="footer-website-terms" className="hover:text-[#FFD54A]">Website Terms &amp; AUP</Link></li>
  <li><Link to="/mobile-terms" data-testid="footer-mobile-terms" className="hover:text-[#FFD54A]">Mobile Terms of Service</Link></li>
+ <li><Link to="/verify" data-testid="footer-verify" className="hover:text-[#FFD54A]">Verify Winners</Link></li>
  <li><Link to="/responsible" className="hover:text-[#FFD54A]">Responsible Play</Link></li>
  </ul>
  </div>

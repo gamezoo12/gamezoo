@@ -5,6 +5,7 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Clock, Ticket } from 'lucide-react';
 import { countdown, percent, gbp } from '../lib/format';
+import { api } from '../lib/api';
 
 export default function CompetitionCard({ c }) {
   const [t, setT] = useState(countdown(c.endDate));
@@ -15,8 +16,18 @@ export default function CompetitionCard({ c }) {
 
   const pct = percent(c.ticketsSold, c.ticketsTotal);
 
+  const handleClick = () => {
+    // Fire-and-forget A/B tracking: distinguishes mobile vs desktop card clicks so
+    // admins can see if a contest is being clicked more from mobile and needs a
+    // better mobile crop.
+    try {
+      const isMobile = typeof window !== 'undefined' && window.innerWidth <= 640;
+      api.post(`/contests/${c.id || c.contest_id}/track-view?is_mobile=${isMobile}`).catch(() => {});
+    } catch { /* ignore */ }
+  };
+
   return (
-    <Link to={`/competition/${c.slug}`} className="group block">
+    <Link to={`/competition/${c.slug}`} onClick={handleClick} className="group block" data-testid={`competition-card-${c.slug}`}>
       <div className="prize-card bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm h-full flex flex-col">
         <div className="relative aspect-square overflow-hidden bg-gradient-to-br from-teal-50 to-emerald-50">
           <picture>

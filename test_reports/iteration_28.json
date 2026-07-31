@@ -1,0 +1,48 @@
+{
+  "summary": "Iter27 P0 transparency & UX items tested end-to-end. 3 of 4 features work correctly. Backend endpoints all 200/404 as spec. Frontend: /verify page + footer link OK; CompetitionCard track-view fires with is_mobile=true/false based on viewport and mobile_views/desktop_views increment in DB; WinnersReveal live-replay reveals 3rd->2nd->1st over ~3.2s with Replay button correctly disabling during animation and re-enabling after; Focal Point Picker rule-of-thirds overlay renders with exactly 4 intersection dots inside data-testid=focal-grid-overlay. HOWEVER the admin Mobile Auto-A/B optimisation hint + mobile-share stat (item 4) is NOT implemented in /app/frontend/src/pages/admin/CompetitionsAdmin.jsx — grep for mobile-hint / mobile_views / mobile-share / 'Optimise mobile' returns 0 matches. The Smartphone icon is imported but never used. Even after seeding contest c_fd360e20adad with mobile_views=17, desktop_views=7, mobile_image=null (70.8% mobile share, total 24 ≥20) the admin card renders no hint and no share line.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "pages/admin/CompetitionsAdmin.jsx",
+        "issue": "Mobile Auto-A/B optimisation hint (data-testid=mobile-hint-<contest_id>) and 'Mobile X% of N clicks' share line are NOT implemented. The file contains no reference to mobile_views/desktop_views/mobile-hint/'Optimise mobile'. Verified with seeded contest (mobile_views=17, desktop_views=7, mobile_image=null → should show hint) — nothing rendered.",
+        "selector": "[data-testid=mobile-hint-c_fd360e20adad]",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "WinnersReveal podium cards",
+        "issues": ["'ACCURACY 1%' displayed instead of 95%/88%/82% — accuracy stored as 0.95 float but formatted as integer percentage without *100. Minor cosmetic, not scoped to this iteration."]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_28.json"
+  ],
+  "action_items": [
+    "Add mobile-share line and Optimise-mobile hint to /app/frontend/src/pages/admin/CompetitionsAdmin.jsx. Expected: inside each contest card, compute total = (mobile_views||0)+(desktop_views||0); if total>=20, show 'Mobile X% of N clicks'; if total>=20 AND mobile_views/total>=0.60 AND !mobile_image, render a yellow banner with data-testid=`mobile-hint-${c.contest_id}` and copy 'Optimise mobile crop' (use imported Smartphone icon)."
+  ],
+  "critical_code_review_comments": [
+    "CompetitionsAdmin.jsx imports Smartphone from lucide-react but never uses it — dead import confirms the feature was planned but not written.",
+    "ContestImageFocalPicker rule-of-thirds overlay is correctly gated behind previewUrl and includes 2 vertical + 2 horizontal lines and exactly 4 intersection dots via .map — matches spec.",
+    "WinnersReveal useEffect timers (900/2000/3200ms) cleanup on unmount and re-run when replayKey changes — sound implementation. Replay button disabled while revealedCount<3, matches UX spec.",
+    "CompetitionCard onClick emits POST /api/contests/{id}/track-view?is_mobile=<matchesMedia> — verified fires with is_mobile=true at 390px viewport and is_mobile=false at 1280px.",
+    "GET /api/admin/contests exposes mobile_views/desktop_views after increment (verified via curl)."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% (3/3 endpoints: verify feed 200, track-view 200 + 404, admin contests exposes counters)",
+    "frontend": "75% (3/4 P0 features work: /verify, WinnersReveal replay, focal grid; admin mobile hint missing)"
+  },
+  "test_credentials": "bachanta8@gmail.com / Herts@910022 (super_admin)",
+  "seed_data_creation": "Temporarily set c_fd360e20adad status=live, mobile_views=16, desktop_views=6, mobile_image=null; seeded 3 game_scores (Alice/Bob/Carol) + 3 test users to make WinnersReveal podium render. After the two card-click tests bumped counters to mobile_views=17, desktop_views=7. All seed data cleaned up at end: contest reverted to status=closed_no_entries, mobile_views=0, desktop_views=0, mobile_image=null; test users and game_scores deleted.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "After main agent adds mobile hint & share-line to CompetitionsAdmin.jsx, seed c_fd360e20adad with mobile_views=16, desktop_views=6, mobile_image=null and status=live, then go to /admin/competitions and verify (a) card body contains 'Mobile 73% of 22 clicks' (or similar) and (b) [data-testid=mobile-hint-c_fd360e20adad] is visible with yellow background. Also seed the same for a contest that HAS a mobile_image → hint must NOT render. Also seed total<20 → share-line must NOT render. Restore state after test.",
+  "rca_of_the_issue": "CompetitionsAdmin.jsx was not updated in this iteration despite the Smartphone icon import addition, so the admin-side mobile A/B optimisation UX is entirely missing. Backend already stores mobile_views/desktop_views correctly (verified) — the gap is purely frontend rendering. Fix requires ~10 lines inside the .map(c=>) block to compute share and conditionally render two extra elements per card."
+}

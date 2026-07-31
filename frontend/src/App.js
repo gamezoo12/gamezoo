@@ -18,6 +18,7 @@ import MyAccount from './pages/MyAccount';
 import Cart from './pages/Cart';
 import AuthCallback from './pages/AuthCallback';
 import FreeEntry from './pages/FreeEntry';
+import VerifyFeed from './pages/VerifyFeed';
 import AdminLogin from './pages/AdminLogin';
 
 import AdminLayout from './components/admin/AdminLayout';
@@ -79,6 +80,7 @@ function AppRouter() {
         <Route path="/legal/:slug" element={<LegalDocPage />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/free-entry" element={<FreeEntry />} />
+        <Route path="/verify" element={<VerifyFeed />} />
         <Route path="/play/:contestId/:ticketId" element={<PlayGame />} />
         <Route path="/leaderboard" element={<GlobalLeaderboard />} />
         <Route path="/leaderboard/:contestId" element={<ContestLeaderboard />} />
