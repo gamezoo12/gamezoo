@@ -93,22 +93,11 @@ async def update_user(user_id: str, payload: dict, request: Request):
     return {'ok': True, 'updates': updates}
 
 
-@router.post('/users/{user_id}/suspend')
-async def suspend_user(user_id: str, request: Request):
-    await require_admin(request)
-    from deps import get_db
-    db = get_db()
-    await db.users.update_one({'user_id': user_id}, {'$set': {'suspended': True}})
-    return {'ok': True}
-
-
-@router.post('/users/{user_id}/unsuspend')
-async def unsuspend_user(user_id: str, request: Request):
-    await require_admin(request)
-    from deps import get_db
-    db = get_db()
-    await db.users.update_one({'user_id': user_id}, {'$set': {'suspended': False}})
-    return {'ok': True}
+# NOTE: /users/{user_id}/suspend and /users/{user_id}/unsuspend were previously
+# defined here. They have been moved to routers/user360_routes.py so they can
+# require admin password re-authentication + emit audit_log rows. Do NOT
+# re-add duplicates here — FastAPI matches routes in registration order and
+# duplicates silently shadow the secure handlers.
 
 
 @router.get('/orders')

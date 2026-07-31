@@ -264,7 +264,7 @@ async def commit_instant_win(contest_id: str, payload: InstantWinCommit, request
     return {'ok': True, 'config_hash': config_hash, 'num_winning_tickets': len(payload.prizes)}
 
 
-@router.post('/instant-win/{contest_id}/reveal')
+@public_router.post('/instant-win/{contest_id}/reveal')
 async def reveal_instant_win(contest_id: str, ticket_number: int, request: Request):
     """Called by the frontend AFTER a user completes the required skill task.
     Returns the prize (if any) allocated to their ticket.

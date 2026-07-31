@@ -5,7 +5,7 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '../../components/ui/dialog';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../hooks/use-toast';
@@ -211,8 +211,9 @@ export default function UserDetailsPage() {
       {/* Suspend / Unsuspend confirm */}
       <Dialog open={confirmSuspend} onOpenChange={setConfirmSuspend}>
         <DialogContent>
-          <DialogHeader><DialogTitle>{suspended ? 'Reinstate user' : 'Suspend user'}</DialogTitle></DialogHeader>
-          <p className="text-sm text-slate-600">{suspended ? 'Restore this account. The user will be able to sign in again.' : 'This closes the user out of the platform. Reversible from this page.'}</p>
+          <DialogHeader><DialogTitle>{suspended ? 'Reinstate user' : 'Suspend user'}</DialogTitle>
+          <DialogDescription>{suspended ? 'Restore this account. The user will be able to sign in again.' : 'This closes the user out of the platform. Reversible from this page.'}</DialogDescription>
+          </DialogHeader>
           {!suspended && (
             <>
               <div><Label>Reason</Label><Input value={reason} onChange={e => setReason(e.target.value)} data-testid="suspend-reason" /></div>
@@ -228,8 +229,9 @@ export default function UserDetailsPage() {
       {/* Erase confirm */}
       <Dialog open={confirmErase} onOpenChange={setConfirmErase}>
         <DialogContent>
-          <DialogHeader><DialogTitle className="text-rose-700 flex items-center gap-2"><AlertTriangle className="w-5 h-5" /> Permanent erasure</DialogTitle></DialogHeader>
-          <p className="text-sm text-slate-600">Personal data will be removed. Financial, tax and audit records are retained per Data Retention Policy. This is irreversible.</p>
+          <DialogHeader><DialogTitle className="text-rose-700 flex items-center gap-2"><AlertTriangle className="w-5 h-5" /> Permanent erasure</DialogTitle>
+          <DialogDescription>Personal data will be removed. Financial, tax and audit records are retained per Data Retention Policy. This is irreversible.</DialogDescription>
+          </DialogHeader>
           <div><Label>Reason (mandatory)</Label><Input value={reason} onChange={e => setReason(e.target.value)} data-testid="erase-reason" /></div>
           <div><Label>Super Admin password (re-auth)</Label><Input type="password" value={pwd} onChange={e => setPwd(e.target.value)} data-testid="erase-password" /></div>
           <Button onClick={doErase} disabled={busy || !pwd || !reason} className="bg-red-600 hover:bg-red-700" data-testid="confirm-erase">

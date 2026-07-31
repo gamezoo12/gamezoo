@@ -120,9 +120,12 @@ async def upload_contest_image(
     except Exception as e:
         raise HTTPException(400, f"Could not decode image: {e}")
 
-    # Clamp focal point.
-    fx = max(0.0, min(1.0, float(focal_x)))
-    fy = max(0.0, min(1.0, float(focal_y)))
+    # Clamp focal point — reject non-numeric values with 422.
+    try:
+        fx = max(0.0, min(1.0, float(focal_x)))
+        fy = max(0.0, min(1.0, float(focal_y)))
+    except (TypeError, ValueError):
+        raise HTTPException(422, 'focal_x and focal_y must be numbers in [0, 1]')
 
     base_id = uuid.uuid4().hex[:12]
     out_dir = CONTEST_IMG_DIR / base_id

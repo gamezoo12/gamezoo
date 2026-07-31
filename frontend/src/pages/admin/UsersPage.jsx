@@ -36,11 +36,16 @@ export default function UsersPage() {
     catch (e) { toast({ title: 'Failed', description: e?.response?.data?.detail }); }
   };
   const toggleSuspend = async (u) => {
-    try {
-      if (u.suspended) await adminAPI.unsuspendUser(u.user_id);
-      else await adminAPI.suspendUser(u.user_id);
-      toast({ title: u.suspended ? 'Unsuspended' : 'Suspended' }); load();
-    } catch (e) { toast({ title: 'Failed', description: e?.response?.data?.detail }); }
+    // Unsuspend: no re-auth required. Suspend: routes to the user's 360 page
+    // where the full password + reason flow lives (per the new secure design).
+    if (u.suspended) {
+      try {
+        await adminAPI.unsuspendUser(u.user_id);
+        toast({ title: 'Unsuspended' }); load();
+      } catch (e) { toast({ title: 'Failed', description: e?.response?.data?.detail }); }
+    } else {
+      window.location.href = `/admin/users/${u.user_id}`;
+    }
   };
 
   const term = q.toLowerCase();

@@ -137,7 +137,7 @@ async def erase_user(user_id: str, payload: DeleteRequest, request: Request):
     target = await db.users.find_one({'user_id': user_id})
     if not target:
         raise HTTPException(404, 'User not found')
-    if target.get('email') == admin['email']:
+    if target.get('user_id') == admin['user_id']:
         raise HTTPException(400, 'Cannot erase your own account')
 
     now = datetime.now(timezone.utc)
