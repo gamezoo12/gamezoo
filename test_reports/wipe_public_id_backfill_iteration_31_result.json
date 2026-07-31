@@ -1,0 +1,299 @@
+{
+  "api_base": "https://contest-arena-16.preview.emergentagent.com",
+  "db_name": "test_database",
+  "run_id": "1b30a1849c",
+  "checks": [
+    {
+      "name": "API health responds",
+      "passed": true,
+      "detail": {
+        "status": 200,
+        "body": "{\"service\":\"gamezoo\",\"status\":\"ok\"}"
+      }
+    },
+    {
+      "name": "Super admin login works",
+      "passed": true,
+      "detail": {
+        "status": 200,
+        "body": "{\"user\":{\"user_id\":\"user_eb071248fabe\",\"public_id\":\"PL10000\",\"email\":\"bachanta8@gmail.com\",\"name\":\"Admin\",\"username\":null,\"picture\":null,\"role\":\"super_admin\",\"method\":\"email\",\"phone\":null,\"phone_verified\":false,\"dob\":null,\"address\":null,\"terms_accepted_at\":\"2026-07-30T20:39:46.500000\",\"must_change_p"
+      }
+    },
+    {
+      "name": "Super admin DB document exists",
+      "passed": true,
+      "detail": {
+        "super_user_id": "user_eb071248fabe"
+      }
+    },
+    {
+      "name": "Wipe rejects wrong confirm phrase and does not delete data",
+      "passed": true,
+      "detail": {
+        "status": 400,
+        "body": "{\"detail\":\"Confirmation phrase must be exactly: WIPE DEMO DATA\"}",
+        "qa_contests_remaining": 1
+      }
+    },
+    {
+      "name": "Wipe rejects wrong password and does not delete data",
+      "passed": true,
+      "detail": {
+        "status": 401,
+        "body": "{\"detail\":\"Password re-confirmation failed\"}",
+        "qa_contests_remaining": 1
+      }
+    },
+    {
+      "name": "Wipe succeeds with correct password and confirm",
+      "passed": true,
+      "detail": {
+        "status": 200,
+        "body": {
+          "ok": true,
+          "wiped": {
+            "audit_log": 1,
+            "admin_audit": 1,
+            "winner_audit": 1,
+            "contests": 1,
+            "contest_draws": 1,
+            "game_scores": 1,
+            "instant_win_configs": 1,
+            "instant_win_reveals": 1,
+            "kyc": 1,
+            "leaderboard_entries": 1,
+            "meera_log": 1,
+            "notifications": 1,
+            "orders": 1,
+            "payment_transactions": 1,
+            "postal_entries": 1,
+            "referrals": 1,
+            "support_cases": 1,
+            "tickets": 1,
+            "user_sessions": 1,
+            "wallet_tx": 1,
+            "winners": 1,
+            "users": 1,
+            "wallets_deleted": 1
+          },
+          "preserved_users": 2
+        }
+      }
+    },
+    {
+      "name": "Backfills missing super admin public_id to PL10000",
+      "passed": true,
+      "detail": {
+        "user_id": "user_eb071248fabe",
+        "role": "super_admin",
+        "public_id": "PL10000"
+      }
+    },
+    {
+      "name": "Backfills missing non-super staff public_id to PL10001",
+      "passed": true,
+      "detail": {
+        "user_id": "qa_staff_missing_1b30a1849c",
+        "role": "admin",
+        "public_id": "PL10001"
+      }
+    },
+    {
+      "name": "Counter becomes 2 with super admin + one missing staff after wipe",
+      "passed": true,
+      "detail": {
+        "seq": 2
+      }
+    },
+    {
+      "name": "All seeded wipeable demo collection rows are removed",
+      "passed": true,
+      "detail": {
+        "audit_log": 0,
+        "admin_audit": 0,
+        "winner_audit": 0,
+        "contests": 0,
+        "contest_draws": 0,
+        "game_scores": 0,
+        "instant_win_configs": 0,
+        "instant_win_reveals": 0,
+        "kyc": 0,
+        "leaderboard_entries": 0,
+        "meera_log": 0,
+        "notifications": 0,
+        "orders": 0,
+        "payment_transactions": 0,
+        "postal_entries": 0,
+        "referrals": 0,
+        "support_cases": 0,
+        "tickets": 0,
+        "user_sessions": 0,
+        "wallet_tx": 0,
+        "winners": 0
+      }
+    },
+    {
+      "name": "Regular demo user is deleted while staff is preserved",
+      "passed": true,
+      "detail": {
+        "regular_user": null,
+        "staff": {
+          "user_id": "qa_staff_missing_1b30a1849c",
+          "role": "admin",
+          "public_id": "PL10001"
+        }
+      }
+    },
+    {
+      "name": "Preserved staff wallet is reset and regular wallet is deleted",
+      "passed": true,
+      "detail": {
+        "staff_wallet": {
+          "user_id": "qa_staff_missing_1b30a1849c",
+          "balance": 0.0,
+          "lifetime_topup": 0.0,
+          "lifetime_spend": 0.0,
+          "qa_run_id": "1b30a1849c"
+        },
+        "regular_wallet": null
+      }
+    },
+    {
+      "name": "legal_documents and settings are preserved",
+      "passed": true,
+      "detail": {
+        "legal": {
+          "slug": "qa-wipe-preserve-1b30a1849c",
+          "title": "QA preserve legal"
+        },
+        "settings_marker": {
+          "qa_wipe_preserve_1b30a1849c": "must_survive"
+        }
+      }
+    },
+    {
+      "name": "Idempotent wipe succeeds with existing staff IDs",
+      "passed": true,
+      "detail": {
+        "status": 200,
+        "body": {
+          "ok": true,
+          "wiped": {
+            "admin_audit": 1
+          },
+          "preserved_users": 2
+        }
+      }
+    },
+    {
+      "name": "Existing PL10000/PL10001 staff IDs are retained",
+      "passed": true,
+      "detail": {
+        "super": {
+          "user_id": "user_eb071248fabe",
+          "public_id": "PL10000"
+        },
+        "staff": {
+          "user_id": "qa_staff_existing_1b30a1849c",
+          "public_id": "PL10001"
+        }
+      }
+    },
+    {
+      "name": "Counter accounts for two preserved staff users so next signup should be PL10002",
+      "passed": false,
+      "detail": {
+        "seq": 1
+      }
+    },
+    {
+      "name": "Next signup after two preserved staff receives non-duplicate PL10002",
+      "passed": false,
+      "detail": {
+        "status": 200,
+        "body": {
+          "user": {
+            "user_id": "user_62ce3ab085fc",
+            "public_id": "PL10001",
+            "email": "qa.signup.1b30a1849c@example.com",
+            "name": "QA Signup User",
+            "username": "qa0201",
+            "picture": null,
+            "role": "user",
+            "method": "email",
+            "phone": "+447700540090",
+            "phone_verified": true,
+            "dob": "2000-08-02",
+            "address": "221B Baker St, London",
+            "terms_accepted_at": "2026-07-31T23:21:30.346959+00:00",
+            "must_change_password": false
+          },
+          "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzYyY2UzYWIwODVmYyIsImlhdCI6MTc4NTU0MDA5MCwiZXhwIjoxNzg4MTMyMDkwfQ.-KUQFR1o0c5hR9aY_4QuyrCPfmzNsSUwXPaL504cX_M"
+        },
+        "existing_staff_public_id": "PL10001"
+      }
+    },
+    {
+      "name": "With super admin only, wipe leaves public_id PL10000 and counter.seq exactly 1",
+      "passed": true,
+      "detail": {
+        "wipe_status": 200,
+        "super": {
+          "user_id": "user_eb071248fabe",
+          "public_id": "PL10000"
+        },
+        "counter": {
+          "seq": 1
+        }
+      }
+    }
+  ],
+  "failures": [
+    {
+      "name": "Counter accounts for two preserved staff users so next signup should be PL10002",
+      "passed": false,
+      "detail": {
+        "seq": 1
+      }
+    },
+    {
+      "name": "Next signup after two preserved staff receives non-duplicate PL10002",
+      "passed": false,
+      "detail": {
+        "status": 200,
+        "body": {
+          "user": {
+            "user_id": "user_62ce3ab085fc",
+            "public_id": "PL10001",
+            "email": "qa.signup.1b30a1849c@example.com",
+            "name": "QA Signup User",
+            "username": "qa0201",
+            "picture": null,
+            "role": "user",
+            "method": "email",
+            "phone": "+447700540090",
+            "phone_verified": true,
+            "dob": "2000-08-02",
+            "address": "221B Baker St, London",
+            "terms_accepted_at": "2026-07-31T23:21:30.346959+00:00",
+            "must_change_password": false
+          },
+          "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzYyY2UzYWIwODVmYyIsImlhdCI6MTc4NTU0MDA5MCwiZXhwIjoxNzg4MTMyMDkwfQ.-KUQFR1o0c5hR9aY_4QuyrCPfmzNsSUwXPaL504cX_M"
+        },
+        "existing_staff_public_id": "PL10001"
+      }
+    }
+  ],
+  "notes": [
+    {
+      "cleanup_super": {
+        "user_id": "user_eb071248fabe",
+        "public_id": "PL10000"
+      },
+      "cleanup_counter": {
+        "seq": 1
+      }
+    }
+  ],
+  "passed": false
+}

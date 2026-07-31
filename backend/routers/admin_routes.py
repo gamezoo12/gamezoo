@@ -589,10 +589,35 @@ async def wipe_demo_data(payload: dict, request: Request):
         {'$set': {'balance': 0.0, 'lifetime_topup': 0.0, 'lifetime_spend': 0.0}},
     )
 
-    # Reset public_id counter so the very next signup is PL10001.
+    # Backfill missing public_ids on preserved staff — the wipe should never
+    # leave an admin without their PL10000 / PLxxxxx identifier. Super admin
+    # always gets PL10000; other staff get sequential PL10001, PL10002…
+    _PREFIX = 'PL'
+    _START = 10000
+    sa = await db.users.find_one({'role': 'super_admin'}, {'user_id': 1, 'public_id': 1})
+    if sa:
+        await db.users.update_one(
+            {'user_id': sa['user_id']},
+            {'$set': {'public_id': f'{_PREFIX}{_START}'}},
+        )
+    # Other staff without a public_id
+    next_num = _START + 1
+    async for u in db.users.find(
+        {'user_id': {'$in': preserved_ids}, 'role': {'$ne': 'super_admin'},
+         '$or': [{'public_id': {'$in': [None, '']}}, {'public_id': {'$exists': False}}]},
+        {'user_id': 1},
+    ).sort('created_at', 1):
+        await db.users.update_one(
+            {'user_id': u['user_id']},
+            {'$set': {'public_id': f'{_PREFIX}{next_num}'}},
+        )
+        next_num += 1
+
+    # Reset public_id counter so the very next signup is PL{next_num}. If we
+    # only had the super admin, next signup will be PL10001.
     await db.counters.update_one(
         {'_id': 'user_public_id'},
-        {'$set': {'seq': 1}},
+        {'$set': {'seq': max(1, next_num - _START)}},
         upsert=True,
     )
 

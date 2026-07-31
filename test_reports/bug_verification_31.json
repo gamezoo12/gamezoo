@@ -1,0 +1,48 @@
+{
+  "verdict": "not_fixed",
+  "user_reported_bug": "data is wiped but public id is missing again",
+  "summary": "No relevant testing skill found. Backend-only verification against the preview API confirmed the missing-public_id symptom is fixed for the super admin and for a staff user missing public_id after POST /api/admin/system/wipe-demo-data. Regression checks also confirmed password/confirm guardrails, demo collection wipe markers, legal_documents/settings preservation, and super-admin-only counter.seq=1. However the full public_id/counter acceptance is not fixed: when a preserved staff user already has PL10001, the wipe resets counter.seq to 1, and the next signup received duplicate public_id PL10001 instead of PL10002.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/admin/system/wipe-demo-data",
+        "issue": "Counter reset is too low when non-super staff already have existing public_ids. Runtime proof: after preserving super admin PL10000 plus operator PL10001, wipe left counters.user_public_id.seq=1; the next /api/auth/register call succeeded with public_id PL10001, duplicating the preserved staff user's public_id. Expected next signup was PL10002 because two staff users were preserved.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/test_wipe_public_id_backfill_iteration_31.py",
+    "/app/test_reports/wipe_public_id_backfill_iteration_31_result.json"
+  ],
+  "action_items": [
+    "Update wipe_demo_data counter reset to account for all preserved staff public_ids, not only staff missing public_id; after super admin + one preserved staff PL10001, counters.user_public_id.seq should be 2 so the next signup gets PL10002.",
+    "Add a self-test for the idempotent case: super_admin=PL10000 and staff=PL10001 before wipe, then assert counter.seq=2 and a subsequent signup does not duplicate PL10001.",
+    "Consider preventing duplicate assignment when some staff already have PL10001 and another staff user is missing public_id."
+  ],
+  "critical_code_review_comments": [
+    "/app/backend/routers/admin_routes.py lines 604-620 initialize next_num to 10001 and only increment it while assigning missing non-super staff IDs. Existing staff with public_id PL10001 are excluded from that loop, so next_num remains 10001 and seq is reset to 1 even though PL10001 is already in use.",
+    "/app/backend/routers/admin_routes.py lines 605-613 also do not skip already-used public_id values while assigning missing staff; a mixed case with one existing PL10001 and another missing staff public_id could assign PL10001 again."
+  ],
+  "updated_files": [
+    "/app/test_reports/test_wipe_public_id_backfill_iteration_31.py",
+    "/app/test_reports/wipe_public_id_backfill_iteration_31_result.json",
+    "/app/test_reports/bug_verification_31.json",
+    "/app/test_reports/iteration_31.json"
+  ],
+  "success_rate": {
+    "backend": "89% (16/18 focused backend checks passed)",
+    "frontend": "N/A (backend-only verification requested)"
+  },
+  "seed_data_creation": "Created QA-only super-admin public_id mutation, one missing-public_id admin, one existing PL10001 operator, one regular demo user, wallets, sentinels in legal_documents/settings, and one marker row in every wipeable collection (contests, orders, tickets, winner_audit, admin_audit, support_cases, game_scores, leaderboard_entries, instant-win collections, etc.). Final cleanup removed QA users/markers/audit rows and left super admin public_id=PL10000 with counters.user_public_id.seq=1.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Preview API tested: https://contest-arena-16.preview.emergentagent.com against DB_NAME=test_database. Super admin credentials worked. Passing evidence: missing super_admin public_id was backfilled to PL10000; missing admin staff public_id was backfilled to PL10001; seeded wipeable collection markers were removed; wrong confirm returned 400; wrong password returned 401; legal_documents/settings were preserved; final super-admin-only wipe left counter.seq=1. Failing evidence: idempotent existing staff PL10001 retained its ID, but counter.seq became 1 and next signup received duplicate PL10001 instead of PL10002. No APIs were MOCKED.",
+  "rca_of_the_issue": "The wipe endpoint's backfill block computes next_num only from newly assigned missing staff IDs. If staff already have public_ids, those IDs are retained but not counted when resetting counters.user_public_id.seq. Repro: seed super_admin PL10000 and operator PL10001, call POST /api/admin/system/wipe-demo-data with correct password and confirm, inspect counters.user_public_id.seq=1, then register a new user and observe public_id PL10001 duplicate."
+}
