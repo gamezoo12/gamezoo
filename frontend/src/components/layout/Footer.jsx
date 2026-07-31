@@ -17,8 +17,14 @@ export default function Footer() {
  return (
  <footer className="pt-14 pb-8" style={{ background: '#0B0D1F', color: 'rgba(255,255,255,0.7)' }}>
  <div className="max-w-7xl mx-auto px-4 lg:px-8 grid md:grid-cols-5 gap-10">
- <div>
- <PrizeLeagueLogo size={72} />
+ <div className="md:col-span-2 lg:col-span-1">
+ <div className="flex items-center gap-3">
+ <PrizeLeagueLogo size={48} emblemOnly />
+ <div className="font-display font-black uppercase tracking-[0.14em] text-white leading-none whitespace-nowrap text-lg">
+ <span style={{ color: '#FFD54A' }}>PRIZE</span>
+ <span className="ml-1">LEAGUE</span>
+ </div>
+ </div>
  <p className="text-sm mt-4 leading-relaxed max-w-xs">
  Prize League is a premium skill-based prize competition platform. Play, compete and win amazing prizes.
  </p>
