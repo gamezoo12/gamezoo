@@ -160,10 +160,18 @@ async def create_contest_api(payload: dict, request: Request):
     from models import Contest, SkillQuestion
     db = get_db()
 
-    # Validate skill question
+    # Skill question is now OPTIONAL — modern contests use the dynamic engine
+    # (skill_question_type + skill_question_difficulty) which auto-generates a
+    # fresh problem per visitor. A static block is only required for legacy
+    # trivia/word questions.
     sk = payload.get('skill_question') or {}
-    if not (sk.get('q') and sk.get('answer') and sk.get('options') and len(sk['options']) >= 2):
-        raise HTTPException(status_code=400, detail='Skill question with q/options/answer is required')
+    has_static = bool(sk.get('q') and sk.get('answer') and sk.get('options') and len(sk['options']) >= 2)
+    sqt = (payload.get('skill_question_type') or '').strip().lower() or None
+    sqd = (payload.get('skill_question_difficulty') or '').strip().lower() or None
+    if not has_static and not sqt:
+        # Default to dynamic addition/easy so contests can be created without extra input.
+        sqt = 'addition'
+        sqd = 'easy'
 
     # Slug (server-generated, unique)
     import re
@@ -203,14 +211,23 @@ async def create_contest_api(payload: dict, request: Request):
             skill_question=SkillQuestion(
                 q=sk['q'], options=list(sk['options']), answer=sk['answer'],
                 type=sk.get('type', 'trivia'),
+            ) if has_static else SkillQuestion(
+                # Placeholder — never rendered to public because dynamic engine
+                # supersedes it. Kept because the Contest model requires it.
+                q='Dynamic', options=['auto'], answer='auto', type='dynamic',
             ),
             status=payload.get('status', 'draft') if payload.get('status') in ('draft', 'live') else 'draft',
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=f'Invalid contest data: {e}')
 
-    await db.contests.insert_one(contest.model_dump())
-    return {'ok': True, 'contest': contest.model_dump()}
+    doc = contest.model_dump()
+    if sqt:
+        doc['skill_question_type'] = sqt
+        doc['skill_question_difficulty'] = sqd or 'easy'
+    await db.contests.insert_one(doc)
+    doc.pop('_id', None)
+    return {'ok': True, 'contest': doc}
 
 
 @router.put('/contests/{contest_id}')
@@ -220,6 +237,7 @@ async def update_contest_full(contest_id: str, payload: dict, request: Request):
     db = get_db()
     allowed = {'title', 'subtitle', 'category', 'tag', 'image', 'price', 'tickets_total',
                'prize_amount', 'end_date', 'jackpot', 'featured', 'status', 'skill_question',
+               'skill_question_type', 'skill_question_difficulty',
                'game_type', 'game_config', 'entry_mode', 'max_attempts', 'attempts_per_ticket',
                'leaderboard_visibility', 'winner_selection_method',
                # ---- Extended editable fields (Phase-1 launch spec) ----
@@ -252,6 +270,14 @@ async def update_contest_full(contest_id: str, payload: dict, request: Request):
         elif k == 'skill_question' and isinstance(v, dict):
             if all(x in v for x in ('q', 'options', 'answer')):
                 updates[k] = {'q': v['q'], 'options': list(v['options']), 'answer': v['answer'], 'type': v.get('type', 'trivia')}
+        elif k == 'skill_question_type':
+            val = (str(v or '').strip().lower()) or None
+            if val in {'addition', 'subtraction', 'multiplication', 'division', None}:
+                updates[k] = val
+        elif k == 'skill_question_difficulty':
+            val = (str(v or '').strip().lower()) or 'easy'
+            if val in {'easy', 'medium', 'hard'}:
+                updates[k] = val
         else:
             updates[k] = v
     if not updates:

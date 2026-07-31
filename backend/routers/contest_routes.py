@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
+from skill_challenge import build_challenge, verify_challenge
 
 router = APIRouter(prefix='/api/contests', tags=['contests'])
 
@@ -92,14 +93,59 @@ async def get_contest(slug: str):
 
 @router.post('/{slug}/verify-skill')
 async def verify_skill(slug: str, payload: dict):
+    """Verify a user's answer to a DYNAMIC skill challenge.
+
+    Expected payload: `{ "answer": int|str, "challenge_token": str }` where the
+    token was previously issued by GET /api/contests/{slug}/skill-challenge.
+    Falls back to the legacy static-question flow (payload just `{answer}`) for
+    contests that pre-date the dynamic engine and still have a stored
+    `skill_question` block.
+    """
     from deps import get_db
     db = get_db()
     doc = await db.contests.find_one({'slug': slug}, {'_id': 0})
     if not doc:
         raise HTTPException(status_code=404, detail='Contest not found')
+
+    # Preferred path: signed challenge token (dynamic questions).
+    token = (payload or {}).get('challenge_token')
+    if token:
+        r = verify_challenge(doc['contest_id'], (payload or {}).get('answer', ''), token)
+        return {'correct': r['ok'], 'reason': r.get('reason')}
+
+    # Legacy path: static per-contest question saved on the document.
     sq = doc.get('skill_question') or {}
-    correct = (payload.get('answer', '') or '').strip() == sq.get('answer')
-    return {'correct': correct}
+    correct = (str((payload or {}).get('answer', '')).strip() == str(sq.get('answer', '')))
+    return {'correct': correct, 'reason': 'ok' if correct else 'incorrect'}
+
+
+@router.get('/{slug}/skill-challenge')
+async def issue_skill_challenge(slug: str):
+    """Issue a fresh, per-request skill challenge for a contest.
+
+    The correct answer is embedded ONLY inside the HMAC-signed
+    `challenge_token`. The response never leaks the answer to the browser.
+    Every call returns a new problem, so no two visitors get the same
+    question and refreshing gives a new one."""
+    from deps import get_db
+    db = get_db()
+    doc = await db.contests.find_one(
+        {'slug': slug},
+        {'_id': 0, 'contest_id': 1, 'skill_question_type': 1, 'skill_question_difficulty': 1},
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail='Contest not found')
+    op = doc.get('skill_question_type') or 'addition'
+    diff = doc.get('skill_question_difficulty') or 'easy'
+    ch = build_challenge(doc['contest_id'], op=op, difficulty=diff)
+    return {
+        'question': ch['question'],
+        'options': ch['options'],
+        'challenge_token': ch['challenge_token'],
+        'expires_at': ch['expires_at'],
+        'op': ch['op'],
+        'difficulty': ch['difficulty'],
+    }
 
 
 @router.post('/{contest_id}/track-view')

@@ -19,6 +19,47 @@ const CATS = [
   { value: 'new-games', label: 'New Game' },
 ];
 
+// Live preview of the auto-generated skill question. Whenever admin changes
+// the operation or difficulty in the dialog we call a lightweight sample
+// generator to give a concrete "here's what your users will see" hint. The
+// actual question is generated PER-VISITOR on the backend — this is only a
+// UI preview and never leaks the answer to any real player.
+function SkillQuestionPreview({ op, difficulty }) {
+  const sample = (() => {
+    const r = (lo, hi) => Math.floor(Math.random() * (hi - lo + 1)) + lo;
+    if (op === 'subtraction') {
+      const [lo, hi, sb] = difficulty === 'easy' ? [5, 20, 5]
+        : difficulty === 'medium' ? [20, 99, 20] : [200, 999, 99];
+      const a = r(lo, hi); const b = r(1, Math.min(sb, a - 1));
+      return { q: `${a} − ${b} = ?`, ans: a - b };
+    }
+    if (op === 'multiplication') {
+      const ranges = { easy: [[1, 10], [1, 5]], medium: [[2, 12], [2, 12]], hard: [[10, 25], [2, 12]] };
+      const [[la, ha], [lb, hb]] = ranges[difficulty] || ranges.easy;
+      const a = r(la, ha); const b = r(lb, hb);
+      return { q: `${a} × ${b} = ?`, ans: a * b };
+    }
+    if (op === 'division') {
+      const ranges = { easy: [[1, 5], [1, 10]], medium: [[2, 12], [2, 12]], hard: [[5, 15], [5, 20]] };
+      const [[lb, hb], [lr, hr]] = ranges[difficulty] || ranges.easy;
+      const b = r(lb, hb); const q = r(lr, hr);
+      return { q: `${b * q} ÷ ${b} = ?`, ans: q };
+    }
+    const ranges = { easy: [1, 20], medium: [10, 99], hard: [100, 999] };
+    const [lo, hi] = ranges[difficulty] || ranges.easy;
+    const a = r(lo, hi); const b = r(lo, hi);
+    return { q: `${a} + ${b} = ?`, ans: a + b };
+  })();
+  return (
+    <div className="mt-3 rounded-xl bg-white border border-slate-200 p-3 text-sm" data-testid="skill-preview">
+      <div className="text-[10px] uppercase tracking-widest text-slate-400 font-semibold">Sample question a user might see</div>
+      <div className="font-mono font-bold text-slate-900 text-lg mt-1">{sample.q}</div>
+      <div className="text-xs text-slate-500 mt-1">Answer for this sample: <span className="font-mono">{sample.ans}</span> · Each visitor gets a different one</div>
+    </div>
+  );
+}
+
+
 export default function EditContestDialog({ contest, open, onClose, onSaved, mode = 'edit' }) {
   const { toast } = useToast();
   const isCreate = mode === 'create';
@@ -27,7 +68,8 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
     price: 1, tickets_total: 150, prize_amount: 100,
     end_date: new Date(Date.now() + 7 * 86400000).toISOString(),
     jackpot: false, featured: false, status: 'draft',
-    skill_question: { q: 'What is 2 + 2?', options: ['3', '4', '5', '6'], answer: '4', type: 'math' },
+    skill_question_type: 'addition',
+    skill_question_difficulty: 'easy',
   };
   const [form, setForm] = useState(() => (isCreate ? emptyForm : (contest || {})));
   const [busy, setBusy] = useState(false);
@@ -73,7 +115,6 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
   if (!isCreate && !contest) return null;
 
   const upd = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  const updSkill = (k, v) => setForm(f => ({ ...f, skill_question: { ...(f.skill_question || {}), [k]: v } }));
 
   const save = async () => {
     setBusy(true);
@@ -90,6 +131,8 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
         jackpot: !!form.jackpot,
         featured: !!form.featured,
         skill_question: form.skill_question,
+        skill_question_type: form.skill_question_type || 'addition',
+        skill_question_difficulty: form.skill_question_difficulty || 'easy',
         game_type: form.game_type || null,
 
         // Extended editable fields (Phase-1 launch spec)
@@ -138,7 +181,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
     } finally { setBusy(false); }
   };
 
-  const skill = form.skill_question || { q: '', options: ['', '', '', ''], answer: '', type: 'trivia' };
+  const skill = form.skill_question || { q: '', options: ['', '', '', ''], answer: '', type: 'trivia' }; // eslint-disable-line no-unused-vars
   const endDateStr = form.end_date ? new Date(form.end_date).toISOString().slice(0, 16) : '';
 
   return (
@@ -364,22 +407,44 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
           </div>
 
           <div className="pt-3 border-t border-slate-100">
-            <Label className="text-base font-semibold">Skill question</Label>
-            <Input value={skill.q} onChange={e => updSkill('q', e.target.value)} placeholder="What is 2 + 2?" className="mt-2" />
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              {[0, 1, 2, 3].map(i => (
-                <Input key={i} value={skill.options[i] || ''} onChange={e => {
-                  const opts = [...skill.options]; opts[i] = e.target.value; updSkill('options', opts);
-                }} placeholder={`Option ${i + 1}`} />
-              ))}
+            <Label className="text-base font-semibold">Skill question (auto-generated)</Label>
+            <p className="text-xs text-slate-500 mt-1">
+              Every visitor gets a fresh math problem, verified server-side. Pick the
+              operation and difficulty; the platform generates a new question per user.
+            </p>
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div>
+                <Label>Operation</Label>
+                <select
+                  value={form.skill_question_type || 'addition'}
+                  onChange={e => upd('skill_question_type', e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  data-testid="skill-op-select"
+                >
+                  <option value="addition">Addition (+)</option>
+                  <option value="subtraction">Subtraction (−)</option>
+                  <option value="multiplication">Multiplication (×)</option>
+                  <option value="division">Division (÷)</option>
+                </select>
+              </div>
+              <div>
+                <Label>Difficulty</Label>
+                <select
+                  value={form.skill_question_difficulty || 'easy'}
+                  onChange={e => upd('skill_question_difficulty', e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  data-testid="skill-difficulty-select"
+                >
+                  <option value="easy">Easy</option>
+                  <option value="medium">Medium</option>
+                  <option value="hard">Hard</option>
+                </select>
+              </div>
             </div>
-            <div className="mt-2">
-              <Label>Correct answer</Label>
-              <select value={skill.answer} onChange={e => updSkill('answer', e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                <option value="">— pick correct answer —</option>
-                {(skill.options || []).map((o, i) => o ? <option key={i} value={o}>{o}</option> : null)}
-              </select>
-            </div>
+            <SkillQuestionPreview
+              op={form.skill_question_type || 'addition'}
+              difficulty={form.skill_question_difficulty || 'easy'}
+            />
           </div>
 
           {/* ---- Extended admin fields (23 optional) ---- */}

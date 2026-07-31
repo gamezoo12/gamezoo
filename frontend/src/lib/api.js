@@ -36,7 +36,9 @@ export const supportAPI = {
 export const contestsAPI = {
   list: (params = {}) => api.get('/contests', { params }).then(r => r.data),
   get: (slug) => api.get(`/contests/${slug}`).then(r => r.data),
-  verifySkill: (slug, answer) => api.post(`/contests/${slug}/verify-skill`, { answer }).then(r => r.data),
+  skillChallenge: (slug) => api.get(`/contests/${slug}/skill-challenge`).then(r => r.data),
+  verifySkill: (slug, answer, challenge_token) =>
+    api.post(`/contests/${slug}/verify-skill`, { answer, challenge_token }).then(r => r.data),
   recentWinners: () => api.get('/public/winners').then(r => r.data),
 };
 

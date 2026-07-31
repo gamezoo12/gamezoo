@@ -33,8 +33,33 @@ export default function CompetitionDetail() {
   const [wrong, setWrong] = useState(false);
   const [imgState, setImgState] = useState('loading'); // loading | ok | fail
   const [wallet, setWallet] = useState(null);
+  // Dynamic skill-challenge state — question + signed token + options come
+  // from GET /contests/{slug}/skill-challenge and are refreshed on wrong
+  // answers or manual "New question" clicks.
+  const [challenge, setChallenge] = useState(null);   // { question, options, challenge_token, op, difficulty }
+  const [challengeLoading, setChallengeLoading] = useState(false);
 
   useEffect(() => { contestsAPI.get(slug).then(setC).catch(() => nav('/competitions')); }, [slug, nav]);
+
+  // Fetch a fresh skill challenge whenever the contest slug changes and this
+  // is a skill-game contest. We deliberately DO NOT depend on `c` here because
+  // fetching a challenge is cheap and the endpoint is idempotent.
+  const loadChallenge = async () => {
+    setChallengeLoading(true);
+    try {
+      const r = await contestsAPI.skillChallenge(slug);
+      setChallenge(r);
+      setAnswer('');
+      setWrong(false);
+      setVerified(false);
+    } catch (err) {
+      // Non-fatal — page falls back to the legacy static question if available.
+      setChallenge(null);
+    } finally {
+      setChallengeLoading(false);
+    }
+  };
+  useEffect(() => { if (c && (c.entry_mode || 'skill_game') === 'skill_game') loadChallenge(); /* eslint-disable-next-line */ }, [slug, c?.entry_mode]);
 
   useEffect(() => {
     if (!user) { setWallet(null); return; }
@@ -53,7 +78,11 @@ export default function CompetitionDetail() {
 
   if (!c) return <div className="max-w-7xl mx-auto p-10 text-slate-500">Loading contest…</div>;
 
-  const options = c.skill_question_options || [];
+  // Prefer the dynamic per-visitor challenge; fall back to the legacy static
+  // question ONLY when the backend didn't hand us a challenge (e.g. contests
+  // pre-dating the dynamic engine).
+  const questionText = challenge?.question || c.skill_question_q || '';
+  const options = challenge?.options || c.skill_question_options || [];
   const entryMode = c.entry_mode || 'skill_game';
   const isSkillGame = entryMode === 'skill_game';
   const subtotal = c.price * tickets;
@@ -62,9 +91,13 @@ export default function CompetitionDetail() {
   const submitAnswer = async (opt) => {
     setAnswer(opt);
     try {
-      const r = await contestsAPI.verifySkill(c.slug, opt);
-      if (r.correct) { setVerified(true); setWrong(false); toast({ title: 'Correct!', description: 'Skill verified. You may buy tickets.' }); }
-      else { setVerified(false); setWrong(true); }
+      const r = await contestsAPI.verifySkill(c.slug, opt, challenge?.challenge_token);
+      if (r.correct) {
+        setVerified(true); setWrong(false);
+        toast({ title: 'Correct!', description: 'Skill verified. You may buy tickets.' });
+      } else {
+        setVerified(false); setWrong(true);
+      }
     } catch { setVerified(false); }
   };
 
@@ -145,21 +178,38 @@ export default function CompetitionDetail() {
 
           {/* Skill Question or Random Draw notice */}
           {isSkillGame ? (
-            <div className="mt-6 p-4 md:p-5 rounded-2xl border-2 border-[#6C2BFF]/20 bg-[#6C2BFF]/5">
-              <div className="flex items-center gap-2 mb-3">
+            <div className="mt-6 p-4 md:p-5 rounded-2xl border-2 border-[#6C2BFF]/20 bg-[#6C2BFF]/5" data-testid="skill-question-block">
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
                 <Brain className="w-5 h-5 text-[#6C2BFF]" />
                 <div className="font-display font-bold text-slate-900">Skill Question <span className="text-xs uppercase text-[#6C2BFF] ml-1">Required</span></div>
+                {challenge?.op && (
+                  <span className="text-[10px] uppercase tracking-wider bg-white border border-[#6C2BFF]/20 text-[#6C2BFF] px-1.5 py-0.5 rounded-full font-bold" data-testid="skill-op-badge">
+                    {challenge.op}
+                    {challenge.difficulty ? ` · ${challenge.difficulty}` : ''}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={loadChallenge}
+                  disabled={challengeLoading || verified}
+                  className="ml-auto text-xs text-[#6C2BFF] hover:underline disabled:opacity-40"
+                  data-testid="new-question-btn"
+                >
+                  {challengeLoading ? 'Loading…' : 'New question'}
+                </button>
               </div>
-              <p className="text-slate-900 font-medium mb-3 break-words">{c.skill_question_q}</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <p className="text-slate-900 font-semibold text-lg mb-3 break-words font-mono" data-testid="skill-question-text">
+                {questionText || 'Loading question…'}
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {options.map(opt => {
-                  const isSel = answer === opt;
+                  const isSel = String(answer) === String(opt);
                   const state = verified && isSel ? 'correct' : (wrong && isSel ? 'wrong' : 'idle');
                   return (
                     <button key={opt} onClick={() => submitAnswer(opt)} disabled={verified}
                       data-testid={`skill-option-${opt}`}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors text-left break-words ${state === 'correct' ? 'bg-emerald-500 border-emerald-500 text-white' : state === 'wrong' ? 'bg-rose-500 border-rose-500 text-white' : isSel ? 'bg-white border-[#6C2BFF] text-[#6C2BFF]' : 'bg-white border-slate-200 hover:border-[#6C2BFF]/60'}`}>
-                      <span className="inline-flex items-center gap-2">
+                      className={`px-3 py-2 rounded-lg text-sm font-bold border-2 transition-colors ${state === 'correct' ? 'bg-emerald-500 border-emerald-500 text-white' : state === 'wrong' ? 'bg-rose-500 border-rose-500 text-white' : isSel ? 'bg-white border-[#6C2BFF] text-[#6C2BFF]' : 'bg-white border-slate-200 hover:border-[#6C2BFF]/60'}`}>
+                      <span className="inline-flex items-center gap-2 justify-center">
                         {state === 'correct' && <Check className="w-4 h-4" />}
                         {state === 'wrong' && <X className="w-4 h-4" />}
                         {opt}
@@ -168,7 +218,11 @@ export default function CompetitionDetail() {
                   );
                 })}
               </div>
-              {wrong && <p className="text-xs text-rose-600 mt-2">Incorrect — try a different answer.</p>}
+              {wrong && (
+                <p className="text-xs text-rose-600 mt-2">
+                  Incorrect. Click <button type="button" onClick={loadChallenge} className="underline font-semibold hover:text-rose-700">New question</button> to try another one.
+                </p>
+              )}
               {verified && <p className="text-xs text-emerald-700 mt-2 font-medium">✓ Skill verified. You may now purchase tickets.</p>}
             </div>
           ) : (
