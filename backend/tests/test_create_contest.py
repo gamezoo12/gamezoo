@@ -59,16 +59,38 @@ class TestCreateContestAuth:
 
 
 class TestCreateContestValidation:
-    def test_missing_skill_question_400(self, admin_client):
+    def test_missing_skill_question_ok_dynamic_default(self, admin_client):
+        """After the launch of the dynamic skill engine (Feb 2026) a static
+        `skill_question` block is OPTIONAL. When omitted the backend must
+        default to dynamic addition/easy, insert the contest, and expose the
+        new fields via /api/admin/contests."""
         bad = {k: v for k, v in VALID_PAYLOAD.items() if k != "skill_question"}
+        # Ensure the test title is unique so we can find + delete it cleanly.
+        bad["title"] = "TEST_CreateContest_NoStaticSkill"
         r = admin_client.post(f"{BASE_URL}/api/admin/contests", json=bad)
-        assert r.status_code == 400, r.text
+        assert r.status_code == 200, r.text
+        created = r.json().get("contest") or {}
+        assert created.get("skill_question_type") == "addition"
+        assert created.get("skill_question_difficulty") == "easy"
+        # Cleanup
+        cid = created.get("contest_id")
+        if cid:
+            admin_client.delete(f"{BASE_URL}/api/admin/contests/{cid}")
 
-    def test_incomplete_skill_question_400(self, admin_client):
+    def test_incomplete_skill_question_falls_back_to_dynamic(self, admin_client):
+        """An incomplete static skill_question is treated as "no static
+        question given" — the endpoint falls back to the dynamic engine
+        instead of returning 400."""
         bad = dict(VALID_PAYLOAD)
-        bad["skill_question"] = {"q": "What is 2+2?", "options": ["4"], "answer": "4"}  # < 2 options
+        bad["title"] = "TEST_CreateContest_IncompleteSkill"
+        bad["skill_question"] = {"q": "What is 2+2?", "options": ["4"], "answer": "4"}
         r = admin_client.post(f"{BASE_URL}/api/admin/contests", json=bad)
-        assert r.status_code == 400, r.text
+        assert r.status_code == 200, r.text
+        created = r.json().get("contest") or {}
+        assert created.get("skill_question_type") == "addition"
+        cid = created.get("contest_id")
+        if cid:
+            admin_client.delete(f"{BASE_URL}/api/admin/contests/{cid}")
 
 
 class TestCreateContestSuccess:
