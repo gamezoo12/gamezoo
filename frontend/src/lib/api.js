@@ -137,6 +137,14 @@ export const uploadsAPI = {
     fd.append('file', file);
     return api.post('/admin/uploads/image', fd, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data);
   },
+  contestImage: (file, { focal_x = 0.5, focal_y = 0.5, alt = '' } = {}) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('focal_x', String(focal_x));
+    fd.append('focal_y', String(focal_y));
+    fd.append('alt', alt);
+    return api.post('/admin/uploads/contest-image', fd, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data);
+  },
 };
 
 export const paymentsAPI = {

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { adminAPI } from '../../lib/api';
 import { Input } from '../../components/ui/input';
 import { Search, Users as UsersIcon, ShieldAlert, ShieldCheck, Phone, Check, X } from 'lucide-react';
@@ -91,7 +92,11 @@ export default function UsersPage() {
             <tbody>
               {list.map(u => (
                 <tr key={u.user_id} className="border-t border-slate-100 hover:bg-slate-50" data-testid={`user-row-${u.user_id}`}>
-                  <td className="p-3 font-mono text-xs font-bold text-indigo-700">{u.public_id || <span className="text-slate-300">—</span>}</td>
+                  <td className="p-3 font-mono text-xs font-bold text-indigo-700">
+                    <Link to={`/admin/users/${u.user_id}`} className="hover:underline" data-testid={`user-link-${u.user_id}`}>
+                      {u.public_id || <span className="text-slate-300">—</span>}
+                    </Link>
+                  </td>
                   <td className="p-3 font-semibold text-slate-900">{u.username || <span className="text-slate-400">—</span>}</td>
                   <td className="p-3 text-slate-500 font-mono text-xs">{u.user_id}</td>
                   <td className="p-3 text-slate-800">{u.name}</td>

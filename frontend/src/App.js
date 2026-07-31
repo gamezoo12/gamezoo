@@ -38,6 +38,7 @@ import AdminAuditLogs from './pages/admin/AuditLogsPage';
 import AdminLegalDocs from './pages/admin/LegalDocsAdmin';
 import CompanySettingsAdmin from './pages/admin/CompanySettings';
 import PostalEntriesAdmin from './pages/admin/PostalEntriesAdmin';
+import UserDetailsPage from './pages/admin/UserDetailsPage';
 import LegalDocPage from './pages/legal/LegalDocPage';
 import PlayGame from './pages/PlayGame';
 import ContestLeaderboard from './pages/ContestLeaderboard';
@@ -109,6 +110,7 @@ function AppRouter() {
         <Route path="legal" element={<AdminLegalDocs />} />
         <Route path="company" element={<CompanySettingsAdmin />} />
         <Route path="postal" element={<PostalEntriesAdmin />} />
+        <Route path="users/:user_id" element={<UserDetailsPage />} />
       </Route>
 
       <Route path="/production" element={<ProductionLayout />}>

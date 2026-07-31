@@ -1,0 +1,40 @@
+{
+  "summary": "Iteration 25 e2e testing of Prize League Phase-2 sprint. Backend: 23/25 pytests pass (Engines 2 & 3, Image processor, User 360 GET, Erase RBAC all green). 2 failures on suspend/unsuspend endpoints are traced to a route-registration ordering bug (admin_routes.py registers /api/admin/users/{user_id}/suspend + /unsuspend BEFORE user360_routes.py, so the new password-gated + audit-logged handlers in user360_routes are UNREACHABLE — FastAPI serves the older no-op handlers instead). Frontend: user-360-page renders with all required data-testids; user-link navigation works; suspend dialog opens with reason+password fields and closes on cancel. EditContestDialog upload calls POST /api/admin/uploads/contest-image and populates both form.image (card.jpg) and form.mobile_image (mobile.jpg). Image processor produces exactly 5 variants at correct dimensions (300x200/600x400/900x600/1600x900/2000x1500), each URL is HTTP 200 and has no EXIF. Non-image upload correctly returns 415. iter22 regression suite 14/14 green.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/admin/users/{user_id}/suspend & /unsuspend", "issue": "Route collision: admin_routes.py registers these routes (no password re-auth, no audit_log write) BEFORE user360_routes.py in server.py. FastAPI resolves to the FIRST registered path, so the new user360 handlers (which require admin_password + write audit_log kind='user_suspend'/'user_unsuspend') are dead code. Impact: (1) any admin can suspend any user WITHOUT re-entering their password (RBAC weakness) — during our test the super admin himself was suspended by a request that sent 'admin_password: WRONG_PASSWORD' and got 200; (2) no user_suspend/user_unsuspend audit rows are ever created; (3) the reason field from the UI is silently dropped. Fix: delete or rename the legacy handlers at admin_routes.py:96 & :105, OR move app.include_router(user360_router) above app.include_router(admin_router) in server.py.", "priority": "CRITICAL"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "UserDetailsPage suspend/erase dialogs", "issues": ["React warning: 'Missing Description or aria-describedby={undefined} for DialogContent' on both confirm dialogs — accessibility polish, add DialogDescription."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter25_engines_user360_images.py",
+    "/app/backend/tests/test_iter22_launch.py",
+    "/app/test_reports/pytest/iter25.xml"
+  ],
+  "action_items": [
+    "CRITICAL: Remove or shadow the legacy suspend/unsuspend handlers in /app/backend/routers/admin_routes.py (lines 96 & 105). They shadow the new secure endpoints in user360_routes.py. Once removed, the user360 handlers will enforce admin_password re-auth and write audit_log rows as designed.",
+    "MINOR: Add DialogDescription to the Suspend and Erase confirmation dialogs in UserDetailsPage.jsx to silence the a11y warning."
+  ],
+  "critical_code_review_comments": [
+    "Route collision above is a security regression in admin flow. Also note admin_routes suspend endpoint does not check admin_password at all — any admin/support/operator role can suspend any user.",
+    "user360_routes.py:143-160 erase_user: masks email but does NOT null-out picture in some code paths and does not scrub wallet PII; retention of financial history is by design but consider explicit comment. Also uses email comparison for self-erase — could switch to user_id comparison to be robust against email-mutation.",
+    "engines_routes.py:267 reveal_instant_win is mounted under /api/admin (Super-Admin router prefix). The docstring says 'Called by the frontend AFTER a user completes the required skill task' — but the endpoint requires admin role via require_admin? No — actually it uses get_current_user (not require_admin). However it lives under /api/admin/engines/instant-win/*, which is fine for RBAC-agnostic access but is a confusing URL for a player-facing endpoint. Consider mounting reveal on /api/engines/instant-win/{contest_id}/reveal for clarity.",
+    "uploads_routes.py contest-image: focal_x/focal_y are only clamped, not validated as floats — a malformed value like 'abc' will throw a raw ValueError → HTTP 500 instead of 422. Wrap the float() cast in a try/except and raise HTTPException(422).",
+    "user360_routes.py DeleteRequest is reused for suspend (which requires admin_password + reason) but the model does not distinguish required-vs-optional per operation. Acceptable for now."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "92% (23/25 iter25) + 100% (14/14 iter22 regression)", "frontend": "100% (3/3 UI flows verified)"},
+  "test_credentials": "Super admin bachanta8@gmail.com / Herts@910022 — worked. Only 1 user exists in DB (the super admin) with user_id=user_eb071248fabe — so both 'view any user 360' and 'click any user-link' operations target the super admin himself.",
+  "seed_data_creation": "Transient only (all cleaned up in test teardown or by DB restore at end): 2 test contests (engine_type=random_draw + instant_win) — DELETED. 20 synthetic tickets + audit_log rows for random_draw test — DELETED. 1 encrypted instant_win_config + 1 instant_win_reveal + 1 game_score + 1 ticket — DELETED. 1 temp super_admin (for redraw dual-approval test) — DELETED. 2 disposable player users for erase tests — DELETED. Verified end-state: random_draw_engine_enabled=false, instant_win_engine_enabled=false, super admin suspended=false, c_fd360e20adad engine_type=leaderboard, zero TEST_* contests remaining.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Duplicate suspend/unsuspend route registration in admin_routes.py:96 and :105 shadows the new user360 handlers. Once main agent removes those two handlers (or reorders app.include_router calls so user360_router precedes admin_router), the 2 failing tests (TestUser360::test_02_suspend_wrong_password_403 and test_03_suspend_then_unsuspend) will pass. Test file /app/backend/tests/test_iter25_engines_user360_images.py — re-run with `python -m pytest backend/tests/test_iter25_engines_user360_images.py -v -o addopts=` from /app. The DB restore fixture already ensures flags stay OFF after each run.",
+  "rca of the issue": "ROOT CAUSE: New endpoints in user360_routes.py duplicate paths that already existed in admin_routes.py. FastAPI does not raise on duplicate registration; it matches routes in registration order. server.py registers admin_router at line 86 and user360_router at line 112 (26 routers later). All /api/admin/users/{user_id}/suspend and /unsuspend requests therefore route to the legacy handlers, bypassing password re-auth and audit_log emission. REPRODUCTION: (1) login as super admin, get JWT; (2) POST /api/admin/users/<victim>/suspend body={'reason':'x','admin_password':'WRONG'}; (3) response is 200 and the user is suspended in DB despite password mismatch; (4) no audit_log doc with kind='user_suspend' is written. MITIGATION: delete lines 96-102 and 105-111 of admin_routes.py (they are the older stub), OR move `app.include_router(user360_router)` above `app.include_router(admin_router)` in server.py. Verified restoration: after test we manually flipped users.suspended=false for bachanta8@gmail.com so admin login is not blocked."
+}

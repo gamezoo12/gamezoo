@@ -48,9 +48,10 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
     }
     setUploading(true);
     try {
-      const data = await uploadsAPI.image(file);
-      upd('image', data.url);
-      toast({ title: 'Image uploaded', description: 'Saved. Click "Save changes" to attach it to the contest.' });
+      const data = await uploadsAPI.contestImage(file, { focal_x: 0.5, focal_y: 0.5, alt: form.title || '' });
+      upd('image', data?.sizes?.card || data?.recommended_image_url);
+      upd('mobile_image', data?.sizes?.mobile || data?.recommended_mobile_image_url);
+      toast({ title: 'Image processed', description: `Generated ${Object.keys(data?.sizes || {}).length} responsive variants.` });
     } catch (err) {
       setUploadErr(err?.response?.data?.detail || err.message || 'Upload failed');
     } finally {
