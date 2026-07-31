@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { adminAPI } from '../../lib/api';
+import { adminAPI, api } from '../../lib/api';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Switch } from '../../components/ui/switch';
 import { Textarea } from '../../components/ui/textarea';
 import { useToast } from '../../hooks/use-toast';
-import { Settings as SettingsIcon, Save } from 'lucide-react';
+import { Settings as SettingsIcon, Save, Trash2, AlertTriangle } from 'lucide-react';
 
 export default function SettingsPage() {
   const [s, setS] = useState(null);
@@ -88,6 +88,83 @@ export default function SettingsPage() {
       <div className="flex justify-end sticky bottom-0 py-4 bg-slate-50/80 backdrop-blur">
         <Button onClick={save} disabled={busy} className="bg-[#6C2BFF] hover:bg-[#4A15D9]"><Save className="w-4 h-4 mr-1" /> {busy ? 'Saving…' : 'Save settings'}</Button>
       </div>
+
+      <WipeDemoDataPanel />
     </div>
+  );
+}
+
+// -----------------------------------------------------------------
+// Danger Zone: one-click reset of all test/demo data. Used after a fresh
+// production deploy when the pod inherits leftover demo rows from earlier
+// testing. Requires super_admin role + password + literal phrase.
+// -----------------------------------------------------------------
+function WipeDemoDataPanel() {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [report, setReport] = useState(null);
+
+  const run = async () => {
+    if (confirm !== 'WIPE DEMO DATA') { toast({ title: 'Type the confirmation phrase exactly' }); return; }
+    if (!password) { toast({ title: 'Enter your admin password' }); return; }
+    setBusy(true);
+    try {
+      const r = await api.post('/admin/system/wipe-demo-data', { password, confirm }).then(x => x.data);
+      setReport(r);
+      toast({ title: 'Demo data wiped', description: `Removed rows across ${Object.keys(r.wiped || {}).length} collections.` });
+      setPassword(''); setConfirm('');
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (e) {
+      toast({ title: 'Wipe failed', description: e?.response?.data?.detail || 'See console' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="bg-rose-50 border-2 border-rose-300 rounded-2xl p-5 mt-8" data-testid="danger-zone-wipe">
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 rounded-xl bg-rose-500 text-white flex items-center justify-center shrink-0"><AlertTriangle className="w-5 h-5" /></div>
+        <div className="flex-1">
+          <h3 className="font-display font-extrabold text-rose-900 text-lg">Danger Zone — Wipe Demo Data</h3>
+          <p className="text-sm text-rose-800 mt-1">
+            Deletes ALL contests, orders, tickets, wallet transactions, KYC records, notifications, audit logs and every regular player account. <strong>Staff accounts (admin / super_admin / operator / support) are preserved</strong> and their wallets reset to £0. Legal documents and company settings are untouched. This is irreversible — use only right after a fresh production deploy to clear leftover test data.
+          </p>
+
+          {!open ? (
+            <Button onClick={() => setOpen(true)} className="mt-4 bg-rose-600 hover:bg-rose-700 text-white" data-testid="wipe-open-btn">
+              <Trash2 className="w-4 h-4 mr-1" /> Open danger zone
+            </Button>
+          ) : (
+            <div className="mt-4 space-y-3">
+              <div>
+                <Label>Your admin password</Label>
+                <Input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="•••••••" className="max-w-md" data-testid="wipe-password-input" />
+              </div>
+              <div>
+                <Label>Type <span className="font-mono">WIPE DEMO DATA</span> to confirm</Label>
+                <Input value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="WIPE DEMO DATA" className="max-w-md font-mono" data-testid="wipe-confirm-input" />
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={run} disabled={busy} className="bg-rose-600 hover:bg-rose-700 text-white" data-testid="wipe-submit-btn">
+                  {busy ? 'Wiping…' : 'Wipe demo data now'}
+                </Button>
+                <Button variant="outline" onClick={() => { setOpen(false); setPassword(''); setConfirm(''); }}>Cancel</Button>
+              </div>
+              {report && (
+                <div className="mt-3 text-xs text-slate-700 bg-white rounded-lg border border-slate-200 p-3" data-testid="wipe-report">
+                  <div className="font-semibold mb-1">Wipe report</div>
+                  <pre className="whitespace-pre-wrap font-mono">{JSON.stringify(report.wiped, null, 2)}</pre>
+                  <div className="mt-2">Preserved staff accounts: <strong>{report.preserved_users}</strong></div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }

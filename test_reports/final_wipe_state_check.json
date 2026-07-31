@@ -1,0 +1,33 @@
+{
+  "counts": {
+    "audit_log": 0,
+    "winner_audit": 0,
+    "contests": 0,
+    "contest_draws": 0,
+    "game_scores": 0,
+    "instant_win_configs": 0,
+    "instant_win_reveals": 0,
+    "kyc": 0,
+    "leaderboard_entries": 0,
+    "meera_log": 0,
+    "notifications": 0,
+    "orders": 0,
+    "payment_transactions": 0,
+    "postal_entries": 0,
+    "referrals": 0,
+    "support_cases": 0,
+    "tickets": 0,
+    "user_sessions": 0,
+    "wallet_tx": 0,
+    "winners": 0,
+    "wallets": 1,
+    "admin_audit": 0
+  },
+  "users": [
+    {
+      "user_id": "user_eb071248fabe",
+      "email": "bachanta8@gmail.com",
+      "role": "super_admin"
+    }
+  ]
+}

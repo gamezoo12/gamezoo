@@ -1,10 +1,22 @@
 from fastapi import APIRouter, HTTPException, Request
 from datetime import datetime, timedelta, timezone
 
-from auth import require_admin, get_current_user
+from auth import require_admin, get_current_user, verify_password
 from models import Winner  # noqa: F401 (kept for other endpoints that may use it)
 
 router = APIRouter(prefix='/api/admin', tags=['admin'])
+
+
+# Collections that are safe to wipe wholesale when the super admin clicks
+# "Wipe Demo Data". Every entry here is either an audit trail or transient
+# state; NONE of them contain irreplaceable config.
+_WIPEABLE_COLLECTIONS = (
+    'audit_log', 'contests', 'contest_draws', 'game_scores',
+    'instant_win_configs', 'instant_win_reveals', 'kyc',
+    'leaderboard_entries', 'meera_log', 'notifications', 'orders',
+    'payment_transactions', 'postal_entries', 'referrals', 'support_cases',
+    'tickets', 'user_sessions', 'wallet_tx', 'winners',
+)
 
 
 async def _require_role(request: Request, allowed):
@@ -510,3 +522,87 @@ async def reject_kyc(kyc_id: str, payload: dict, request: Request):
     if r.matched_count == 0:
         raise HTTPException(status_code=404, detail='KYC not found')
     return {'ok': True}
+
+
+
+@router.post('/system/wipe-demo-data')
+async def wipe_demo_data(payload: dict, request: Request):
+    """DESTRUCTIVE — deletes all test/demo data and resets counters so the
+    platform is production-clean. Preserves:
+      • the calling super admin (their own account is never touched)
+      • all other users with role in ('admin', 'super_admin', 'operator', 'support')
+      • legal documents, company settings, counters
+
+    Wipes:
+      • orders, tickets, wallet_tx, payment_transactions, audit logs,
+        notifications, referrals, support cases, contests, contest_draws,
+        game_scores, instant_win_configs, instant_win_reveals, kyc,
+        leaderboard_entries, meera_log, postal_entries, user_sessions, winners
+      • every user with role 'user' (regular players — demo accounts)
+      • every wallet not belonging to a preserved user
+
+    Requires:
+      • super_admin role
+      • password re-confirmation (payload['password'])
+      • confirmation phrase (payload['confirm'] == 'WIPE DEMO DATA')
+    """
+    user = await get_current_user(request)
+    if user.get('role') != 'super_admin':
+        raise HTTPException(status_code=403, detail='Only super_admin can wipe demo data')
+
+    password = (payload or {}).get('password', '')
+    confirm = (payload or {}).get('confirm', '')
+    if confirm != 'WIPE DEMO DATA':
+        raise HTTPException(status_code=400, detail='Confirmation phrase must be exactly: WIPE DEMO DATA')
+
+    from deps import get_db
+    db = get_db()
+    admin_full = await db.users.find_one({'user_id': user['user_id']})
+    if not admin_full or not verify_password(password, admin_full.get('password_hash', '')):
+        raise HTTPException(status_code=401, detail='Password re-confirmation failed')
+
+    report: dict[str, int] = {}
+    for col in _WIPEABLE_COLLECTIONS:
+        r = await db[col].delete_many({})
+        if r.deleted_count:
+            report[col] = r.deleted_count
+
+    # Preserve staff accounts + the calling super admin. Delete only regular players.
+    staff_roles = {'admin', 'super_admin', 'operator', 'support'}
+    preserved = await db.users.find(
+        {'role': {'$in': list(staff_roles)}},
+        {'_id': 0, 'user_id': 1},
+    ).to_list(None)
+    preserved_ids = [u['user_id'] for u in preserved]
+
+    dr = await db.users.delete_many({'user_id': {'$nin': preserved_ids}})
+    if dr.deleted_count:
+        report['users'] = dr.deleted_count
+
+    # Reset every preserved staff wallet to £0 and wipe every other wallet.
+    wr = await db.wallets.delete_many({'user_id': {'$nin': preserved_ids}})
+    if wr.deleted_count:
+        report['wallets_deleted'] = wr.deleted_count
+    await db.wallets.update_many(
+        {'user_id': {'$in': preserved_ids}},
+        {'$set': {'balance': 0.0, 'lifetime_topup': 0.0, 'lifetime_spend': 0.0}},
+    )
+
+    # Reset public_id counter so the very next signup is PL10001.
+    await db.counters.update_one(
+        {'_id': 'user_public_id'},
+        {'$set': {'seq': 1}},
+        upsert=True,
+    )
+
+    # Log the wipe itself in a fresh audit collection so ops can always
+    # answer "who wiped and when?" — even after subsequent activity.
+    await db.admin_audit.insert_one({
+        'action': 'wipe_demo_data',
+        'by_user_id': user['user_id'],
+        'by_email': user.get('email'),
+        'at': datetime.now(timezone.utc),
+        'report': report,
+    })
+
+    return {'ok': True, 'wiped': report, 'preserved_users': len(preserved_ids)}

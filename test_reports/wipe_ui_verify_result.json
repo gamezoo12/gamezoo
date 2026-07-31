@@ -1,0 +1,48 @@
+{
+  "run_id": "ui_1785538247",
+  "passed": true,
+  "checks": [
+    {
+      "name": "ui_seed_marker_removed_from_db",
+      "passed": true,
+      "detail": "counts={'users': 0, 'wallets': 0, 'contests': 0, 'orders': 0, 'tickets': 0, 'leaderboard_entries': 0}",
+      "counts": {
+        "users": 0,
+        "wallets": 0,
+        "contests": 0,
+        "orders": 0,
+        "tickets": 0,
+        "leaderboard_entries": 0
+      }
+    },
+    {
+      "name": "admin_login_after_ui_wipe",
+      "passed": true,
+      "detail": "status=200, body={\"user\":{\"user_id\":\"user_eb071248fabe\",\"public_id\":\"PL10000\",\"email\":\"bachanta8@gmail.com\",\"name\":\"Admin\",\"username\":null,\"picture\":null,\"role\":\"super_admin\",\"method\":\"email\",\"phone\":null,\"phone_verif"
+    },
+    {
+      "name": "admin_orders_empty_after_ui_wipe",
+      "passed": true,
+      "detail": "status=200, body=[]"
+    },
+    {
+      "name": "qa_user_not_visible_after_ui_wipe",
+      "passed": true,
+      "detail": "status=200, qa_visible=[]"
+    },
+    {
+      "name": "admin_stats_orders_contests_tickets_zero_after_ui_wipe",
+      "passed": true,
+      "detail": "status=200, stats={'users': 1, 'contests': 0, 'orders': 0, 'tickets_sold': 0, 'revenue': 0, 'prize_pool': 0, 'kyc_pending': 0}",
+      "stats": {
+        "users": 1,
+        "contests": 0,
+        "orders": 0,
+        "tickets_sold": 0,
+        "revenue": 0,
+        "prize_pool": 0,
+        "kyc_pending": 0
+      }
+    }
+  ]
+}

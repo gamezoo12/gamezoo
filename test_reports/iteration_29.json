@@ -1,0 +1,67 @@
+{
+  "verdict": "not_fixed",
+  "user_reported_bug": "still you didn't rectify few things, demo points under leaderboard and daily under super admin I see all the demo data under every section in admin panel, I was just wasted lots of credits just to wipe it, just see the instructions , this is the 4th time I think , you are just wasting the lots of credits, I haven't seen the changes under the user management , you said you did lots pf changes, omgggg",
+  "summary": "No relevant testing skill found. Focused verification of the new admin Settings Danger Zone wipe flow: backend auth/confirm/password guardrails passed, UI panel opened and successfully triggered the wipe, and seeded demo users/orders/contests/leaderboard rows were removed. However the fix is not complete: admin-visible winner audit logs are not wiped, and /api/admin/stats still reports preserved staff in users instead of the requested zero user count.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/admin/system/wipe-demo-data and GET /api/admin/audit-logs",
+        "issue": "The wipe endpoint deletes audit_log but /api/admin/audit-logs reads winner_audit. A seeded winner_audit demo marker remained visible in the Admin Audit Logs response after wipe, so demo audit data can still appear in the admin panel.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "GET /api/admin/stats",
+        "issue": "After wipe, stats correctly returned zero for contests/orders/tickets/revenue/prize_pool/KYC, but users remained non-zero because preserved staff accounts are counted. The review request expected users=0 after wipe. In the final clean preview state it returns users=1 for the super_admin."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/test_wipe_demo_data_backend.py",
+    "/app/test_reports/seed_wipe_demo_data_ui.py",
+    "/app/test_reports/test_wipe_demo_data_frontend_playwright.py",
+    "/app/test_reports/verify_wipe_demo_data_after_ui.py",
+    "/app/test_reports/final_wipe_state_check.py",
+    "/app/test_reports/wipe_backend_result.json",
+    "/app/test_reports/wipe_ui_seed_result.json",
+    "/app/test_reports/wipe_ui_verify_result.json",
+    "/app/test_reports/final_wipe_state_check.json"
+  ],
+  "action_items": [
+    "Add winner_audit to the wipe operation or otherwise purge all collections shown by /api/admin/audit-logs, then retest that old demo audit activity is no longer visible.",
+    "Clarify/fix /api/admin/stats user count after wipe: either return regular-player count only or adjust the acceptance criteria if preserved staff should be counted.",
+    "Self-test the full production-admin clean-state outcome after changes: settings wipe report, users only staff, orders empty, contests empty, leaderboard empty, audit logs free of demo markers, and dashboard stats matching the intended clean-state numbers."
+  ],
+  "critical_code_review_comments": [
+    "_WIPEABLE_COLLECTIONS in /app/backend/routers/admin_routes.py includes audit_log but not winner_audit, while /api/admin/audit-logs reads winner_audit and support_cases. This mismatch leaves admin-visible audit data behind.",
+    "/api/admin/stats counts all documents in users, so it includes preserved super_admin/admin/operator/support accounts after wipe. This conflicts with the regression sanity item that expected users=0."
+  ],
+  "updated_files": [
+    "/app/test_reports/test_wipe_demo_data_backend.py",
+    "/app/test_reports/seed_wipe_demo_data_ui.py",
+    "/app/test_reports/test_wipe_demo_data_frontend_playwright.py",
+    "/app/test_reports/verify_wipe_demo_data_after_ui.py",
+    "/app/test_reports/final_wipe_state_check.py",
+    "/app/test_reports/wipe_backend_result.json",
+    "/app/test_reports/wipe_ui_seed_result.json",
+    "/app/test_reports/wipe_ui_verify_result.json",
+    "/app/test_reports/final_wipe_state_check.json",
+    "/app/test_reports/bug_verification_29.json",
+    "/app/test_reports/iteration_29.json"
+  ],
+  "success_rate": {
+    "backend": "85% (11/13 focused backend checks passed)",
+    "frontend": "100% (admin Settings danger-zone UI flow passed)"
+  },
+  "seed_data_creation": "Created QA-only demo users, staff users, wallets, and one document in each requested wipe collection for backend testing; created one demo user/order/contest/ticket/leaderboard row for UI testing. Final cleanup left preview DB with only the super_admin user plus its reset wallet; tested demo collections and winner_audit are empty.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Preview URL tested: https://contest-arena-16.preview.emergentagent.com. Super admin bachanta8@gmail.com / Herts@910022 worked. Backend wipe guardrails and UI integration pass, but seed a winner_audit row before retest because that is the current admin-visible leftover. Final state check after this run: demo collections 0, winner_audit 0, admin_audit 0, users only super_admin, wallets 1 reset staff wallet.",
+  "rca_of_the_issue": "The implementation wipes many transactional/demo collections and regular users, but it missed winner_audit, which is the collection actually surfaced by /api/admin/audit-logs for winner-selection audit activity. Therefore users can still see demo audit data in the admin panel after pressing Wipe Demo Data. Separately, dashboard stats count preserved staff in users, so a clean staff-only environment still shows a non-zero user count."
+}

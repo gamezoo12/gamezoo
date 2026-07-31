@@ -1,0 +1,161 @@
+{
+  "run_id": "1785538238",
+  "api": "https://contest-arena-16.preview.emergentagent.com/api",
+  "passed": false,
+  "results": [
+    {
+      "name": "non_super_admin_rejected",
+      "passed": true,
+      "detail": "status=403, body={\"detail\":\"Only super_admin can wipe demo data\"}"
+    },
+    {
+      "name": "wrong_confirm_rejected",
+      "passed": true,
+      "detail": "status=400, body={\"detail\":\"Confirmation phrase must be exactly: WIPE DEMO DATA\"}"
+    },
+    {
+      "name": "wrong_password_rejected",
+      "passed": true,
+      "detail": "status=401, body={\"detail\":\"Password re-confirmation failed\"}"
+    },
+    {
+      "name": "super_admin_wipe_success",
+      "passed": true,
+      "detail": "status=200, body={\"ok\": true, \"wiped\": {\"audit_log\": 1, \"contests\": 1, \"contest_draws\": 1, \"game_scores\": 1, \"instant_win_configs\": 1, \"instant_win_reveals\": 1, \"kyc\": 1, \"leaderboard_entries\": 1, \"meera_log\": 1, \"notifications\": 1, \"orders\": 1, \"payment_transactions\": 1, \"postal_entries\": 1, \"referrals\": 1, \"support_cases\": 1, \"tickets\": 1, \"user_sessions\": 1, \"wallet_tx\": 1, \"winners\": 1, \"users\": 2, \"wallets_deleted\": 2}, \"preserved_users\": 4}",
+      "response": {
+        "ok": true,
+        "wiped": {
+          "audit_log": 1,
+          "contests": 1,
+          "contest_draws": 1,
+          "game_scores": 1,
+          "instant_win_configs": 1,
+          "instant_win_reveals": 1,
+          "kyc": 1,
+          "leaderboard_entries": 1,
+          "meera_log": 1,
+          "notifications": 1,
+          "orders": 1,
+          "payment_transactions": 1,
+          "postal_entries": 1,
+          "referrals": 1,
+          "support_cases": 1,
+          "tickets": 1,
+          "user_sessions": 1,
+          "wallet_tx": 1,
+          "winners": 1,
+          "users": 2,
+          "wallets_deleted": 2
+        },
+        "preserved_users": 4
+      }
+    },
+    {
+      "name": "wipeable_collections_empty",
+      "passed": true,
+      "detail": "counts={'audit_log': 0, 'contests': 0, 'contest_draws': 0, 'game_scores': 0, 'instant_win_configs': 0, 'instant_win_reveals': 0, 'kyc': 0, 'leaderboard_entries': 0, 'meera_log': 0, 'notifications': 0, 'orders': 0, 'payment_transactions': 0, 'postal_entries': 0, 'referrals': 0, 'support_cases': 0, 'tickets': 0, 'user_sessions': 0, 'wallet_tx': 0, 'winners': 0}",
+      "counts": {
+        "audit_log": 0,
+        "contests": 0,
+        "contest_draws": 0,
+        "game_scores": 0,
+        "instant_win_configs": 0,
+        "instant_win_reveals": 0,
+        "kyc": 0,
+        "leaderboard_entries": 0,
+        "meera_log": 0,
+        "notifications": 0,
+        "orders": 0,
+        "payment_transactions": 0,
+        "postal_entries": 0,
+        "referrals": 0,
+        "support_cases": 0,
+        "tickets": 0,
+        "user_sessions": 0,
+        "wallet_tx": 0,
+        "winners": 0
+      }
+    },
+    {
+      "name": "regular_users_deleted_staff_preserved",
+      "passed": true,
+      "detail": "regular_remaining=0, staff_remaining=3"
+    },
+    {
+      "name": "preserved_staff_wallets_reset",
+      "passed": true,
+      "detail": "wallets=[{'user_id': 'qa_staff_0_1785538238', 'balance': 0.0, 'lifetime_spend': 0.0, 'lifetime_topup': 0.0}, {'user_id': 'qa_staff_1_1785538238', 'balance': 0.0, 'lifetime_spend': 0.0, 'lifetime_topup': 0.0}, {'user_id': 'qa_staff_2_1785538238', 'balance': 0.0, 'lifetime_spend': 0.0, 'lifetime_topup': 0.0}]",
+      "wallets": [
+        {
+          "user_id": "qa_staff_0_1785538238",
+          "balance": 0.0,
+          "lifetime_spend": 0.0,
+          "lifetime_topup": 0.0
+        },
+        {
+          "user_id": "qa_staff_1_1785538238",
+          "balance": 0.0,
+          "lifetime_spend": 0.0,
+          "lifetime_topup": 0.0
+        },
+        {
+          "user_id": "qa_staff_2_1785538238",
+          "balance": 0.0,
+          "lifetime_spend": 0.0,
+          "lifetime_topup": 0.0
+        }
+      ]
+    },
+    {
+      "name": "public_id_counter_reset_to_1",
+      "passed": true,
+      "detail": "counter={'seq': 1}",
+      "counter": {
+        "seq": 1
+      }
+    },
+    {
+      "name": "admin_orders_empty_after_wipe",
+      "passed": true,
+      "detail": "status=200, body=[]"
+    },
+    {
+      "name": "admin_users_only_staff_after_wipe",
+      "passed": true,
+      "detail": "status=200, roles=['admin', 'operator', 'super_admin', 'support'], qa_regular_visible=[], total_users=4"
+    },
+    {
+      "name": "admin_stats_demo_counts_zero",
+      "passed": true,
+      "detail": "status=200, stats={'users': 4, 'contests': 0, 'orders': 0, 'tickets_sold': 0, 'revenue': 0, 'prize_pool': 0, 'kyc_pending': 0}",
+      "stats": {
+        "users": 4,
+        "contests": 0,
+        "orders": 0,
+        "tickets_sold": 0,
+        "revenue": 0,
+        "prize_pool": 0,
+        "kyc_pending": 0
+      }
+    },
+    {
+      "name": "admin_stats_users_zero_expected_by_review",
+      "passed": false,
+      "detail": "status=200, users=4, full_stats={'users': 4, 'contests': 0, 'orders': 0, 'tickets_sold': 0, 'revenue': 0, 'prize_pool': 0, 'kyc_pending': 0}",
+      "stats": {
+        "users": 4,
+        "contests": 0,
+        "orders": 0,
+        "tickets_sold": 0,
+        "revenue": 0,
+        "prize_pool": 0,
+        "kyc_pending": 0
+      }
+    },
+    {
+      "name": "admin_visible_audit_logs_do_not_show_demo_marker",
+      "passed": false,
+      "detail": "status=200, marker_visible=True, matching=[{'qa_run_id': '1785538238', 'at': '2026-07-31T22:50:39.298000', 'action': 'qa_demo_winner_audit_should_be_wiped', 'admin_id': 'qa', 'target': 'qa_contest_1785538238', 'meta': {'run_id': '1785538238'}, 'source': 'winner_selection'}]"
+    }
+  ]
+}
