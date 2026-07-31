@@ -589,35 +589,63 @@ async def wipe_demo_data(payload: dict, request: Request):
         {'$set': {'balance': 0.0, 'lifetime_topup': 0.0, 'lifetime_spend': 0.0}},
     )
 
-    # Backfill missing public_ids on preserved staff — the wipe should never
-    # leave an admin without their PL10000 / PLxxxxx identifier. Super admin
-    # always gets PL10000; other staff get sequential PL10001, PL10002…
+    # Backfill missing public_ids on preserved staff and reset the counter
+    # correctly. This is subtle because staff can be a mix of:
+    #   • super admin (always gets PL10000)
+    #   • existing staff who ALREADY have a PLxxxxx (keep as-is, count towards
+    #     the next-signup counter)
+    #   • existing staff with NO public_id (assign the smallest unused id)
     _PREFIX = 'PL'
     _START = 10000
+
+    def _num(pid):
+        if not pid or not pid.startswith(_PREFIX):
+            return None
+        try:
+            return int(pid[len(_PREFIX):])
+        except ValueError:
+            return None
+
+    # Snapshot every preserved user's current public_id.
+    used: set[int] = set()
+    async for u in db.users.find({'user_id': {'$in': preserved_ids}}, {'user_id': 1, 'public_id': 1, 'role': 1}):
+        n = _num(u.get('public_id'))
+        if n is not None:
+            used.add(n)
+
+    # Super admin ALWAYS gets PL10000 (overwrite any other id it may hold —
+    # PL10000 is the reserved super-admin marker).
     sa = await db.users.find_one({'role': 'super_admin'}, {'user_id': 1, 'public_id': 1})
     if sa:
-        await db.users.update_one(
-            {'user_id': sa['user_id']},
-            {'$set': {'public_id': f'{_PREFIX}{_START}'}},
-        )
-    # Other staff without a public_id
-    next_num = _START + 1
+        prev = _num(sa.get('public_id'))
+        if prev is not None:
+            used.discard(prev)
+        await db.users.update_one({'user_id': sa['user_id']}, {'$set': {'public_id': f'{_PREFIX}{_START}'}})
+        used.add(_START)
+
+    # Assign smallest-unused id to any preserved staff still missing one.
     async for u in db.users.find(
-        {'user_id': {'$in': preserved_ids}, 'role': {'$ne': 'super_admin'},
-         '$or': [{'public_id': {'$in': [None, '']}}, {'public_id': {'$exists': False}}]},
+        {
+            'user_id': {'$in': preserved_ids},
+            'role': {'$ne': 'super_admin'},
+            '$or': [{'public_id': {'$in': [None, '']}}, {'public_id': {'$exists': False}}],
+        },
         {'user_id': 1},
     ).sort('created_at', 1):
-        await db.users.update_one(
-            {'user_id': u['user_id']},
-            {'$set': {'public_id': f'{_PREFIX}{next_num}'}},
-        )
-        next_num += 1
+        candidate = _START + 1
+        while candidate in used:
+            candidate += 1
+        await db.users.update_one({'user_id': u['user_id']}, {'$set': {'public_id': f'{_PREFIX}{candidate}'}})
+        used.add(candidate)
 
-    # Reset public_id counter so the very next signup is PL{next_num}. If we
-    # only had the super admin, next signup will be PL10001.
+    # Counter must be set so the next new signup gets `max(used) + 1`.
+    # The `next_seq` helper first $inc's seq and returns `seq + start - 1`,
+    # so if we want the next call to return `max_used + 1` we need seq
+    # (before $inc) to equal `max_used - start + 1`.
+    max_used = max(used) if used else _START
     await db.counters.update_one(
         {'_id': 'user_public_id'},
-        {'$set': {'seq': max(1, next_num - _START)}},
+        {'$set': {'seq': max(1, max_used - _START + 1)}},
         upsert=True,
     )
 

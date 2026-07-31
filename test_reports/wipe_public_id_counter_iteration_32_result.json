@@ -1,0 +1,493 @@
+{
+  "api_base": "https://contest-arena-16.preview.emergentagent.com",
+  "db_name": "test_database",
+  "run_id": "3f57659eb3",
+  "checks": [
+    {
+      "name": "API health responds",
+      "passed": true,
+      "detail": {
+        "status": 200,
+        "body": "{\"service\":\"gamezoo\",\"status\":\"ok\"}"
+      }
+    },
+    {
+      "name": "Super admin login works",
+      "passed": true,
+      "detail": {
+        "status": 200,
+        "body": {
+          "token_present": true,
+          "user": {
+            "user_id": "user_eb071248fabe",
+            "public_id": "PL10000",
+            "email": "bachanta8@gmail.com",
+            "name": "Admin",
+            "username": null,
+            "picture": null,
+            "role": "super_admin",
+            "method": "email",
+            "phone": null,
+            "phone_verified": false,
+            "dob": null,
+            "address": null,
+            "terms_accepted_at": "2026-07-30T20:39:46.500000",
+            "must_change_password": true
+          }
+        }
+      }
+    },
+    {
+      "name": "Super admin DB document exists for controlled seeding",
+      "passed": true,
+      "detail": {
+        "user_id": "user_eb071248fabe",
+        "email": "bachanta8@gmail.com",
+        "role": "super_admin",
+        "public_id": "PL10000"
+      }
+    },
+    {
+      "name": "Guardrail rejects wrong confirm with 400 and does not delete demo data",
+      "passed": true,
+      "detail": {
+        "status": 400,
+        "body": "{\"detail\":\"Confirmation phrase must be exactly: WIPE DEMO DATA\"}",
+        "qa_contests_remaining": 1
+      }
+    },
+    {
+      "name": "Guardrail rejects wrong password with 401 and does not delete demo data",
+      "passed": true,
+      "detail": {
+        "status": 401,
+        "body": "{\"detail\":\"Password re-confirmation failed\"}",
+        "qa_contests_remaining": 1
+      }
+    },
+    {
+      "name": "Missing-id wipe succeeds",
+      "passed": true,
+      "detail": {
+        "status": 200,
+        "body": {
+          "ok": true,
+          "wiped": {
+            "audit_log": 1,
+            "admin_audit": 2,
+            "winner_audit": 1,
+            "contests": 1,
+            "contest_draws": 1,
+            "game_scores": 1,
+            "instant_win_configs": 1,
+            "instant_win_reveals": 1,
+            "kyc": 1,
+            "leaderboard_entries": 1,
+            "meera_log": 1,
+            "notifications": 1,
+            "orders": 1,
+            "payment_transactions": 1,
+            "postal_entries": 1,
+            "referrals": 1,
+            "support_cases": 1,
+            "tickets": 1,
+            "user_sessions": 1,
+            "wallet_tx": 1,
+            "winners": 1,
+            "users": 1,
+            "wallets_deleted": 1
+          },
+          "preserved_users": 2
+        }
+      }
+    },
+    {
+      "name": "Missing-id case backfills super_admin=PL10000 and admin=PL10001 via admin API",
+      "passed": true,
+      "detail": {
+        "status": 200,
+        "super": {
+          "user_id": "user_eb071248fabe",
+          "email": "bachanta8@gmail.com",
+          "name": "Admin",
+          "picture": null,
+          "method": "email",
+          "role": "super_admin",
+          "created_at": "2026-07-01T19:32:11.440000",
+          "phone": null,
+          "updated_at": "2026-07-09T12:55:34.474000",
+          "referral_code": "2D056557",
+          "suspended": false,
+          "must_change_password": true,
+          "terms_accepted_at": "2026-07-30T20:39:46.500000",
+          "suspended_reason": null,
+          "public_id": "PL10000",
+          "tickets": 0,
+          "spent": 0,
+          "kyc_status": "none"
+        },
+        "staff": {
+          "user_id": "qa_staff_missing_3f57659eb3",
+          "email": "qa_staff_missing_3f57659eb3@example.test",
+          "name": "QA Staff missing",
+          "method": "email",
+          "role": "admin",
+          "created_at": "2026-07-31T23:27:43.682000",
+          "qa_run_id": "3f57659eb3",
+          "public_id": "PL10001",
+          "tickets": 0,
+          "spent": 0,
+          "kyc_status": "none"
+        }
+      }
+    },
+    {
+      "name": "Missing-id case sets counter.seq=2",
+      "passed": true,
+      "detail": {
+        "seq": 2
+      }
+    },
+    {
+      "name": "Next signup after missing-id-case receives PL10002",
+      "passed": true,
+      "detail": {
+        "status": 200,
+        "body": {
+          "user": {
+            "user_id": "user_80da3cc3d459",
+            "public_id": "PL10002",
+            "email": "qa.signup.missing-id-case.3f57659eb3.1785540464368@example.com",
+            "name": "QA Signup missing-id-case",
+            "username": "qa0201",
+            "picture": null,
+            "role": "user",
+            "method": "email",
+            "phone": "+447795200806",
+            "phone_verified": true,
+            "dob": "2000-08-02",
+            "address": "221B Baker St, London",
+            "terms_accepted_at": "2026-07-31T23:27:44.620081+00:00",
+            "must_change_password": false
+          },
+          "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzgwZGEzY2MzZDQ1OSIsImlhdCI6MTc4NTU0MDQ2NCwiZXhwIjoxNzg4MTMyNDY0fQ.R8Mek4tMtHc7P709545154cqNrkGoW8X3kOF3CLTRtM"
+        },
+        "expected_public_id": "PL10002",
+        "existing_staff_public_id": null
+      }
+    },
+    {
+      "name": "All seeded wipeable demo collection rows are removed by valid wipe",
+      "passed": true,
+      "detail": {
+        "audit_log": 0,
+        "admin_audit": 0,
+        "winner_audit": 0,
+        "contests": 0,
+        "contest_draws": 0,
+        "game_scores": 0,
+        "instant_win_configs": 0,
+        "instant_win_reveals": 0,
+        "kyc": 0,
+        "leaderboard_entries": 0,
+        "meera_log": 0,
+        "notifications": 0,
+        "orders": 0,
+        "payment_transactions": 0,
+        "postal_entries": 0,
+        "referrals": 0,
+        "support_cases": 0,
+        "tickets": 0,
+        "user_sessions": 0,
+        "wallet_tx": 0,
+        "winners": 0
+      }
+    },
+    {
+      "name": "Regular demo user is deleted while preserved staff remains visible via API",
+      "passed": true,
+      "detail": {
+        "status": 200,
+        "regular_present": false,
+        "staff": {
+          "user_id": "qa_staff_missing_3f57659eb3",
+          "email": "qa_staff_missing_3f57659eb3@example.test",
+          "name": "QA Staff missing",
+          "method": "email",
+          "role": "admin",
+          "created_at": "2026-07-31T23:27:43.682000",
+          "qa_run_id": "3f57659eb3",
+          "public_id": "PL10001",
+          "tickets": 0,
+          "spent": 0,
+          "kyc_status": "none"
+        }
+      }
+    },
+    {
+      "name": "Preserved staff wallet is reset and regular wallet is deleted",
+      "passed": true,
+      "detail": {
+        "staff_wallet": {
+          "user_id": "qa_staff_missing_3f57659eb3",
+          "balance": 0.0,
+          "lifetime_topup": 0.0,
+          "lifetime_spend": 0.0,
+          "qa_run_id": "3f57659eb3"
+        },
+        "regular_wallet": null
+      }
+    },
+    {
+      "name": "legal_documents and settings are preserved after wipe via admin APIs",
+      "passed": true,
+      "detail": {
+        "legal_status": 200,
+        "legal_found": true,
+        "settings_status": 200,
+        "settings_marker": "must_survive"
+      }
+    },
+    {
+      "name": "Existing PL10000/PL10001 preserved-staff wipe succeeds",
+      "passed": true,
+      "detail": {
+        "status": 200,
+        "body": {
+          "ok": true,
+          "wiped": {
+            "admin_audit": 1
+          },
+          "preserved_users": 2
+        }
+      }
+    },
+    {
+      "name": "Regression case retains super_admin PL10000 and operator PL10001 via admin API",
+      "passed": true,
+      "detail": {
+        "status": 200,
+        "super": {
+          "user_id": "user_eb071248fabe",
+          "email": "bachanta8@gmail.com",
+          "name": "Admin",
+          "picture": null,
+          "method": "email",
+          "role": "super_admin",
+          "created_at": "2026-07-01T19:32:11.440000",
+          "phone": null,
+          "updated_at": "2026-07-09T12:55:34.474000",
+          "referral_code": "2D056557",
+          "suspended": false,
+          "must_change_password": true,
+          "terms_accepted_at": "2026-07-30T20:39:46.500000",
+          "suspended_reason": null,
+          "public_id": "PL10000",
+          "tickets": 0,
+          "spent": 0,
+          "kyc_status": "none"
+        },
+        "operator": {
+          "user_id": "qa_staff_existing-pl10001_3f57659eb3",
+          "email": "qa_staff_existing-pl10001_3f57659eb3@example.test",
+          "name": "QA Staff existing-pl10001",
+          "method": "email",
+          "role": "operator",
+          "created_at": "2026-07-31T23:27:44.798000",
+          "qa_run_id": "3f57659eb3",
+          "public_id": "PL10001",
+          "tickets": 0,
+          "spent": 0,
+          "kyc_status": "none"
+        }
+      }
+    },
+    {
+      "name": "Regression case sets counter.seq=2, not 1",
+      "passed": true,
+      "detail": {
+        "seq": 2
+      }
+    },
+    {
+      "name": "Next signup after existing-pl10001-case receives PL10002",
+      "passed": true,
+      "detail": {
+        "status": 200,
+        "body": {
+          "user": {
+            "user_id": "user_09a92e41c770",
+            "public_id": "PL10002",
+            "email": "qa.signup.existing-pl10001-case.3f57659eb3.1785540465122@example.com",
+            "name": "QA Signup existing-pl10001-case",
+            "username": "qa0201",
+            "picture": null,
+            "role": "user",
+            "method": "email",
+            "phone": "+447798209539",
+            "phone_verified": true,
+            "dob": "2000-08-02",
+            "address": "221B Baker St, London",
+            "terms_accepted_at": "2026-07-31T23:27:45.373005+00:00",
+            "must_change_password": false
+          },
+          "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzA5YTkyZTQxYzc3MCIsImlhdCI6MTc4NTU0MDQ2NSwiZXhwIjoxNzg4MTMyNDY1fQ.opU3VhpooODHMCAk0DMw8wfaACJKr73zGj5oKMxBZH4"
+        },
+        "expected_public_id": "PL10002",
+        "existing_staff_public_id": "PL10001"
+      }
+    },
+    {
+      "name": "Super-admin-only wipe leaves only super_admin PL10000 and counter.seq=1",
+      "passed": true,
+      "detail": {
+        "wipe_status": 200,
+        "users": [
+          {
+            "user_id": "user_eb071248fabe",
+            "email": "bachanta8@gmail.com",
+            "name": "Admin",
+            "picture": null,
+            "method": "email",
+            "role": "super_admin",
+            "created_at": "2026-07-01T19:32:11.440000",
+            "phone": null,
+            "updated_at": "2026-07-09T12:55:34.474000",
+            "referral_code": "2D056557",
+            "suspended": false,
+            "must_change_password": true,
+            "terms_accepted_at": "2026-07-30T20:39:46.500000",
+            "suspended_reason": null,
+            "public_id": "PL10000",
+            "tickets": 0,
+            "spent": 0,
+            "kyc_status": "none"
+          }
+        ],
+        "counter": {
+          "seq": 1
+        }
+      }
+    },
+    {
+      "name": "Next signup after super-only-case receives PL10001",
+      "passed": true,
+      "detail": {
+        "status": 200,
+        "body": {
+          "user": {
+            "user_id": "user_6f73b3adcaf9",
+            "public_id": "PL10001",
+            "email": "qa.signup.super-only-case.3f57659eb3.1785540465728@example.com",
+            "name": "QA Signup super-only-case",
+            "username": "qa0201",
+            "picture": null,
+            "role": "user",
+            "method": "email",
+            "phone": "+447795492386",
+            "phone_verified": true,
+            "dob": "2000-08-02",
+            "address": "221B Baker St, London",
+            "terms_accepted_at": "2026-07-31T23:27:45.978360+00:00",
+            "must_change_password": false
+          },
+          "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzZmNzNiM2FkY2FmOSIsImlhdCI6MTc4NTU0MDQ2NSwiZXhwIjoxNzg4MTMyNDY1fQ.DJiqaSoRLtz2bZFb78ProB9nLf2fjlmwz4w4qkbuu4M"
+        },
+        "expected_public_id": "PL10001",
+        "existing_staff_public_id": null
+      }
+    },
+    {
+      "name": "Backfill gap case sets super_admin=PL10000 and preserves admin PL10005 via API",
+      "passed": true,
+      "detail": {
+        "wipe_status": 200,
+        "super": {
+          "user_id": "user_eb071248fabe",
+          "email": "bachanta8@gmail.com",
+          "name": "Admin",
+          "picture": null,
+          "method": "email",
+          "role": "super_admin",
+          "created_at": "2026-07-01T19:32:11.440000",
+          "phone": null,
+          "updated_at": "2026-07-09T12:55:34.474000",
+          "referral_code": "2D056557",
+          "suspended": false,
+          "must_change_password": true,
+          "terms_accepted_at": "2026-07-30T20:39:46.500000",
+          "suspended_reason": null,
+          "public_id": "PL10000",
+          "tickets": 0,
+          "spent": 0,
+          "kyc_status": "none"
+        },
+        "admin_gap": {
+          "user_id": "qa_staff_gap-pl10005_3f57659eb3",
+          "email": "qa_staff_gap-pl10005_3f57659eb3@example.test",
+          "name": "QA Staff gap-pl10005",
+          "method": "email",
+          "role": "admin",
+          "created_at": "2026-07-31T23:27:46.002000",
+          "qa_run_id": "3f57659eb3",
+          "public_id": "PL10005",
+          "tickets": 0,
+          "spent": 0,
+          "kyc_status": "none"
+        }
+      }
+    },
+    {
+      "name": "Backfill gap case sets counter.seq=6",
+      "passed": true,
+      "detail": {
+        "seq": 6
+      }
+    },
+    {
+      "name": "Next signup after gap-pl10005-case receives PL10006",
+      "passed": true,
+      "detail": {
+        "status": 200,
+        "body": {
+          "user": {
+            "user_id": "user_b5da8ccf05e9",
+            "public_id": "PL10006",
+            "email": "qa.signup.gap-pl10005-case.3f57659eb3.1785540466359@example.com",
+            "name": "QA Signup gap-pl10005-case",
+            "username": "qa0201",
+            "picture": null,
+            "role": "user",
+            "method": "email",
+            "phone": "+447774787637",
+            "phone_verified": true,
+            "dob": "2000-08-02",
+            "address": "221B Baker St, London",
+            "terms_accepted_at": "2026-07-31T23:27:46.609722+00:00",
+            "must_change_password": false
+          },
+          "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyX2I1ZGE4Y2NmMDVlOSIsImlhdCI6MTc4NTU0MDQ2NiwiZXhwIjoxNzg4MTMyNDY2fQ.dFqX1QbnXxN9PxW3XkXi0l6XhRATrJnLkiuhj78wx6k"
+        },
+        "expected_public_id": "PL10006",
+        "existing_staff_public_id": "PL10005"
+      }
+    }
+  ],
+  "failures": [],
+  "notes": [
+    {
+      "cleanup_users": [
+        {
+          "user_id": "user_eb071248fabe",
+          "email": "bachanta8@gmail.com",
+          "role": "super_admin",
+          "public_id": "PL10000"
+        }
+      ],
+      "cleanup_counter": {
+        "seq": 1
+      }
+    }
+  ],
+  "passed": true
+}

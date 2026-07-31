@@ -1,0 +1,37 @@
+{
+  "verdict": "fixed",
+  "user_reported_bug": "data is wiped but public id is missing again",
+  "summary": "No relevant testing skill found. Backend-only verification against the preview API confirmed wipe-demo-data now preserves/backfills public_id values and resets the public_id counter correctly across the previous duplicate-ID regression, super-admin-only, PL10005 gap, and missing-id cases. Guardrails, demo-data deletion, legal_documents/settings preservation, and final cleanup state also passed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/test_wipe_public_id_counter_iteration_32.py",
+    "/app/test_reports/wipe_public_id_counter_iteration_32_result.json"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Reviewed /app/backend/routers/admin_routes.py wipe_demo_data. The new used set + _num helper + max_used - _START + 1 formula matches allocate_user_public_id's increment semantics and runtime tests proved it no longer resets to a duplicate PL10001 when preserved staff already has PL10001."
+  ],
+  "updated_files": [
+    "/app/test_reports/test_wipe_public_id_counter_iteration_32.py",
+    "/app/test_reports/wipe_public_id_counter_iteration_32_result.json",
+    "/app/test_reports/bug_verification_32.json",
+    "/app/test_reports/iteration_32.json"
+  ],
+  "success_rate": {
+    "backend": "100% (22/22 focused backend checks passed)",
+    "frontend": "N/A (backend-only verification requested)"
+  },
+  "seed_data_creation": "Created controlled QA-only staff/users/wallets and wipeable-collection marker rows for each scenario: super_admin+operator PL10001, super_admin only, super_admin missing with admin PL10005, and super_admin/admin both missing public_id. Added one legal_documents sentinel and one settings sentinel, then cleaned all QA data and left only super admin public_id=PL10000 with counters.user_public_id.seq=1.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Preview API tested: https://contest-arena-16.preview.emergentagent.com against DB_NAME=test_database. Primary assertions used FastAPI endpoints for login, wipe, admin user visibility, register, legal/settings; Mongo reads were used for counters and wipeable marker verification. Final cleanup verified only bachanta8@gmail.com remains with public_id=PL10000 and counters.user_public_id.seq=1. No APIs were MOCKED.",
+  "rca_of_the_issue": "The previous failure was counter reset ignoring already-preserved staff public_ids. This iteration's code accounts for all preserved PLxxxxx IDs: super_admin PL10000 + operator PL10001 wiped to counter.seq=2 and the next /api/auth/register returned PL10002, not duplicate PL10001."
+}
