@@ -124,17 +124,31 @@ async def update_user(user_id: str, payload: dict, request: Request):
 # duplicates silently shadow the secure handlers.
 
 
+async def _enrich_orders_with_user(db, orders: list) -> list:
+    """Attach `user_name` / `user_email` to a list of orders using ONE bulk
+    lookup instead of one query per order (N+1 avoidance)."""
+    if not orders:
+        return orders
+    user_ids = list({o['user_id'] for o in orders if o.get('user_id')})
+    users = await db.users.find(
+        {'user_id': {'$in': user_ids}},
+        {'_id': 0, 'user_id': 1, 'name': 1, 'email': 1},
+    ).to_list(len(user_ids))
+    umap = {u['user_id']: u for u in users}
+    for o in orders:
+        u = umap.get(o.get('user_id'))
+        o['user_name'] = u['name'] if u else 'Unknown'
+        o['user_email'] = u['email'] if u else ''
+    return orders
+
+
 @router.get('/orders')
 async def all_orders(request: Request):
     await require_admin(request)
     from deps import get_db
     db = get_db()
     orders = await db.orders.find({}, {'_id': 0}).sort('created_at', -1).to_list(500)
-    for o in orders:
-        u = await db.users.find_one({'user_id': o['user_id']}, {'_id': 0, 'name': 1, 'email': 1})
-        o['user_name'] = u['name'] if u else 'Unknown'
-        o['user_email'] = u['email'] if u else ''
-    return orders
+    return await _enrich_orders_with_user(db, orders)
 
 
 @router.post('/orders/{order_id}/refund')
@@ -179,11 +193,7 @@ async def all_payments(request: Request):
     from deps import get_db
     db = get_db()
     orders = await db.orders.find({}, {'_id': 0}).sort('created_at', -1).to_list(500)
-    for o in orders:
-        u = await db.users.find_one({'user_id': o['user_id']}, {'_id': 0, 'name': 1, 'email': 1})
-        o['user_name'] = u['name'] if u else 'Unknown'
-        o['user_email'] = u['email'] if u else ''
-    return orders
+    return await _enrich_orders_with_user(db, orders)
 
 
 @router.get('/contests')
@@ -454,8 +464,18 @@ async def list_kyc(request: Request, status: str = 'all'):
     db = get_db()
     q = {} if status == 'all' else {'status': status}
     subs = await db.kyc.find(q, {'_id': 0}).sort('submitted_at', -1).to_list(500)
+    if not subs:
+        return subs
+    # Bulk-enrich with user name/email (avoid N+1 that would fire one query
+    # per KYC submission on the admin KYC queue).
+    user_ids = list({s['user_id'] for s in subs if s.get('user_id')})
+    users = await db.users.find(
+        {'user_id': {'$in': user_ids}},
+        {'_id': 0, 'user_id': 1, 'name': 1, 'email': 1},
+    ).to_list(len(user_ids))
+    umap = {u['user_id']: u for u in users}
     for s in subs:
-        u = await db.users.find_one({'user_id': s['user_id']}, {'_id': 0, 'name': 1, 'email': 1})
+        u = umap.get(s.get('user_id'))
         s['user_name'] = u['name'] if u else 'Unknown'
         s['user_email'] = u['email'] if u else ''
     return subs
