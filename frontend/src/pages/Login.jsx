@@ -101,7 +101,10 @@ export default function Login() {
  };
 
  const google = () => {
- const redirectUrl = window.location.origin + '/my-account';
+ // Use a DEDICATED /auth-callback route (not /my-account) so the redirect
+ // is predictable across preview / production / custom domains and so the
+ // Google OAuth handler sees a clean URL to hydrate the session token from.
+ const redirectUrl = window.location.origin + '/auth-callback';
  window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
  };
 
