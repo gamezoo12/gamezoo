@@ -5,7 +5,7 @@ import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import { useToast } from '../hooks/use-toast';
-import { Mail, Phone, Shield, Gift, Trophy, Zap } from 'lucide-react';
+import { Mail, Phone, Shield, Trophy, Zap } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { authAPI } from '../lib/api';
 import PrizeLeagueLogo from '../components/layout/PrizeLeagueLogo';
@@ -131,10 +131,6 @@ export default function Login() {
  </h2>
  <p className="text-white/80 text-lg max-w-md">Skill-based prize contests. Answer a puzzle, grab a ticket, climb the leaderboard.</p>
  <div className="space-y-3 pt-4">
- <div className="flex items-center gap-3">
- <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 backdrop-blur flex items-center justify-center"><Gift className="w-5 h-5 text-[#FFD54A]" /></div>
- <div><div className="font-semibold">3 free tickets on signup</div><div className="text-xs text-white/60">Instant welcome bonus</div></div>
- </div>
  <div className="flex items-center gap-3">
  <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 backdrop-blur flex items-center justify-center"><Trophy className="w-5 h-5 text-[#FFD54A]" /></div>
  <div><div className="font-semibold">Real prizes</div><div className="text-xs text-white/60">Verified winners, delivered per T&amp;Cs</div></div>

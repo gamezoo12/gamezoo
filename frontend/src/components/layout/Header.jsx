@@ -260,11 +260,42 @@ export default function Header() {
 
  {user ? (
  <>
+ {/* Wallet + Draw Centre quick-access strip (mobile-only, keeps
+     signed-in users one tap from their money and pending draws). */}
+ <div className="mt-4 grid grid-cols-2 gap-2">
+ <Link
+ to="/my-account?tab=wallet"
+ onClick={() => setOpen(false)}
+ data-testid="mobile-wallet-link"
+ className="flex flex-col items-start gap-1 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10"
+ >
+ <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-white/60">
+ <WalletIcon className="w-3 h-3" /> Wallet
+ </div>
+ <div className="text-[#FFD54A] font-black text-lg leading-none">
+ {balance === null ? '…' : `£${Number(balance).toFixed(2)}`}
+ </div>
+ </Link>
+ <Link
+ to="/draw-centre"
+ onClick={() => setOpen(false)}
+ data-testid="mobile-draw-centre-link"
+ className="flex flex-col items-start gap-1 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10"
+ >
+ <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-white/60">
+ <Trophy className="w-3 h-3 text-[#FFD54A]" /> Draw Centre
+ </div>
+ <div className="text-white font-black text-sm leading-none pt-0.5">
+ View draws →
+ </div>
+ </Link>
+ </div>
+
  <Link
  to="/my-account"
  onClick={() => setOpen(false)}
  data-testid="mobile-profile-link"
- className="mt-4 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white"
+ className="mt-3 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white"
  >
  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#8B5CFF] to-[#6C2BFF] text-white text-xs font-bold flex items-center justify-center">
  {(user.name || user.email || 'U').slice(0, 1).toUpperCase()}
