@@ -140,7 +140,15 @@ See `/app/memory/test_credentials.md`.
     - Tests: 34/36 auth+profile pass; the 2 CORS failures are pre-existing Cloudflare edge issues (infra, not code).
 
 
-- **2026-07-17 · Phase 4A** MyAccount 12-Token Refactor + Admin RBAC Fix (P0)
+- **2026-07-31 · Iter 27** P0 Transparency & UX quartet complete (public/admin)
+    - `/verify` — public Instant-Win Verification Feed (VerifyFeed.jsx) rendering SHA-256 commitment hashes for all instant-win contests; empty state, copy-hash button, footer link "Verify Winners".
+    - **WinnersReveal Live Replay** — podium slots revealed 3rd → 2nd → 1st with framer-motion spring animation over ~3.2s; disabled "Replay" button re-enables after full sequence; slot-based `RevealSlot` component with pulsing placeholder.
+    - **Focal Picker Rule-of-Thirds** — CSS overlay on ContestImageFocalPicker preview (2 vertical + 2 horizontal white lines + 4 intersection dots) to guide admins toward compositional focal points.
+    - **Mobile Auto-A/B Tracking** — CompetitionCard fires `POST /api/contests/{id}/track-view?is_mobile=<viewport≤640>` on click; admin CompetitionsAdmin cards show "Mobile X% of N clicks" when total ≥ 20 and an amber "Optimise mobile crop" banner when mobilePct ≥ 60% and no `mobile_image` is set. Backend endpoints already existed (`/track-view`, `/engines/instant-win/verify`).
+    - Files: `App.js`, `Footer.jsx`, `pages/VerifyFeed.jsx`, `pages/WinnersReveal.jsx`, `components/ContestEngineControls.jsx`, `components/CompetitionCard.jsx`, `pages/admin/CompetitionsAdmin.jsx`.
+    - Test report: `/app/test_reports/iteration_28.json` — 3/4 passed on first run, mobile-hint miss re-added and manually screenshot-verified (share line: "Mobile 73% of 22 clicks" + amber banner rendered on live contest).
+
+- **2026-07-17 · Phase 4B** MyAccount 12-Token Refactor + Admin RBAC Fix (P0)
     - **MyAccount.jsx fully rewritten** to strict 12-token layout: Profile / Wallet / Tickets / My Games / Notifications / KYC / Security / Support / Policies / Preferences / Refer & Earn / Sign Out. Each token is a coloured gradient pill/card with a unique lucide icon (violet/amber/teal/fuchsia/sky/emerald/slate/cyan/indigo/stone/rose/red). Grid responsive: 2-col mobile → 3 sm → 4 md → 6 lg.
     - REMOVED from `/my-account`: greeting hero banner, 4 gradient stat cards (Wallet balance / Active tickets / Orders / Referrals), 'Sign out → Admin' button, entire `<Tabs>` API, and all summary widgets.
     - **Sign Out** now opens a shadcn `AlertDialog` (data-testid="signout-confirm") with 'Sign out' + 'Stay signed in' — confirm clears session and redirects to `/`.

@@ -96,8 +96,13 @@ export default function CompetitionsAdmin() {
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filtered.map(c => {
           const pct = percent(c.tickets_sold || 0, c.tickets_total);
+          const mv = c.mobile_views || 0;
+          const dv = c.desktop_views || 0;
+          const totalV = mv + dv;
+          const mobilePct = totalV >= 20 ? Math.round((mv / totalV) * 100) : null;
+          const showMobileHint = mobilePct !== null && mobilePct >= 60 && !c.mobile_image;
           return (
-            <div key={c.contest_id} className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+            <div key={c.contest_id} className="bg-white rounded-2xl border border-slate-100 overflow-hidden" data-testid={`admin-contest-card-${c.contest_id}`}>
               <div className="flex gap-3 p-3">
                 <img src={c.image} alt="" className="w-20 h-20 rounded-lg object-cover" />
                 <div className="flex-1 min-w-0">
@@ -105,8 +110,19 @@ export default function CompetitionsAdmin() {
                   <div className="font-semibold text-slate-900 line-clamp-2 mt-1">{c.title}</div>
                   <div className="text-xs text-slate-500 mt-1">Prize {gbp(c.prize_amount)} • {c.tickets_sold || 0}/{c.tickets_total} • {gbp(c.price)}/entry</div>
                   <div className="text-xs text-slate-400 mt-0.5">Ends {new Date(c.end_date).toLocaleDateString('en-GB')}</div>
+                  {mobilePct !== null && (
+                    <div className="text-[10px] text-slate-500 mt-1 flex items-center gap-1" data-testid={`mobile-share-${c.contest_id}`}>
+                      <Smartphone className="w-3 h-3" /> Mobile {mobilePct}% of {totalV} clicks
+                    </div>
+                  )}
                 </div>
               </div>
+              {showMobileHint && (
+                <div className="mx-3 mb-2 rounded-lg bg-amber-50 border border-amber-200 px-2 py-1.5 text-[11px] text-amber-800 flex items-start gap-1.5" data-testid={`mobile-hint-${c.contest_id}`}>
+                  <Smartphone className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                  <span><strong>Optimise mobile crop:</strong> {mobilePct}% of clicks are on mobile but no mobile image is set. Upload one with a portrait focal point.</span>
+                </div>
+              )}
               <div className="px-3"><Progress value={pct} className="h-1.5" /></div>
               <div className="flex flex-wrap justify-end gap-2 p-3">
                 <Button size="sm" variant="outline" onClick={() => setEditing(c)}><Pencil className="w-3.5 h-3.5 mr-1" /> Edit</Button>
