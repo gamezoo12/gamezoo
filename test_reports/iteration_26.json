@@ -1,0 +1,43 @@
+{
+  "summary": "Iter26 Phase-2 UI sprint verified end-to-end. Backend regression (iter22 + iter25 = 39/39) is fully green. Frontend flows for focal picker, random-draw (423 when flag off), instant-win composer (423 when flag off; CSV textarea persists), engine section gating (create-mode hides both sections; leaderboard hides both), and HeroBanner <picture> mobile variant all pass. CompetitionCard <picture> element is rendered in source, BUT it never receives mobile_image because Home.jsx and Competitions.jsx map contest data without forwarding the mobile_image field — resulting in no <source> in the DOM on /competitions and Featured section of Home. Cleanup done: contest c_fd360e20adad reverted (mobile_image=None, status=closed_no_entries), company engine flags confirmed OFF.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "pages/Competitions.jsx and pages/Home.jsx (mapping to CompetitionCard)",
+        "issue": "Contest→card mapping omits mobile_image, so CompetitionCard's <picture><source media='(max-width:640px)' srcSet={c.mobile_image}/> is never emitted on the /competitions listing or in the Home 'Featured Contests' section. HeroBanner works because Home.jsx passes the raw (unmapped) contests array to it. Fix: add `mobile_image: c.mobile_image` to the mapped objects in both files.",
+        "selector": "picture > source (missing on CompetitionCard when mobile_image is set on the contest)",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/pytest/iter26_regression.xml",
+    "/app/backend/tests/test_iter25_engines_user360_images.py",
+    "/app/backend/tests/test_iter22_launch.py"
+  ],
+  "action_items": [
+    "Add mobile_image to the mapped contest object in /app/frontend/src/pages/Competitions.jsx (line ~15-19) and /app/frontend/src/pages/Home.jsx (line ~14-20) so CompetitionCard's <picture>/<source> renders on mobile."
+  ],
+  "critical_code_review_comments": [
+    "ContestEngineControls.jsx cleanly encapsulates the 3 new controls, all data-testids present as spec (focal-picker, focal-file-input, focal-preview, focal-crosshair, random-draw-panel, draw-num-winners, draw-run-btn, draw-redraw-toggle, draw-publish-<id>, draw-download-<id>, instant-win-composer, iw-csv, iw-commit-btn, iw-copy-hash).",
+    "InstantWinComposer clears CSV state and shows only config_hash after commit — good security posture; iw-csv textarea no longer visible post-commit.",
+    "EditContestDialog correctly gates random-draw-section and instant-win-section behind !isCreate && engine_type match (verified visually and via query).",
+    "HeroBanner <picture> works end-to-end at mobile viewport 375 (currentSrc == mobile_image URL).",
+    "Route registration for engines_public_router now confirmed present in server.py line 112 (was the outstanding iter25 minor issue).",
+    "Missing mobile_image field in Home.jsx/Competitions.jsx mapping is the only functional gap for this sprint."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (39/39 iter22+iter25 regression)", "frontend": "6/7 flows pass; CompetitionCard <picture> serves mobile variant only when mobile_image is passed in, but the parent mapping strips it."},
+  "test_credentials": "bachanta8@gmail.com / Herts@910022 (super_admin)",
+  "seed_data_creation": "Temporarily set mobile_image + status=live on c_fd360e20adad to verify HeroBanner picture element; reverted after test (mobile_image=None, status=closed_no_entries). No draws, no instant_win_configs created. Company engine flags never enabled during this iteration.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "After main agent adds mobile_image to Home.jsx and Competitions.jsx mappings, re-run mobile-viewport (375) test on /competitions and verify a <source media='(max-width:640px)' srcset=...> element is emitted inside every CompetitionCard <picture> for contests that have mobile_image set. Backend needs no re-test.",
+  "rca_of_the_issue": "CompetitionCard was upgraded to a <picture> element expecting a mobile_image prop, but the two parent pages that instantiate it (Home.jsx Featured section, Competitions.jsx listing) perform a lossy snake_case→camelCase mapping that drops mobile_image. HeroBanner isn't affected because Home.jsx passes the raw contests array directly to HeroBanner."
+}

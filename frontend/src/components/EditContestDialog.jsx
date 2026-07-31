@@ -3,7 +3,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Button } from './ui/button';
-import { adminAPI, uploadsAPI } from '../lib/api';
+import { adminAPI, uploadsAPI, api, API } from '../lib/api';
+import {
+  ContestImageFocalPicker,
+  RandomDrawPanel,
+  InstantWinComposer,
+} from './ContestEngineControls';
 import { useToast } from '../hooks/use-toast';
 import { Upload, X, Loader2 } from 'lucide-react';
 
@@ -468,6 +473,42 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
               )}
             </div>
           </details>
+
+          {/* ---- Focal-point image uploader ---- */}
+          <details className="pt-3 border-t border-slate-100" data-testid="focal-picker-section">
+            <summary className="cursor-pointer text-base font-semibold text-[#6C2BFF] py-2 select-none">
+              Image upload with focal-point picker (recommended)
+            </summary>
+            <div className="mt-3">
+              <ContestImageFocalPicker
+                initialImage={form.image}
+                onUploaded={(r) => {
+                  if (r?.sizes?.card) upd('image', r.sizes.card);
+                  if (r?.sizes?.mobile) upd('mobile_image', r.sizes.mobile);
+                }}
+              />
+            </div>
+          </details>
+
+          {/* ---- Engine 2: Random Draw controls ---- */}
+          {!isCreate && form.engine_type === 'random_draw' && (
+            <details className="pt-3 border-t border-slate-100" data-testid="random-draw-section">
+              <summary className="cursor-pointer text-base font-semibold text-[#6C2BFF] py-2 select-none">
+                Random Draw controls (Engine 2)
+              </summary>
+              <div className="mt-3"><RandomDrawPanel contestId={contest.contest_id} /></div>
+            </details>
+          )}
+
+          {/* ---- Engine 3: Instant Win composer ---- */}
+          {!isCreate && form.engine_type === 'instant_win' && (
+            <details className="pt-3 border-t border-slate-100" data-testid="instant-win-section">
+              <summary className="cursor-pointer text-base font-semibold text-[#6C2BFF] py-2 select-none">
+                Instant Win composer (Engine 3)
+              </summary>
+              <div className="mt-3"><InstantWinComposer contestId={contest.contest_id} /></div>
+            </details>
+          )}
         </div>
 
         <DialogFooter>
