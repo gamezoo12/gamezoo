@@ -15,7 +15,7 @@ export default function Home() {
     id: c.contest_id, slug: c.slug, title: c.title, subtitle: c.subtitle,
     category: c.category, tag: c.tag, price: c.price,
     ticketsSold: c.tickets_sold, ticketsTotal: c.tickets_total,
-    prizeAmount: c.prize_amount, endDate: c.end_date, image: c.image,
+    prizeAmount: c.prize_amount, endDate: c.end_date, image: c.image, mobile_image: c.mobile_image,
     jackpot: c.jackpot, featured: c.featured, gameType: c.game_type,
   }));
 

@@ -1,0 +1,42 @@
+{
+  "verdict": "fixed",
+  "user_reported_bug": "iter26 MEDIUM: pages/Home.jsx Featured Contests section AND pages/Competitions.jsx grid don't emit CompetitionCard's <picture>/<source> for mobile because the contest→card object mapping drops the mobile_image field.",
+  "summary": "No relevant testing skill found. Code review confirms Home.jsx and Competitions.jsx now forward mobile_image to CompetitionCard. I seeded contest c_fd360e20adad with a test mobile_image and temporary live status, verified /api/contests returned it, and at mobile viewport 390 verified both /competitions and Home Featured Contests render <picture><source media=\"(max-width: 640px)\" srcset=\"https://example.com/iter26-mobile-test.jpg\"><img src=desktop>. After clearing mobile_image, both cards omitted <source> and kept the desktop <img>. Cleanup restored the contest to mobile_image=null and status=closed_no_entries. Backend iter22+iter25 regression passed 39/39.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/mobile_image_fixture.py",
+    "/app/test_reports/mobile_image_dom_test.py",
+    "/app/backend/tests/test_iter22_launch.py",
+    "/app/backend/tests/test_iter25_engines_user360_images.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "pages/Home.jsx mapped contest object includes mobile_image: c.mobile_image before passing items to CompetitionSection/CompetitionCard.",
+    "pages/Competitions.jsx mapped contest object includes mobile_image: c.mobile_image before rendering the grid CompetitionCard components.",
+    "CompetitionCard conditionally emits <source media=\"(max-width: 640px)\" srcSet={c.mobile_image}/> only when mobile_image is truthy; null mobile_image correctly leaves only <img>."
+  ],
+  "updated_files": [
+    "/app/test_reports/bug_verification_27.json",
+    "/app/test_reports/iteration_27.json",
+    "/app/test_reports/mobile_image_fixture.py",
+    "/app/test_reports/mobile_image_dom_test.py",
+    "/app/test_reports/mobile_image_original_state.json"
+  ],
+  "success_rate": {
+    "backend": "100% (39/39 iter22+iter25 pytest regression)",
+    "frontend": "100% for focused mobile_image mapping retest (4/4 DOM assertions plus API setup checks)"
+  },
+  "seed_data_creation": "Temporarily changed contest c_fd360e20adad to status=live and mobile_image=https://example.com/iter26-mobile-test.jpg, then cleared mobile_image for the null edge case, then restored original mobile_image=null, status=closed_no_entries, featured=false, jackpot=true.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The exact reported CompetitionCard mobile source bug is fixed on /competitions and Home Featured Contests. Note: the source element is naturally hidden in Playwright because <source> is non-rendered; wait for state=attached, not visible.",
+  "rca_of_the_issue": "The previous failure was a lossy contest-to-card mapping in Home.jsx and Competitions.jsx. Forwarding mobile_image preserves the API field so CompetitionCard can emit its responsive <source>; when the field is null, the conditional render omits <source> as expected."
+}
