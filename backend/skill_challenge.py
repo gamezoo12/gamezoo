@@ -26,10 +26,16 @@ import hashlib
 import hmac
 import json
 import os
-import random
 import secrets
 import time
 from typing import Literal, TypedDict
+
+# Use a cryptographically secure RNG (backed by /dev/urandom) instead of the
+# stdlib `random` module. Even though the question VALUES are not
+# security-sensitive (the answer is public knowledge — 12 + 7 is always 19),
+# using SystemRandom aligns with security scanners and avoids any suggestion
+# that we're using predictable seeds anywhere in the auth surface.
+_rng = secrets.SystemRandom()
 
 Op = Literal['addition', 'subtraction', 'multiplication', 'division']
 Difficulty = Literal['easy', 'medium', 'hard']
@@ -64,37 +70,37 @@ def _rand_operands(op: Op, difficulty: Difficulty) -> tuple[int, int]:
     All answers are integers (division uses exact multiples)."""
     if op == 'addition':
         if difficulty == 'easy':
-            return random.randint(1, 20), random.randint(1, 20)
+            return _rng.randint(1, 20), _rng.randint(1, 20)
         if difficulty == 'medium':
-            return random.randint(10, 99), random.randint(10, 99)
-        return random.randint(100, 999), random.randint(100, 999)
+            return _rng.randint(10, 99), _rng.randint(10, 99)
+        return _rng.randint(100, 999), _rng.randint(100, 999)
 
     if op == 'subtraction':
         if difficulty == 'easy':
-            a = random.randint(5, 20)
-            b = random.randint(1, a - 1)  # keep positive
+            a = _rng.randint(5, 20)
+            b = _rng.randint(1, a - 1)  # keep positive
         elif difficulty == 'medium':
-            a = random.randint(20, 99)
-            b = random.randint(1, min(20, a - 1))
+            a = _rng.randint(20, 99)
+            b = _rng.randint(1, min(20, a - 1))
         else:
-            a = random.randint(200, 999)
-            b = random.randint(10, 99)
+            a = _rng.randint(200, 999)
+            b = _rng.randint(10, 99)
         return a, b
 
     if op == 'multiplication':
         if difficulty == 'easy':
-            return random.randint(1, 10), random.randint(1, 5)
+            return _rng.randint(1, 10), _rng.randint(1, 5)
         if difficulty == 'medium':
-            return random.randint(2, 12), random.randint(2, 12)
-        return random.randint(10, 25), random.randint(2, 12)
+            return _rng.randint(2, 12), _rng.randint(2, 12)
+        return _rng.randint(10, 25), _rng.randint(2, 12)
 
     # division — start from multiplication and reverse to guarantee an int result
     if difficulty == 'easy':
-        b, r = random.randint(1, 5), random.randint(1, 10)
+        b, r = _rng.randint(1, 5), _rng.randint(1, 10)
     elif difficulty == 'medium':
-        b, r = random.randint(2, 12), random.randint(2, 12)
+        b, r = _rng.randint(2, 12), _rng.randint(2, 12)
     else:
-        b, r = random.randint(5, 15), random.randint(5, 20)
+        b, r = _rng.randint(5, 15), _rng.randint(5, 20)
     return b * r, b  # a ÷ b = r
 
 
@@ -116,7 +122,7 @@ def _distractors(correct: int, op: Op) -> list[int]:
     # Deltas are chosen so distractors stay in a believable range even for
     # small-number division questions.
     base_deltas = [-2, -1, 1, 2, -3, 3, -5, 5, -10, 10]
-    random.shuffle(base_deltas)
+    _rng.shuffle(base_deltas)
     for d in base_deltas:
         candidate = correct + d
         if op != 'subtraction' and candidate < 0:
@@ -129,7 +135,7 @@ def _distractors(correct: int, op: Op) -> list[int]:
             return out
     # Ultra-defensive: pad with random unique numbers if we somehow ran out.
     while len(out) < 3:
-        cand = correct + random.randint(-15, 15)
+        cand = correct + _rng.randint(-15, 15)
         if cand not in seen and cand >= 0:
             seen.add(cand)
             out.append(cand)
@@ -160,7 +166,7 @@ def build_challenge(
     ans = _compute(op, a, b)
     question = f"{a} {_OP_SYMBOL[op]} {b} = ?"
     options = _distractors(ans, op) + [ans]
-    random.shuffle(options)
+    _rng.shuffle(options)
 
     exp = int(time.time()) + ttl_seconds
     payload = {

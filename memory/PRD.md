@@ -140,6 +140,12 @@ See `/app/memory/test_credentials.md`.
     - Tests: 34/36 auth+profile pass; the 2 CORS failures are pre-existing Cloudflare edge issues (infra, not code).
 
 
+- **2026-07-31 · Security hardening** (post code-review pass)
+    - **Real JWT_SECRET set** in `backend/.env` (48-byte urlsafe token via `secrets.token_urlsafe`). Previously the env was missing this key so `auth.py` fell back to its dev default — token forging risk in prod. Now every token issued is signed with a strong random secret.
+    - **`skill_challenge.py` upgraded to `secrets.SystemRandom`** (backed by `/dev/urandom`). Question VALUES were never security-sensitive (the answer to 12+7 is public knowledge; the actual security barrier is the HMAC-signed token) but this aligns with security scanners and removes any suggestion of predictable seeds anywhere in the auth surface. All 12 op×difficulty combos verified.
+    - **Code review pushback** (documented): declined pre-launch refactors of `create_contest_api`, `update_contest_full`, `submit_score`, `execute_random_draw`, `reveal_instant_win`, `commit_instant_win`, `get_current_user` — high cyclomatic complexity is real but refactor risk pre-launch outweighs the benefit; scheduled for post-launch cleanup. Also declined moving test-file admin creds to env vars (they mirror `test_credentials.md` and are dev-environment only). "Circular imports" claim was a false positive — the codebase already uses lazy in-function imports to avoid cycles. "6 undefined variables" claim also false — ruff `F821` sweep returned zero.
+    - All 15 launch-critical regression tests still pass. `/api/auth/login` returns valid JWT signed with the new secret; downstream admin calls (`/api/admin/stats`, etc.) succeed.
+
 - **2026-07-31 · LAUNCH READY** Prize League is production-ready for public launch
     - **Production wipe complete**: DB contains only super admin (PL10000, £0 balance), 27 legal documents, company settings, counters. All test users, contests, orders, tickets, wallet transactions, KYC, notifications, audit logs, referrals wiped.
     - **Frontend mock data neutralised**: `mockData.js` COMPETITIONS/SITE_STATS/HERO_SLIDES/PRIZE_INVENTORY all emptied. No more fake £7,500 stats, no dummy contests, no seed testimonials.
