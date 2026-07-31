@@ -140,6 +140,13 @@ See `/app/memory/test_credentials.md`.
     - Tests: 34/36 auth+profile pass; the 2 CORS failures are pre-existing Cloudflare edge issues (infra, not code).
 
 
+- **2026-07-31 · Deployment Health Check PASS** (iter 30)
+    - **N+1 wipeouts** across admin + user-facing endpoints. `/admin/users`, `/admin/orders`, `/admin/payments`, `/admin/kyc` all use bulk `$in` lookups instead of one-query-per-row (was 3001 queries for 1000 users → now ~4). `/orders/my-games` collapses `count_documents` + per-ticket `find` into two bulk aggregations.
+    - **Pagination caps** on unbounded queries: `/contests` (default 100, cap 500), `/public/winners` (50, 200), `/orders/mine` (50, 200), `/orders/my-tickets` (200, 1000). Sort orders added where missing.
+    - **OAuth redirect** switched from `/my-account` to dedicated `/auth-callback` route (which is now explicitly registered in `App.js`). AuthCallback.jsx already handled the hash fragment cleanly.
+    - **.gitignore** — removed `.env`, `.env.*`, `*.env` entries so environment files are shippable with the deployment (Emergent platform pattern).
+    - All 21 launch-critical regression tests still pass. DB restored to clean launch state.
+
 - **2026-07-31 · Code Review Bug Fixes (iter 29)** — 4 real defects found in launch review, all fixed + regression-tested
     - **HIGH-1 fix**: dynamic-engine contest checkout was rejecting EVERY purchase because it compared user answer to the `'auto'` placeholder stored on new contests. `order_routes.checkout` now branches: random-tickets skip skill check; dynamic (`skill_question_type` set) uses `skill_challenge.verify_challenge(contest_id, answer, challenge_token)`; legacy static-question path preserved for pre-launch contests. Frontend `CartItem` and `CheckoutInput` model both extended with optional `challenge_token`.
     - **HIGH-2 fix**: `POST /api/admin/orders/{id}/refund` was removing tickets but never crediting the buyer's wallet. Now calls `_apply_tx(kind='refund', +total, ref_order_id)` before mutating inventory; the `status == 'refunded'` guard already makes it idempotent so repeat calls never double-credit. Returns `refunded_amount`.
