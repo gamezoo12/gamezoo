@@ -1,0 +1,47 @@
+{
+  "verdict": "not_fixed",
+  "user_reported_bug": "still you didn't rectify few things, demo points under leaderboard and daily under super admin I see all the demo data under every section in admin panel",
+  "summary": "No relevant testing skill found. Backend-only focused retest seeded winner_audit, admin_audit, support_cases, orders, contests, tickets, game_scores, leaderboard_entries, and demo users; guardrails passed and the wipe removed current admin-visible audit/support/order/leaderboard demo data. However direct DB verification failed the requested acceptance criterion: admin_audit is not empty after wipe because the endpoint inserts a fresh wipe_demo_data audit row after clearing it.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/admin/system/wipe-demo-data",
+        "issue": "admin_audit is included in _WIPEABLE_COLLECTIONS and seeded admin_audit rows are deleted, but the endpoint immediately inserts a new admin_audit wipe_demo_data row after the wipe. Direct post-wipe count was admin_audit=1, so the requested 'confirm both winner_audit and admin_audit collections are empty afterwards' check fails. Current GET /api/admin/audit-logs still returned logs=[] because it does not read admin_audit.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/test_wipe_demo_data_iteration_30.py",
+    "/app/test_reports/wipe_demo_data_iteration_30_result.json"
+  ],
+  "action_items": [
+    "Decide whether admin_audit must truly be empty after Wipe Demo Data. If yes, remove or relocate the post-wipe admin_audit insert; if no, update acceptance criteria to require only seeded/old admin_audit demo rows to be removed.",
+    "Self-test POST /api/admin/system/wipe-demo-data once more with seeded winner_audit and admin_audit rows and confirm the intended post-wipe admin_audit behavior."
+  ],
+  "critical_code_review_comments": [
+    "/app/backend/routers/admin_routes.py lines 565-568 wipe admin_audit and winner_audit, but lines 599-602 intentionally insert a fresh admin_audit row after the wipe, guaranteeing admin_audit will not be empty after any successful wipe.",
+    "GET /api/admin/audit-logs currently combines winner_audit and support_cases only, so it can return logs=[] even while admin_audit contains the surviving wipe row."
+  ],
+  "updated_files": [
+    "/app/test_reports/test_wipe_demo_data_iteration_30.py",
+    "/app/test_reports/wipe_demo_data_iteration_30_result.json",
+    "/app/test_reports/bug_verification_30.json",
+    "/app/test_reports/iteration_30.json"
+  ],
+  "success_rate": {
+    "backend": "94% (16/17 focused backend checks passed)",
+    "frontend": "N/A (backend-only retest requested)"
+  },
+  "seed_data_creation": "Created QA-only rows in winner_audit, admin_audit, support_cases, orders, contests, tickets, game_scores, leaderboard_entries, wallets, one regular demo user, and one non-super admin guardrail user. Final cleanup removed QA staff and the endpoint's post-wipe admin_audit row, leaving only the super admin user and zero rows in tested demo/audit collections.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Preview API tested: https://contest-arena-16.preview.emergentagent.com. Super admin credentials worked. Passing evidence: 403 non-super_admin, 400 wrong phrase, 401 wrong password, seeded winner_audit removed, support_cases removed, /api/admin/audit-logs returned {logs:[], count:0}, /api/admin/orders returned [], /api/admin/users returned only staff, /api/admin/stats zeroed contests/orders/tickets_sold/revenue, and direct leaderboard/game score collections were zero. Failing evidence: direct admin_audit total was 1 immediately after wipe due the inserted wipe_demo_data row.",
+  "rca_of_the_issue": "The previous winner_audit omission is fixed, but the implementation now clears admin_audit and then deliberately writes a new admin_audit record for the wipe itself. That preserves audit accountability, but it conflicts with the retest instruction that admin_audit should be empty after wiping demo data. No APIs were mocked."
+}

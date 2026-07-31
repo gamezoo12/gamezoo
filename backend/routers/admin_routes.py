@@ -11,7 +11,8 @@ router = APIRouter(prefix='/api/admin', tags=['admin'])
 # "Wipe Demo Data". Every entry here is either an audit trail or transient
 # state; NONE of them contain irreplaceable config.
 _WIPEABLE_COLLECTIONS = (
-    'audit_log', 'contests', 'contest_draws', 'game_scores',
+    'audit_log', 'admin_audit', 'winner_audit',
+    'contests', 'contest_draws', 'game_scores',
     'instant_win_configs', 'instant_win_reveals', 'kyc',
     'leaderboard_entries', 'meera_log', 'notifications', 'orders',
     'payment_transactions', 'postal_entries', 'referrals', 'support_cases',
@@ -595,8 +596,9 @@ async def wipe_demo_data(payload: dict, request: Request):
         upsert=True,
     )
 
-    # Log the wipe itself in a fresh audit collection so ops can always
-    # answer "who wiped and when?" — even after subsequent activity.
+    # Log the wipe itself in a fresh admin_audit row so ops can always
+    # answer "who wiped and when?" — inserted AFTER the wipe loop so it
+    # survives (the loop just cleared admin_audit as well).
     await db.admin_audit.insert_one({
         'action': 'wipe_demo_data',
         'by_user_id': user['user_id'],

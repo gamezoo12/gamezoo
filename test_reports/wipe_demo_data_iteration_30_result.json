@@ -1,0 +1,251 @@
+{
+  "run_id": "qa_wipe_iter30_1785538624",
+  "api_base": "https://contest-arena-16.preview.emergentagent.com",
+  "started_at": "2026-07-31T22:57:04.930280+00:00",
+  "checks": [
+    {
+      "name": "API root responds",
+      "passed": true,
+      "evidence": {
+        "status": 200,
+        "body": {
+          "service": "gamezoo",
+          "status": "ok"
+        }
+      }
+    },
+    {
+      "name": "Super admin login succeeds",
+      "passed": true,
+      "evidence": {
+        "status": 200,
+        "role": "super_admin",
+        "email": "bachanta8@gmail.com",
+        "body": null
+      }
+    },
+    {
+      "name": "Seeded winner_audit/admin_audit/support/demo rows exist before wipe",
+      "passed": true,
+      "evidence": {
+        "marker_counts": {
+          "admin_audit_marker": 1,
+          "winner_audit_marker": 1,
+          "support_cases_marker": 1,
+          "regular_user_marker": 1,
+          "admin_user_marker": 1
+        },
+        "total_counts": {
+          "admin_audit": 2,
+          "winner_audit": 1,
+          "support_cases": 1,
+          "orders": 1,
+          "tickets": 1,
+          "contests": 1,
+          "game_scores": 1,
+          "leaderboard_entries": 1
+        }
+      }
+    },
+    {
+      "name": "Guardrail: non-super_admin receives 403",
+      "passed": true,
+      "evidence": {
+        "status": 403,
+        "body": {
+          "detail": "Only super_admin can wipe demo data"
+        }
+      }
+    },
+    {
+      "name": "Guardrail: wrong confirm phrase receives 400",
+      "passed": true,
+      "evidence": {
+        "status": 400,
+        "body": {
+          "detail": "Confirmation phrase must be exactly: WIPE DEMO DATA"
+        }
+      }
+    },
+    {
+      "name": "Guardrail: wrong password receives 401",
+      "passed": true,
+      "evidence": {
+        "status": 401,
+        "body": {
+          "detail": "Password re-confirmation failed"
+        }
+      }
+    },
+    {
+      "name": "Guardrail failures did not wipe seeded data",
+      "passed": true,
+      "evidence": {
+        "admin_audit_marker": 1,
+        "winner_audit_marker": 1,
+        "support_cases_marker": 1,
+        "regular_user_marker": 1
+      }
+    },
+    {
+      "name": "Pre-wipe audit endpoint exposes seeded winner/support demo logs",
+      "passed": true,
+      "evidence": {
+        "status": 200,
+        "count": 2,
+        "sources_for_run": [
+          "winner_selection",
+          "support_case"
+        ]
+      }
+    },
+    {
+      "name": "Super admin wipe request succeeds",
+      "passed": true,
+      "evidence": {
+        "status": 200,
+        "body": {
+          "ok": true,
+          "wiped": {
+            "admin_audit": 2,
+            "winner_audit": 1,
+            "contests": 1,
+            "game_scores": 1,
+            "leaderboard_entries": 1,
+            "orders": 1,
+            "support_cases": 1,
+            "tickets": 1,
+            "users": 1,
+            "wallets_deleted": 1
+          },
+          "preserved_users": 2
+        }
+      }
+    },
+    {
+      "name": "Direct DB: seeded admin_audit and winner_audit rows are removed",
+      "passed": true,
+      "evidence": {
+        "marker_post_counts": {
+          "admin_audit_marker": 0,
+          "winner_audit_marker": 0,
+          "support_cases_marker": 0,
+          "orders_marker": 0,
+          "regular_user_marker": 0,
+          "admin_user_marker": 1
+        },
+        "total_post_counts": {
+          "admin_audit": 1,
+          "winner_audit": 0,
+          "support_cases": 0,
+          "orders": 0,
+          "tickets": 0,
+          "contests": 0,
+          "game_scores": 0,
+          "leaderboard_entries": 0,
+          "users": 2,
+          "wallets": 2
+        }
+      }
+    },
+    {
+      "name": "Direct DB: winner_audit collection is empty after wipe",
+      "passed": true,
+      "evidence": {
+        "winner_audit_total": 0
+      }
+    },
+    {
+      "name": "Direct DB: admin_audit collection is empty after wipe",
+      "passed": false,
+      "evidence": {
+        "admin_audit_total": 1,
+        "note": "Acceptance criteria requested empty collection, not merely seeded row removed."
+      }
+    },
+    {
+      "name": "Direct DB: support/order/ticket/contest/leaderboard/demo score collections are empty",
+      "passed": true,
+      "evidence": {
+        "support_cases": 0,
+        "orders": 0,
+        "tickets": 0,
+        "contests": 0,
+        "game_scores": 0,
+        "leaderboard_entries": 0
+      }
+    },
+    {
+      "name": "GET /api/admin/audit-logs returns empty logs after wipe",
+      "passed": true,
+      "evidence": {
+        "status": 200,
+        "body": {
+          "logs": [],
+          "count": 0
+        }
+      }
+    },
+    {
+      "name": "GET /api/admin/orders returns [] after wipe",
+      "passed": true,
+      "evidence": {
+        "status": 200,
+        "body": []
+      }
+    },
+    {
+      "name": "GET /api/admin/users returns only preserved staff after wipe",
+      "passed": true,
+      "evidence": {
+        "status": 200,
+        "count": 2,
+        "roles": [
+          "admin",
+          "super_admin"
+        ],
+        "qa_regular_present": false
+      }
+    },
+    {
+      "name": "GET /api/admin/stats zeroes contests/orders/tickets/revenue after wipe",
+      "passed": true,
+      "evidence": {
+        "status": 200,
+        "body": {
+          "users": 2,
+          "contests": 0,
+          "orders": 0,
+          "tickets_sold": 0,
+          "revenue": 0,
+          "prize_pool": 0,
+          "kyc_pending": 0
+        },
+        "users_count_expected_to_reflect_preserved_staff": true
+      }
+    }
+  ],
+  "errors": [],
+  "final_cleanup": {
+    "users": [
+      {
+        "user_id": "user_eb071248fabe",
+        "email": "bachanta8@gmail.com",
+        "role": "super_admin"
+      }
+    ],
+    "counts": {
+      "admin_audit": 0,
+      "winner_audit": 0,
+      "support_cases": 0,
+      "orders": 0,
+      "tickets": 0,
+      "contests": 0,
+      "game_scores": 0,
+      "leaderboard_entries": 0
+    }
+  },
+  "finished_at": "2026-07-31T22:57:06.952944+00:00",
+  "passed": 16,
+  "failed": 1
+}
