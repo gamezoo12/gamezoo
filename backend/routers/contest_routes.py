@@ -69,7 +69,7 @@ def _to_public(c: dict) -> dict:
 
 
 @router.get('')
-async def list_contests(category: Optional[str] = None, q: Optional[str] = Query(None)):
+async def list_contests(category: Optional[str] = None, q: Optional[str] = Query(None), limit: int = 100):
     from deps import get_db
     db = get_db()
     query = {'status': 'live'}
@@ -77,7 +77,8 @@ async def list_contests(category: Optional[str] = None, q: Optional[str] = Query
         query['category'] = category
     if q:
         query['title'] = {'$regex': q, '$options': 'i'}
-    docs = await db.contests.find(query, {'_id': 0}).to_list(500)
+    limit = max(1, min(limit, 500))
+    docs = await db.contests.find(query, {'_id': 0}).sort('end_date', 1).to_list(limit)
     return [_to_public(d) for d in docs]
 
 

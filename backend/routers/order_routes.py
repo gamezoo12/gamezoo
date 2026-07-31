@@ -180,20 +180,22 @@ async def checkout(inp: CheckoutInput, request: Request):
 
 
 @router.get('/mine')
-async def my_orders(request: Request):
+async def my_orders(request: Request, limit: int = 50):
     user = await get_current_user(request)
     from deps import get_db
     db = get_db()
-    orders = await db.orders.find({'user_id': user['user_id']}, {'_id': 0}).sort('created_at', -1).to_list(200)
+    limit = max(1, min(limit, 200))  # cap so a rogue client can't ask for millions
+    orders = await db.orders.find({'user_id': user['user_id']}, {'_id': 0}).sort('created_at', -1).to_list(limit)
     return orders
 
 
 @router.get('/my-tickets')
-async def my_tickets(request: Request):
+async def my_tickets(request: Request, limit: int = 200):
     user = await get_current_user(request)
     from deps import get_db
     db = get_db()
-    tickets = await db.tickets.find({'user_id': user['user_id']}, {'_id': 0}).to_list(1000)
+    limit = max(1, min(limit, 1000))
+    tickets = await db.tickets.find({'user_id': user['user_id']}, {'_id': 0}).sort('created_at', -1).to_list(limit)
     return tickets
 
 
@@ -208,7 +210,7 @@ async def my_games(request: Request):
     db = get_db()
 
     # Only skill-game tickets (contest has game_type set OR entry_mode='skill_game')
-    tickets = await db.tickets.find({'user_id': user['user_id']}, {'_id': 0}).to_list(1000)
+    tickets = await db.tickets.find({'user_id': user['user_id']}, {'_id': 0}).sort('created_at', -1).to_list(1000)
     if not tickets:
         return {'games': []}
 
@@ -221,6 +223,32 @@ async def my_games(request: Request):
         return {'games': []}
 
     now = datetime.now(timezone.utc)
+
+    # Bulk-fetch usage stats to avoid N+1: previously this endpoint fired one
+    # `count_documents` + one `find` per ticket, meaning a user with 50
+    # tickets across 10 contests would hit the DB 100+ times.
+    active_contest_ids = list(contests.keys())
+    used_by_contest: dict[str, int] = {}
+    if active_contest_ids:
+        used_agg = await db.game_scores.aggregate([
+            {'$match': {'user_id': user['user_id'], 'contest_id': {'$in': active_contest_ids}}},
+            {'$group': {'_id': '$contest_id', 'n': {'$sum': 1}}},
+        ]).to_list(None)
+        used_by_contest = {u['_id']: u['n'] for u in used_agg}
+
+    ticket_ids = [t['ticket_id'] for t in tickets]
+    attempts_by_ticket: dict[str, list] = {}
+    if ticket_ids:
+        # One find that returns every score row for every ticket the user owns;
+        # we sort in Python (attempts_by_ticket lists are small, typically ≤10).
+        async for row in db.game_scores.find(
+            {'ticket_id': {'$in': ticket_ids}},
+            {'_id': 0, 'ticket_id': 1, 'points': 1, 'completed_at': 1},
+        ):
+            attempts_by_ticket.setdefault(row['ticket_id'], []).append(row)
+        for lst in attempts_by_ticket.values():
+            lst.sort(key=lambda r: r.get('points') or 0, reverse=True)
+
     out = []
     for t in tickets:
         c = contests.get(t['contest_id'])
@@ -228,12 +256,10 @@ async def my_games(request: Request):
             continue
         apt = int(c.get('attempts_per_ticket') or c.get('max_attempts') or 3)
         apt = max(1, min(apt, 10))
-        # Total attempts pool = tickets_owned * apt (all tickets for this contest by this user)
         tickets_owned = sum(1 for t2 in tickets if t2['contest_id'] == c['contest_id'])
         total_allowed = apt * max(1, tickets_owned)
-        # Attempts used across ALL tickets for this contest by this user
-        used = await db.game_scores.count_documents({'user_id': user['user_id'], 'contest_id': c['contest_id']})
-        attempts = await db.game_scores.find({'ticket_id': t['ticket_id']}, {'_id': 0}).sort('points', -1).to_list(50)
+        used = used_by_contest.get(c['contest_id'], 0)
+        attempts = attempts_by_ticket.get(t['ticket_id'], [])
         best = attempts[0] if attempts else None
 
         end_raw = c.get('end_date')

@@ -34,8 +34,9 @@ async def root():
 
 
 @api_router.get('/public/winners')
-async def public_winners():
-    docs = await db.winners.find({}, {'_id': 0}).sort('drawn_at', -1).to_list(200)
+async def public_winners(limit: int = 50):
+    limit = max(1, min(limit, 200))
+    docs = await db.winners.find({}, {'_id': 0}).sort('drawn_at', -1).to_list(limit)
     return docs
 
 
