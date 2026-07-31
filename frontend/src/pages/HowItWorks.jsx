@@ -21,7 +21,7 @@ export default function HowItWorks() {
             Play. Compete. <span className="pl-gold-text">Win.</span>
           </h1>
           <p className="mt-4 text-white/75 max-w-2xl mx-auto">
-            Prize League is a premium skill-based prize competition platform. Six simple steps between you and your next prize.
+            Prize League is a premium skill-based prize competition platform. Four simple steps between you and your next prize.
           </p>
         </div>
       </section>

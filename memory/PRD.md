@@ -140,6 +140,11 @@ See `/app/memory/test_credentials.md`.
     - Tests: 34/36 auth+profile pass; the 2 CORS failures are pre-existing Cloudflare edge issues (infra, not code).
 
 
+- **2026-07-31 · Mobile UX polish + real photography (iter 32)**
+    - **Header** — responsive redesign. `<sm`: emblem-only crown logo (36px) + cart + Sign-in/avatar + hamburger. `sm-md`: full logo + notifications + cart + compact "PLAY" button + hamburger. `md+`: full nav bar, wallet chip, Draw Centre trophy, notifications, cart, "PLAY NOW", profile dropdown. Removed the duplicate PLAY button from the signed-out branch. Every element is now reachable on a 375×812 iPhone mini viewport without overflow. Verified with real device-width Playwright screenshots.
+    - **How to Play** — replaced the 6 flat coloured gradient tiles with a 4-step layout using real lifestyle photography of adults (Pexels, free-to-use, no attribution). Each card: hosted photo with subtle zoom-on-hover + gold-ringed dark number badge overlaid top-left + title/body underneath. `onError` fallback to a known-good URL. Copy tightened to match the FAQ (Create account → Pick contest → Answer skill question → Winner announced live). `HowItWorks.jsx` hero copy updated from "Six simple steps" to "Four simple steps".
+    - Files: `components/layout/Header.jsx`, `components/home/HowToPlaySection.jsx`, `pages/HowItWorks.jsx`.
+
 - **2026-07-31 · Production Deploy Fixes (iter 31)** — K8s liveness probe was failing with `connection refused` on port 8001; backend never bound because of a strict `RuntimeError` in `auth.py` when `JWT_SECRET` env was absent in the prod pod. Plus there was no `/health` endpoint at the root path (all routes were under `/api/*`).
     - **`backend/server.py`**: added `@app.get('/health')`, `/healthz`, `/ready`, `/readyz` returning `{"status":"ok"}` directly. No DB touch — a Mongo blip cannot fail the K8s liveness probe.
     - **`backend/auth.py`**: replaced hard `raise RuntimeError` on missing `JWT_SECRET` in production with `secrets.token_urlsafe(48)` auto-rotation + loud ERROR log. Backend now always boots; ops sets the real `JWT_SECRET` via Emergent env-var UI and restarts.

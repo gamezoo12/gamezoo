@@ -85,9 +85,12 @@ export default function Header() {
  <>
  <header className="sticky top-0 z-40" data-testid="site-header">
  <div style={{ background: 'linear-gradient(180deg, #0B0D1F 0%, #161433 100%)' }} className="border-b border-white/5">
- <div className="max-w-7xl mx-auto flex items-center justify-between px-4 lg:px-8 h-16 md:h-[70px]">
- <Link to="/" className="shrink-0" data-testid="header-logo">
- <PrizeLeagueLogo size={64} />
+ <div className="max-w-7xl mx-auto flex items-center justify-between px-3 sm:px-4 lg:px-8 h-14 sm:h-16 md:h-[70px] gap-2">
+ <Link to="/" className="shrink-0 flex items-center" data-testid="header-logo">
+ {/* Compact emblem-only on tightest phones; full wordmark from ≥sm */}
+ <span className="sm:hidden"><PrizeLeagueLogo size={36} emblemOnly /></span>
+ <span className="hidden sm:inline lg:hidden"><PrizeLeagueLogo size={44} /></span>
+ <span className="hidden lg:inline"><PrizeLeagueLogo size={60} /></span>
  </Link>
 
  {/* Desktop nav */}
@@ -105,28 +108,35 @@ export default function Header() {
  </nav>
 
  {/* Right cluster */}
- <div className="flex items-center gap-2">
+ <div className="flex items-center gap-1 sm:gap-2">
  {user && (
  <Link
  to="/my-account?tab=wallet"
  data-testid="header-wallet-chip"
- className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[#FFD54A] text-xs font-bold transition"
+ className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[#FFD54A] text-xs font-bold transition"
  >
  <WalletIcon className="w-3.5 h-3.5" />
  {balance === null ? '…' : `£${Number(balance).toFixed(2)}`}
  </Link>
  )}
 
- <NotificationsBell />
+ <span className="hidden sm:inline-flex"><NotificationsBell /></span>
 
- {/* Draw Centre icon — pending draws + results (Phase 2 spec item 14) */}
- <Link to="/draw-centre" className="relative p-2 rounded-lg hover:bg-white/5" aria-label="Draw centre" data-testid="header-draw-centre">
+ {/* Draw Centre icon — desktop only to keep the mobile header uncluttered */}
+ <Link to="/draw-centre" className="hidden md:inline-flex relative p-2 rounded-lg hover:bg-white/5" aria-label="Draw centre" data-testid="header-draw-centre">
  <Trophy className="w-5 h-5 text-[#FFD54A]" />
  </Link>
 
- <Link to="/cart" className="relative p-2 rounded-lg hover:bg-white/5" aria-label="Cart">
+ <Link to="/cart" className="relative p-2 rounded-lg hover:bg-white/5" aria-label="Cart" data-testid="header-cart">
  <ShoppingCart className="w-5 h-5 text-white/85" />
  {cartCount > 0 && <span className="absolute -top-1 -right-1 bg-[#FFD54A] text-slate-900 text-[10px] font-bold rounded-full h-4 min-w-[16px] flex items-center justify-center px-1">{cartCount}</span>}
+ </Link>
+
+ {/* Compact gold PLAY button — visible from ≥sm (fuller label on md+) */}
+ <Link to="/competitions" className="hidden sm:inline-flex" data-testid="header-play-btn">
+ <button className="pl-btn-gold h-9 px-3 md:px-4 rounded-full font-extrabold text-xs md:text-sm">
+ PLAY <span className="hidden md:inline">NOW</span>
+ </button>
  </Link>
 
  {!user ? (
@@ -144,9 +154,6 @@ export default function Header() {
  <Button variant="ghost" size="sm" className="text-white/90 hover:text-white hover:bg-white/10">
  <User className="w-4 h-4 mr-1" /> Sign in
  </Button>
- </Link>
- <Link to="/competitions" className="hidden sm:inline-flex">
- <button className="pl-btn-gold h-9 px-4 rounded-full font-extrabold text-sm">PLAY NOW</button>
  </Link>
  </>
  ) : (
