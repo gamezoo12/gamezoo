@@ -29,6 +29,11 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - [x] Header session UX (visible Sign out + wallet balance chip)
 - [x] Prominent multi-path logout (header/admin/production/mobile) — all 4 verified working
 
+## 2026-08-01 · Iteration 32 — Browser Bootstrap Form + Production Launch Path
+- Added `GET /api/auth/bootstrap-admin` (HTMLResponse) — a self-contained no-JS-dependency HTML form. Zero clicks needed to reach it; user visits `/api/auth/bootstrap-admin` in any browser. Auto-shows 3 states: (a) form when zero admins exist, (b) "already set up" screen when admins exist, (c) friendly DB-unreachable page when the ping fails (so they can see the actual Mongo error before contacting support). On successful create, stores JWT + user in localStorage and redirects to /admin.
+- Confirmed production DB should be `DB_NAME=contest-arena-16` (matches their app slug). Once redeployed, prod DB will be empty → no demo data, no demo leaderboard, no legacy admins. The demo data the user was seeing was from an old DB pointer (`prize_league`) that had never been authorized anyway.
+
+
 ## 2026-08-01 · Iteration 31 — Token Purchase System (major UX pivot)
 Replaced the "real-money wallet" mental model with a token purchase system. Semantic-only change — accounting stays penny-precise (1 token = £1), so refunds, admin adjustments and audit trails work identically. UK Gambling Commission stance unchanged.
 

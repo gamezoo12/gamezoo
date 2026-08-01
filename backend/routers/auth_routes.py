@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Request, Response
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from datetime import datetime, timedelta, timezone, date
 from pydantic import BaseModel, Field
 from typing import Optional
@@ -255,6 +255,96 @@ async def bootstrap_admin(inp: BootstrapAdminInput):
         'token': token,
         'ok': True,
     }
+
+
+@router.get('/bootstrap-admin', response_class=HTMLResponse)
+async def bootstrap_admin_form():
+    """One-shot HTML bootstrap page. Available in the browser at
+    `/api/auth/bootstrap-admin`. Shows a plain form when the DB has no
+    privileged users, or a locked-out screen once one exists. Zero
+    JavaScript dependencies — works even if the SPA bundle is broken.
+    """
+    from deps import get_db
+    try:
+        db = get_db()
+        existing = await db.users.count_documents({'role': {'$in': _PRIVILEGED_ROLES}})
+    except Exception as e:
+        return HTMLResponse(f"""
+<!doctype html><html><head><title>Prize League — Setup blocked</title>
+<style>body{{font-family:system-ui;background:#0b0716;color:#fff;max-width:640px;margin:60px auto;padding:24px;line-height:1.5}}code{{background:#1a1330;padding:2px 6px;border-radius:4px;color:#FFD54A}}</style>
+</head><body>
+<h1 style="color:#FFD54A">⛔ Database unreachable</h1>
+<p>The bootstrap page can't run because the MongoDB connection is failing:</p>
+<pre style="background:#1a1330;padding:16px;border-radius:8px;overflow:auto">{type(e).__name__}: {str(e)[:400]}</pre>
+<p>Check <code>MONGO_URL</code> and <code>DB_NAME</code> in your Secrets, then redeploy.</p>
+<p><a href="/api/diagnostics/db" style="color:#FFD54A">Run diagnostic →</a></p>
+</body></html>""", status_code=503)
+
+    if existing > 0:
+        return HTMLResponse(f"""
+<!doctype html><html><head><title>Prize League — Setup complete</title>
+<style>body{{font-family:system-ui;background:#0b0716;color:#fff;max-width:640px;margin:60px auto;padding:24px;line-height:1.5}}a{{color:#FFD54A}}</style>
+</head><body>
+<h1 style="color:#22c55e">✅ Bootstrap disabled</h1>
+<p>{existing} privileged user{'s' if existing != 1 else ''} already exist{'s' if existing == 1 else ''} in the database. Sign in normally at <a href="/admin/login">/admin/login</a>.</p>
+<p>If you've forgotten your credentials, run <code>python3 /app/backend/scripts/bootstrap_admin.py --email you@example.com --password 'NewPass!'</code> from a shell.</p>
+</body></html>""")
+
+    return HTMLResponse("""
+<!doctype html><html><head><title>Prize League — Create Super Admin</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,sans-serif;background:linear-gradient(135deg,#0b0716,#1a0f2e);color:#fff;min-height:100vh;margin:0;display:flex;align-items:center;justify-content:center;padding:24px}
+  .card{background:#150b28;border:1px solid rgba(255,213,74,.25);border-radius:16px;padding:36px;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+  h1{margin:0 0 8px;font-size:28px}
+  .sub{color:#a89ec4;font-size:14px;margin-bottom:24px;line-height:1.5}
+  label{display:block;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#a89ec4;margin:16px 0 6px;font-weight:600}
+  input{width:100%;padding:12px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:#0b0716;color:#fff;font-size:15px}
+  input:focus{outline:none;border-color:#FFD54A}
+  button{width:100%;margin-top:24px;padding:14px;border-radius:10px;border:none;background:#FFD54A;color:#0b0716;font-weight:800;font-size:16px;cursor:pointer;transition:filter .15s}
+  button:hover{filter:brightness(1.08)}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  #msg{margin-top:16px;padding:12px;border-radius:8px;font-size:14px;display:none}
+  .ok{background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.4);color:#86efac}
+  .err{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.4);color:#fca5a5}
+</style></head><body>
+<div class="card">
+  <h1>🏆 Prize League Setup</h1>
+  <p class="sub">One-time Super Admin creation. This page is available only while zero admins exist in the database. It disables itself after the first successful creation.</p>
+  <form id="f" onsubmit="return submit(event)">
+    <label>Email</label>
+    <input name="email" type="email" required autocomplete="off" placeholder="you@company.com" />
+    <label>Password (min 8 characters)</label>
+    <input name="password" type="password" required minlength="8" autocomplete="off" placeholder="Strong password" />
+    <label>Display name</label>
+    <input name="name" type="text" value="Super Admin" />
+    <button type="submit" id="btn">Create Super Admin →</button>
+  </form>
+  <div id="msg"></div>
+</div>
+<script>
+async function submit(e){
+  e.preventDefault();
+  const btn=document.getElementById('btn'); const msg=document.getElementById('msg');
+  btn.disabled=true; btn.textContent='Creating…'; msg.style.display='none';
+  const fd=new FormData(e.target); const body=Object.fromEntries(fd.entries());
+  try{
+    const r=await fetch('/api/auth/bootstrap-admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const j=await r.json();
+    if(!r.ok){throw new Error(j.detail||'Bootstrap failed');}
+    localStorage.setItem('gz_token',j.token);
+    localStorage.setItem('gz_user',JSON.stringify(j.user));
+    msg.className='ok'; msg.style.display='block';
+    msg.innerHTML='✅ Super Admin created ('+j.user.public_id+'). Redirecting to admin dashboard…';
+    setTimeout(()=>{window.location.href='/admin';},1500);
+  }catch(err){
+    msg.className='err'; msg.style.display='block'; msg.textContent='⛔ '+err.message;
+    btn.disabled=false; btn.textContent='Create Super Admin →';
+  }
+  return false;
+}
+</script>
+</body></html>""")
 
 
 @router.post('/session')
