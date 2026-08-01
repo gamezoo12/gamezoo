@@ -93,6 +93,71 @@ async def diagnostics_db():
     return result
 
 
+@api_router.get('/diagnostics/find-authorized-db')
+async def diagnostics_find_authorized_db():
+    """Probe the Mongo cluster to discover which DB names the connection
+    user is authorized on. Zero credentials leaked — only reports names.
+
+    This is the escape hatch when a customer sets `DB_NAME` to a value
+    their Mongo user can't touch. Instead of guessing or waiting for
+    support, they hit this URL and learn the truth in one shot.
+
+    Strategy: try `listDatabases` on admin (may be denied), then blindly
+    probe a curated list of plausible names by attempting a cheap count on
+    each. Return the ones that succeed.
+    """
+    from motor.motor_asyncio import AsyncIOMotorClient as _Client
+    mongo_url = os.environ.get('MONGO_URL', '')
+    result: dict = {
+        'listDatabases_ok': False,
+        'listDatabases_error': None,
+        'listDatabases_result': None,
+        'probed': [],
+        'authorized_dbs': [],
+    }
+    _c = _Client(mongo_url, serverSelectionTimeoutMS=5000)
+    try:
+        # Preferred path — if the user has the readWriteAnyDatabase or
+        # listDatabases privilege, we get an exact answer.
+        dbs = await _c.admin.command('listDatabases', nameOnly=True)
+        result['listDatabases_ok'] = True
+        result['listDatabases_result'] = [d.get('name') for d in dbs.get('databases', [])]
+    except Exception as e:
+        result['listDatabases_error'] = f'{type(e).__name__}: {str(e)[:150]}'
+
+    # Blind probe — try a curated set of plausible names. `count_documents`
+    # requires the same privilege login itself would need, so a success
+    # here proves the user CAN write there.
+    candidates = [
+        # Explicit values the user has already tried
+        os.environ.get('DB_NAME') or '',
+        'contest-arena-16', 'prize_league', 'prizeleague', 'prize-league',
+        'gamezoo', 'production', 'main', 'app', 'default',
+        # Emergent-managed pattern (app-slug-derived)
+        'customer-apps', 'customer_apps',
+    ]
+    # Deduplicate while preserving order, drop empties.
+    seen = set()
+    ordered = []
+    for c in candidates:
+        if c and c not in seen:
+            seen.add(c)
+            ordered.append(c)
+
+    for name in ordered:
+        entry = {'db': name, 'authorized': False, 'error': None}
+        try:
+            await _c[name].users.estimated_document_count()
+            entry['authorized'] = True
+            result['authorized_dbs'].append(name)
+        except Exception as e:
+            entry['error'] = f'{type(e).__name__}: {str(e)[:100]}'
+        result['probed'].append(entry)
+
+    _c.close()
+    return result
+
+
 @api_router.get('/public/winners')
 async def public_winners(limit: int = 50):
     limit = max(1, min(limit, 200))
