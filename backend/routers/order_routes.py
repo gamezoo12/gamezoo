@@ -226,6 +226,7 @@ async def checkout(inp: CheckoutInput, request: Request):
         'tickets': len(tickets_to_insert),
         'method': 'wallet',
         'first_ticket_id': first_ticket_id,
+        'first_contest_id': first_contest_id,
         'first_contest_slug': first_slug,
         'first_game_type': first_game_type,
     }
@@ -258,15 +259,18 @@ async def my_tickets(request: Request, limit: int = 200):
     contest_map = {}
     async for c in db.contests.find(
         {'contest_id': {'$in': contest_ids}},
-        {'_id': 0, 'contest_id': 1, 'title': 1, 'slug': 1, 'hero_image': 1, 'game_type': 1, 'entry_mode': 1, 'status': 1, 'end_time': 1, 'prize_title': 1}
+        {'_id': 0, 'contest_id': 1, 'title': 1, 'slug': 1, 'image': 1, 'hero_image': 1, 'game_type': 1, 'entry_mode': 1, 'status': 1, 'end_time': 1, 'prize_title': 1}
     ):
         contest_map[c['contest_id']] = c
     for t in tickets:
         c = contest_map.get(t['contest_id']) or {}
         t['contest'] = {
+            'contest_id': t['contest_id'],
             'title': c.get('title'),
             'slug': c.get('slug'),
-            'image': c.get('hero_image'),
+            # Contest documents can carry either `image` or `hero_image` depending on
+            # when the record was created — accept both.
+            'image': c.get('image') or c.get('hero_image'),
             'game_type': c.get('game_type'),
             'entry_mode': c.get('entry_mode') or 'skill_game',
             'status': c.get('status'),

@@ -384,8 +384,10 @@ export default function MyAccount() {
               <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {tickets.map(t => {
                   const c = t.contest || {};
+                  const contestId = c.contest_id || t.contest_id;
                   const isSkill = (c.entry_mode || 'skill_game') === 'skill_game';
-                  const canPlay = isSkill && c.status !== 'ended' && c.status !== 'closed';
+                  const hasGame = !!c.game_type;
+                  const canPlay = isSkill && hasGame && c.status !== 'ended' && c.status !== 'closed';
                   return (
                   <div key={t.ticket_id} className="border border-slate-100 rounded-xl overflow-hidden bg-white flex flex-col" data-testid={`ticket-card-${t.ticket_id}`}>
                     {c.image && (
@@ -399,7 +401,7 @@ export default function MyAccount() {
                       {c.prize_title && <div className="text-[11px] text-slate-500 mt-0.5">🎁 {c.prize_title}</div>}
                       <div className="mt-3 flex gap-2">
                         {canPlay ? (
-                          <Link to={`/play/${t.ticket_id}`} className="flex-1">
+                          <Link to={`/play/${contestId}/${t.ticket_id}`} className="flex-1">
                             <Button size="sm" className="w-full pl-btn-gold text-slate-900 font-extrabold h-8" data-testid={`ticket-play-${t.ticket_id}`}>
                               <Sparkles className="w-3 h-3 mr-1" /> Play now
                             </Button>

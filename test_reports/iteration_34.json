@@ -1,0 +1,56 @@
+{
+  "verdict": "fixed",
+  "user_reported_bug": "when I was buy tickets with token its open white blank page, clear the issue and leader board still updates for 2000 points not 100, that too only in global leader board not in contest leader board, leaderboard should be list view not grid view and every user should be on the top with their score every user have access to check the other users score details, speed, accuracy for trust and contest image should be clear visibility in the homepage , after buying the ticket user direct the to game if he wants to play the game they can roles there is a option to pay later, for every 24hrs he will be notified on the homepage and notification section for at least 1 attempt , clear all these issues in one go",
+  "summary": "No relevant testing skill found. Focused retest of the P0 token-checkout/play-route regression passed: backend checkout now returns first_ticket_id, first_contest_id, first_contest_slug and first_game_type; /orders/my-tickets returns contest_id/image/game_type; UI token checkout lands on /play/{contest_id}/{ticket_id}?just_bought=1 and renders play-game-page + play-later; My Tickets cards show images and Play now uses the two-param play route.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/orders/checkout",
+        "issue": "Incidental observation outside the requested route-fix retest: attempting to buy the same contest+qty again after a prior order for the same user returned 409 Duplicate checkout detected due the existing idempotency signature/unique-index behavior. Fresh contest purchase flow passed. Main agent may want to review repeat-purchase behavior separately."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/bug_iter34_api_prep.py",
+    "/app/test_reports/bug_iter34_api_results.json",
+    "/app/test_reports/bug_iter34_ui_seed.py",
+    "/app/test_reports/bug_iter34_ui_seed.json",
+    "/app/test_reports/bug_iter34_ui_flow.py",
+    "/app/test_reports/bug_iter34_ui_results.json",
+    "/app/test_reports/bug_iter34_checkout_probe.py",
+    "/app/test_reports/bug_iter34_checkout_probe.json"
+  ],
+  "action_items": [
+    "Optional follow-up: review checkout idempotency so legitimate later purchases of the same contest+quantity by the same user are not permanently blocked by duplicate-key behavior."
+  ],
+  "critical_code_review_comments": [
+    "Verified code paths match route contract: App.js declares /play/:contestId/:ticketId; Cart.jsx now navigates using first_contest_id + first_ticket_id; MyAccount.jsx ticket cards link to /play/{contestId}/{ticketId}; order_routes.py returns checkout routing fields and enriches my-tickets contest image/contest_id."
+  ],
+  "updated_files": [
+    "/app/test_reports/bug_iter34_api_prep.py",
+    "/app/test_reports/bug_iter34_api_results.json",
+    "/app/test_reports/bug_iter34_ui_seed.py",
+    "/app/test_reports/bug_iter34_ui_seed.json",
+    "/app/test_reports/bug_iter34_ui_flow.py",
+    "/app/test_reports/bug_iter34_ui_results.json",
+    "/app/test_reports/bug_iter34_checkout_probe.py",
+    "/app/test_reports/bug_iter34_checkout_probe.json",
+    "/app/test_reports/bug_verification_34.json",
+    "/app/test_reports/iteration_34.json"
+  ],
+  "success_rate": {
+    "backend": "100% for requested P0 API assertions",
+    "frontend": "100% for requested P0 checkout/play/tickets route assertions"
+  },
+  "seed_data_creation": "Created backend/API contest c_5c85d1c66ba2 and UI checkout contest c_02091d8c359f; seeded bachanta8@gmail.com wallet via POST /api/admin/wallets/adjust; UI checkout created ticket t_96fbec1258d0.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Focused on the four P0 route/image items only, per request. Browser proof used seeded UI contest c_02091d8c359f and landed on /play/c_02091d8c359f/t_96fbec1258d0?just_bought=1; My Tickets Play now href was /play/c_02091d8c359f/t_96fbec1258d0 and rendered play-game-page. Earlier leaderboard/notification items were not retested in this pass.",
+  "rca_of_the_issue": "Previous root cause was a route mismatch: frontend navigated to /play/{ticket_id} while router required /play/:contestId/:ticketId. Retest confirms checkout response and frontend navigation now carry both path params; my-tickets enrichment supplies contest_id/image/game_type so ticket cards can render images and build valid Play now links. No MOCKED integrations were used in the verified flow."
+}

@@ -1,0 +1,15 @@
+{
+  "ok": true,
+  "tested_at": "2026-08-01T18:19:58Z",
+  "user_email": "bachanta8@gmail.com",
+  "contest_id": "c_02091d8c359f",
+  "contest_slug": "bug34-ui-checkout-route-1785608389-8b8164",
+  "checkout_final_url": "https://contest-arena-16.preview.emergentagent.com/play/c_02091d8c359f/t_96fbec1258d0?just_bought=1",
+  "ticket_id": "t_96fbec1258d0",
+  "play_game_page_rendered_after_checkout": true,
+  "play_later_button_rendered": true,
+  "my_tickets_card_image_count": 1,
+  "my_tickets_play_now_href": "/play/c_02091d8c359f/t_96fbec1258d0",
+  "my_tickets_play_now_rendered_play_game_page": true,
+  "error_messages_found": false
+}

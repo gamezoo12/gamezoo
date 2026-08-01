@@ -1,0 +1,22 @@
+{
+  "challenge": {
+    "question": "16 + 7 = ?",
+    "answer": 23
+  },
+  "checkout_status": 409,
+  "checkout_body": "{\"detail\":\"Duplicate checkout detected \u2014 the other tab already completed this purchase.\"}",
+  "wallet": {
+    "user_id": "user_da449fcf3ef7",
+    "balance": 27.0,
+    "lifetime_topup": 10.0,
+    "lifetime_spend": 6.0,
+    "updated_at": "2026-08-01T18:19:22.270000",
+    "tokens": 27,
+    "lifetime_tokens_bought": 10,
+    "lifetime_tokens_spent": 6
+  },
+  "matching_ticket_count": 1,
+  "matching_tickets": [
+    "t_e8264b6677bc"
+  ]
+}

@@ -154,8 +154,9 @@ export default function Cart() {
       toast({ title: 'Payment successful 🎉', description: `${r.tickets} ticket${r.tickets !== 1 ? 's' : ''} · ${fmtTokens(r.total)} · Order #${r.order_id}` });
       // If it's a skill game, drop the player straight into it. On the game
       // page a "Play later" button always sends them back to /my-account/tickets.
-      if (r.first_ticket_id && r.first_game_type) {
-        nav(`/play/${r.first_ticket_id}?just_bought=1`);
+      // Route contract: /play/:contestId/:ticketId — BOTH params are required.
+      if (r.first_ticket_id && r.first_contest_id && r.first_game_type) {
+        nav(`/play/${r.first_contest_id}/${r.first_ticket_id}?just_bought=1`);
       } else {
         nav('/my-account/tickets');
       }

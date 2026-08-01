@@ -1,0 +1,96 @@
+{
+  "base_url": "https://contest-arena-16.preview.emergentagent.com",
+  "started_at": "2026-08-01T18:15:53.922172+00:00",
+  "checks": {
+    "checkout_schema": {
+      "ok": true,
+      "required_keys": [
+        "first_ticket_id",
+        "first_contest_id",
+        "first_contest_slug",
+        "first_game_type"
+      ]
+    },
+    "my_tickets_enrichment": {
+      "ok": true,
+      "contest_keys": [
+        "contest_id",
+        "end_time",
+        "entry_mode",
+        "game_type",
+        "image",
+        "prize_title",
+        "slug",
+        "status",
+        "title"
+      ]
+    }
+  },
+  "user": {
+    "email": "bachanta8@gmail.com",
+    "user_id": "user_da449fcf3ef7",
+    "role": "super_admin"
+  },
+  "contest": {
+    "contest_id": "c_5c85d1c66ba2",
+    "slug": "bug34-checkout-play-route-1785608154-7777b0",
+    "title": "BUG34 Checkout Play Route 1785608154",
+    "game_type": "math_sprint",
+    "entry_mode": "skill_game",
+    "image": "https://images.pexels.com/photos/928187/pexels-photo-928187.jpeg?auto=compress&cs=tinysrgb&h=650&w=940"
+  },
+  "wallet_adjust": {
+    "ok": true,
+    "balance": 28.0
+  },
+  "challenge": {
+    "question": "13 + 15 = ?",
+    "answer_used": 28,
+    "options": [
+      28,
+      27,
+      38,
+      25
+    ]
+  },
+  "checkout_response": {
+    "order_id": "o_9354b074a7b8",
+    "total": 1.0,
+    "tickets": 1,
+    "method": "wallet",
+    "first_ticket_id": "t_e8264b6677bc",
+    "first_contest_id": "c_5c85d1c66ba2",
+    "first_contest_slug": "bug34-checkout-play-route-1785608154-7777b0",
+    "first_game_type": "math_sprint"
+  },
+  "my_tickets_entry": {
+    "ticket_id": "t_e8264b6677bc",
+    "order_id": "o_9354b074a7b8",
+    "user_id": "user_da449fcf3ef7",
+    "contest_id": "c_5c85d1c66ba2",
+    "ticket_number": 1,
+    "created_at": "2026-08-01T18:15:55.288000",
+    "contest": {
+      "contest_id": "c_5c85d1c66ba2",
+      "title": "BUG34 Checkout Play Route 1785608154",
+      "slug": "bug34-checkout-play-route-1785608154-7777b0",
+      "image": "https://images.pexels.com/photos/928187/pexels-photo-928187.jpeg?auto=compress&cs=tinysrgb&h=650&w=940",
+      "game_type": "math_sprint",
+      "entry_mode": "skill_game",
+      "status": "live",
+      "end_time": null,
+      "prize_title": null
+    }
+  },
+  "ui_cart_item": {
+    "contest_id": "c_5c85d1c66ba2",
+    "slug": "bug34-checkout-play-route-1785608154-7777b0",
+    "title": "BUG34 Checkout Play Route 1785608154",
+    "price": 1.0,
+    "image": "https://images.pexels.com/photos/928187/pexels-photo-928187.jpeg?auto=compress&cs=tinysrgb&h=650&w=940",
+    "qty": 1,
+    "entry_mode": "skill_game"
+  },
+  "completed_at": "2026-08-01T18:15:55.404888+00:00",
+  "ok": true
+}

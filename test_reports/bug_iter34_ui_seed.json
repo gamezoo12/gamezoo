@@ -1,0 +1,82 @@
+{
+  "contest": {
+    "contest_id": "c_02091d8c359f",
+    "slug": "bug34-ui-checkout-route-1785608389-8b8164",
+    "title": "BUG34 UI Checkout Route 1785608389",
+    "subtitle": "\u00a325 cash prize",
+    "category": "prize-draws",
+    "tag": "Prize Draws",
+    "price": 1.0,
+    "tickets_sold": 0,
+    "tickets_total": 10,
+    "prize_amount": 25.0,
+    "end_date": "2026-08-08T18:19:49.341000",
+    "image": "https://images.pexels.com/photos/928187/pexels-photo-928187.jpeg?auto=compress&cs=tinysrgb&h=650&w=940",
+    "jackpot": false,
+    "featured": false,
+    "skill_question": {
+      "q": "Dynamic",
+      "options": [
+        "auto"
+      ],
+      "answer": "auto",
+      "type": "dynamic"
+    },
+    "game_type": "math_sprint",
+    "game_config": {
+      "rounds": 3
+    },
+    "max_attempts": 3,
+    "attempts_per_ticket": 3,
+    "status": "live",
+    "short_description": null,
+    "full_description": null,
+    "how_to_enter": null,
+    "skill_instructions": null,
+    "eligibility": null,
+    "max_tickets_per_user": null,
+    "open_date": null,
+    "draw_date": null,
+    "prize_details": null,
+    "num_prizes": 1,
+    "prize_values": null,
+    "winner_method": null,
+    "scoring_method": null,
+    "tiebreak_method": null,
+    "verification_method": null,
+    "prize_credit_timeframe": null,
+    "refund_conditions": null,
+    "important_info": null,
+    "contest_rules": null,
+    "terms_acknowledgement": null,
+    "country_restrictions": null,
+    "age_restriction": "18+",
+    "mobile_image": null,
+    "seo_title": null,
+    "seo_description": null,
+    "publication_status": "published",
+    "engine_type": "leaderboard",
+    "free_postal_entry_available": false,
+    "free_postal_entry_instructions": null,
+    "created_at": "2026-08-01T18:19:49.371000",
+    "skill_question_type": "addition",
+    "skill_question_difficulty": "easy",
+    "entry_mode": "skill_game",
+    "winner_selection_method": "leaderboard"
+  },
+  "user_id": "user_da449fcf3ef7",
+  "wallet": {
+    "ok": true,
+    "balance": 37.0,
+    "tx": {
+      "tx_id": "tx_87d17a7a46f0",
+      "user_id": "user_da449fcf3ef7",
+      "kind": "admin_adjust",
+      "amount": 10.0,
+      "balance_after": 37.0,
+      "note": "bug34 UI flow seed",
+      "ref_order_id": null,
+      "created_at": "2026-08-01T18:19:49.463913+00:00"
+    }
+  }
+}

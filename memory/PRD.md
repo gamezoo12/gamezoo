@@ -29,6 +29,27 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - [x] Header session UX (visible Sign out + wallet balance chip)
 - [x] Prominent multi-path logout (header/admin/production/mobile) — all 4 verified working
 
+## 2026-08-01 · Iteration 37 — Fix Post-Checkout Blank Page (P0 Root Cause)
+Bug testing agent report `iter33` identified the ACTUAL root cause of the "white blank page after buying tickets":
+- `App.js` defines route `/play/:contestId/:ticketId` (BOTH params required).
+- Cart.jsx was navigating to `/play/${r.first_ticket_id}?just_bought=1` (ONE param) → React Router had no match → blank page.
+- MyAccount tickets tab linked to `/play/${t.ticket_id}` (same one-param error).
+- Ticket enrichment projected `hero_image` but contest docs use `image` field → all ticket cards showed no image.
+
+**Fixed:**
+- `order_routes.py::checkout` response gains `first_contest_id` alongside `first_ticket_id`.
+- `Cart.jsx` now navigates to `/play/{first_contest_id}/{first_ticket_id}?just_bought=1` — matches the registered route contract.
+- `MyAccount.jsx` ticket cards link to `/play/{contest.contest_id}/{ticket_id}` and only render "Play now" when `game_type` is set on the contest.
+- `order_routes.py::my_tickets` accepts both `image` and `hero_image` fields on the contest doc (fallback chain) and returns `contest.contest_id` inside the enrichment.
+
+**Also from iter33 (already shipped):**
+- Contest leaderboard normalized_score / duration_s / accuracy_pct (verified 100.0 for top row).
+- Global leaderboard normalized_score (verified 100.0 for top row).
+- Leaderboard row-tap expands to show Accuracy / Speed / Raw points transparency cards.
+- "YOU" pill on the current user's leaderboard row.
+
+
+
 ## 2026-08-01 · Iteration 36 — Checkout Blank Page Fix + Stripe Redirect Repair (P0)
 
 **Bug #1 (invisible until now):** Backend was minting Stripe `success_url` as `?tab=wallet&topup=success` but the app router is path-based (`/my-account/:section`). After Stripe redirect the user landed on the MyAccount MENU page — not the Wallet panel. Because WalletPanel never mounted, the code that polls Stripe/webhook confirmation never ran. Users saw stale balance, thought payment failed, and re-triggered. **Fixed** to `success_url = {origin}/my-account/wallet?topup=success&session_id=…`.
