@@ -53,6 +53,46 @@ async def ready():
     return {'status': 'ready'}
 
 
+# ---- Public diagnostics -------------------------------------------------
+# Exposed WITHOUT auth so operators can debug a production outage even when
+# login itself is broken. Reveals ONLY safe metadata: which DB name is
+# active, whether the Mongo ping succeeds, how many users are visible.
+# Never returns credentials, secret values, or full document contents.
+@api_router.get('/diagnostics/db')
+async def diagnostics_db():
+    import os as _os
+    from deps import _sanitize_db_name
+    raw = _os.environ.get('DB_NAME')
+    sanitized = _sanitize_db_name(raw)
+    result = {
+        'db_name_raw': raw,
+        'db_name_sanitized': sanitized,
+        'mongo_url_host': None,
+        'ping_ok': False,
+        'ping_error': None,
+        'users_count': None,
+        'privileged_users_count': None,
+    }
+    # Extract just the host from MONGO_URL — never the credentials.
+    mongo_url = _os.environ.get('MONGO_URL', '')
+    if '@' in mongo_url:
+        result['mongo_url_host'] = mongo_url.split('@', 1)[1].split('/', 1)[0]
+    elif '://' in mongo_url:
+        result['mongo_url_host'] = mongo_url.split('://', 1)[1].split('/', 1)[0]
+    try:
+        # Cheap round-trip: {ping:1} is a no-auth-required admin command.
+        await client.admin.command('ping')
+        result['ping_ok'] = True
+        _db = get_db()
+        result['users_count'] = await _db.users.count_documents({})
+        result['privileged_users_count'] = await _db.users.count_documents(
+            {'role': {'$in': ['admin', 'super_admin', 'operator', 'support']}}
+        )
+    except Exception as e:
+        result['ping_error'] = f'{type(e).__name__}: {str(e)[:200]}'
+    return result
+
+
 @api_router.get('/public/winners')
 async def public_winners(limit: int = 50):
     limit = max(1, min(limit, 200))
