@@ -95,8 +95,8 @@ async def create_topup_checkout(req: CheckoutRequest, request: Request):
             },
         }],
         mode="payment",
-        success_url=f"{req.origin_url}/my-account?tab=wallet&topup=success&session_id={{CHECKOUT_SESSION_ID}}",
-        cancel_url=f"{req.origin_url}/my-account?tab=wallet&topup=cancel",
+        success_url=f"{req.origin_url}/my-account/wallet?topup=success&session_id={{CHECKOUT_SESSION_ID}}",
+        cancel_url=f"{req.origin_url}/my-account/wallet?topup=cancel",
         metadata={
             "user_id": user['user_id'],
             "user_email": user.get('email', ''),
@@ -164,8 +164,8 @@ async def create_custom_topup(req: CustomTopupRequest, request: Request):
             "quantity": 1,
         }],
         mode="payment",
-        success_url=f"{req.origin_url}/my-account?tab=wallet&topup=success&session_id={{CHECKOUT_SESSION_ID}}",
-        cancel_url=f"{req.origin_url}/my-account?tab=wallet&topup=cancel",
+        success_url=f"{req.origin_url}/my-account/wallet?topup=success&session_id={{CHECKOUT_SESSION_ID}}",
+        cancel_url=f"{req.origin_url}/my-account/wallet?topup=cancel",
         metadata={
             "user_id": user['user_id'],
             "user_email": user.get('email', ''),

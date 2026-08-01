@@ -112,7 +112,7 @@ export default function Header() {
  <div className="flex items-center gap-1 sm:gap-2">
  {user && (
  <Link
- to="/my-account?tab=wallet"
+ to="/my-account/wallet"
  data-testid="header-wallet-chip"
  className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[#FFD54A] text-xs font-bold transition"
  title="Your token balance"
@@ -266,7 +266,7 @@ export default function Header() {
      signed-in users one tap from their money and pending draws). */}
  <div className="mt-4 grid grid-cols-2 gap-2">
  <Link
- to="/my-account?tab=wallet"
+ to="/my-account/wallet"
  onClick={() => setOpen(false)}
  data-testid="mobile-wallet-link"
  className="flex flex-col items-start gap-1 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10"

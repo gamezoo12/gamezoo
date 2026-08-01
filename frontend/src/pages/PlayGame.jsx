@@ -73,7 +73,7 @@ export default function PlayGame() {
   return (
     <div className="max-w-4xl mx-auto px-4 lg:px-8 py-8" data-testid="play-game-page">
       <div className="flex items-center justify-between mb-6">
-        <Link to="/my-account?tab=tickets" className="text-sm text-slate-500 hover:text-slate-800 inline-flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Back to my tickets</Link>
+        <Link to="/my-account/tickets" className="text-sm text-slate-500 hover:text-slate-800 inline-flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Back to my tickets</Link>
         <Link to={`/leaderboard/${contestId}`} className="text-sm text-orange-600 font-semibold inline-flex items-center gap-1">View leaderboard <ArrowRight className="w-4 h-4" /></Link>
       </div>
 
@@ -93,7 +93,7 @@ export default function PlayGame() {
           <Trophy className="w-12 h-12 text-amber-500 mx-auto mb-3" />
           <div className="font-display font-bold text-xl">No game for this contest</div>
           <p className="text-slate-500 mt-2">The winner will be picked by the Prize League team using our audited random-draw process.</p>
-          <Link to="/my-account?tab=tickets"><Button className="mt-4">Back to my tickets</Button></Link>
+          <Link to="/my-account/tickets"><Button className="mt-4">Back to my tickets</Button></Link>
         </div>
       ) : attemptsLeft <= 0 ? (
         <div className="bg-white rounded-2xl border border-slate-100 p-10 text-center" data-testid="game-no-attempts">

@@ -16,6 +16,7 @@ import FAQ from './pages/FAQ';
 import Login from './pages/Login';
 import MyAccount from './pages/MyAccount';
 import Cart from './pages/Cart';
+import CartErrorBoundary from './components/CartErrorBoundary';
 import AuthCallback from './pages/AuthCallback';
 import FreeEntry from './pages/FreeEntry';
 import VerifyFeed from './pages/VerifyFeed';
@@ -78,7 +79,7 @@ function AppRouter() {
         <Route path="/my-account" element={<MyAccount />} />
         <Route path="/my-account/:section" element={<MyAccount />} />
         <Route path="/legal/:slug" element={<LegalDocPage />} />
-        <Route path="/cart" element={<Cart />} />
+        <Route path="/cart" element={<CartErrorBoundary><Cart /></CartErrorBoundary>} />
         <Route path="/free-entry" element={<FreeEntry />} />
         <Route path="/verify" element={<VerifyFeed />} />
         <Route path="/play/:contestId/:ticketId" element={<PlayGame />} />

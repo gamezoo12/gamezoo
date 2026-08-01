@@ -90,9 +90,48 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  const [filter, setFilter] = useState('month');
  const [selectedTx, setSelectedTx] = useState(null);
  const [showTopup, setShowTopup] = useState(!!autoOpenTopup);
+ const [confirmingPayment, setConfirmingPayment] = useState(false);
  const { toast } = useToast();
 
  useEffect(() => { if (autoOpenTopup) setShowTopup(true); }, [autoOpenTopup]);
+
+ // Post-Stripe redirect: when the URL includes ?topup=success, the actual
+ // wallet credit lands via Stripe webhook — which can take 2-8 seconds.
+ // Without polling the user sees stale balance and assumes it failed.
+ // We poll wallet/me every 2s for up to 24s or until the balance grows.
+ useEffect(() => {
+   const params = new URLSearchParams(window.location.search);
+   const topup = params.get('topup');
+   if (topup !== 'success') return;
+   setConfirmingPayment(true);
+   const startBalance = Number(wallet?.balance) || 0;
+   let ticks = 0;
+   const maxTicks = 12; // 12 × 2s = 24s
+   const poll = async () => {
+     ticks += 1;
+     try {
+       const w = await import('../../lib/api').then(m => m.walletAPI.me());
+       if (w && Number(w.balance) > startBalance) {
+         setWallet(w);
+         setConfirmingPayment(false);
+         toast({ title: 'Payment confirmed 🎉', description: `+${Math.round(Number(w.balance) - startBalance)} tokens added to your wallet.` });
+         // Refresh transactions too
+         import('../../lib/api').then(m => m.walletAPI.transactions(20).then(r => setWalletTxs(r?.transactions || [])).catch(() => {}));
+         return;
+       }
+     } catch { /* ignore, retry */ }
+     if (ticks < maxTicks) {
+       setTimeout(poll, 2000);
+     } else {
+       setConfirmingPayment(false);
+       toast({ title: 'Payment is still processing', description: 'It may take up to a minute. Refresh the page shortly.' });
+     }
+   };
+   const t = setTimeout(poll, 1500);
+   return () => clearTimeout(t);
+ // Intentionally not depending on `wallet` to avoid restarting the poll on each tick.
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, []);
 
  const filteredTxs = useMemo(() => {
  const start = windowStart(filter);
@@ -110,7 +149,7 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  if (amount < MIN_TOPUP) return toast({ title: `Minimum purchase is ${fmtTokens(MIN_TOPUP)}` });
  setBusy(true);
  try {
- const originUrl = window.location.origin + '/my-account?tab=wallet';
+ const originUrl = window.location.origin;
  // Preset packages map 1:1 to Stripe lookup keys (1 token = £1).
  const preset = { 5: 'wallet_topup_5', 10: 'wallet_topup_10', 20: 'wallet_topup_20', 50: 'wallet_topup_50', 100: 'wallet_topup_100' }[amount];
  let session;
@@ -135,6 +174,15 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
 
  return (
  <div className="space-y-6" data-testid="wallet-panel">
+ {confirmingPayment && (
+  <div className="rounded-2xl bg-emerald-50 border-2 border-emerald-300 p-4 flex items-center gap-3" data-testid="topup-confirming">
+    <div className="w-8 h-8 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin shrink-0" />
+    <div>
+      <div className="font-bold text-emerald-900">Confirming your payment…</div>
+      <div className="text-xs text-emerald-800">Your tokens will appear as soon as Stripe finalises the charge (usually a few seconds).</div>
+    </div>
+  </div>
+ )}
  {/* HERO BALANCE CARD */}
  <div className="bg-gradient-to-br from-[#3E0BAA] via-[#6C2BFF] to-[#8B5CFF] rounded-3xl p-6 md:p-8 text-white shadow-xl relative overflow-hidden" data-testid="wallet-hero">
  <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full bg-[#FFD54A]/20 blur-3xl" />

@@ -152,13 +152,13 @@ export default function Cart() {
       localStorage.removeItem(STORAGE_KEY);
       setItems([]);
       toast({ title: 'Payment successful 🎉', description: `${r.tickets} tickets · ${fmtTokens(r.total)} · Order #${r.order_id}` });
-      nav('/my-account?tab=tickets');
+      nav('/my-account/tickets');
     } catch (err) {
       const status = err?.response?.status;
       const detail = err?.response?.data?.detail || 'Please try again.';
       if (status === 402) {
         toast({ title: 'Not enough tokens', description: `Buy ${fmtTokens(shortfall)} more to complete this order.` });
-        nav('/my-account?tab=wallet&topup=1');
+        nav('/my-account/wallet?topup=1');
       } else if (status === 400 && /skill|token|answer|expired/i.test(detail)) {
         // Force a re-issue of the skill challenge for the failing contest(s)
         // so the user's next click can succeed.
@@ -170,7 +170,7 @@ export default function Cart() {
     } finally { setBusy(false); }
   };
 
-  const goTopUp = () => nav('/my-account?tab=wallet&topup=1');
+  const goTopUp = () => nav('/my-account/wallet?topup=1');
 
   return (
     <div className="max-w-6xl mx-auto px-4 lg:px-8 py-8 md:py-10" data-testid="cart-page">

@@ -29,6 +29,20 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - [x] Header session UX (visible Sign out + wallet balance chip)
 - [x] Prominent multi-path logout (header/admin/production/mobile) — all 4 verified working
 
+## 2026-08-01 · Iteration 36 — Checkout Blank Page Fix + Stripe Redirect Repair (P0)
+
+**Bug #1 (invisible until now):** Backend was minting Stripe `success_url` as `?tab=wallet&topup=success` but the app router is path-based (`/my-account/:section`). After Stripe redirect the user landed on the MyAccount MENU page — not the Wallet panel. Because WalletPanel never mounted, the code that polls Stripe/webhook confirmation never ran. Users saw stale balance, thought payment failed, and re-triggered. **Fixed** to `success_url = {origin}/my-account/wallet?topup=success&session_id=…`.
+
+**Bug #2 (root cause of "blank page after checkout"):** WalletPanel had no post-Stripe confirmation UX. After Stripe redirect, users saw the wallet at its pre-payment balance until webhook lands (2–8 seconds) — during which the page looked "stuck" or blank-ish. Added a green **"Confirming your payment…"** banner + spinner + auto-poll of `walletAPI.me()` every 2s for up to 24s, plus a success toast when balance updates.
+
+**Bug #3 (defense in depth):** `<Cart />` had no error boundary — any renderer exception on a legacy cart item blanked the page. New `CartErrorBoundary` catches, logs, and shows a "Clear basket & browse" recovery card with the diagnostic message. Wrapped the route in `App.js`.
+
+**Query-param → path-based route migration**: fixed every remaining `/my-account?tab=X` link across Header (2), Cart (3), PlayGame (2), WalletPanel (1) to the new path format. Legacy `?tab=` URLs still work (MyAccount ignores unknown query keys) but the canonical form is now clean and shareable.
+
+Verified end-to-end on preview: Stripe checkout URL points to `contest-arena-16.preview.emergentagent.com/my-account/wallet?topup=success&session_id=cs_test_...`. All 17 targeted tests pass.
+
+
+
 ## 2026-08-01 · Iteration 35 — Checkout Fix + Token-Only Player UI
 **Checkout was broken because skill `challenge_token` expires after 5 minutes.** If a user added to cart and waited more than a few minutes (browsing, comparing contests, then returning), the token expired → backend rejected with `400 invalid_token / expired` → the frontend showed a generic "Checkout failed" toast.
 
