@@ -73,7 +73,7 @@ export default function PlayGame() {
   return (
     <div className="max-w-4xl mx-auto px-4 lg:px-8 py-8" data-testid="play-game-page">
       <div className="flex items-center justify-between mb-6">
-        <Link to="/my-account/tickets" className="text-sm text-slate-500 hover:text-slate-800 inline-flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Back to my tickets</Link>
+        <Link to="/my-account/tickets" data-testid="play-later-btn" className="text-sm text-slate-500 hover:text-slate-800 inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-slate-200 hover:border-slate-400 bg-white"><ArrowLeft className="w-4 h-4" /> Play later</Link>
         <Link to={`/leaderboard/${contestId}`} className="text-sm text-orange-600 font-semibold inline-flex items-center gap-1">View leaderboard <ArrowRight className="w-4 h-4" /></Link>
       </div>
 

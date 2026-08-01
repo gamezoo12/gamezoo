@@ -1,0 +1,91 @@
+{
+  "seeded_users": [
+    "iter33_lb_top_485a1f",
+    "iter33_lb_low_f22c6a"
+  ],
+  "contest_status": 200,
+  "global_status": 200,
+  "contest_top_5": [
+    {
+      "_id": "iter33_lb_top_485a1f",
+      "user_id": "iter33_lb_top_485a1f",
+      "user_name": "Iter33 Top",
+      "points": 2000,
+      "accuracy": 1.0,
+      "duration_ms": 10000,
+      "created_at": "2026-08-01T18:06:53.660000",
+      "normalized_score": 100.0,
+      "rank": 1,
+      "public_id": "PL33TOP",
+      "username": "iter33top",
+      "duration_s": 10.0,
+      "accuracy_pct": 100.0
+    },
+    {
+      "_id": "iter33_lb_low_f22c6a",
+      "user_id": "iter33_lb_low_f22c6a",
+      "user_name": "Iter33 Low",
+      "points": 1000,
+      "accuracy": 0.75,
+      "duration_ms": 20000,
+      "created_at": "2026-08-01T18:06:53.660000",
+      "normalized_score": 50.0,
+      "rank": 2,
+      "public_id": "PL33LOW",
+      "username": "iter33low",
+      "duration_s": 20.0,
+      "accuracy_pct": 75.0
+    }
+  ],
+  "global_top_5": [
+    {
+      "user_name": "Iter33 Top",
+      "total_points": 2000,
+      "contests_played": 1,
+      "normalized_score": 100.0,
+      "rank": 1,
+      "user_id": "iter33_lb_top_485a1f"
+    },
+    {
+      "user_name": "V2Gamer",
+      "total_points": 2000,
+      "contests_played": 1,
+      "normalized_score": 100.0,
+      "rank": 2,
+      "user_id": "user_8babd2f229a3"
+    },
+    {
+      "user_name": "Gamer",
+      "total_points": 2000,
+      "contests_played": 1,
+      "normalized_score": 100.0,
+      "rank": 3,
+      "user_id": "user_7ed5b9843f03"
+    },
+    {
+      "user_name": "V2Gamer",
+      "total_points": 2000,
+      "contests_played": 1,
+      "normalized_score": 100.0,
+      "rank": 4,
+      "user_id": "user_554dfc8d4b2e"
+    },
+    {
+      "user_name": "Gamer",
+      "total_points": 2000,
+      "contests_played": 1,
+      "normalized_score": 100.0,
+      "rank": 5,
+      "user_id": "user_0b74070b8be9"
+    }
+  ],
+  "assertions": {
+    "contest_entries_present": true,
+    "contest_all_have_normalized_score": true,
+    "contest_top_is_100": true,
+    "contest_rows_have_speed_accuracy": true,
+    "global_rows_present": true,
+    "global_all_have_normalized_score": true,
+    "global_top_is_100": true
+  }
+}

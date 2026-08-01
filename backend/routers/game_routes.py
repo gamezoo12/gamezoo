@@ -166,6 +166,11 @@ async def global_leaderboard(limit: int = 50):
         {'$limit': int(limit)},
     ]
     rows = await db.game_scores.aggregate(pipeline).to_list(int(limit))
+    # Normalize to 0-100 relative to the top-ranked user's total.
+    if rows:
+        best_total = max((r.get('total_points') or 0) for r in rows) or 1
+        for r in rows:
+            r['normalized_score'] = round((r.get('total_points', 0) * 100.0) / best_total, 2)
     for i, r in enumerate(rows):
         r['rank'] = i + 1
         r['user_id'] = r.pop('_id')

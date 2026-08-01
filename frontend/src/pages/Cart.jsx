@@ -151,8 +151,14 @@ export default function Cart() {
       const r = await ordersAPI.checkout(payload);
       localStorage.removeItem(STORAGE_KEY);
       setItems([]);
-      toast({ title: 'Payment successful 🎉', description: `${r.tickets} tickets · ${fmtTokens(r.total)} · Order #${r.order_id}` });
-      nav('/my-account/tickets');
+      toast({ title: 'Payment successful 🎉', description: `${r.tickets} ticket${r.tickets !== 1 ? 's' : ''} · ${fmtTokens(r.total)} · Order #${r.order_id}` });
+      // If it's a skill game, drop the player straight into it. On the game
+      // page a "Play later" button always sends them back to /my-account/tickets.
+      if (r.first_ticket_id && r.first_game_type) {
+        nav(`/play/${r.first_ticket_id}?just_bought=1`);
+      } else {
+        nav('/my-account/tickets');
+      }
     } catch (err) {
       const status = err?.response?.status;
       const detail = err?.response?.data?.detail || 'Please try again.';

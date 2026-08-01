@@ -6,10 +6,10 @@ import MyGamesPanel from '../components/account/MyGamesPanel';
 import {
   User, Wallet, Ticket, Gamepad2, Bell, ShieldCheck, Lock,
   LifeBuoy, FileText, Settings2, Gift, LogOut, ArrowRight,
-  Trophy, Copy, Check, Clock, AlertCircle, Mail, ChevronRight, Upload,
+  Trophy, Copy, Check, Clock, AlertCircle, Mail, ChevronRight, Upload, Sparkles,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Button } from '../components/ui/button';
@@ -382,13 +382,37 @@ export default function MyAccount() {
               </div>
             ) : (
               <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {tickets.map(t => (
-                  <div key={t.ticket_id} className="border border-slate-100 rounded-xl p-4 bg-gradient-to-br from-white to-slate-50">
-                    <div className="text-xs text-slate-500">Ticket</div>
-                    <div className="text-2xl font-extrabold font-display text-teal-600">#{t.ticket_number}</div>
-                    <div className="text-xs text-slate-500 mt-2 truncate">Contest: {t.contest_id}</div>
+                {tickets.map(t => {
+                  const c = t.contest || {};
+                  const isSkill = (c.entry_mode || 'skill_game') === 'skill_game';
+                  const canPlay = isSkill && c.status !== 'ended' && c.status !== 'closed';
+                  return (
+                  <div key={t.ticket_id} className="border border-slate-100 rounded-xl overflow-hidden bg-white flex flex-col" data-testid={`ticket-card-${t.ticket_id}`}>
+                    {c.image && (
+                      <div className="h-24 bg-slate-100 overflow-hidden">
+                        <img src={c.image} alt={c.title || ''} className="w-full h-full object-cover" loading="lazy" />
+                      </div>
+                    )}
+                    <div className="p-3 flex-1 flex flex-col">
+                      <div className="text-[10px] text-slate-400 uppercase tracking-wider">Ticket #{t.ticket_number}</div>
+                      <div className="font-bold text-slate-900 text-sm mt-0.5 line-clamp-2">{c.title || 'Contest'}</div>
+                      {c.prize_title && <div className="text-[11px] text-slate-500 mt-0.5">🎁 {c.prize_title}</div>}
+                      <div className="mt-3 flex gap-2">
+                        {canPlay ? (
+                          <Link to={`/play/${t.ticket_id}`} className="flex-1">
+                            <Button size="sm" className="w-full pl-btn-gold text-slate-900 font-extrabold h-8" data-testid={`ticket-play-${t.ticket_id}`}>
+                              <Sparkles className="w-3 h-3 mr-1" /> Play now
+                            </Button>
+                          </Link>
+                        ) : (
+                          <Link to={c.slug ? `/contests/${c.slug}` : '/contests'} className="flex-1">
+                            <Button size="sm" variant="outline" className="w-full h-8" data-testid={`ticket-view-${t.ticket_id}`}>View contest</Button>
+                          </Link>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                ))}
+                );})}
               </div>
             )}
           </div>

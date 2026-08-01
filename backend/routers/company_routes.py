@@ -342,6 +342,15 @@ async def contest_leaderboard(contest_id: str, limit: int = 50):
     ]
     rows = await db.game_scores.aggregate(pipeline).to_list(int(limit))
 
+    # Normalize to 0-100 relative to the best score in this contest. Best gets
+    # exactly 100.0; everyone else scales proportionally so the leaderboard
+    # always uses the same 0-100 scale regardless of raw point magnitudes.
+    if rows:
+        best_raw = max((r.get('points') or 0) for r in rows) or 1
+        for r in rows:
+            raw = r.get('points') or 0
+            r['normalized_score'] = round((raw * 100.0) / best_raw, 2)
+
     # Attach public_id
     user_ids = [r['user_id'] for r in rows]
     users = {}
@@ -354,6 +363,9 @@ async def contest_leaderboard(contest_id: str, limit: int = 50):
         r['rank'] = i
         r['public_id'] = u.get('public_id')
         r['username'] = u.get('username')
+        # Convenience: seconds view + accuracy percent for the transparency UI.
+        r['duration_s'] = round((r.get('duration_ms') or 0) / 1000.0, 2)
+        r['accuracy_pct'] = round((r.get('accuracy') or 0) * 100.0, 1)
 
     return {
         'contest_id': contest_id,

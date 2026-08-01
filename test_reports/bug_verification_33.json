@@ -1,0 +1,117 @@
+{
+  "verdict": "not_fixed",
+  "user_reported_bug": "when I was buy tickets with token its open white blank page, clear the issue and leader board still updates for 2000 points not 100, that too only in global leader board not in contest leader board, leaderboard should be list view not grid view and every user should be on the top with their score every user have access to check the other users score details, speed, accuracy for trust and contest image should be clear visibility in the homepage , after buying the ticket user direct the to game if he wants to play the game they can roles there is a option to pay later, for every 24hrs he will be notified on the homepage and notification section for at least 1 attempt , clear all these issues in one go",
+  "summary": "No relevant testing skill found. Focused UI/API verification found leaderboard normalization mostly working, but the core checkout/ticket play flow is still broken: after a successful token checkout for a seeded live skill-game contest, the app navigated to /play/{ticket_id}?just_bought=1 and rendered a white blank page with no game and no Play later button. Existing My Tickets also links to /play/{ticket_id}, which is not a registered route and renders blank.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/contests/c_8f482282e502 via /api/contests/test-checkoutbug-dyn-7ccb65",
+        "issue": "Required test contest is not in the promised launch state: API returns tickets_sold=5/tickets_total=5 (sold out), entry_mode derived as random_tickets, and game_type=null. Checkout against the exact requested contest fails with 400 'Only 0 tickets left', so it cannot exercise direct-to-game behavior without additional seeding.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "GET /api/contests/c_8f482282e502/leaderboard and GET /api/leaderboard/global",
+        "issue": "Normalized score fields are present and top rows return 100.0 in API checks after score seeding. Contest rows also include duration_s and accuracy_pct. This part appears fixed at API level."
+      },
+      {
+        "endpoint": "GET /api/orders/my-tickets",
+        "issue": "Ticket enrichment returns contest.title, but image is null for an existing ticket because the endpoint projects hero_image while contest documents use image. It also defaults missing entry_mode to skill_game even when the public contest is random_tickets/no game_type."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Cart.jsx -> PlayGame route",
+        "issue": "After a successful token checkout, final URL was /play/t_87168ca028c2?just_bought=1 and the page was white/blank. No data-testid=play-game-page, no game arena, and no data-testid=play-later-btn rendered.",
+        "selector": "data-testid=cart-checkout-btn",
+        "priority": "CRITICAL"
+      },
+      {
+        "component": "MyAccount tickets panel",
+        "issue": "Existing ticket card shows title and Play now, but no image (img_count=0). Clicking Play now navigates to /play/t_25dfb7a2415b and renders a blank page with no play-game-page, no game_arena, and no play-later button.",
+        "selector": "data-testid^=ticket-play-",
+        "priority": "CRITICAL"
+      },
+      {
+        "component": "GlobalLeaderboard.jsx",
+        "issue": "Global leaderboard is a horizontal list and shows normalized /100 plus a YOU badge for the signed-in user after score seeding. However the required contest c_8f482282e502 is not reachable as a contest tab because it has no game_type in preview data.",
+        "selector": "data-testid=global-list, data-testid^=global-row-",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Token checkout -> direct game redirect",
+        "issue": "Frontend redirects to /play/{ticket_id}, but App.js only registers /play/:contestId/:ticketId and PlayGame expects both contestId and ticketId. This route mismatch reproduces the user-reported white blank page after successful payment.",
+        "affected_selectors": ["data-testid=cart-checkout-btn", "data-testid=play-game-page", "data-testid=play-later-btn"]
+      },
+      {
+        "flow": "My Tickets -> Play now",
+        "issue": "MyAccount links tickets to /play/{ticket_id}; the registered playable route needs contest_id too. The ticket endpoint also does not reliably provide image/game metadata to decide whether Play now should show.",
+        "affected_selectors": ["data-testid^=ticket-card-", "data-testid^=ticket-play-"]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "Post-checkout play page",
+        "issues": ["Successful purchase leaves the user on a visually blank white page with only a toast, not the game or tickets tab.", "Play later CTA is absent because PlayGame never mounts on /play/{ticket_id}."]
+      },
+      {
+        "screen": "My Tickets",
+        "issues": ["Ticket image is missing for the existing contest ticket, reducing contest visibility/trust."]
+      },
+      {
+        "screen": "Attempt reminders / notifications",
+        "issues": ["24-hour attempt reminder notification was not meaningfully verified because the core post-checkout play route still fails. Retest this after checkout redirects to a working game/tickets page."]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/test_reports/bug_iter33_api_probe.py",
+    "/app/test_reports/bug_iter33_api_probe_output.json",
+    "/app/test_reports/bug_iter33_leaderboard_probe.py",
+    "/app/test_reports/bug_iter33_leaderboard_probe_output.json",
+    "/app/test_reports/bug_iter33_seed_current_user_score.py",
+    "/app/test_reports/bug_iter33_seed_current_user_score_output.json",
+    "/app/test_reports/bug_iter33_seed_checkout_contest.py",
+    "/app/test_reports/bug_iter33_seed_checkout_contest_output.json"
+  ],
+  "action_items": [
+    "Fix the PlayGame route contract: either navigate to /play/{contest_id}/{ticket_id} everywhere (Cart.jsx and MyAccount.jsx) or add a real /play/:ticketId route that fetches ticket+contest before rendering.",
+    "Ensure checkout response includes first_contest_id or use first_contest_slug to build the registered play URL; then verify the post-checkout page renders data-testid=play-game-page and data-testid=play-later-btn.",
+    "Fix /api/orders/my-tickets enrichment to return contest.image from the actual image field and only show Play now when contest.game_type exists and entry_mode is skill_game.",
+    "Repair/refresh required contest c_8f482282e502 test data if it is meant to be a live skill_game: it is currently sold out and has game_type=null.",
+    "Make required contest leaderboards reachable from /leaderboard when game_scores exist, or document/tab them independently of game_type if that is the expected user behavior.",
+    "After checkout routing is fixed, retest the 24-hour homepage/notification-section reminder for at least one unplayed attempt."
+  ],
+  "critical_code_review_comments": [
+    "App.js defines only <Route path=\"/play/:contestId/:ticketId\" element={<PlayGame />} />, but Cart.jsx redirects to nav(`/play/${r.first_ticket_id}?just_bought=1`) and MyAccount.jsx links to `/play/${t.ticket_id}`. This is the root cause of the blank page.",
+    "PlayGame.jsx destructures { contestId, ticketId } and fetches contest by contestId from the public list. It cannot render correctly when only ticket_id is in the URL.",
+    "order_routes.my_tickets projects hero_image as contest.image, but current contest docs expose image. Existing ticket response has contest.image=null.",
+    "MyAccount.jsx determines canPlay from entry_mode/status only and does not require c.game_type, so it can show Play now for tickets whose contest has no playable game."
+  ],
+  "updated_files": [
+    "/app/test_reports/bug_iter33_api_probe.py",
+    "/app/test_reports/bug_iter33_api_probe_output.json",
+    "/app/test_reports/bug_iter33_leaderboard_probe.py",
+    "/app/test_reports/bug_iter33_leaderboard_probe_output.json",
+    "/app/test_reports/bug_iter33_seed_current_user_score.py",
+    "/app/test_reports/bug_iter33_seed_current_user_score_output.json",
+    "/app/test_reports/bug_iter33_seed_checkout_contest.py",
+    "/app/test_reports/bug_iter33_seed_checkout_contest_output.json",
+    "/app/test_reports/bug_verification_33.json",
+    "/app/test_reports/iteration_33.json"
+  ],
+  "success_rate": {
+    "backend": "60%",
+    "frontend": "30%"
+  },
+  "seed_data_creation": "Seeded game_scores for contest c_8f482282e502 to verify normalized leaderboard APIs; seeded one current-user game_score to verify YOU badge; seeded temporary live skill-game contest c_iter33_7c21821c and completed one token checkout in the browser, creating ticket t_87168ca028c2/order o_46b6fa444b86 for post-checkout route verification.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Start by retesting token checkout end-to-end: login bachanta8@gmail.com/Herts@910022, seed a live skill_game contest if c_8f482282e502 is still sold out/no game_type, answer the inline skill question in /cart, click data-testid=cart-checkout-btn, and require the final route to render play-game-page plus play-later-btn. Also retest /my-account/tickets image and Play now link after fixing route/enrichment.",
+  "rca_of_the_issue": "The white blank page is caused by route mismatch, not payment failure. Checkout succeeds and shows a payment success toast, then Cart navigates to /play/{ticket_id}. React Router has no /play/:ticketId route, only /play/:contestId/:ticketId, so no PlayGame content mounts. My Tickets has the same bad /play/{ticket_id} link. Separately, ticket enrichment uses the wrong contest image field and can mark non-game tickets playable."
+}

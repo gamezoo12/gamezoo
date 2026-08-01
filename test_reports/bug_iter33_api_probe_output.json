@@ -1,0 +1,51 @@
+{
+  "base": "https://contest-arena-16.preview.emergentagent.com/api",
+  "steps": [
+    {
+      "login_status": 200
+    },
+    {
+      "logged_in_user": {
+        "user_id": "user_da449fcf3ef7",
+        "role": "super_admin",
+        "email": "bachanta8@gmail.com"
+      }
+    },
+    {
+      "wallet_before": {
+        "user_id": "user_da449fcf3ef7",
+        "balance": 9.0,
+        "lifetime_topup": 10.0,
+        "lifetime_spend": 1.0,
+        "updated_at": "2026-08-01T17:53:18.605000",
+        "tokens": 9,
+        "lifetime_tokens_bought": 10,
+        "lifetime_tokens_spent": 1
+      }
+    },
+    {
+      "contest_get_status": 200,
+      "contest_body_head": "{\"contest_id\":\"c_8f482282e502\",\"slug\":\"test-checkoutbug-dyn-7ccb65\",\"title\":\"TEST_CheckoutBug_Dyn\",\"subtitle\":\"\u00a325 cash prize\",\"category\":\"prize-draws\",\"tag\":\"Prize Draws\",\"price\":1.0,\"tickets_sold\":5,\"tickets_total\":5,\"prize_amount\":25.0,\"end_date\":\"2026-08-08T12:43:37.651000\",\"image\":\"https://imag"
+    },
+    {
+      "contest_game_type": null,
+      "entry_mode": "random_tickets",
+      "title": "TEST_CheckoutBug_Dyn"
+    },
+    {
+      "challenge_status": 200,
+      "challenge_body": "{\"question\":\"9 + 18 = ?\",\"options\":[25,22,26,27],\"challenge_token\":\"eyJhIjoyNywiY2lkIjoiY184ZjQ4MjI4MmU1MDIiLCJleHAiOjE3ODU2MDc4NTcsIm4iOiI3Yjg3OWRjODk1Mjc5ODA0In0.c932c3963ba53bb97d5a2d2ade2533490c1143089d6657b07ea0907cf1405e61\",\"expires_at\":1785607857,\"op\":\"addition\",\"difficulty\":\"easy\"}"
+    },
+    {
+      "checkout_status": 400,
+      "checkout_body": "{\"detail\":\"Only 0 tickets left for TEST_CheckoutBug_Dyn\"}"
+    }
+  ],
+  "errors": [
+    "HTTPError('400 Client Error: Bad Request for url: https://contest-arena-16.preview.emergentagent.com/api/orders/checkout')"
+  ],
+  "checkout": null,
+  "my_ticket": null,
+  "contest_leaderboard_sample": null,
+  "global_leaderboard_sample": null
+}

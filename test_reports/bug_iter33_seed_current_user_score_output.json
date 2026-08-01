@@ -1,0 +1,18 @@
+{
+  "seeded": true,
+  "user_id": "user_da449fcf3ef7",
+  "score": {
+    "score_id": "s_fe8335c58ab5",
+    "contest_id": "c_8f482282e502",
+    "ticket_id": "t_d4084de03fb5",
+    "user_id": "user_da449fcf3ef7",
+    "user_name": "Balaram Achanta",
+    "game_type": "math_sprint",
+    "points": "1500",
+    "duration_ms": "15000",
+    "accuracy": "0.9",
+    "attempts_used": "1",
+    "created_at": "2026-08-01 18:07:22.623660+00:00",
+    "_id": "6a6e35da073ec9b7a9e0c0fe"
+  }
+}

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { gamesAPI, contestsAPI } from '../lib/api';
-import { Trophy, Medal, Award, Crown, ArrowRight, Flame, Zap } from 'lucide-react';
+import { Trophy, Medal, Award, Crown, ArrowRight, Flame, Zap, Zap as SpeedIcon, Target } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 /**
  * Global leaderboard — public page.
@@ -12,6 +13,7 @@ export default function GlobalLeaderboard() {
   const [rows, setRows] = useState([]);
   const [contests, setContests] = useState([]);
   const [tab, setTab] = useState('global'); // 'global' | contest_id
+  const { user } = useAuth();
 
   useEffect(() => {
     const load = () => gamesAPI.globalLeaderboard(50).then(r => setRows(r?.leaderboard || [])).catch(() => {});
@@ -82,8 +84,8 @@ export default function GlobalLeaderboard() {
                       {m.Icon ? <m.Icon className="w-6 h-6" /> : p.rank}
                     </div>
                     <div className="font-bold truncate w-full">{p.user_name}</div>
-                    <div className="text-2xl font-extrabold font-display">{(p.total_points || 0).toLocaleString()}</div>
-                    <div className="text-xs opacity-90">{p.contests_played} contest{p.contests_played !== 1 ? 's' : ''}</div>
+                    <div className="text-2xl font-extrabold font-display">{(p.normalized_score ?? 0).toFixed(2)}</div>
+                    <div className="text-xs opacity-90">{p.contests_played} contest{p.contests_played !== 1 ? 's' : ''} · {(p.total_points || 0).toLocaleString()} pts</div>
                   </div>
                 );
               })}
@@ -97,19 +99,25 @@ export default function GlobalLeaderboard() {
                 <div className="mt-4"><Link to="/competitions" className="text-orange-600 font-semibold hover:underline inline-flex items-center gap-1">Browse contests <ArrowRight className="w-4 h-4" /></Link></div>
               </div>
             ) : (
-              <ul className="divide-y divide-slate-100">
+              <ul className="divide-y divide-slate-100" data-testid="global-list">
                 {rows.map(p => {
                   const m = medal(p.rank);
+                  const isMe = user && p.user_id === user.user_id;
                   return (
-                    <li key={p.user_id} data-testid={`global-row-${p.rank}`} className={`flex items-center gap-3 p-4 ${p.rank <= 3 ? 'bg-gradient-to-r from-amber-50/50 to-transparent' : ''}`}>
+                    <li key={p.user_id} data-testid={`global-row-${p.rank}`} className={`flex items-center gap-3 p-4 ${isMe ? 'bg-[#FFD54A]/15 border-l-4 border-[#FFD54A]' : (p.rank <= 3 ? 'bg-gradient-to-r from-amber-50/50 to-transparent' : '')}`}>
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${m.cls}`}>
                         {m.Icon ? <m.Icon className="w-5 h-5" /> : p.rank}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-slate-900 truncate">{p.user_name}</div>
-                        <div className="text-xs text-slate-500">{p.contests_played} contest{p.contests_played !== 1 ? 's' : ''} played</div>
+                        <div className="font-semibold text-slate-900 truncate flex items-center gap-1">
+                          {p.user_name} {isMe && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#FFD54A] text-slate-900 font-bold">YOU</span>}
+                        </div>
+                        <div className="text-xs text-slate-500">{p.contests_played} contest{p.contests_played !== 1 ? 's' : ''} · {(p.total_points || 0).toLocaleString()} raw pts</div>
                       </div>
-                      <div className="font-display text-2xl font-extrabold text-orange-600">{(p.total_points || 0).toLocaleString()}</div>
+                      <div className="text-right">
+                        <div className="font-display text-2xl font-extrabold text-orange-600">{(p.normalized_score ?? 0).toFixed(2)}</div>
+                        <div className="text-[10px] text-slate-400 uppercase tracking-wider">/ 100</div>
+                      </div>
                     </li>
                   );
                 })}
@@ -126,8 +134,10 @@ export default function GlobalLeaderboard() {
 
 function ContestBoard({ contestId }) {
   const [rows, setRows] = useState([]);
+  const [expanded, setExpanded] = useState(null);
+  const { user } = useAuth();
   useEffect(() => {
-    const load = () => gamesAPI.leaderboard(contestId, 25).then(r => setRows(r?.leaderboard || [])).catch(() => {});
+    const load = () => gamesAPI.leaderboard(contestId, 100).then(r => setRows(r?.entries || r?.leaderboard || [])).catch(() => {});
     load();
     const t = setInterval(load, 15000);
     return () => clearInterval(t);
@@ -145,24 +155,57 @@ function ContestBoard({ contestId }) {
       {rows.length === 0 ? (
         <div className="p-10 text-center text-slate-500">No scores yet for this contest.</div>
       ) : (
-        <ul className="divide-y divide-slate-100">
+        <ul className="divide-y divide-slate-100" data-testid="contest-list">
           {rows.map(r => {
             const m = medal(r.rank);
+            const isMe = user && r.user_id === user.user_id;
+            const isOpen = expanded === r.user_id;
+            const durS = r.duration_s ?? (r.duration_ms ? +(r.duration_ms / 1000).toFixed(2) : 0);
+            const accPct = r.accuracy_pct ?? Math.round((r.accuracy || 0) * 100);
             return (
-              <li key={r.user_id} className={`flex items-center gap-3 p-4 ${r.rank <= 3 ? 'bg-gradient-to-r from-amber-50/40 to-transparent' : ''}`} data-testid={`contest-row-${r.rank}`}>
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${m.cls}`}>
-                  {m.Icon ? <m.Icon className="w-5 h-5" /> : r.rank}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-slate-900">{r.user_name}</div>
-                  <div className="text-xs text-slate-500">{(r.duration_ms / 1000).toFixed(1)}s · {Math.round(r.accuracy * 100)}% accuracy · {r.attempts} attempt{r.attempts !== 1 ? 's' : ''}</div>
-                </div>
-                <div className="font-display text-2xl font-extrabold text-orange-600">{r.points}</div>
+              <li key={r.user_id} data-testid={`contest-row-${r.rank}`}>
+                <button
+                  type="button"
+                  onClick={() => setExpanded(isOpen ? null : r.user_id)}
+                  className={`w-full text-left flex items-center gap-3 p-4 hover:bg-slate-50 transition ${isMe ? 'bg-[#FFD54A]/15 border-l-4 border-[#FFD54A]' : (r.rank <= 3 ? 'bg-gradient-to-r from-amber-50/40 to-transparent' : '')}`}
+                >
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${m.cls}`}>
+                    {m.Icon ? <m.Icon className="w-5 h-5" /> : r.rank}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-slate-900 truncate flex items-center gap-1">
+                      {r.user_name} {isMe && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#FFD54A] text-slate-900 font-bold">YOU</span>}
+                      {r.public_id && <span className="text-[10px] text-slate-400 font-mono">· {r.public_id}</span>}
+                    </div>
+                    <div className="text-xs text-slate-500">{durS.toFixed?.(2) || durS}s · {accPct}% accuracy · tap to see full details</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-display text-2xl font-extrabold text-orange-600">{(r.normalized_score ?? 0).toFixed(2)}</div>
+                    <div className="text-[10px] text-slate-400 uppercase tracking-wider">/ 100</div>
+                  </div>
+                </button>
+                {isOpen && (
+                  <div className="px-4 pb-4 pt-1 bg-slate-50/60 grid grid-cols-3 gap-2 text-center" data-testid={`contest-row-detail-${r.rank}`}>
+                    <div className="rounded-lg bg-white p-2">
+                      <div className="text-[10px] text-slate-500 uppercase flex items-center justify-center gap-1"><Target className="w-3 h-3" /> Accuracy</div>
+                      <div className="font-bold text-slate-900">{accPct}%</div>
+                    </div>
+                    <div className="rounded-lg bg-white p-2">
+                      <div className="text-[10px] text-slate-500 uppercase flex items-center justify-center gap-1"><SpeedIcon className="w-3 h-3" /> Speed</div>
+                      <div className="font-bold text-slate-900">{durS}s</div>
+                    </div>
+                    <div className="rounded-lg bg-white p-2">
+                      <div className="text-[10px] text-slate-500 uppercase">Raw points</div>
+                      <div className="font-bold text-slate-900">{(r.points || 0).toLocaleString()}</div>
+                    </div>
+                  </div>
+                )}
               </li>
             );
           })}
         </ul>
       )}
+      <div className="p-3 border-t border-slate-100 text-[10px] text-slate-400 text-center">Scores normalized 0–100 · leader always = 100.00 · tie-break: accuracy → speed</div>
     </div>
   );
 }

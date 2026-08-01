@@ -209,7 +209,26 @@ async def checkout(inp: CheckoutInput, request: Request):
             ref_order_id=order.order_id,
         )
 
-    return {'order_id': order.order_id, 'total': total, 'tickets': len(tickets_to_insert), 'method': 'wallet'}
+    # Return the first ticket_id + slug of the first item's contest so the
+    # frontend can offer "Play now" straight after checkout without an extra
+    # round-trip (see Cart.jsx post-checkout flow).
+    first_ticket_id = tickets_to_insert[0]['ticket_id'] if tickets_to_insert else None
+    first_contest_id = tickets_to_insert[0]['contest_id'] if tickets_to_insert else None
+    first_slug = None
+    first_game_type = None
+    if first_contest_id:
+        _c = contest_by_id.get(first_contest_id) or {}
+        first_slug = _c.get('slug')
+        first_game_type = _c.get('game_type')
+    return {
+        'order_id': order.order_id,
+        'total': total,
+        'tickets': len(tickets_to_insert),
+        'method': 'wallet',
+        'first_ticket_id': first_ticket_id,
+        'first_contest_slug': first_slug,
+        'first_game_type': first_game_type,
+    }
 
 
 @router.get('/mine')
@@ -224,11 +243,36 @@ async def my_orders(request: Request, limit: int = 50):
 
 @router.get('/my-tickets')
 async def my_tickets(request: Request, limit: int = 200):
+    """Return the user's tickets ENRICHED with contest title/image/slug/game_type
+    so the dashboard can render a proper card (title, thumbnail, Play CTA)
+    without additional round-trips per ticket.
+    """
     user = await get_current_user(request)
     from deps import get_db
     db = get_db()
     limit = max(1, min(limit, 1000))
     tickets = await db.tickets.find({'user_id': user['user_id']}, {'_id': 0}).sort('created_at', -1).to_list(limit)
+    if not tickets:
+        return tickets
+    contest_ids = list({t['contest_id'] for t in tickets})
+    contest_map = {}
+    async for c in db.contests.find(
+        {'contest_id': {'$in': contest_ids}},
+        {'_id': 0, 'contest_id': 1, 'title': 1, 'slug': 1, 'hero_image': 1, 'game_type': 1, 'entry_mode': 1, 'status': 1, 'end_time': 1, 'prize_title': 1}
+    ):
+        contest_map[c['contest_id']] = c
+    for t in tickets:
+        c = contest_map.get(t['contest_id']) or {}
+        t['contest'] = {
+            'title': c.get('title'),
+            'slug': c.get('slug'),
+            'image': c.get('hero_image'),
+            'game_type': c.get('game_type'),
+            'entry_mode': c.get('entry_mode') or 'skill_game',
+            'status': c.get('status'),
+            'end_time': c.get('end_time'),
+            'prize_title': c.get('prize_title'),
+        }
     return tickets
 
 
