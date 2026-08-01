@@ -4,7 +4,7 @@ import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Clock, Ticket } from 'lucide-react';
-import { countdown, percent, gbp } from '../lib/format';
+import { countdown, percent, gbp, tokens as fmtTokens, tokenCount } from '../lib/format';
 import { api } from '../lib/api';
 
 export default function CompetitionCard({ c }) {
@@ -65,7 +65,7 @@ export default function CompetitionCard({ c }) {
           <div className="mt-3 md:mt-4 flex items-center justify-between gap-2">
             <div className="flex items-center gap-1 text-slate-900 min-w-0">
               <Ticket className="w-4 h-4 text-orange-500 shrink-0" />
-              <span className="font-bold text-sm md:text-base">{gbp(c.price)}</span>
+              <span className="font-bold text-sm md:text-base">{tokenCount(c.price)} 🪙</span>
               <span className="hidden md:inline text-xs text-slate-500">/entry</span>
             </div>
             <Button size="sm" className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white text-xs md:text-sm px-2.5 md:px-3">

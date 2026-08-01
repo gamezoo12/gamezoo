@@ -11,6 +11,7 @@ import AnnouncementTicker from './AnnouncementTicker';
 import PrizeLeagueLogo from './PrizeLeagueLogo';
 import { useAuth } from '../../context/AuthContext';
 import { walletAPI } from '../../lib/api';
+import { tokenCount } from '../../lib/format';
 
 const NAV = [
  { label: 'Home', href: '/' },
@@ -114,9 +115,10 @@ export default function Header() {
  to="/my-account?tab=wallet"
  data-testid="header-wallet-chip"
  className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[#FFD54A] text-xs font-bold transition"
+ title="Your token balance — 1 token = £1"
  >
  <WalletIcon className="w-3.5 h-3.5" />
- {balance === null ? '…' : `£${Number(balance).toFixed(2)}`}
+ {balance === null ? '…' : `${tokenCount(balance)} 🪙`}
  </Link>
  )}
 
@@ -270,10 +272,10 @@ export default function Header() {
  className="flex flex-col items-start gap-1 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10"
  >
  <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-white/60">
- <WalletIcon className="w-3 h-3" /> Wallet
+ <WalletIcon className="w-3 h-3" /> Tokens
  </div>
  <div className="text-[#FFD54A] font-black text-lg leading-none">
- {balance === null ? '…' : `£${Number(balance).toFixed(2)}`}
+ {balance === null ? '…' : `${tokenCount(balance)} 🪙`}
  </div>
  </Link>
  <Link

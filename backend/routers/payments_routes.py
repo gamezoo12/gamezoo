@@ -29,7 +29,7 @@ STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 
 payments_router = APIRouter(prefix='/api', tags=['payments'])
 
-ALLOWED_TOPUP_KEYS = {'wallet_topup_10', 'wallet_topup_20', 'wallet_topup_50', 'wallet_topup_100'}
+ALLOWED_TOPUP_KEYS = {'wallet_topup_5', 'wallet_topup_10', 'wallet_topup_20', 'wallet_topup_50', 'wallet_topup_100'}
 
 
 def _current_stripe_mode() -> dict:
@@ -115,19 +115,21 @@ async def create_topup_checkout(req: CheckoutRequest, request: Request):
 
 
 class CustomTopupRequest(BaseModel):
-    amount: float = Field(..., ge=5.0, le=1000.0, description='Amount in GBP, min £5, max £1000')
+    # Tokens: integer amount, minimum 5, maximum 1000 (1 token = £1).
+    amount: int = Field(..., ge=5, le=1000, description='Number of tokens to buy (1 token = £1). Min 5.')
     origin_url: str
 
 
 @payments_router.post('/payments/wallet-topup/custom')
 async def create_custom_topup(req: CustomTopupRequest, request: Request):
-    """Custom amount wallet top-up. Creates a Stripe Checkout Session with
-    an inline price_data instead of a preconfigured Price lookup_key.
+    """Custom-amount token top-up. `amount` is the number of tokens (each
+    worth £1). Creates a Stripe Checkout Session with inline price_data.
     """
     user = await get_current_user(request)
-    amount_pence = int(round(req.amount * 100))
-    if amount_pence < 500:
-        raise HTTPException(400, 'Minimum top-up is £5')
+    tokens = int(req.amount)
+    amount_pence = tokens * 100
+    if tokens < 5:
+        raise HTTPException(400, 'Minimum top-up is 5 tokens')
 
     kwargs = dict(
         line_items=[{
@@ -135,7 +137,7 @@ async def create_custom_topup(req: CustomTopupRequest, request: Request):
                 "currency": "gbp",
                 "unit_amount": amount_pence,
                 "product_data": {
-                    "name": f"Prize League Wallet — £{req.amount:g} top-up",
+                    "name": f"Prize League — {tokens} tokens (£{tokens})",
                     # Digital: Software as a Service — required by Stripe Managed Payments.
                     "tax_code": "txcd_10103001",
                 },
@@ -199,10 +201,11 @@ async def _credit_wallet_once(db, tx: dict) -> Optional[dict]:
         # Someone else won the race; they will do the crediting. We're done.
         return None
     amount_gbp = round(tx["amount"] / 100.0, 2)
+    tokens = int(round(amount_gbp))
     r = await _apply_tx(
         db, tx["user_id"], 'topup',
         amount_gbp,
-        note=f"Stripe top-up £{amount_gbp:.2f} — session {tx['session_id'][:14]}…",
+        note=f"Bought {tokens} tokens (£{amount_gbp:.2f}) — session {tx['session_id'][:14]}…",
     )
     # In-app notification
     from notifications import notify
@@ -214,8 +217,8 @@ async def _credit_wallet_once(db, tx: dict) -> Optional[dict]:
         db,
         user_id=tx["user_id"],
         kind='topup_success',
-        title=f'£{amount_gbp:.2f} added to wallet 💰',
-        body='Your Stripe top-up completed. You can now enter contests.',
+        title=f'+{tokens} tokens added 🪙',
+        body=f'You now have tokens ready to enter contests. Purchase total £{amount_gbp:.2f}.',
         ref_tx_id=tx_receipt,
     )
     return r

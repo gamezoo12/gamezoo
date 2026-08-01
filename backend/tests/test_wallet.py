@@ -49,9 +49,10 @@ def admin_token():
 # ---------- Player wallet endpoints ----------
 class TestWalletTopup:
     def test_topup_below_minimum_returns_422(self, new_user):
+        # Token system: minimum is 5 tokens (was 10 in legacy money mode).
         r = requests.post(
             f'{BASE_URL}/api/wallet/topup',
-            json={'amount': 5},
+            json={'amount': 4},
             headers=_auth_headers(new_user['token']),
             timeout=30,
         )

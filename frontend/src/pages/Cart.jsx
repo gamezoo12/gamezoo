@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { gbp } from '../lib/format';
+import { gbp, tokens as fmtTokens, tokenCount } from '../lib/format';
 import { Button } from '../components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/ui/alert-dialog';
 import { Trash2, ShoppingBag, Minus, Plus, Wallet, AlertCircle, Sparkles } from 'lucide-react';
@@ -62,13 +62,13 @@ export default function Cart() {
       const r = await ordersAPI.checkout(payload);
       localStorage.removeItem(STORAGE_KEY);
       setItems([]);
-      toast({ title: 'Payment successful 🎉', description: `${r.tickets} tickets · ${gbp(r.total)} · Order #${r.order_id}` });
+      toast({ title: 'Payment successful 🎉', description: `${r.tickets} tickets · ${fmtTokens(r.total)} · Order #${r.order_id}` });
       nav('/my-account?tab=tickets');
     } catch (err) {
       const status = err?.response?.status;
       const detail = err?.response?.data?.detail || 'Please try again.';
       if (status === 402) {
-        toast({ title: 'Insufficient wallet balance', description: `Top up ${gbp(shortfall)} to complete this order.` });
+        toast({ title: 'Not enough tokens', description: `Buy ${fmtTokens(shortfall)} more to complete this order.` });
         nav('/my-account?tab=wallet&topup=1');
       } else {
         toast({ title: 'Checkout failed', description: detail });
@@ -98,7 +98,7 @@ export default function Cart() {
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-slate-900 break-words">{i.title}</div>
                   <div className="text-xs text-slate-500 mt-0.5">
-                    {(i.entry_mode || 'skill_game') === 'random_tickets' ? 'Random Ticket Draw' : 'Skill Contest'} · {gbp(i.price)}/ticket
+                    {(i.entry_mode || 'skill_game') === 'random_tickets' ? 'Random Ticket Draw' : 'Skill Contest'} · {fmtTokens(i.price)}/entry
                   </div>
 
                   <div className="flex items-center gap-2 mt-3">
@@ -120,7 +120,7 @@ export default function Cart() {
                   </div>
                 </div>
                 <div className="sm:text-right flex sm:flex-col items-center sm:items-end justify-between gap-2 shrink-0">
-                  <div className="font-extrabold text-lg text-slate-900">{gbp(i.qty * i.price)}</div>
+                  <div className="font-extrabold text-lg text-slate-900">{fmtTokens(i.qty * i.price)}</div>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <button className="text-slate-400 hover:text-rose-500" data-testid={`item-remove-${i.contest_id}`} aria-label="Remove item"><Trash2 className="w-4 h-4" /></button>
@@ -165,20 +165,20 @@ export default function Cart() {
             <div className="bg-slate-900 text-white rounded-2xl p-6 sticky top-4" data-testid="checkout-summary">
               <div className="flex items-center gap-2 mb-4"><Wallet className="w-5 h-5 text-[#FFD54A]" /><div className="font-display font-bold">Checkout</div></div>
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between text-slate-300"><span>Tickets</span><span>{totalTickets}</span></div>
-                <div className="flex justify-between text-slate-300"><span>Subtotal</span><span>{gbp(total)}</span></div>
-                <div className="flex justify-between text-slate-300"><span>Fees</span><span>£0.00</span></div>
+                <div className="flex justify-between text-slate-300"><span>Entries</span><span>{totalTickets}</span></div>
+                <div className="flex justify-between text-slate-300"><span>Subtotal</span><span>{fmtTokens(total)}</span></div>
+                <div className="flex justify-between text-slate-300"><span>Fees</span><span>0 tokens</span></div>
                 <div className="h-px bg-slate-700 my-3" />
-                <div className="flex justify-between text-lg font-bold"><span>Total</span><span className="text-[#FFD54A]">{gbp(total)}</span></div>
+                <div className="flex justify-between text-lg font-bold"><span>Total</span><span className="text-[#FFD54A]">{fmtTokens(total)}</span></div>
               </div>
 
               {user && wallet && (
                 <div className="mt-4 p-3 rounded-lg bg-slate-800/50 border border-slate-700 text-xs space-y-1" data-testid="wallet-preview">
-                  <div className="flex justify-between text-slate-300"><span>Wallet balance</span><span className="font-semibold">{gbp(wallet.balance)}</span></div>
+                  <div className="flex justify-between text-slate-300"><span>Your tokens</span><span className="font-semibold">{fmtTokens(wallet.tokens ?? wallet.balance)}</span></div>
                   <div className="flex justify-between">
                     <span className="text-slate-300">After purchase</span>
                     <span className={`font-semibold ${wallet.balance < total ? 'text-rose-400' : 'text-emerald-400'}`}>
-                      {wallet.balance < total ? `Need ${gbp(shortfall)}` : gbp(balanceAfter)}
+                      {wallet.balance < total ? `Need ${fmtTokens(shortfall)}` : fmtTokens(balanceAfter)}
                     </span>
                   </div>
                 </div>
@@ -192,20 +192,20 @@ export default function Cart() {
                 <div className="mt-4 space-y-2">
                   <div className="flex items-start gap-2 p-3 rounded-lg bg-rose-500/10 border border-rose-500/30">
                     <AlertCircle className="w-4 h-4 text-rose-400 mt-0.5 shrink-0" />
-                    <div className="text-xs text-rose-200">Insufficient wallet balance. Top up {gbp(shortfall)} to complete this order — your basket will be waiting when you return.</div>
+                    <div className="text-xs text-rose-200">Not enough tokens. Buy {fmtTokens(shortfall)} more to complete this order — your basket will be waiting when you return.</div>
                   </div>
                   <Button onClick={goTopUp} data-testid="cart-topup-btn" className="w-full pl-btn-gold text-slate-900 h-11 font-extrabold">
-                    <Sparkles className="w-4 h-4 mr-1" /> Top up wallet →
+                    <Sparkles className="w-4 h-4 mr-1" /> Buy tokens →
                   </Button>
                 </div>
               ) : (
                 <Button onClick={walletCheckout} disabled={busy} data-testid="cart-checkout-btn" className="w-full mt-4 pl-btn-gold text-slate-900 h-11 font-extrabold">
-                  {busy ? 'Processing…' : `Pay ${gbp(total)} from wallet`}
+                  {busy ? 'Processing…' : `Spend ${fmtTokens(total)}`}
                 </Button>
               )}
 
               <p className="text-[10px] text-slate-500 text-center mt-3">
-                Server-validated wallet debit. Tickets are only created after payment succeeds.
+                Server-validated token debit. Entries are only created after payment succeeds.
               </p>
             </div>
           </div>

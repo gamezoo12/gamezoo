@@ -4,7 +4,7 @@ import { Button } from '../components/ui/button';
 import { Progress } from '../components/ui/progress';
 import { Badge } from '../components/ui/badge';
 import { Minus, Plus, Ticket, Clock, Brain, Check, X, Image as ImageIcon, ShoppingBag } from 'lucide-react';
-import { countdown, percent, gbp } from '../lib/format';
+import { countdown, percent, gbp, tokens as fmtTokens, tokenCount } from '../lib/format';
 import { useToast } from '../hooks/use-toast';
 import { contestsAPI, walletAPI } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
@@ -246,8 +246,12 @@ export default function CompetitionDetail() {
           <div className="mt-6 p-4 md:p-5 rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
               <div>
-                <div className="text-xs text-slate-500">Price per entry</div>
-                <div className="font-display font-extrabold text-2xl text-slate-900">{gbp(c.price)}</div>
+                <div className="text-xs text-slate-500">Cost per entry</div>
+                <div className="font-display font-extrabold text-2xl text-slate-900 flex items-baseline gap-1">
+                  <span>{tokenCount(c.price)}</span>
+                  <span className="text-sm text-slate-500 font-bold">🪙</span>
+                </div>
+                <div className="text-[10px] text-slate-400 mt-0.5">= {gbp(c.price)}</div>
               </div>
               <div className="flex items-center gap-1 md:gap-2" data-testid="ticket-qty-controls">
                 <Button variant="outline" size="icon" data-testid="qty-minus" onClick={() => setTickets(Math.max(1, tickets - 1))}><Minus className="w-4 h-4" /></Button>
@@ -278,13 +282,13 @@ export default function CompetitionDetail() {
             {/* Live summary */}
             <div className="rounded-xl bg-slate-50 p-3 text-sm space-y-1 mb-3" data-testid="summary-box">
               <div className="flex justify-between"><span className="text-slate-500">Tickets</span><span className="font-semibold">{tickets}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Total</span><span className="font-extrabold text-slate-900">{gbp(subtotal)}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Total cost</span><span className="font-extrabold text-slate-900">{fmtTokens(subtotal)}</span></div>
               {wallet && (
                 <>
-                  <div className="flex justify-between"><span className="text-slate-500">Wallet balance</span><span className="font-semibold">{gbp(wallet.balance)}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Your tokens</span><span className="font-semibold">{fmtTokens(wallet.tokens ?? wallet.balance)}</span></div>
                   <div className="flex justify-between"><span className="text-slate-500">After purchase</span>
                     <span className={`font-semibold ${wallet.balance < subtotal ? 'text-rose-600' : 'text-emerald-600'}`}>
-                      {wallet.balance < subtotal ? `Need ${gbp(subtotal - wallet.balance)} more` : gbp(balanceAfter)}
+                      {wallet.balance < subtotal ? `Need ${fmtTokens(subtotal - wallet.balance)} more` : fmtTokens(balanceAfter)}
                     </span>
                   </div>
                 </>

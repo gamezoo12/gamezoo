@@ -12,13 +12,14 @@ stripe.api_key = os.environ["STRIPE_SECRET_KEY"]
 CATALOG = [
     {
         "emergent_product_id": "wallet_topup",
-        "name": "Prize League — Wallet top-up",
+        "name": "Prize League — Tokens",
         "tax_code": "txcd_10000000",  # general digital
         "prices": [
-            {"lookup_key": "wallet_topup_10",  "amount": 1000,  "currency": "gbp"},  # £10
-            {"lookup_key": "wallet_topup_20",  "amount": 2000,  "currency": "gbp"},  # £20
-            {"lookup_key": "wallet_topup_50",  "amount": 5000,  "currency": "gbp"},  # £50
-            {"lookup_key": "wallet_topup_100", "amount": 10000, "currency": "gbp"},  # £100
+            {"lookup_key": "wallet_topup_5",   "amount": 500,   "currency": "gbp"},  # 5 tokens (£5) — minimum
+            {"lookup_key": "wallet_topup_10",  "amount": 1000,  "currency": "gbp"},  # 10 tokens
+            {"lookup_key": "wallet_topup_20",  "amount": 2000,  "currency": "gbp"},  # 20 tokens
+            {"lookup_key": "wallet_topup_50",  "amount": 5000,  "currency": "gbp"},  # 50 tokens
+            {"lookup_key": "wallet_topup_100", "amount": 10000, "currency": "gbp"},  # 100 tokens
         ],
     },
 ]

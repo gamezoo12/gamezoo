@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { gbp } from '../../lib/format';
+import { gbp, tokens as fmtTokens, tokenCount } from '../../lib/format';
 import { walletAPI, paymentsAPI } from '../../lib/api';
 import { useToast } from '../../hooks/use-toast';
 import { Coins, ShieldCheck, TrendingUp, TrendingDown, Plus, Minus, Sparkles, Receipt, Wallet as WalletIcon, X } from 'lucide-react';
@@ -8,7 +8,8 @@ import { Input } from '../ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import PrizeLeagueLogo from '../layout/PrizeLeagueLogo';
 
-const MIN_TOPUP = 5;
+const MIN_TOPUP = 5;   // tokens (1 token = £1)
+const MAX_TOPUP = 1000;
 const FILTERS = [
  { id: 'today', label: 'Today', days: 1 },
  { id: 'week', label: 'Week', days: 7 },
@@ -26,8 +27,8 @@ function windowStart(filter) {
 }
 
 const TX_LABELS = {
- topup: 'Wallet top-up',
- spend: 'Ticket purchase',
+ topup: 'Tokens purchased',
+ spend: 'Contest entry',
  refund: 'Refund',
  admin_adjust: 'Admin adjustment',
  referral_bonus: 'Referral bonus',
@@ -61,9 +62,10 @@ function TxReceipt({ tx, open, onClose, walletBefore }) {
  {tx.ref_order_id && <Row label="Order" value={<span className="font-mono text-xs">{tx.ref_order_id}</span>} />}
  <Row label="Payment method" value={tx.kind === 'topup' ? 'Stripe' : 'Wallet'} />
  <div className="h-px bg-slate-200 my-3" />
- <Row label="Amount" bold value={<span className={tx.amount > 0 ? 'text-emerald-600' : 'text-rose-600'}>{tx.amount > 0 ? '+' : ''}{gbp(tx.amount)}</span>} />
- <Row label="Balance before" value={gbp(walletBefore)} />
- <Row label="Balance after" bold value={gbp(balanceAfter)} />
+ <Row label="Tokens" bold value={<span className={tx.amount > 0 ? 'text-emerald-600' : 'text-rose-600'}>{tx.amount > 0 ? '+' : ''}{fmtTokens(tx.amount)}</span>} />
+ <Row label="Value" value={<span className="text-slate-500">{gbp(tx.amount)}</span>} />
+ <Row label="Balance before" value={fmtTokens(walletBefore)} />
+ <Row label="Balance after" bold value={fmtTokens(balanceAfter)} />
  <Row label="Status" value={<span className="text-emerald-600 font-semibold">Completed</span>} />
  </div>
  </div>
@@ -106,12 +108,12 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  }, [filteredTxs]);
 
  const topupPreset = async (amount) => {
- if (amount < MIN_TOPUP) return toast({ title: `Minimum top-up is ${gbp(MIN_TOPUP)}` });
+ if (amount < MIN_TOPUP) return toast({ title: `Minimum purchase is ${fmtTokens(MIN_TOPUP)}` });
  setBusy(true);
  try {
  const originUrl = window.location.origin + '/my-account?tab=wallet';
- // Presets map to pre-configured keys; falls back to custom amount if unknown
- const preset = { 5: null, 10: 'wallet_topup_10', 20: 'wallet_topup_20', 50: 'wallet_topup_50', 100: 'wallet_topup_100' }[amount];
+ // Preset packages map 1:1 to Stripe lookup keys (1 token = £1).
+ const preset = { 5: 'wallet_topup_5', 10: 'wallet_topup_10', 20: 'wallet_topup_20', 50: 'wallet_topup_50', 100: 'wallet_topup_100' }[amount];
  let session;
  if (preset) {
  session = await paymentsAPI.createCheckoutSession(preset, originUrl);
@@ -121,14 +123,14 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  if (session?.url) { window.location.href = session.url; return; }
  toast({ title: 'Stripe unavailable', description: 'Please try again in a moment.' });
  } catch (err) {
- toast({ title: 'Top-up failed', description: err?.response?.data?.detail || 'Try again.' });
+ toast({ title: 'Purchase failed', description: err?.response?.data?.detail || 'Try again.' });
  } finally { setBusy(false); }
  };
 
  const submitCustom = () => {
- const n = parseFloat(customAmount);
- if (Number.isNaN(n) || n < MIN_TOPUP) return toast({ title: `Enter at least ${gbp(MIN_TOPUP)}` });
- if (n > 1000) return toast({ title: 'Maximum single top-up is £1,000' });
+ const n = parseInt(customAmount, 10);
+ if (Number.isNaN(n) || n < MIN_TOPUP) return toast({ title: `Enter at least ${fmtTokens(MIN_TOPUP)}` });
+ if (n > MAX_TOPUP) return toast({ title: `Maximum single purchase is ${fmtTokens(MAX_TOPUP)}` });
  topupPreset(n);
  };
 
@@ -139,30 +141,33 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full bg-[#FFD54A]/20 blur-3xl" />
  <div className="relative flex items-start justify-between">
  <div>
- <div className="text-white/85 text-xs uppercase tracking-widest flex items-center gap-2"><WalletIcon className="w-4 h-4" /> Wallet balance</div>
- <div className="mt-1 font-display font-extrabold text-5xl md:text-6xl" data-testid="wallet-balance">{wallet ? gbp(wallet.balance) : '£0.00'}</div>
- <div className="mt-2 text-xs text-white/85">Tickets can only be purchased with this balance.</div>
+ <div className="text-white/85 text-xs uppercase tracking-widest flex items-center gap-2"><Coins className="w-4 h-4" /> Token balance</div>
+ <div className="mt-1 font-display font-extrabold text-5xl md:text-6xl flex items-baseline gap-2" data-testid="wallet-balance">
+ <span>{wallet ? tokenCount(wallet.tokens ?? wallet.balance) : 0}</span>
+ <span className="text-xl md:text-2xl text-white/80 font-bold">tokens</span>
+ </div>
+ <div className="mt-2 text-xs text-white/85">1 token = £1 · use tokens to enter contests</div>
  </div>
  <button
  onClick={() => setShowTopup(true)}
  className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-[#FFD54A] text-slate-900 flex items-center justify-center hover:brightness-110 transition shrink-0 shadow-lg"
  data-testid="wallet-topup-plus"
- aria-label="Top up wallet"
+ aria-label="Buy tokens"
  >
  <Plus className="w-6 h-6 md:w-7 md:h-7" />
  </button>
  </div>
  <div className="relative mt-6 grid grid-cols-2 md:grid-cols-3 gap-3 text-white/90">
  <div className="bg-white/10 backdrop-blur rounded-xl p-3">
- <div className="text-[10px] uppercase tracking-wider text-white/70">Deposits ({filter})</div>
- <div className="font-bold text-lg mt-0.5">{gbp(stats.deposits)}</div>
+ <div className="text-[10px] uppercase tracking-wider text-white/70">Bought ({filter})</div>
+ <div className="font-bold text-lg mt-0.5">{fmtTokens(stats.deposits)}</div>
  </div>
  <div className="bg-white/10 backdrop-blur rounded-xl p-3">
- <div className="text-[10px] uppercase tracking-wider text-white/70">Spending ({filter})</div>
- <div className="font-bold text-lg mt-0.5">{gbp(stats.spending)}</div>
+ <div className="text-[10px] uppercase tracking-wider text-white/70">Spent ({filter})</div>
+ <div className="font-bold text-lg mt-0.5">{fmtTokens(stats.spending)}</div>
  </div>
  <div className="bg-white/10 backdrop-blur rounded-xl p-3 col-span-2 md:col-span-1">
- <div className="text-[10px] uppercase tracking-wider text-white/70">Withdraw</div>
+ <div className="text-[10px] uppercase tracking-wider text-white/70">Cash out</div>
  <button disabled className="font-bold text-lg mt-0.5 text-white/60 cursor-not-allowed">Coming soon</button>
  </div>
  </div>
@@ -172,10 +177,10 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  {showTopup && (
  <div className="bg-white rounded-2xl border-2 border-[#6C2BFF]/30 p-6 md:p-8 shadow-lg" data-testid="wallet-topup-panel">
  <div className="flex items-center justify-between mb-1">
- <h3 className="font-display font-extrabold text-2xl text-slate-900">Top up your wallet</h3>
+ <h3 className="font-display font-extrabold text-2xl text-slate-900">Buy tokens</h3>
  <button className="text-slate-400 hover:text-slate-700" onClick={() => setShowTopup(false)} aria-label="Close"><X className="w-4 h-4" /></button>
  </div>
- <p className="text-sm text-slate-500 mb-4">Minimum {gbp(MIN_TOPUP)} · Secure Stripe checkout · Funds credited instantly on success.</p>
+ <p className="text-sm text-slate-500 mb-4">Minimum {fmtTokens(MIN_TOPUP)} · 1 token = £1 · Secure Stripe checkout · Tokens credited instantly.</p>
 
  <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
  {[5, 10, 20, 50, 100].map(n => (
@@ -188,7 +193,10 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  className={`group relative rounded-2xl border-2 p-4 text-center transition disabled:opacity-50 ${n === 20 ? 'border-[#FFD54A] bg-[#FFD54A]/5' : 'border-slate-200 hover:border-[#6C2BFF]'}`}
  >
  {n === 20 && <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-[#FFD54A] text-slate-900 text-[10px] font-bold px-2 py-0.5 rounded-full">Popular</span>}
- <div className="font-display text-2xl md:text-3xl font-extrabold text-slate-900">£{n}</div>
+ <div className="font-display text-2xl md:text-3xl font-extrabold text-slate-900 flex items-center justify-center gap-1">
+ <Coins className="w-5 h-5 text-[#FFD54A]" />{n}
+ </div>
+ <div className="text-[11px] text-slate-500 mt-1 font-semibold">£{n}</div>
  </button>
  ))}
  </div>
@@ -197,23 +205,24 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  <div className="text-xs text-slate-500 mb-2 font-semibold uppercase tracking-wider">Custom amount</div>
  <div className="flex gap-2">
  <div className="flex-1 relative">
- <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-bold">£</span>
+ <Coins className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
  <Input
  type="number"
  min={MIN_TOPUP}
- max={1000}
+ max={MAX_TOPUP}
  step={1}
- placeholder={`Min ${MIN_TOPUP}`}
- className="pl-7 h-11 font-bold text-lg"
+ placeholder={`Min ${MIN_TOPUP} tokens`}
+ className="pl-9 h-11 font-bold text-lg"
  value={customAmount}
  onChange={(e) => setCustomAmount(e.target.value)}
  data-testid="wallet-custom-amount"
  />
  </div>
  <Button onClick={submitCustom} disabled={busy} data-testid="wallet-custom-topup" className="pl-btn-gold text-slate-900 h-11 font-extrabold px-6">
- <Sparkles className="w-4 h-4 mr-1" /> Top up
+ <Sparkles className="w-4 h-4 mr-1" /> Buy tokens
  </Button>
  </div>
+ <div className="text-[11px] text-slate-500 mt-2">You'll pay £{parseInt(customAmount, 10) || 0} for {parseInt(customAmount, 10) || 0} tokens.</div>
  </div>
  <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
  <ShieldCheck className="w-4 h-4 text-emerald-600" /> Powered by Stripe. Card details never touch our servers.
@@ -261,7 +270,7 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  <div className="text-xs text-slate-500 truncate">{tx.note || 'View receipt →'}</div>
  </div>
  <div className="text-right">
- <div className={`font-bold text-sm ${tx.amount > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{tx.amount > 0 ? '+' : ''}{gbp(tx.amount)}</div>
+ <div className={`font-bold text-sm ${tx.amount > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{tx.amount > 0 ? '+' : ''}{fmtTokens(tx.amount)}</div>
  <div className="text-xs text-slate-400">{new Date(tx.created_at).toLocaleDateString('en-GB')}</div>
  </div>
  </button>

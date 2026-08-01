@@ -1,4 +1,10 @@
-"""Wallet: user balance, top-ups, spends, refunds, transactions."""
+"""Wallet: user balance, top-ups, spends, refunds, transactions.
+
+Token model: 1 token = £1. All amounts stored in `balance` represent tokens.
+The API returns both `balance` (numeric, legacy) and `tokens` (integer form)
+so the frontend can render clean "5 tokens" labels while the underlying
+accounting stays penny-precise for refunds/adjustments.
+"""
 from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 from datetime import datetime, timezone
@@ -9,15 +15,16 @@ from auth import get_current_user
 from deps import get_db
 from models import Wallet, WalletTx
 
-MIN_TOPUP = 10.0
-MAX_TOPUP = 5000.0
+MIN_TOPUP = 5.0   # 5 tokens minimum
+MAX_TOPUP = 1000.0
 
 wallet_router = APIRouter(prefix='/api/wallet', tags=['wallet'])
 admin_wallet_router = APIRouter(prefix='/api/admin/wallets', tags=['admin-wallets'])
 
 
 class TopupInput(BaseModel):
-    amount: float = Field(..., ge=MIN_TOPUP, le=MAX_TOPUP, description=f"Between £{MIN_TOPUP} and £{MAX_TOPUP}")
+    # amount = number of tokens (integer). 1 token = £1.
+    amount: int = Field(..., ge=int(MIN_TOPUP), le=int(MAX_TOPUP), description=f'Number of tokens. Min {int(MIN_TOPUP)}, max {int(MAX_TOPUP)}.')
 
 
 class AdminAdjustInput(BaseModel):
@@ -33,6 +40,20 @@ async def _get_or_create_wallet(db, user_id: str) -> dict:
         await db.wallets.insert_one(new_w)
         # Re-fetch to strip _id if driver mutated the dict
         w = await db.wallets.find_one({'user_id': user_id}, {'_id': 0})
+    return _with_tokens(w)
+
+
+def _with_tokens(w: Optional[dict]) -> Optional[dict]:
+    """Enrich a wallet dict with `tokens` / `lifetime_tokens_bought` /
+    `lifetime_tokens_spent` fields. 1 token = £1, so these are just the
+    integer views of the underlying float `balance` etc. — the frontend
+    labels them as tokens without any client-side maths.
+    """
+    if not w:
+        return w
+    w['tokens'] = int(round(w.get('balance', 0) or 0))
+    w['lifetime_tokens_bought'] = int(round(w.get('lifetime_topup', 0) or 0))
+    w['lifetime_tokens_spent'] = int(round(w.get('lifetime_spend', 0) or 0))
     return w
 
 
@@ -111,10 +132,14 @@ async def my_txs(request: Request, limit: int = 50):
 
 @wallet_router.post('/topup')
 async def topup(inp: TopupInput, request: Request):
-    """MOCKED top-up for now — credits the wallet instantly. Real Stripe wiring later."""
+    """MOCKED token top-up for dev only — instantly credits N tokens.
+    Production uses Stripe checkout via /payments/wallet-topup/*.
+    """
     user = await get_current_user(request)
     db = get_db()
-    r = await _apply_tx(db, user['user_id'], 'topup', float(inp.amount), note=f"Top-up £{inp.amount} (mock)")
+    tokens = int(inp.amount)
+    r = await _apply_tx(db, user['user_id'], 'topup', float(tokens), note=f"Top-up {tokens} tokens (mock)")
+    r['tokens'] = int(round(r['balance']))
     return {'ok': True, **r}
 
 
@@ -131,7 +156,7 @@ async def list_wallets(request: Request, limit: int = 500):
     await _require_admin(request)
     db = get_db()
     wallets = await db.wallets.find({}, {'_id': 0}).sort('balance', -1).limit(limit).to_list(limit)
-    # Enrich with user email/name
+    # Enrich with user email/name AND token view
     if wallets:
         user_ids = [w['user_id'] for w in wallets]
         users = await db.users.find({'user_id': {'$in': user_ids}}, {'_id': 0, 'user_id': 1, 'email': 1, 'name': 1}).to_list(1000)
@@ -140,8 +165,10 @@ async def list_wallets(request: Request, limit: int = 500):
             u = umap.get(w['user_id'], {})
             w['email'] = u.get('email')
             w['name'] = u.get('name')
+            _with_tokens(w)
     totals = {
         'total_balance': round(sum(w['balance'] for w in wallets), 2),
+        'total_tokens': int(round(sum(w['balance'] for w in wallets))),
         'total_lifetime_topup': round(sum(w.get('lifetime_topup', 0) for w in wallets), 2),
         'total_lifetime_spend': round(sum(w.get('lifetime_spend', 0) for w in wallets), 2),
         'wallet_count': len(wallets),

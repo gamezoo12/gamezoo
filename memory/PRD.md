@@ -29,6 +29,32 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - [x] Header session UX (visible Sign out + wallet balance chip)
 - [x] Prominent multi-path logout (header/admin/production/mobile) — all 4 verified working
 
+## 2026-08-01 · Iteration 31 — Token Purchase System (major UX pivot)
+Replaced the "real-money wallet" mental model with a token purchase system. Semantic-only change — accounting stays penny-precise (1 token = £1), so refunds, admin adjustments and audit trails work identically. UK Gambling Commission stance unchanged.
+
+**Backend**
+- `payments_routes.py`: added `wallet_topup_5` to `ALLOWED_TOPUP_KEYS`. Custom top-up now enforces **integer** min 5 / max 1000 tokens (was float £5–£1000). Top-up success notification now reads `+N tokens added 🪙`.
+- `wallet_routes.py`: `MIN_TOPUP` lowered from 10 → 5. `TopupInput.amount` is now an int. New `_with_tokens()` helper enriches every wallet response with `tokens`, `lifetime_tokens_bought`, `lifetime_tokens_spent`. Admin wallet listing gains `total_tokens`.
+- `setup_stripe.py`: added the £5 (5-token) price so `stripe.Price.list(lookup_keys=['wallet_topup_5'])` resolves. **User must run this once against their live Stripe account before the "5 tokens" button will work in production.**
+
+**Frontend**
+- `lib/format.js`: new `tokens(n)` and `tokenCount(n)` helpers. Pluralisation handled.
+- `WalletPanel.jsx`: hero renamed "Token balance", "1 token = £1 · use tokens to enter contests". Top-up panel is now "Buy tokens", packages 5/10/20/50/100 each showing token count + `£N` subtitle. Custom amount field shows "You'll pay £N for N tokens." live. Transaction receipts show both `Tokens` (bold) and `Value` (£).
+- `Header.jsx`: desktop chip and mobile drawer both replace `£0.00` with `0 🪙`.
+- `CompetitionCard.jsx`: contest tile shows `N 🪙 /entry` instead of `£N`.
+- `CompetitionDetail.jsx`: entry price shown as `N 🪙 = £N`. Checkout summary reads `Your tokens`, `Need N tokens more`.
+- `Cart.jsx`: basket switches to tokens end-to-end — subtotal, fees, "Buy tokens →" fallback when short, CTA reads `Spend N tokens`.
+
+**Tests**
+- `test_wallet.py`: updated below-minimum probe from 5 → 4 (new min is 5).
+- All 25 targeted tests pass.
+
+**Not yet done (deliberately)**
+- Admin `UserDetailsPage.jsx` still shows £ balance — admin-facing, low priority; will update on request.
+- Stripe live catalog needs the new `wallet_topup_5` price row created — run `setup_stripe.py` once against live keys.
+
+
+
 ## 2026-08-01 · Iteration 30 — Post-Code-Review Money-Integrity Hardening (P0/P1)
 Ships four production-critical fixes uncovered by the code review:
 
