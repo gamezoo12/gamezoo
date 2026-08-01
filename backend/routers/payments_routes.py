@@ -32,6 +32,32 @@ payments_router = APIRouter(prefix='/api', tags=['payments'])
 ALLOWED_TOPUP_KEYS = {'wallet_topup_10', 'wallet_topup_20', 'wallet_topup_50', 'wallet_topup_100'}
 
 
+def _current_stripe_mode() -> dict:
+    """Return the effective Stripe mode WITHOUT leaking key material.
+    A single source of truth for the /admin/payments/stripe-mode diagnostic
+    and for the checkout endpoints (so we can log which mode a session was
+    minted in — critical when investigating "why is my live deploy still
+    showing test payments?" tickets).
+    """
+    key = os.environ.get("STRIPE_SECRET_KEY") or ""
+    pub = os.environ.get("STRIPE_PUBLISHABLE_KEY") or ""
+    declared_mode = (os.environ.get("STRIPE_MODE") or "").lower()
+    if key.startswith("sk_live_"):
+        actual = "live"
+    elif key.startswith("sk_test_"):
+        actual = "test"
+    else:
+        actual = "unknown"
+    return {
+        "actual_mode": actual,                          # derived from the KEY itself — the only truth
+        "declared_mode": declared_mode or None,         # STRIPE_MODE env var (informational)
+        "secret_key_prefix": (key[:8] + '…') if key else None,
+        "publishable_key_prefix": (pub[:8] + '…') if pub else None,
+        "webhook_secret_present": bool(STRIPE_WEBHOOK_SECRET),
+        "mismatch": bool(declared_mode and actual != "unknown" and declared_mode != actual),
+    }
+
+
 class CheckoutRequest(BaseModel):
     lookup_key: str = Field(..., description="e.g. wallet_topup_10")
     origin_url: str
@@ -273,3 +299,25 @@ async def stripe_webhook(request: Request):
         )
 
     return {"status": "ok"}
+
+
+# --- Admin diagnostic ---------------------------------------------------------
+@payments_router.get('/admin/payments/stripe-mode')
+async def get_stripe_mode(request: Request):
+    """Reveal which Stripe environment is REALLY active on this pod.
+    Deliberately does NOT leak the full key — only the 8-char prefix.
+    Admin-only. Use to debug "prod still shows sandbox" reports.
+    """
+    from auth import require_admin
+    await require_admin(request)
+    info = _current_stripe_mode()
+    # Round-trip the key with a lightweight balance() call — if the key is
+    # invalid or points to a wrong account, Stripe rejects with a 401.
+    try:
+        balance = stripe.Balance.retrieve()
+        info["stripe_api_reachable"] = True
+        info["account_livemode"] = getattr(balance, "livemode", None)
+    except Exception as e:
+        info["stripe_api_reachable"] = False
+        info["stripe_api_error"] = str(e)[:200]
+    return info
