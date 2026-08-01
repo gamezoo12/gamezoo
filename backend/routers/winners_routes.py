@@ -16,10 +16,20 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Request
 
-from auth import require_admin
+from auth import require_admin, get_current_user
 from deps import get_db
 
 winners_router = APIRouter(prefix='/api/admin/winners', tags=['winners'])
+
+
+async def _require_payout_role(request: Request) -> dict:
+    """Winner draw/publish/correct all trigger payouts — gate to
+    admin/super_admin only. support (read-only) and operator (live-draw
+    ops) must not be able to select payout recipients directly."""
+    user = await get_current_user(request)
+    if user.get('role') not in ('admin', 'super_admin'):
+        raise HTTPException(status_code=403, detail='Only admin or super_admin can select or publish winners')
+    return user
 
 
 async def _log(db, contest_id: str, actor: dict, action: str, payload: dict):
@@ -67,7 +77,7 @@ async def eligible_tickets(contest_id: str, request: Request):
 @winners_router.post('/{contest_id}/draw')
 async def random_draw(contest_id: str, request: Request):
     """Cryptographically-secure random draw. Sets a PREVIEW winner only. Not yet published."""
-    admin = await require_admin(request)
+    admin = await _require_payout_role(request)
     db = get_db()
     c = await _get_contest(db, contest_id)
     if c.get('winner_published'):
@@ -92,7 +102,7 @@ async def random_draw(contest_id: str, request: Request):
 
 @winners_router.post('/{contest_id}/manual')
 async def manual_pick(contest_id: str, payload: dict, request: Request):
-    admin = await require_admin(request)
+    admin = await _require_payout_role(request)
     ticket_number = payload.get('ticket_number')
     reason = (payload.get('reason') or '').strip()
     if not ticket_number:
@@ -124,7 +134,7 @@ async def manual_pick(contest_id: str, payload: dict, request: Request):
 
 @winners_router.post('/{contest_id}/publish')
 async def publish_winner(contest_id: str, request: Request):
-    admin = await require_admin(request)
+    admin = await _require_payout_role(request)
     db = get_db()
     c = await _get_contest(db, contest_id)
     if c.get('winner_published'):
@@ -170,7 +180,7 @@ async def publish_winner(contest_id: str, request: Request):
 
 @winners_router.post('/{contest_id}/correct')
 async def correct_winner(contest_id: str, payload: dict, request: Request):
-    admin = await require_admin(request)
+    admin = await _require_payout_role(request)
     ticket_number = payload.get('ticket_number')
     reason = (payload.get('reason') or '').strip()
     if not ticket_number:

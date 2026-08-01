@@ -81,8 +81,11 @@ async def bootstrap(email: str, password: str, name: str) -> None:
         print(f'[ok] Created new super_admin {email} ({public_id}).')
 
     # Ensure baseline indexes so app doesn't crash on cold starts.
+    # NOTE: Deliberately do NOT create a `public_id` index here — the FastAPI
+    # startup hook in server.py owns index management. Creating one here with
+    # different options (sparse vs partialFilterExpression) would result in
+    # two incompatible indexes on the same field.
     await db.users.create_index('email', unique=True)
-    await db.users.create_index('public_id', unique=True, sparse=True)
     print(f'[ok] Indexes ensured on {db_name}.users')
 
     # Confirm the admin is actually visible.

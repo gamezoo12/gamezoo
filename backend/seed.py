@@ -111,13 +111,11 @@ async def main():
     contest_count = await db.contests.count_documents({})
     print(f'✓ Contests present: {contest_count} (admins create contests manually)')
 
-    # Indexes
-    await db.users.create_index('email', unique=True)
-    await db.users.create_index('public_id', unique=True, sparse=True)
-    await db.counters.create_index('_id', unique=True)
-    await db.contests.create_index('slug', unique=True)
-    await db.user_sessions.create_index('session_token', unique=True)
-    print('✓ Indexes ensured')
+    # Indexes are now created by the FastAPI startup hook in server.py
+    # (see `_ensure_core_indexes`). Keeping the seed script itself free of
+    # index management prevents duplicate / incompatible index specs (e.g.
+    # a sparse public_id index colliding with the partialFilter one).
+    print('✓ Indexes are managed by server.py startup hook')
 
     client.close()
 

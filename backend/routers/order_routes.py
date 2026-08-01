@@ -104,6 +104,9 @@ async def checkout(inp: CheckoutInput, request: Request):
     # any reservation fails we roll back the earlier ones before responding.
     reserved: list[tuple[str, int]] = []  # (contest_id, base_before, qty)
     tickets_to_insert = []
+    debit_applied = False  # tracks whether we already took the money — if so
+                           # and a later step fails, we MUST refund it.
+    order = Order(user_id=user['user_id'], items=order_items, total=total, status='paid', method='wallet')
     try:
         for item in inp.items:
             c = contest_by_id[item.contest_id]
@@ -126,34 +129,64 @@ async def checkout(inp: CheckoutInput, request: Request):
             reserved.append((c['contest_id'], base, item.qty))
             for n in range(item.qty):
                 tickets_to_insert.append(Ticket(
-                    order_id='',  # set once the order_id is minted below
+                    order_id=order.order_id,
                     user_id=user['user_id'],
                     contest_id=c['contest_id'],
                     ticket_number=base + n + 1,
                 ).model_dump())
 
-        order = Order(user_id=user['user_id'], items=order_items, total=total, status='paid', method='wallet')
-        for t in tickets_to_insert:
-            t['order_id'] = order.order_id
-
         # Debit wallet ATOMICALLY (find_one_and_update with balance guard).
         # If insufficient (a race between check and here), this raises 400
-        # and the outer except reverses ticket reservations.
+        # and the outer except reverses ticket reservations. Once this line
+        # returns without raising we own an unbalanced debit and MUST refund
+        # it if any later step fails.
         await _apply_tx(db, user['user_id'], 'spend', -total, note=f'Order {order.order_id}', ref_order_id=order.order_id)
+        debit_applied = True
 
         order_doc = order.model_dump()
         order_doc['idempotency_sig'] = sig
-        await db.orders.insert_one(order_doc)
+        try:
+            await db.orders.insert_one(order_doc)
+        except Exception as _ins_err:
+            # Duplicate key from the unique (user_id, idempotency_sig) index:
+            # a concurrent double-submit beat us to the insert. Convert to
+            # a friendly 409 so the compensating refund path fires cleanly.
+            if 'duplicate key' in str(_ins_err).lower() or 'E11000' in str(_ins_err):
+                raise HTTPException(status_code=409, detail='Duplicate checkout detected — the other tab already completed this purchase.')
+            raise
         if tickets_to_insert:
             await db.tickets.insert_many(tickets_to_insert)
     except HTTPException:
         # Roll back any reservations we already made this request.
         for contest_id, _base, qty in reserved:
             await db.contests.update_one({'contest_id': contest_id}, {'$inc': {'tickets_sold': -qty}})
+        # Compensating refund: if we already debited the wallet but a later
+        # step (order/ticket insert) blew up, credit the money back so the
+        # buyer isn't out of pocket for a purchase they didn't get.
+        if debit_applied:
+            try:
+                await _apply_tx(
+                    db, user['user_id'], 'refund', total,
+                    note=f'Auto-refund: checkout failed after wallet debit (order {order.order_id})',
+                    ref_order_id=order.order_id,
+                )
+            except Exception:
+                import logging as _lg
+                _lg.exception('CRITICAL: failed to auto-refund debited wallet after checkout error user=%s order=%s amount=%.2f', user['user_id'], order.order_id, total)
         raise
     except Exception:
         for contest_id, _base, qty in reserved:
             await db.contests.update_one({'contest_id': contest_id}, {'$inc': {'tickets_sold': -qty}})
+        if debit_applied:
+            try:
+                await _apply_tx(
+                    db, user['user_id'], 'refund', total,
+                    note=f'Auto-refund: checkout failed after wallet debit (order {order.order_id})',
+                    ref_order_id=order.order_id,
+                )
+            except Exception:
+                import logging as _lg
+                _lg.exception('CRITICAL: failed to auto-refund debited wallet after checkout error user=%s order=%s amount=%.2f', user['user_id'], order.order_id, total)
         raise
 
     # In-app notification per contest so users see the winning tickets grouped.

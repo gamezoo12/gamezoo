@@ -29,6 +29,29 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - [x] Header session UX (visible Sign out + wallet balance chip)
 - [x] Prominent multi-path logout (header/admin/production/mobile) — all 4 verified working
 
+## 2026-08-01 · Iteration 30 — Post-Code-Review Money-Integrity Hardening (P0/P1)
+Ships four production-critical fixes uncovered by the code review:
+
+**P0-1 · Atomic Stripe wallet credit (`payments_routes.py:_credit_wallet_once`)**
+- Rewrote from check-then-act to `find_one_and_update` with `wallet_credited:{$ne:True}` filter — only the winning caller credits. Kills the double-credit race where a `/success` page poll and the Stripe webhook could both credit the same session.
+- Test: `tests/test_iter30_money_integrity.py::test_wallet_credit_is_atomic_under_concurrent_flip` — 10 concurrent credits → exactly 1 £20 balance, 1 topup tx.
+
+**P0-2 · Compensating refund on failed checkout (`order_routes.py`)**
+- Added `debit_applied` guard. If the ticket-insert or order-insert fails AFTER we've already debited the wallet, we now automatically credit back the exact amount so the buyer never loses money for an incomplete purchase. CRITICAL log-line if the refund itself fails (should not happen but is now visible).
+- Also added a friendly 409 when the new unique idempotency index catches a double-submit.
+
+**P1-1 · RBAC tightening on payout routes (`winners_routes.py`, `admin_routes.py`)**
+- New `_require_payout_role()` helper — only `admin` and `super_admin` can call `/admin/winners/{id}/draw`, `/manual`, `/publish`, `/correct` and `POST /admin/orders/{id}/refund`. Previously `support` (should be read-only) and `operator` could touch these.
+- Tests: `test_support_role_cannot_refund_orders`, `test_operator_role_cannot_publish_winners`, `test_admin_can_still_refund_and_publish` — all passing.
+
+**P1-2 · Indexes managed at startup (`server.py::_ensure_core_indexes`)**
+- Moved from `seed.py` (which prod may never run) to a FastAPI startup hook. Uses `partialFilterExpression` on nullable fields (`public_id`, `ticket_id`) so legacy rows don't collide. Auto-drops the legacy `public_id_1` sparse variant on boot. 11/12 indexes ensured — the last skips silently when a slug index already exists with different options. Also adds a unique `(user_id, idempotency_sig)` partial index on `orders` so double-click checkout is atomically rejected, not TOCTOU-guarded.
+
+**Files touched:** `server.py`, `routers/payments_routes.py`, `routers/order_routes.py`, `routers/winners_routes.py`, `routers/admin_routes.py`, `seed.py`, `scripts/bootstrap_admin.py`.
+**New tests:** `tests/test_iter30_money_integrity.py` (4 tests, all passing).
+
+
+
 ## 2026-08-01 · Production Auth Recovery — One-Time Super Admin Bootstrap (P0)
 - Root cause: `https://www.prizeleague.co.uk/api/auth/login` was returning HTTP 500 (empty body) because a raw Motor/Mongo exception was bubbling up. The frontend's toast fallback rendered this as "Invalid credentials", masking a DB-side problem (most likely: seed script never ran against the production DB, or DB_NAME split-brain between seed.py and deps.py).
 - Fix in `routers/auth_routes.py`:

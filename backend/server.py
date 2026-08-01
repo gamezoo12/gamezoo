@@ -206,6 +206,64 @@ async def _start_scheduler():
     logger.info('Draw scheduler started')
 
 
+@app.on_event('startup')
+async def _ensure_core_indexes():
+    """Create the indexes the app relies on for correctness (not just perf).
+    Idempotent — Mongo silently no-ops if the index already exists.
+
+    Critical ones:
+      - users.email unique          → prevents duplicate signup for the same email
+      - users.public_id unique      → sequential PLxxxxx must be unique
+      - orders(user_id, idempotency_sig) unique + short TTL-scoped filter →
+        makes the 3-second double-click guard race-safe (duplicate key
+        rejection is atomic, unlike the previous check-then-insert)
+      - payment_transactions.session_id unique → keeps top-up records unique
+      - user_sessions.session_token unique     → Google session integrity
+    """
+    _db = get_db()
+    # Legacy index cleanup — the old `public_id_1` (sparse=True) collides
+    # with the new `ux_users_public_id_str` (partialFilterExpression). If we
+    # find the legacy sparse variant, drop it silently so the modern one
+    # becomes the sole enforcer.
+    try:
+        existing = await _db.users.list_indexes().to_list(None)
+        for idx in existing:
+            if idx.get('name') == 'public_id_1' and idx.get('sparse'):
+                await _db.users.drop_index('public_id_1')
+                logger.info('[startup] dropped legacy sparse index users.public_id_1')
+                break
+    except Exception as e:
+        logger.warning('[startup] legacy index cleanup skipped: %s', str(e)[:120])
+
+    # Each index in its own try — one existing-but-incompatible index must
+    # not prevent the others from being created.
+    _idx_specs = [
+        ('users',                 [('email', 1)],         {'unique': True}),
+        ('users',                 [('public_id', 1)],     {'unique': True, 'partialFilterExpression': {'public_id': {'$type': 'string'}}, 'name': 'ux_users_public_id_str'}),
+        ('users',                 [('user_id', 1)],       {'unique': True}),
+        ('contests',              [('slug', 1)],          {'unique': True, 'sparse': True}),
+        ('contests',              [('contest_id', 1)],    {'unique': True}),
+        ('orders',                [('order_id', 1)],      {'unique': True}),
+        ('orders',                [('user_id', 1), ('idempotency_sig', 1)], {
+            'unique': True,
+            'partialFilterExpression': {'idempotency_sig': {'$type': 'string'}},
+            'name': 'ux_orders_user_idempotency',
+        }),
+        ('tickets',               [('ticket_id', 1)],     {'unique': True, 'partialFilterExpression': {'ticket_id': {'$type': 'string'}}, 'name': 'ux_tickets_ticket_id_str'}),
+        ('payment_transactions',  [('session_id', 1)],    {'unique': True}),
+        ('user_sessions',         [('session_token', 1)], {'unique': True}),
+        ('wallets',               [('user_id', 1)],       {'unique': True}),
+    ]
+    ok = 0
+    for coll, keys, opts in _idx_specs:
+        try:
+            await _db[coll].create_index(keys, **opts)
+            ok += 1
+        except Exception as e:
+            logger.warning('[startup] index skip %s%s: %s', coll, keys, str(e)[:120])
+    logger.info('[startup] core indexes ensured (%d/%d)', ok, len(_idx_specs))
+
+
 @app.on_event('shutdown')
 async def shutdown_db_client():
     from services import scheduler as draw_scheduler

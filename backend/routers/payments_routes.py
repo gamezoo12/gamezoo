@@ -180,8 +180,23 @@ async def create_custom_topup(req: CustomTopupRequest, request: Request):
 
 
 async def _credit_wallet_once(db, tx: dict) -> Optional[dict]:
-    """Idempotency: only credit if payment_status just flipped to 'paid' AND not yet credited."""
+    """Idempotency: only credit if payment_status is 'paid' AND not yet credited.
+
+    ATOMIC FLIP: we set `wallet_credited=True` inside the same
+    `find_one_and_update` filter that requires it to still be false. Only
+    the winning caller (the one whose update actually matched) proceeds
+    to credit the wallet. This closes the race between the success-page
+    poll and the Stripe webhook both firing for the same session.
+    """
     if tx.get("wallet_credited"):
+        return None
+    flip = await db.payment_transactions.find_one_and_update(
+        {"session_id": tx["session_id"], "wallet_credited": {"$ne": True}},
+        {"$set": {"wallet_credited": True, "credited_at": datetime.now(timezone.utc)}},
+        return_document=True,  # AFTER
+    )
+    if not flip:
+        # Someone else won the race; they will do the crediting. We're done.
         return None
     amount_gbp = round(tx["amount"] / 100.0, 2)
     r = await _apply_tx(
@@ -189,19 +204,19 @@ async def _credit_wallet_once(db, tx: dict) -> Optional[dict]:
         amount_gbp,
         note=f"Stripe top-up £{amount_gbp:.2f} — session {tx['session_id'][:14]}…",
     )
-    await db.payment_transactions.update_one(
-        {"session_id": tx["session_id"]},
-        {"$set": {"wallet_credited": True, "credited_at": datetime.now(timezone.utc)}},
-    )
     # In-app notification
     from notifications import notify
+    tx_receipt = None
+    if isinstance(r, dict):
+        # _apply_tx returns {'balance', 'tx'}; the tx dict carries tx_id.
+        tx_receipt = (r.get('tx') or {}).get('tx_id') or r.get('tx_id')
     await notify(
         db,
         user_id=tx["user_id"],
         kind='topup_success',
         title=f'£{amount_gbp:.2f} added to wallet 💰',
         body='Your Stripe top-up completed. You can now enter contests.',
-        ref_tx_id=(r.get('tx_id') if isinstance(r, dict) else None),
+        ref_tx_id=tx_receipt,
     )
     return r
 

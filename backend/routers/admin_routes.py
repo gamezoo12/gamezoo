@@ -166,7 +166,9 @@ async def all_orders(request: Request):
 
 @router.post('/orders/{order_id}/refund')
 async def refund_order(order_id: str, request: Request):
-    await require_admin(request)
+    # Refunds move real money — restrict to admin/super_admin only.
+    # support/operator staff never touch refunds.
+    await _require_role(request, ['admin', 'super_admin'])
     from deps import get_db
     from routers.wallet_routes import _apply_tx
     db = get_db()
