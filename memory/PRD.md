@@ -29,6 +29,14 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - [x] Header session UX (visible Sign out + wallet balance chip)
 - [x] Prominent multi-path logout (header/admin/production/mobile) — all 4 verified working
 
+## 2026-08-01 · Iteration 33 — Zero-Config Stripe Token Top-Up (launch-critical fix)
+- **Fix**: `POST /api/payments/wallet-topup/checkout` no longer looks up prices in Stripe's catalog. Previously the endpoint called `stripe.Price.list(lookup_keys=[req.lookup_key])`; on any Stripe account that hadn't run `setup_stripe.py`, every preset button returned HTTP 500 "Price not configured for wallet_topup_5" — the exact failure mode the user hit on prod.
+- **New behaviour**: derive `tokens = int(lookup_key.rsplit('_',1)[1])` and use inline `price_data` on the session. Guaranteed to work on any Stripe account (test or live) with zero dashboard setup. Existing metadata (lookup_key, tokens, user_id) still recorded for downstream reconciliation.
+- **Tests**: `tests/test_iter33_token_topup.py` — 3/3 passing (5 preset packages return checkout URL, invalid lookup returns 400, custom top-up min-5 enforced).
+- **User impact on next redeploy**: all 5 token package buttons on the "Buy tokens" panel work immediately in production — no more `setup_stripe.py` step required.
+
+
+
 ## 2026-08-01 · Iteration 32 — Browser Bootstrap Form + Production Launch Path
 - Added `GET /api/auth/bootstrap-admin` (HTMLResponse) — a self-contained no-JS-dependency HTML form. Zero clicks needed to reach it; user visits `/api/auth/bootstrap-admin` in any browser. Auto-shows 3 states: (a) form when zero admins exist, (b) "already set up" screen when admins exist, (c) friendly DB-unreachable page when the ping fails (so they can see the actual Mongo error before contacting support). On successful create, stores JWT + user in localStorage and redirects to /admin.
 - Confirmed production DB should be `DB_NAME=contest-arena-16` (matches their app slug). Once redeployed, prod DB will be empty → no demo data, no demo leaderboard, no legacy admins. The demo data the user was seeing was from an old DB pointer (`prize_league`) that had never been authorized anyway.

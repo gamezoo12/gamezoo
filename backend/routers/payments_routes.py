@@ -69,13 +69,31 @@ async def create_topup_checkout(req: CheckoutRequest, request: Request):
     if req.lookup_key not in ALLOWED_TOPUP_KEYS:
         raise HTTPException(400, f"Invalid top-up package: {req.lookup_key}")
 
-    prices = stripe.Price.list(lookup_keys=[req.lookup_key], active=True, limit=1).data
-    if not prices:
-        raise HTTPException(500, f"Price not configured for {req.lookup_key}")
-    price = prices[0]
+    # Derive amount + token count directly from the lookup_key. This
+    # eliminates any dependency on the Stripe catalog having a matching
+    # Price row — the app is now zero-config: no `setup_stripe.py` run
+    # required for launch. We still SEND the lookup_key in metadata so a
+    # customer running the seeded catalog gets identical downstream data.
+    #
+    # Contract: `wallet_topup_<tokens>` where tokens is an int and 1 token = £1.
+    try:
+        tokens = int(req.lookup_key.rsplit('_', 1)[1])
+    except (ValueError, IndexError):
+        raise HTTPException(400, f"Malformed lookup key: {req.lookup_key}")
+    amount_pence = tokens * 100
 
     kwargs = dict(
-        line_items=[{"price": price.id, "quantity": 1}],
+        line_items=[{
+            "quantity": 1,
+            "price_data": {
+                "currency": "gbp",
+                "unit_amount": amount_pence,
+                "product_data": {
+                    "name": f"Prize League — {tokens} tokens (£{tokens})",
+                    "tax_code": "txcd_10103001",  # Digital: SaaS
+                },
+            },
+        }],
         mode="payment",
         success_url=f"{req.origin_url}/my-account?tab=wallet&topup=success&session_id={{CHECKOUT_SESSION_ID}}",
         cancel_url=f"{req.origin_url}/my-account?tab=wallet&topup=cancel",
@@ -83,6 +101,7 @@ async def create_topup_checkout(req: CheckoutRequest, request: Request):
             "user_id": user['user_id'],
             "user_email": user.get('email', ''),
             "lookup_key": req.lookup_key,
+            "tokens": str(tokens),
             "kind": "wallet_topup",
         },
     )
@@ -103,8 +122,8 @@ async def create_topup_checkout(req: CheckoutRequest, request: Request):
         "session_id": session.id,
         "user_id": user['user_id'],
         "lookup_key": req.lookup_key,
-        "amount": (price.unit_amount or 0),      # pence
-        "currency": price.currency,               # gbp
+        "amount": amount_pence,                    # pence
+        "currency": "gbp",                          # gbp
         "status": "initiated",
         "payment_status": "pending",
         "kind": "wallet_topup",
