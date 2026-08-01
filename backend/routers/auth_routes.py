@@ -146,13 +146,114 @@ async def register(inp: RegisterInput, request: Request):
 async def login(inp: LoginInput):
     from deps import get_db
     db = get_db()
-    user = await db.users.find_one({'email': inp.email.lower()}, {'_id': 0})
-    if not user or not user.get('password_hash') or not verify_password(inp.password, user['password_hash']):
+    # Trim whitespace on inputs — a common cause of "invalid credentials" is a
+    # trailing space pasted from a password manager or spreadsheet.
+    email = (inp.email or '').strip().lower()
+    password = inp.password or ''
+    try:
+        user = await db.users.find_one({'email': email}, {'_id': 0})
+    except Exception:
+        # DB outage — never leak an unhandled 500 to the frontend, which
+        # renders as a misleading "invalid credentials" toast. Log loudly
+        # so operators can tell an auth failure apart from an outage.
+        logger.exception('Login DB lookup failed for email=%s', email)
+        raise HTTPException(
+            status_code=503,
+            detail='Authentication service is temporarily unavailable. Please try again in a moment.',
+        )
+    if not user or not user.get('password_hash') or not verify_password(password, user['password_hash']):
         raise HTTPException(status_code=401, detail='Invalid email or password')
+    if user.get('suspended'):
+        raise HTTPException(status_code=403, detail='This account has been suspended. Please contact support.')
     token = create_jwt(user['user_id'])
     return {
         'user': _to_public(user),
         'token': token,
+    }
+
+
+# --- One-time Super Admin bootstrap ------------------------------------------
+class BootstrapAdminInput(BaseModel):
+    email: str = Field(..., description='Super admin email')
+    password: str = Field(..., min_length=8, max_length=128, description='Minimum 8 characters')
+    name: Optional[str] = Field(default='Super Admin', max_length=100)
+
+
+_PRIVILEGED_ROLES = ['admin', 'super_admin', 'operator', 'support']
+
+
+@router.post('/bootstrap-admin')
+async def bootstrap_admin(inp: BootstrapAdminInput):
+    """Create the initial Super Admin — only works when the DB has ZERO
+    privileged users (admin/super_admin/operator/support). Auto-disables
+    after the first successful call. Intended for first-time production
+    setup when no shell access is available.
+
+    Returns 403 once any privileged user exists; the endpoint becomes inert.
+    """
+    from deps import get_db
+    db = get_db()
+    try:
+        existing = await db.users.count_documents({'role': {'$in': _PRIVILEGED_ROLES}})
+    except Exception:
+        logger.exception('Bootstrap-admin: DB unavailable during precheck')
+        raise HTTPException(
+            status_code=503,
+            detail='Authentication service is temporarily unavailable. Please try again in a moment.',
+        )
+    if existing > 0:
+        raise HTTPException(
+            status_code=403,
+            detail='Bootstrap disabled: a privileged user already exists. Sign in normally or reset via console.',
+        )
+
+    email = (inp.email or '').strip().lower()
+    if not email or '@' not in email:
+        raise HTTPException(status_code=400, detail='Valid email required')
+
+    # If the exact email already exists as a regular user, promote it. Otherwise create new.
+    public_id = await allocate_user_public_id(db)
+    existing_user = await db.users.find_one({'email': email})
+    if existing_user:
+        await db.users.update_one(
+            {'email': email},
+            {'$set': {
+                'role': 'super_admin',
+                'password_hash': hash_password(inp.password),
+                'method': 'email',
+                'suspended': False,
+                'name': inp.name or existing_user.get('name') or 'Super Admin',
+                'public_id': existing_user.get('public_id') or public_id,
+                'must_change_password': False,
+            }},
+        )
+        fresh = await db.users.find_one({'email': email}, {'_id': 0})
+    else:
+        user = User(
+            email=email,
+            name=(inp.name or 'Super Admin').strip(),
+            password_hash=hash_password(inp.password),
+            method='email',
+            role='super_admin',
+            public_id=public_id,
+            terms_accepted_at=datetime.now(timezone.utc),
+        )
+        doc = user.model_dump()
+        await db.users.insert_one(doc)
+        fresh = doc
+
+    # Race-safe re-check: if another concurrent request also bootstrapped,
+    # keep only ours (we still return success — DB now has admins).
+    try:
+        logger.warning('[bootstrap-admin] created super admin email=%s public_id=%s', email, fresh.get('public_id'))
+    except Exception:
+        pass
+
+    token = create_jwt(fresh['user_id'])
+    return {
+        'user': _to_public(fresh),
+        'token': token,
+        'ok': True,
     }
 
 

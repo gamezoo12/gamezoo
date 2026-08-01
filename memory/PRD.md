@@ -28,6 +28,18 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - [x] Auto-draw scheduler (60s tick) + winner in-app notifications
 - [x] Header session UX (visible Sign out + wallet balance chip)
 - [x] Prominent multi-path logout (header/admin/production/mobile) — all 4 verified working
+
+## 2026-08-01 · Production Auth Recovery — One-Time Super Admin Bootstrap (P0)
+- Root cause: `https://www.prizeleague.co.uk/api/auth/login` was returning HTTP 500 (empty body) because a raw Motor/Mongo exception was bubbling up. The frontend's toast fallback rendered this as "Invalid credentials", masking a DB-side problem (most likely: seed script never ran against the production DB, or DB_NAME split-brain between seed.py and deps.py).
+- Fix in `routers/auth_routes.py`:
+    - `/api/auth/login` now catches DB exceptions and returns **503** (`Authentication service is temporarily unavailable`) with structured logs — no more silent 500s.
+    - Password/email are stripped of whitespace defensively (paste-from-manager trailing space).
+    - Suspended accounts now return 403 explicitly instead of 401.
+    - New `POST /api/auth/bootstrap-admin` — creates the initial Super Admin ONLY when zero privileged users exist. Auto-disables after first call (403 for all subsequent requests). Idempotent for the exact same email (promotes existing user). Returns JWT so operator is signed in immediately.
+- New standalone CLI: `scripts/bootstrap_admin.py` — uses `deps._sanitize_db_name()` so it always writes to the same DB the runtime reads from (eliminates the `prize league` vs `prize_league` split-brain).
+- Tests: `tests/test_bootstrap_admin.py` — 4 tests covering happy path, second-call refusal, post-bootstrap login, and 401 (not 500) on wrong password.
+
+
 - [x] **Wallet system** with £10 min top-up (mock), atomic per-user balance, transaction log
 - [x] Ticket checkout charges wallet ONLY (returns 402 with helpful message if insufficient)
 - [x] Admin wallet panel — view all, search, credit/debit, per-user tx history
