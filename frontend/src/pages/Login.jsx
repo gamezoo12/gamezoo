@@ -166,7 +166,7 @@ export default function Login() {
  {mode === 'login' ? 'Welcome back!' : 'Create your free account'}
  </h1>
  <p className="text-sm text-slate-500 mb-5">
- {mode === 'login' ? 'Great to see you again.' : 'Takes less than a minute. Mobile verification required.'}
+ {mode === 'login' ? 'Great to see you again.' : 'Takes less than a minute. Mobile verification is optional — you can add it later.'}
  </p>
 
  <Button onClick={google} variant="outline" className="w-full h-11 gap-2 border-slate-200 hover:bg-slate-50 hover:border-[#6C2BFF]/40 font-semibold" data-testid="google-signin">

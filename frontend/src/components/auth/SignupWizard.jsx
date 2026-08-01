@@ -12,11 +12,12 @@ import { Phone, ShieldCheck, ArrowLeft, ArrowRight, User, Mail, Lock, Calendar, 
 /**
  * Multi-step signup wizard:
  *  Step 1 — Name, Email, DOB, Password
- *  Step 2 — Phone → send OTP
- *  Step 3 — Enter 6-digit code → verify
+ *  Step 2 — Phone (OPTIONAL) → send OTP, or SKIP to step 4
+ *  Step 3 — Enter 6-digit code → verify (only reached if user chose to add phone)
  *  Step 4 — Accept T&Cs → submit registration
  *
- * OTP is mandatory. No skip.  Redirects to `/` (Home) on success.
+ * Phone verification is OPTIONAL as of iter 34. Users can complete phone
+ * verification later from their account security page. Redirects to `/` on success.
  */
 export default function SignupWizard() {
   const nav = useNavigate();
@@ -79,21 +80,32 @@ export default function SignupWizard() {
     setStep(4);
   };
 
-  // --- Step 4: final register (server verifies OTP with Twilio) ---
+  // --- Skip phone → jump to T&Cs
+  const skipPhone = () => {
+    // Wipe any partial phone entries so we don't accidentally send them.
+    setData((d) => ({ ...d, phone: '', normalizedPhone: '', code: '' }));
+    setStep(4);
+  };
+
+  // --- Step 4: final register. If a phone+OTP were captured, send them; otherwise register with just email/password.
   const finish = async () => {
     if (!data.accept_terms) return toast({ title: 'Please accept the Terms & Privacy Policy' });
     setBusy(true);
     try {
-      const r = await api.post('/auth/register', {
+      const payload = {
         email: data.email,
         password: data.password,
         name: data.name,
-        phone: data.normalizedPhone || data.phone,
-        otp_code: data.code,
         accept_terms: true,
         dob: data.dob,
         address: data.address || null,
-      }).then(x => x.data);
+      };
+      // Only include phone/otp when the user actually verified them.
+      if (data.normalizedPhone && data.code && data.code.length === 6) {
+        payload.phone = data.normalizedPhone;
+        payload.otp_code = data.code;
+      }
+      const r = await api.post('/auth/register', payload).then(x => x.data);
       if (r?.token) localStorage.setItem('gz_token', r.token);
       await refresh?.();
       toast({ title: `Welcome to Prize League, ${data.name.split(' ')[0]}! 🎉`, description: 'Your account is ready.' });
@@ -161,16 +173,22 @@ export default function SignupWizard() {
           <div className="w-12 h-12 rounded-full bg-[#6C2BFF]/10 flex items-center justify-center mb-1">
             <Phone className="w-6 h-6 text-[#6C2BFF]" />
           </div>
-          <h3 className="font-display font-extrabold text-2xl text-slate-900">Verify your mobile</h3>
-          <p className="text-sm text-slate-500">We&apos;ll text you a 6-digit code. Required to secure your account.</p>
+          <h3 className="font-display font-extrabold text-2xl text-slate-900">Add your mobile <span className="text-slate-400 text-base font-medium">(optional)</span></h3>
+          <p className="text-sm text-slate-500">Add a phone now for extra account security and faster prize payouts — or skip and add it later from your account.</p>
           <div>
             <Label className="mb-1 block">Mobile number</Label>
-            <Input data-testid="signup-phone" type="tel" required value={data.phone} onChange={e => set('phone', e.target.value)} placeholder="+44 7700 900123" autoFocus />
+            <Input data-testid="signup-phone" type="tel" value={data.phone} onChange={e => set('phone', e.target.value)} placeholder="+44 7700 900123" autoFocus />
             <p className="text-[11px] text-slate-500 mt-1">International format e.g. +447700900123</p>
           </div>
-          <Button data-testid="signup-send-otp" onClick={sendOtp} disabled={busy || data.phone.length < 8} className="w-full h-11 pl-btn-purple text-white font-bold">
-            {busy ? 'Sending…' : 'Send verification code'}
-          </Button>
+          <div className="flex gap-2">
+            <Button data-testid="signup-skip-phone" type="button" variant="outline" onClick={skipPhone} className="flex-1 h-11 font-bold">
+              Skip for now
+            </Button>
+            <Button data-testid="signup-send-otp" onClick={sendOtp} disabled={busy || data.phone.length < 8} className="flex-1 h-11 pl-btn-purple text-white font-bold">
+              {busy ? 'Sending…' : 'Send code'}
+            </Button>
+          </div>
+          <p className="text-[10px] text-slate-400 text-center mt-1">You can verify your phone anytime from Settings → Security.</p>
         </div>
       )}
 

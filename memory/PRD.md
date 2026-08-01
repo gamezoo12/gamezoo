@@ -29,6 +29,15 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - [x] Header session UX (visible Sign out + wallet balance chip)
 - [x] Prominent multi-path logout (header/admin/production/mobile) — all 4 verified working
 
+## 2026-08-01 · Iteration 34 — Phone Verification Made Optional at Signup
+- Consulted `integration_playbook_expert_v2` (auth optional-phone pattern) before touching auth code — playbook confirmed the paired-fields pattern (phone+otp both-or-none) and UK KYC is risk-based so making phone optional is compliant provided high-risk gates exist.
+- **Backend**: `RegisterInput.phone` and `RegisterInput.otp_code` are now `Optional[str] = None`. `/api/auth/register` handler enforces paired-fields (both or neither → 422). Registering without phone succeeds; account created with `phone=None, phone_verified=false`. Existing `/api/auth/otp/verify-bind` unchanged so users can bind + verify a phone anytime from Settings.
+- **Frontend**: `SignupWizard.jsx` Step 2 gains a **"Skip for now"** button alongside "Send code". If user skips, jumps to T&Cs (step 4). Payload only includes phone/otp when both were captured. Header copy updated: "Mobile verification is optional — you can add it later."
+- **Tests**: `tests/test_iter34_optional_phone_signup.py` (4/4 passing): success without phone, 422 on phone-only, 422 on otp-only, login works for phoneless accounts. Conftest opt-out list updated so shim doesn't auto-inject legacy fake phones into these tests.
+- **Why**: user's Twilio account is on trial (can only text pre-verified numbers). Making phone verification optional unblocks all real-customer signups without any Twilio dependency. When Twilio is upgraded, phone verification path continues to work — nothing to re-enable.
+
+
+
 ## 2026-08-01 · Iteration 33 — Zero-Config Stripe Token Top-Up (launch-critical fix)
 - **Fix**: `POST /api/payments/wallet-topup/checkout` no longer looks up prices in Stripe's catalog. Previously the endpoint called `stripe.Price.list(lookup_keys=[req.lookup_key])`; on any Stripe account that hadn't run `setup_stripe.py`, every preset button returned HTTP 500 "Price not configured for wallet_topup_5" — the exact failure mode the user hit on prod.
 - **New behaviour**: derive `tokens = int(lookup_key.rsplit('_',1)[1])` and use inline `price_data` on the session. Guaranteed to work on any Stripe account (test or live) with zero dashboard setup. Existing metadata (lookup_key, tokens, user_id) still recorded for downstream reconciliation.

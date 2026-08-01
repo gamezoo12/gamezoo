@@ -23,11 +23,12 @@ _OTP_BYPASS = os.environ.get('TEST_OTP_BYPASS_CODE', '000000')
 
 def _is_signup_test_frame() -> bool:
     """Test suites that intentionally exercise the NEW registration signature
-    (auth-signup, phase-2 admin/profile) opt out of auto-augmentation.
+    (auth-signup, phase-2 admin/profile, iter34-optional-phone) opt out of
+    auto-augmentation.
     """
     for f in inspect.stack():
         fname = f.filename or ''
-        if 'test_auth_signup' in fname or 'test_phase2' in fname:
+        if 'test_auth_signup' in fname or 'test_phase2' in fname or 'test_iter34' in fname:
             return True
     return False
 

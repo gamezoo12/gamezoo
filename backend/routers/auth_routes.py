@@ -88,15 +88,28 @@ async def register(inp: RegisterInput, request: Request):
     if await db.users.find_one({'email': inp.email.lower()}):
         raise HTTPException(status_code=400, detail='Email already registered')
 
-    # Verify OTP with Twilio BEFORE creating the account.
-    normalized_phone = await _verify_twilio_otp(inp.phone, inp.otp_code)
-
-    # Guard: another user must not have this phone verified already.
-    existing_phone = await db.users.find_one(
-        {'phone': normalized_phone, 'phone_verified': True}, {'_id': 1}
-    )
-    if existing_phone:
-        raise HTTPException(status_code=400, detail='This phone number is already registered.')
+    # Phone verification is OPTIONAL at signup. Enforce the paired-fields
+    # rule: if a phone is provided, an OTP MUST accompany it (and vice
+    # versa). If both are omitted, the account is created with no phone
+    # attached — user can bind + verify later at /api/auth/otp/verify-bind.
+    normalized_phone: Optional[str] = None
+    phone_verified = False
+    provided_phone = (inp.phone or '').strip() or None
+    provided_otp = (inp.otp_code or '').strip() or None
+    if provided_phone and not provided_otp:
+        raise HTTPException(status_code=422, detail='otp_code is required when phone is provided')
+    if provided_otp and not provided_phone:
+        raise HTTPException(status_code=422, detail='phone is required when otp_code is provided')
+    if provided_phone and provided_otp:
+        # Verify with Twilio before creating the account.
+        normalized_phone = await _verify_twilio_otp(provided_phone, provided_otp)
+        # Guard: another user must not have this phone verified already.
+        existing_phone = await db.users.find_one(
+            {'phone': normalized_phone, 'phone_verified': True}, {'_id': 1}
+        )
+        if existing_phone:
+            raise HTTPException(status_code=400, detail='This phone number is already registered.')
+        phone_verified = True
 
     referred_by = None
     if inp.referral_code:
@@ -119,7 +132,7 @@ async def register(inp: RegisterInput, request: Request):
         role='user',
         referred_by=referred_by,
         phone=normalized_phone,
-        phone_verified=True,
+        phone_verified=phone_verified,
         dob=inp.dob,
         address=(inp.address or None),
         terms_accepted_at=datetime.now(timezone.utc),

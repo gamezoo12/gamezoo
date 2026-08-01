@@ -183,8 +183,11 @@ class RegisterInput(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8, description="Minimum 8 characters")
     name: str = Field(..., min_length=1)
-    phone: str = Field(..., min_length=6, max_length=32)
-    otp_code: str = Field(..., min_length=4, max_length=10)
+    # Phone verification is OPTIONAL at signup (feb 2026). Users can bind and
+    # verify a phone later via /api/auth/otp/verify-bind. If phone is
+    # provided, an OTP code MUST accompany it (see the register handler).
+    phone: Optional[str] = Field(default=None, max_length=32)
+    otp_code: Optional[str] = Field(default=None, max_length=10)
     accept_terms: bool = Field(..., description="Must be true")
     dob: str = Field(..., description="YYYY-MM-DD, 18+ enforced server-side")
     address: Optional[str] = None
