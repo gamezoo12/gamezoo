@@ -4,7 +4,7 @@ import { Gift, Users, Coins } from 'lucide-react';
 const HOW = [
   { Icon: Gift,   title: 'Get your code',      text: 'Sign in to grab your unique referral code and share link.' },
   { Icon: Users,  title: 'Invite friends',     text: 'Share your link on WhatsApp, Instagram or copy-paste anywhere.' },
-  { Icon: Coins,  title: 'Both get rewarded',  text: 'When they enter their first contest, you both get a free ticket (or £5 credit).' },
+  { Icon: Coins,  title: 'Both get rewarded',  text: 'When they enter their first contest, you both get a free ticket (or 5 bonus tokens).' },
 ];
 
 export default function ReferPage() {

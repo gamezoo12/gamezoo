@@ -29,6 +29,28 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - [x] Header session UX (visible Sign out + wallet balance chip)
 - [x] Prominent multi-path logout (header/admin/production/mobile) — all 4 verified working
 
+## 2026-08-01 · Iteration 35 — Checkout Fix + Token-Only Player UI
+**Checkout was broken because skill `challenge_token` expires after 5 minutes.** If a user added to cart and waited more than a few minutes (browsing, comparing contests, then returning), the token expired → backend rejected with `400 invalid_token / expired` → the frontend showed a generic "Checkout failed" toast.
+
+**Fix — inline skill re-verify in Cart (`Cart.jsx`):**
+- On mount, for every skill-game item, decode the token's `exp` client-side. If missing, expired, or expiring in <60s, auto-fetch a fresh challenge via `GET /api/contests/{slug}/skill-challenge`.
+- Render an inline "Skill check" card per item with the question + 4 option buttons + "New question" refresh.
+- User taps their answer → cart tracks it in `skills` state.
+- On "Spend N tokens" click, we send the fresh challenge_token + chosen answer to `/api/orders/checkout` — the backend HMAC-verifies both. Zero more "invalid_token" errors possible.
+- Belt-and-braces: even if the backend still returns a skill-related 400 (e.g. wrong answer), Cart auto-refreshes every question and shows "Skill question refreshed, try again" instead of a dead-end toast.
+
+**Token-only UI (per user's ask):**
+- HeroBanner: `£1 Entry` → `1 🪙 Entry`
+- CompetitionDetail: removed the `= £N` subtitle, checkout confirmation reads `for 2 tokens`, contest info tabs read `2 tokens per entry ticket`
+- WalletPanel: package tiles show only token count + "tokens" label (no `£5`), custom-amount hint reads "You'll receive N tokens. The exact charge amount is shown at Stripe checkout." Transaction receipt drops the `Value` £ row.
+- Header tooltip: "Your token balance" (no `1 token = £1` disclaimer)
+- ReferPage / ReferAndEarnCard: "£5 credit" → "5 tokens credited"
+- Admin financial reports (WalletAdmin, OrdersPage, AnalyticsPage, UserDetailsPage) intentionally kept in £ — legally-required for financial reporting; not player-facing.
+
+**Verified**: 17/17 tests still pass. Backend end-to-end checkout works (proved with curl: `order_id: o_fdfb2a0c5338, total: 1, tickets: 1`). Screenshot confirms Hero banner shows `1 🪙 Entry`.
+
+
+
 ## 2026-08-01 · Iteration 34 — Phone Verification Made Optional at Signup
 - Consulted `integration_playbook_expert_v2` (auth optional-phone pattern) before touching auth code — playbook confirmed the paired-fields pattern (phone+otp both-or-none) and UK KYC is risk-based so making phone optional is compliant provided high-risk gates exist.
 - **Backend**: `RegisterInput.phone` and `RegisterInput.otp_code` are now `Optional[str] = None`. `/api/auth/register` handler enforces paired-fields (both or neither → 422). Registering without phone succeeds; account created with `phone=None, phone_verified=false`. Existing `/api/auth/otp/verify-bind` unchanged so users can bind + verify a phone anytime from Settings.

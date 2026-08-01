@@ -63,7 +63,6 @@ function TxReceipt({ tx, open, onClose, walletBefore }) {
  <Row label="Payment method" value={tx.kind === 'topup' ? 'Stripe' : 'Wallet'} />
  <div className="h-px bg-slate-200 my-3" />
  <Row label="Tokens" bold value={<span className={tx.amount > 0 ? 'text-emerald-600' : 'text-rose-600'}>{tx.amount > 0 ? '+' : ''}{fmtTokens(tx.amount)}</span>} />
- <Row label="Value" value={<span className="text-slate-500">{gbp(tx.amount)}</span>} />
  <Row label="Balance before" value={fmtTokens(walletBefore)} />
  <Row label="Balance after" bold value={fmtTokens(balanceAfter)} />
  <Row label="Status" value={<span className="text-emerald-600 font-semibold">Completed</span>} />
@@ -146,7 +145,7 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  <span>{wallet ? tokenCount(wallet.tokens ?? wallet.balance) : 0}</span>
  <span className="text-xl md:text-2xl text-white/80 font-bold">tokens</span>
  </div>
- <div className="mt-2 text-xs text-white/85">1 token = £1 · use tokens to enter contests</div>
+ <div className="mt-2 text-xs text-white/85">Use tokens to enter contests · minimum {MIN_TOPUP} tokens per purchase</div>
  </div>
  <button
  onClick={() => setShowTopup(true)}
@@ -180,7 +179,7 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  <h3 className="font-display font-extrabold text-2xl text-slate-900">Buy tokens</h3>
  <button className="text-slate-400 hover:text-slate-700" onClick={() => setShowTopup(false)} aria-label="Close"><X className="w-4 h-4" /></button>
  </div>
- <p className="text-sm text-slate-500 mb-4">Minimum {fmtTokens(MIN_TOPUP)} · 1 token = £1 · Secure Stripe checkout · Tokens credited instantly.</p>
+ <p className="text-sm text-slate-500 mb-4">Minimum {fmtTokens(MIN_TOPUP)} · Secure Stripe checkout · Tokens credited instantly.</p>
 
  <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
  {[5, 10, 20, 50, 100].map(n => (
@@ -196,7 +195,7 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  <div className="font-display text-2xl md:text-3xl font-extrabold text-slate-900 flex items-center justify-center gap-1">
  <Coins className="w-5 h-5 text-[#FFD54A]" />{n}
  </div>
- <div className="text-[11px] text-slate-500 mt-1 font-semibold">£{n}</div>
+ <div className="text-[11px] text-slate-500 mt-1 font-semibold">tokens</div>
  </button>
  ))}
  </div>
@@ -222,7 +221,7 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  <Sparkles className="w-4 h-4 mr-1" /> Buy tokens
  </Button>
  </div>
- <div className="text-[11px] text-slate-500 mt-2">You'll pay £{parseInt(customAmount, 10) || 0} for {parseInt(customAmount, 10) || 0} tokens.</div>
+ <div className="text-[11px] text-slate-500 mt-2">You'll receive {parseInt(customAmount, 10) || 0} tokens. The exact charge amount is shown at Stripe checkout.</div>
  </div>
  <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
  <ShieldCheck className="w-4 h-4 text-emerald-600" /> Powered by Stripe. Card details never touch our servers.

@@ -115,7 +115,7 @@ export default function Header() {
  to="/my-account?tab=wallet"
  data-testid="header-wallet-chip"
  className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[#FFD54A] text-xs font-bold transition"
- title="Your token balance — 1 token = £1"
+ title="Your token balance"
  >
  <WalletIcon className="w-3.5 h-3.5" />
  {balance === null ? '…' : `${tokenCount(balance)} 🪙`}

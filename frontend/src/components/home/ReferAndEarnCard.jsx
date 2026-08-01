@@ -68,7 +68,7 @@ export default function ReferAndEarnCard() {
               </h2>
               <p className="mt-3 text-white/70 max-w-lg">
                 Share your unique code. When a friend signs up and enters their first contest,
-                you both get a bonus ticket (or £5 wallet credit).
+                you both get a bonus ticket (or 5 tokens credited).
               </p>
 
               {user ? (

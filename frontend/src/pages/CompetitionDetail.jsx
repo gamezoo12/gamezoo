@@ -251,7 +251,6 @@ export default function CompetitionDetail() {
                   <span>{tokenCount(c.price)}</span>
                   <span className="text-sm text-slate-500 font-bold">🪙</span>
                 </div>
-                <div className="text-[10px] text-slate-400 mt-0.5">= {gbp(c.price)}</div>
               </div>
               <div className="flex items-center gap-1 md:gap-2" data-testid="ticket-qty-controls">
                 <Button variant="outline" size="icon" data-testid="qty-minus" onClick={() => setTickets(Math.max(1, tickets - 1))}><Minus className="w-4 h-4" /></Button>
@@ -304,7 +303,7 @@ export default function CompetitionDetail() {
                 className="mt-0.5 w-4 h-4 accent-[#6C2BFF]"
               />
               <span>
-                <strong>Before you buy —</strong> I confirm I have read the contest information above, I&apos;m aged 18+ and resident in the UK, I understand that I am purchasing {tickets} entry ticket{tickets > 1 ? 's' : ''} to <em>{c.title}</em> for <strong>{gbp(subtotal)}</strong>, and I accept the {' '}
+                <strong>Before you buy —</strong> I confirm I have read the contest information above, I&apos;m aged 18+ and resident in the UK, I understand that I am purchasing {tickets} entry ticket{tickets > 1 ? 's' : ''} to <em>{c.title}</em> for <strong>{fmtTokens(subtotal)}</strong>, and I accept the {' '}
                 <Link to="/legal/terms" className="text-[#6C2BFF] underline">Terms &amp; Conditions</Link>.
               </span>
             </label>
@@ -332,10 +331,10 @@ export default function CompetitionDetail() {
             <ol className="space-y-4 text-sm text-slate-700 leading-relaxed list-decimal list-outside pl-5" data-testid="contest-info-list">
               {[
                 ['Contest overview', c.full_description || c.short_description || c.subtitle || c.title],
-                ['How to enter', c.how_to_enter || `Buy at least one entry ticket at ${gbp(c.price)} and complete the required skill task. A free postal entry route is also available where enabled by the operator.`],
+                ['How to enter', c.how_to_enter || `Buy at least one entry ticket for ${fmtTokens(c.price)} and complete the required skill task. A free postal entry route is also available where enabled by the operator.`],
                 ['Skill game instructions', c.skill_instructions || (isSkillGame ? `Complete the ${c.game_type ? c.game_type.replace(/_/g, ' ') : 'assigned skill task'} within the allowed attempts. Your best valid score counts.` : 'Answer the skill question correctly to become eligible.')],
                 ['Eligibility', c.eligibility || 'Open to UK residents aged 18 or over. Staff, contractors and their household members are excluded from prize eligibility.'],
-                ['Ticket price', `${gbp(c.price)} per entry ticket.`],
+                ['Ticket price', `${fmtTokens(c.price)} per entry ticket.`],
                 ['Total ticket allocation', `${c.tickets_total} tickets available in this competition.`],
                 ['Maximum entries per user', c.max_tickets_per_user ? `${c.max_tickets_per_user} tickets per person.` : 'Reasonable limits may be enforced by the operator to prevent misuse.'],
                 ['Free postal entry availability', c.free_postal_entry_available ? 'Available for this competition.' : 'Not available for this competition.'],

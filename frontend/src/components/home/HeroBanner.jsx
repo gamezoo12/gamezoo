@@ -129,7 +129,7 @@ export default function HeroBanner({ contests = [] }) {
                     <div className="text-white font-display text-2xl md:text-3xl font-extrabold mb-2 drop-shadow">{current.title}</div>
                     <div className="flex items-center justify-between gap-3 flex-wrap">
                       <div className="text-white/85 text-sm">
-                        <span className="font-bold text-[#FFD54A]">£{current.price?.toFixed?.(2) ?? current.price}</span> Entry ·
+                        <span className="font-bold text-[#FFD54A]">{Math.round(current.price ?? 0)} 🪙</span> Entry ·
                         {' '}<span className="text-white/70">{(current.tickets_sold || 0).toLocaleString()} entries</span>
                       </div>
                       <Link to={`/competition/${current.slug || current.contest_id}`}>
