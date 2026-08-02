@@ -144,9 +144,20 @@ export default function Cart() {
         const fresh = skills[i.contest_id];
         // Prefer the fresh, just-picked challenge over the stored one.
         if (fresh && fresh.chosen != null && fresh.challenge_token) {
-          return { contest_id: i.contest_id, qty: i.qty, skill_answer: String(fresh.chosen), challenge_token: fresh.challenge_token };
+          return {
+            contest_id: i.contest_id,
+            qty: Number(i.qty),
+            skill_answer: String(fresh.chosen),
+            challenge_token: fresh.challenge_token,
+          };
         }
-        return { contest_id: i.contest_id, qty: i.qty, skill_answer: i.skill_answer || 'n/a', challenge_token: i.challenge_token || null };
+
+        return {
+          contest_id: i.contest_id,
+          qty: Number(i.qty),
+          skill_answer: String(i.skill_answer ?? 'n/a'),
+          challenge_token: i.challenge_token || null,
+        };
       });
       const r = await ordersAPI.checkout(payload);
       localStorage.removeItem(STORAGE_KEY);
@@ -162,7 +173,26 @@ export default function Cart() {
       }
     } catch (err) {
       const status = err?.response?.status;
-      const detail = err?.response?.data?.detail || 'Please try again.';
+      const rawDetail = err?.response?.data?.detail;
+
+      const detail = Array.isArray(rawDetail)
+        ? rawDetail
+            .map((entry) => {
+              if (typeof entry === 'string') return entry;
+              if (entry && typeof entry === 'object') {
+                const location = Array.isArray(entry.loc)
+                  ? entry.loc.join(' → ')
+                  : '';
+                const message = entry.msg || entry.message || 'Invalid checkout data';
+                return location ? `${location}: ${message}` : message;
+              }
+              return String(entry);
+            })
+            .join('. ')
+        : rawDetail && typeof rawDetail === 'object'
+          ? rawDetail.msg || rawDetail.message || JSON.stringify(rawDetail)
+          : rawDetail || 'Please try again.';
+
       if (status === 402) {
         toast({ title: 'Not enough tokens', description: `Buy ${fmtTokens(shortfall)} more to complete this order.` });
         nav('/my-account/wallet?topup=1');
