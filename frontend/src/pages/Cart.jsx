@@ -34,6 +34,8 @@ export default function Cart() {
   const [items, setItems] = useState([]);
   const [busy, setBusy] = useState(false);
   const [wallet, setWallet] = useState(null);
+  const [checkoutSuccess, setCheckoutSuccess] = useState(null);
+  const [checkoutStep, setCheckoutStep] = useState('success');
   /** Map<contest_id, {question, options, challenge_token, expires_at, chosen: number|null, verifying: boolean, error: string|null}>
    *  Lives ONLY for the current Cart session — persisting across mounts adds no value. */
   const [skills, setSkills] = useState({});
@@ -162,15 +164,13 @@ export default function Cart() {
       const r = await ordersAPI.checkout(payload);
       localStorage.removeItem(STORAGE_KEY);
       setItems([]);
-      toast({ title: 'Payment successful 🎉', description: `${r.tickets} ticket${r.tickets !== 1 ? 's' : ''} · ${fmtTokens(r.total)} · Order #${r.order_id}` });
-      // If it's a skill game, drop the player straight into it. On the game
-      // page a "Play later" button always sends them back to /my-account/tickets.
-      // Route contract: /play/:contestId/:ticketId — BOTH params are required.
-      if (r.first_ticket_id && r.first_contest_id && r.first_game_type) {
-        nav(`/play/${r.first_contest_id}/${r.first_ticket_id}?just_bought=1`);
-      } else {
-        nav('/my-account/tickets');
-      }
+      setCheckoutSuccess(r);
+      setCheckoutStep('success');
+      loadWallet();
+      toast({
+        title: 'Payment successful 🎉',
+        description: `${r.tickets} ticket${r.tickets !== 1 ? 's' : ''} confirmed · ${fmtTokens(r.total)} · Order #${r.order_id}`,
+      });
     } catch (err) {
       const status = err?.response?.status;
       const rawDetail = err?.response?.data?.detail;
@@ -209,8 +209,163 @@ export default function Cart() {
 
   const goTopUp = () => nav('/my-account/wallet?topup=1');
 
+  const hasGameToPlay = Boolean(
+    checkoutSuccess?.first_ticket_id &&
+    checkoutSuccess?.first_contest_id &&
+    checkoutSuccess?.first_game_type
+  );
+
+  const playNow = () => {
+    if (!hasGameToPlay) return;
+    nav(
+      `/play/${checkoutSuccess.first_contest_id}/${checkoutSuccess.first_ticket_id}?just_bought=1`
+    );
+  };
+
+  const playLater = () => {
+    nav('/my-account/tickets');
+  };
+
   return (
-    <div className="max-w-6xl mx-auto px-4 lg:px-8 py-8 md:py-10" data-testid="cart-page">
+    <>
+      {checkoutSuccess && (
+        <div
+          className="fixed inset-0 z-[100] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4"
+          data-testid="checkout-success-modal"
+        >
+          <div className="w-full max-w-lg rounded-3xl bg-white shadow-2xl border border-slate-100 p-6 md:p-8">
+            {checkoutStep === 'success' ? (
+              <>
+                <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto text-3xl font-extrabold">
+                  ✓
+                </div>
+
+                <h2 className="mt-5 text-center font-display text-2xl md:text-3xl font-extrabold text-slate-900">
+                  Payment successful
+                </h2>
+
+                <p className="mt-2 text-center text-slate-600">
+                  {checkoutSuccess.tickets} ticket{checkoutSuccess.tickets !== 1 ? 's' : ''} confirmed for{' '}
+                  <span className="font-bold text-slate-900">{fmtTokens(checkoutSuccess.total)}</span>.
+                </p>
+
+                <div className="mt-5 rounded-2xl bg-slate-50 border border-slate-200 p-4 text-sm">
+                  <div className="flex justify-between gap-4">
+                    <span className="text-slate-500">Order</span>
+                    <span className="font-semibold text-slate-900 break-all">
+                      #{checkoutSuccess.order_id}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between gap-4 mt-2">
+                    <span className="text-slate-500">Tickets</span>
+                    <span className="font-semibold text-slate-900">
+                      {checkoutSuccess.tickets}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between gap-4 mt-2">
+                    <span className="text-slate-500">Status</span>
+                    <span className="font-semibold text-emerald-600">Confirmed</span>
+                  </div>
+                </div>
+
+                <p className="mt-5 text-sm text-center text-slate-600">
+                  Your tickets are available in My Tickets.
+                </p>
+
+                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                  <Button
+                    onClick={() => nav('/my-account/tickets')}
+                    variant="outline"
+                    className="h-12 font-bold"
+                    data-testid="checkout-view-tickets"
+                  >
+                    View My Tickets
+                  </Button>
+
+                  {hasGameToPlay ? (
+                    <Button
+                      onClick={() => setCheckoutStep('entry')}
+                      className="h-12 pl-btn-purple text-white font-extrabold"
+                      data-testid="checkout-enter-contest"
+                    >
+                      Enter Contest
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={() => nav('/competitions')}
+                      className="h-12 pl-btn-purple text-white font-extrabold"
+                    >
+                      Browse Contests
+                    </Button>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="w-16 h-16 rounded-full bg-[#6C2BFF]/10 text-[#6C2BFF] flex items-center justify-center mx-auto text-3xl">
+                  🎮
+                </div>
+
+                <h2 className="mt-5 text-center font-display text-2xl md:text-3xl font-extrabold text-slate-900">
+                  Ready to enter the contest?
+                </h2>
+
+                <div className="mt-5 rounded-2xl border-2 border-[#6C2BFF]/20 bg-[#6C2BFF]/5 p-4">
+                  <div className="font-display font-extrabold text-slate-900">
+                    Complete the skill game
+                  </div>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Your ticket is confirmed. Play the skill game to record your score and enter
+                    the leaderboard. You can play now or return later from My Tickets.
+                  </p>
+                </div>
+
+                <div className="mt-5 rounded-2xl bg-slate-50 border border-slate-200 p-4 text-sm">
+                  <div className="flex justify-between gap-4">
+                    <span className="text-slate-500">Maximum score</span>
+                    <span className="font-bold text-slate-900">100.00 points</span>
+                  </div>
+                  <div className="flex justify-between gap-4 mt-2">
+                    <span className="text-slate-500">Scoring</span>
+                    <span className="font-semibold text-slate-900">Accuracy + speed + completion</span>
+                  </div>
+                </div>
+
+                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                  <Button
+                    onClick={playLater}
+                    variant="outline"
+                    className="h-12 font-bold"
+                    data-testid="entry-play-later"
+                  >
+                    Play Later
+                  </Button>
+
+                  <Button
+                    onClick={playNow}
+                    className="h-12 pl-btn-gold text-slate-900 font-extrabold"
+                    data-testid="entry-play-now"
+                  >
+                    Play Now
+                  </Button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setCheckoutStep('success')}
+                  className="mt-4 w-full text-sm text-slate-500 hover:text-slate-900"
+                >
+                  ← Back to purchase confirmation
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="max-w-6xl mx-auto px-4 lg:px-8 py-8 md:py-10" data-testid="cart-page">
       <h1 className="font-display text-3xl md:text-4xl font-extrabold text-slate-900">Your Basket</h1>
       <p className="text-sm text-slate-500 mt-1">Tickets are only allocated after successful payment.</p>
 
@@ -392,6 +547,7 @@ export default function Cart() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }

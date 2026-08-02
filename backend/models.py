@@ -113,7 +113,7 @@ class GameScore(BaseModel):
     user_id: str
     user_name: str
     game_type: str
-    points: int
+    points: float
     duration_ms: int
     accuracy: float  # 0.0 - 1.0
     attempts_used: int = 1

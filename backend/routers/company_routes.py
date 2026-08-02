@@ -311,71 +311,176 @@ contest_router = APIRouter(prefix='/api/contests', tags=['contests-leaderboard']
 
 
 @contest_router.get('/{contest_id}/leaderboard')
-async def contest_leaderboard(contest_id: str, limit: int = 50):
-    """Public contest leaderboard for Engine 1 (Skill Leaderboard) contests.
+async def contest_leaderboard(
+    contest_id: str,
+    request: Request,
+    limit: int = 50,
+):
+    """Contest-specific leaderboard using each user's best verified attempt.
 
-    Aggregates each participant's BEST verified game score for the contest,
-    applies the transparent tie-break: score DESC, then accuracy DESC,
-    then duration_ms ASC, then earliest completion.
+    Ranking:
+      1. Higher verified score
+      2. Higher accuracy
+      3. Faster duration in milliseconds
+      4. Earlier valid submission
     """
+    from auth import decode_jwt
     from deps import get_db
+
     db = get_db()
-    contest = await db.contests.find_one({'contest_id': contest_id}, {'_id': 0})
+    safe_limit = max(1, min(int(limit), 100))
+
+    contest = await db.contests.find_one(
+        {'contest_id': contest_id},
+        {'_id': 0},
+    )
     if not contest:
         raise HTTPException(404, 'Contest not found')
 
-    # Best score per user
+    current_user_id = None
+
+    auth_header = request.headers.get('Authorization') or ''
+    if auth_header.lower().startswith('bearer '):
+        token = auth_header.split(' ', 1)[1].strip()
+        current_user_id = decode_jwt(token)
+
+        if not current_user_id:
+            session = await db.user_sessions.find_one(
+                {'session_token': token},
+                {'_id': 0, 'user_id': 1},
+            )
+            if session:
+                current_user_id = session.get('user_id')
+
+    if not current_user_id:
+        cookie_token = request.cookies.get('session_token')
+        if cookie_token:
+            session = await db.user_sessions.find_one(
+                {'session_token': cookie_token},
+                {'_id': 0, 'user_id': 1},
+            )
+            if session:
+                current_user_id = session.get('user_id')
+
     pipeline = [
         {'$match': {'contest_id': contest_id}},
-        {'$sort': {'points': -1, 'accuracy': -1, 'duration_ms': 1, 'created_at': 1}},
-        {'$group': {
-            '_id': '$user_id',
-            'user_id': {'$first': '$user_id'},
-            'user_name': {'$first': '$user_name'},
-            'points': {'$first': '$points'},
-            'accuracy': {'$first': '$accuracy'},
-            'duration_ms': {'$first': '$duration_ms'},
-            'created_at': {'$first': '$created_at'},
-        }},
-        {'$sort': {'points': -1, 'accuracy': -1, 'duration_ms': 1, 'created_at': 1}},
-        {'$limit': int(limit)},
+        {
+            '$sort': {
+                'points': -1,
+                'accuracy': -1,
+                'duration_ms': 1,
+                'created_at': 1,
+            }
+        },
+        {
+            '$group': {
+                '_id': '$user_id',
+                'user_id': {'$first': '$user_id'},
+                'user_name': {'$first': '$user_name'},
+                'points': {'$first': '$points'},
+                'accuracy': {'$first': '$accuracy'},
+                'duration_ms': {'$first': '$duration_ms'},
+                'created_at': {'$first': '$created_at'},
+                'best_score_id': {'$first': '$score_id'},
+                'attempts': {'$sum': 1},
+            }
+        },
+        {
+            '$sort': {
+                'points': -1,
+                'accuracy': -1,
+                'duration_ms': 1,
+                'created_at': 1,
+            }
+        },
     ]
-    rows = await db.game_scores.aggregate(pipeline).to_list(int(limit))
 
-    # Normalize to 0-100 relative to the best score in this contest. Best gets
-    # exactly 100.0; everyone else scales proportionally so the leaderboard
-    # always uses the same 0-100 scale regardless of raw point magnitudes.
-    if rows:
-        best_raw = max((r.get('points') or 0) for r in rows) or 1
-        for r in rows:
-            raw = r.get('points') or 0
-            r['normalized_score'] = round((raw * 100.0) / best_raw, 2)
+    ranked_rows = await db.game_scores.aggregate(pipeline).to_list(10000)
 
-    # Attach public_id
-    user_ids = [r['user_id'] for r in rows]
+    user_ids = [row['user_id'] for row in ranked_rows]
     users = {}
-    if user_ids:
-        async for u in db.users.find({'user_id': {'$in': user_ids}}, {'_id': 0, 'user_id': 1, 'public_id': 1, 'username': 1}):
-            users[u['user_id']] = u
 
-    for i, r in enumerate(rows, start=1):
-        u = users.get(r['user_id'], {})
-        r['rank'] = i
-        r['public_id'] = u.get('public_id')
-        r['username'] = u.get('username')
-        # Convenience: seconds view + accuracy percent for the transparency UI.
-        r['duration_s'] = round((r.get('duration_ms') or 0) / 1000.0, 2)
-        r['accuracy_pct'] = round((r.get('accuracy') or 0) * 100.0, 1)
+    if user_ids:
+        async for user in db.users.find(
+            {'user_id': {'$in': user_ids}},
+            {
+                '_id': 0,
+                'user_id': 1,
+                'public_id': 1,
+                'username': 1,
+                'name': 1,
+            },
+        ):
+            users[user['user_id']] = user
+
+    for index, row in enumerate(ranked_rows, start=1):
+        user = users.get(row['user_id'], {})
+
+        row.pop('_id', None)
+        row['rank'] = index
+        row['public_id'] = user.get('public_id')
+        row['username'] = user.get('username')
+        row['user_name'] = (
+            user.get('username')
+            or user.get('name')
+            or row.get('user_name')
+            or 'Player'
+        )
+        row['points'] = round(float(row.get('points') or 0), 2)
+        row['accuracy'] = round(float(row.get('accuracy') or 0), 6)
+        row['accuracy_pct'] = round(row['accuracy'] * 100.0, 2)
+        row['duration_ms'] = int(row.get('duration_ms') or 0)
+        row['is_current_user'] = row['user_id'] == current_user_id
+
+    visible_entries = ranked_rows[:safe_limit]
+
+    my_position = None
+    if current_user_id:
+        my_position = next(
+            (
+                {
+                    **row,
+                    'is_current_user': True,
+                }
+                for row in ranked_rows
+                if row['user_id'] == current_user_id
+            ),
+            None,
+        )
+
+    scores = [float(row.get('points') or 0) for row in ranked_rows]
+    durations = [
+        int(row.get('duration_ms') or 0)
+        for row in ranked_rows
+        if int(row.get('duration_ms') or 0) > 0
+    ]
+
+    stats = {
+        'participants': len(ranked_rows),
+        'completed_attempts': await db.game_scores.count_documents(
+            {'contest_id': contest_id}
+        ),
+        'highest_score': round(max(scores), 2) if scores else 0.0,
+        'average_score': (
+            round(sum(scores) / len(scores), 2)
+            if scores
+            else 0.0
+        ),
+        'fastest_time_ms': min(durations) if durations else None,
+    }
 
     return {
         'contest_id': contest_id,
+        'contest_title': contest.get('title'),
         'engine_type': contest.get('engine_type', 'leaderboard'),
         'closed': contest.get('status') != 'live',
-        'entries': rows,
+        'entries': visible_entries,
+        'my_position': my_position,
+        'stats': stats,
         'tie_break_rules': [
-            '1. Higher points',
+            '1. Higher verified score',
             '2. Higher accuracy',
-            '3. Faster valid completion time',
-            '4. Earlier completion timestamp',
+            '3. Faster valid completion time in milliseconds',
+            '4. Earlier valid submission',
         ],
     }

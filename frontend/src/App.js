@@ -44,7 +44,6 @@ import UserDetailsPage from './pages/admin/UserDetailsPage';
 import LegalDocPage from './pages/legal/LegalDocPage';
 import PlayGame from './pages/PlayGame';
 import ContestLeaderboard from './pages/ContestLeaderboard';
-import GlobalLeaderboard from './pages/GlobalLeaderboard';
 import HowItWorksPage from './pages/HowItWorks';
 import ReferPage from './pages/ReferPage';
 import TermsPage from './pages/legal/TermsPage';
@@ -83,7 +82,6 @@ function AppRouter() {
         <Route path="/free-entry" element={<FreeEntry />} />
         <Route path="/verify" element={<VerifyFeed />} />
         <Route path="/play/:contestId/:ticketId" element={<PlayGame />} />
-        <Route path="/leaderboard" element={<GlobalLeaderboard />} />
         <Route path="/leaderboard/:contestId" element={<ContestLeaderboard />} />
         <Route path="/how-it-works" element={<HowItWorksPage />} />
         <Route path="/refer" element={<ReferPage />} />

@@ -182,6 +182,5 @@ export const gamesAPI = {
   submit: (data) => api.post('/games/submit', data).then(r => r.data),
   myAttempts: (ticket_id) => api.get(`/games/attempts/${ticket_id}`).then(r => r.data),
   leaderboard: (contest_id, limit = 25) => api.get(`/contests/${contest_id}/leaderboard`, { params: { limit } }).then(r => r.data),
-  globalLeaderboard: (limit = 50) => api.get('/leaderboard/global', { params: { limit } }).then(r => r.data),
 };
 
