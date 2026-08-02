@@ -20,6 +20,14 @@ export const authAPI = {
   otpSend: (phone) => api.post('/auth/otp/send', { phone }).then(r => r.data),
   otpVerifyBind: (phone, code) => api.post('/auth/otp/verify-bind', { phone, code }).then(r => r.data),
   otpLoginVerify: (phone, code) => api.post('/auth/otp/login-verify', { phone, code }).then(r => r.data),
+  passwordResetSend: (phone) =>
+    api.post('/auth/password-reset/send', { phone }).then(r => r.data),
+  passwordResetConfirm: (phone, code, newPassword) =>
+    api.post('/auth/password-reset/confirm', {
+      phone,
+      code,
+      new_password: newPassword,
+    }).then(r => r.data),
 };
 
 export const captchaAPI = {

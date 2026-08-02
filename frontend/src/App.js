@@ -14,6 +14,7 @@ import DrawCentre from './pages/DrawCentre';
 import Stories from './pages/Stories';
 import FAQ from './pages/FAQ';
 import Login from './pages/Login';
+import ForgotPassword from './pages/ForgotPassword';
 import MyAccount from './pages/MyAccount';
 import Cart from './pages/Cart';
 import CartErrorBoundary from './components/CartErrorBoundary';
@@ -76,6 +77,7 @@ function AppRouter() {
         <Route path="/stories" element={<Stories />} />
         <Route path="/faq" element={<FAQ />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/my-account" element={<MyAccount />} />
         <Route path="/my-account/:section" element={<MyAccount />} />
         <Route path="/legal/:slug" element={<LegalDocPage />} />
