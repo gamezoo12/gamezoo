@@ -88,8 +88,8 @@ export default function Header() {
  <div style={{ background: 'linear-gradient(180deg, #0B0D1F 0%, #161433 100%)' }} className="border-b border-white/5">
  <div className="max-w-7xl mx-auto flex items-center justify-between px-3 sm:px-4 lg:px-8 h-14 sm:h-16 md:h-[70px] gap-2">
  <Link to="/" className="shrink-0 flex items-center" data-testid="header-logo">
- {/* Compact emblem-only on tightest phones; full wordmark from ≥sm */}
- <span className="sm:hidden"><PrizeLeagueLogo size={36} emblemOnly /></span>
+ {/* Mobile: full wordmark (was emblem-only which showed just "P"). From ≥sm keep the existing sizes. */}
+ <span className="sm:hidden"><PrizeLeagueLogo size={32} /></span>
  <span className="hidden sm:inline lg:hidden"><PrizeLeagueLogo size={44} /></span>
  <span className="hidden lg:inline"><PrizeLeagueLogo size={60} /></span>
  </Link>

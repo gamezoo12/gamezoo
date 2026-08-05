@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 39 frontend-only verification: (1) mobile header wordmark, (2) HowToPlaySection under mobile contests grid, (3) mobile leaderboard current-user highlight + attempts meta, (4) mobile summary card, (5) desktop regression, (6) yarn build. ALL 6 test cases PASS. Signed in as bachanta8@gmail.com and confirmed on contest 'TEST_CheckoutBug_Dyn' that the current user row (rank #2) shows the gold gradient + 'YOU' pill + attempts count, while other rows use dark bg with purple avatar as specified.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Mobile Leaderboard", "issues": ["The 'mobile-lb-me' summary card at the top AND the current-user's highlighted row in the list both appear together (essentially the user info is duplicated on-screen). Not a bug per spec but worth reviewing if double-display is intentional."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/test_reports/iter39/mobile_header.jpeg",
+    "/app/test_reports/iter39/mobile_below_grid.jpeg",
+    "/app/test_reports/iter39/mobile_leaderboard.jpeg",
+    "/app/test_reports/iter39/desktop_home.jpeg"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "MobileHome.jsx line 193: uses myRow.duration_s?.toFixed?.(2) with fallback 0 (a number) — this works because optional-chaining short-circuits to undefined when duration_s missing, but when duration_s IS 0 (falsy but valid), (0).toFixed(2) returns '0.00' which is fine. No fix needed, just noting.",
+    "MobileHome.jsx: leaderboard useEffect depends on selectedId only; if the same contest data refreshes elsewhere the panel won't refetch. Acceptable for this iteration.",
+    "HowToPlaySection passed a `compact` prop but the shared component's behaviour for that prop was not inspected during this iteration — verify it renders sensibly on 390px (screenshot indicates it does, no overflow observed)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (not tested per request)", "frontend": "100% (6/6 checks pass)"},
+  "test_credentials": "bachanta8@gmail.com / Herts@910022 (super_admin, used for leaderboard highlight verification)",
+  "seed_data_creation": "None — reused existing test contest c_8f482282e502 (TEST_CheckoutBug_Dyn) which already had leaderboard entries including the current user at rank 2.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter39 three tweaks (mobile wordmark, HowToPlaySection under contests grid, leaderboard YOU highlight + attempts) all verified working. Yarn build exits 0 with only pre-existing eslint warnings. Do not regression-test iter33/34/37/38 items unless asked.",
+  "detailed_results": {
+    "1_mobile_header_wordmark": "PASS — [data-testid=prizeleague-wordmark] visible at 390x844, text='PRIZELEAGUE' (PRIZE + LEAGUE spans concatenated).",
+    "2_mobile_howtoplay_under_grid": "PASS — After scrolling below mobile-contest-grid the page body contains 'How it works', 'How to play', and 'Pick a contest' keywords from HowToPlaySection.",
+    "3_mobile_lb_current_user_highlight": "PASS — On contest c_8f482282e502, mobile-lb-row-2 belongs to signed-in user, contains 'You' + 'YOU' pill, has gold gradient class (bg-gradient-to-r from-[#FFD54A]/25 ...) and gold avatar. Other rows (#1, #3) show usernames iter33top/iter33low with purple avatar as expected.",
+    "4_mobile_lb_attempts_meta": "PASS — All rows include '· 1 attempt' text in the meta line (e.g. '⏱ 10s 🎯 100% · 1 attempt').",
+    "5_desktop_regression": "PASS — At 1440x900 mobile-home-root is present but NOT visible (md:hidden works). Body text contains 'How it works', 'Leaderboard', 'Refer', 'Trust' — all desktop sections render. PRIZE LEAGUE wordmark also present.",
+    "6_yarn_build": "PASS — Exit code 0. Only pre-existing eslint react-hooks/exhaustive-deps warnings in unrelated files (KycPage, PostalEntriesAdmin, etc.). No new errors."
+  }
+}

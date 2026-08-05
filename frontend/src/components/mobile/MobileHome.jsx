@@ -14,6 +14,7 @@ import { Coins, Gamepad2, ListChecks, Trophy, ChevronRight, Sparkles, Target, Za
 import { contestsAPI, gamesAPI, ordersAPI } from '../../lib/api';
 import { tokenCount, tokens as fmtTokens } from '../../lib/format';
 import { useAuth } from '../../context/AuthContext';
+import HowToPlaySection from '../home/HowToPlaySection';
 
 const TABS = [
   { id: 'contests',    label: 'Contests',    Icon: ListChecks },
@@ -141,6 +142,12 @@ function ContestsPanel({ contests }) {
           ))}
         </div>
       )}
+
+      {/* HOW IT WORKS — restored under the Contests grid per user's iter39 ask.
+          The component already ships with mobile-friendly compact styling. */}
+      <div className="mt-8 -mx-4">
+        <HowToPlaySection compact />
+      </div>
     </div>
   );
 }
@@ -194,20 +201,43 @@ function LeaderboardPanel({ contests }) {
       {entries.length === 0 ? (
         <div className="text-center py-12 text-white/50 text-sm">No scores yet. Be the first to play.</div>
       ) : (
-        <ul className="divide-y divide-white/5 bg-white/5 border border-white/10 rounded-xl overflow-hidden" data-testid="mobile-lb-list">
+        <ul className="space-y-2" data-testid="mobile-lb-list">
           {entries.slice(0, 25).map(r => {
             const name = r.user_name || r.username || (r.public_id ? r.public_id : 'Player');
             const isMe = user && r.user_id === user.user_id;
             const durS = r.duration_s ?? (r.duration_ms ? +(r.duration_ms / 1000).toFixed(2) : 0);
+            const rankMedal = r.rank === 1 ? '🥇' : r.rank === 2 ? '🥈' : r.rank === 3 ? '🥉' : `#${r.rank}`;
             return (
-              <li key={r.user_id} className={`flex items-center gap-2 px-3 py-2 text-xs ${isMe ? 'bg-[#FFD54A]/15' : ''}`} data-testid={`mobile-lb-row-${r.rank}`}>
-                <div className="w-6 text-center text-white/60 font-bold">{r.rank}</div>
-                <div className="w-7 h-7 rounded-full bg-[#6C2BFF] text-white text-[10px] font-bold flex items-center justify-center">{(name[0] || 'P').toUpperCase()}</div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-white font-semibold truncate">{name}{isMe && <span className="ml-1 text-[9px] text-[#FFD54A]">YOU</span>}</div>
-                  <div className="text-[10px] text-white/40">{durS}s · {r.accuracy_pct ?? 0}%</div>
+              <li
+                key={r.user_id}
+                data-testid={`mobile-lb-row-${r.rank}`}
+                className={`rounded-xl border p-3 flex items-center gap-3 ${
+                  isMe
+                    ? 'bg-gradient-to-r from-[#FFD54A]/25 to-[#FFD54A]/5 border-[#FFD54A] shadow-[0_0_0_2px_#FFD54A]/20'
+                    : r.rank <= 3
+                    ? 'bg-gradient-to-r from-[#6C2BFF]/15 to-transparent border-[#6C2BFF]/25'
+                    : 'bg-white/5 border-white/10'
+                }`}
+              >
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-extrabold ${isMe ? 'bg-[#FFD54A] text-slate-900' : 'bg-[#6C2BFF] text-white'}`}>
+                  {rankMedal.length <= 2 ? rankMedal : (name[0] || 'P').toUpperCase()}
                 </div>
-                <div className="text-right font-display font-extrabold text-[#FFD54A]">{(r.normalized_score ?? 0).toFixed(2)}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <div className={`font-bold text-sm truncate ${isMe ? 'text-slate-900' : 'text-white'}`}>{isMe ? 'You' : name}</div>
+                    {isMe && <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-900 text-[#FFD54A] font-extrabold tracking-wider">YOU</span>}
+                    {r.public_id && !isMe && <span className="text-[9px] text-white/40 font-mono">{r.public_id}</span>}
+                  </div>
+                  <div className={`text-[10px] mt-0.5 flex items-center gap-2 ${isMe ? 'text-slate-800' : 'text-white/50'}`}>
+                    <span>⏱ {durS}s</span>
+                    <span>🎯 {r.accuracy_pct ?? 0}%</span>
+                    <span>· {r.attempts || 1} attempt{(r.attempts || 1) !== 1 ? 's' : ''}</span>
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className={`font-display text-xl font-extrabold ${isMe ? 'text-slate-900' : 'text-[#FFD54A]'}`}>{(r.normalized_score ?? 0).toFixed(2)}</div>
+                  <div className={`text-[9px] uppercase tracking-wider ${isMe ? 'text-slate-700' : 'text-white/40'}`}>/ 100</div>
+                </div>
               </li>
             );
           })}
