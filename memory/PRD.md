@@ -12,6 +12,18 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - **Referral programme** — invite friends, both get free ticket (or £5 wallet credit fallback)
 - **Live winners ticker + leaderboard per contest**
 
+## 2026-08-05 · Iteration 43 — Contest date fields consolidated + timezone-safe datetime input
+Bug: EditContestDialog had **"End date/time"** in the main form AND **"Open date" + "Draw / result date"** duplicated inside the Advanced accordion. Every save also silently shifted saved datetimes by the browser TZ offset because `toISOString().slice(0,16)` returns UTC but `<input type="datetime-local">` interprets its value as LOCAL.
+
+Fix (`components/EditContestDialog.jsx`):
+- Added `toLocalDatetimeInput(iso)` / `fromLocalDatetimeInput(v)` helpers that subtract the browser's TZ offset on read, and use `new Date(localString).toISOString()` on write.
+- **Main form now shows `Start date & time` + `End date & time` side-by-side** in a two-column grid with helper text.
+- **Draw / result date kept in Advanced** — semantically different (winner announcement, not entry cut-off) — and now uses the same helpers.
+- Removed the duplicate "Open date" field from the Advanced accordion.
+
+Data-testids: `contest-start-date`, `contest-end-date`, `contest-draw-date`.
+
+
 ## 2026-08-05 · Iteration 42 — Sticky "You" leaderboard hero + image size hints
 Two-part refinement on top of iter 41 leaderboard + admin-image work.
 

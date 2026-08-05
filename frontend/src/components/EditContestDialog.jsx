@@ -184,7 +184,26 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
   };
 
   const skill = form.skill_question || { q: '', options: ['', '', '', ''], answer: '', type: 'trivia' }; // eslint-disable-line no-unused-vars
-  const endDateStr = form.end_date ? new Date(form.end_date).toISOString().slice(0, 16) : '';
+
+  /**
+   * Convert an ISO datetime string (UTC) into the `YYYY-MM-DDTHH:MM` format
+   * expected by <input type="datetime-local"> — expressed in the ADMIN'S
+   * LOCAL timezone. Round-tripping via `.toISOString().slice(0,16)` was
+   * incorrectly shifting values by the browser TZ offset every save.
+   */
+  const toLocalDatetimeInput = (iso) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    const off = d.getTimezoneOffset() * 60000;
+    return new Date(d.getTime() - off).toISOString().slice(0, 16);
+  };
+  /** Inverse — parse the local-time string back into an ISO string in UTC. */
+  const fromLocalDatetimeInput = (v) => (v ? new Date(v).toISOString() : null);
+
+  const endDateStr = toLocalDatetimeInput(form.end_date);
+  const startDateStr = toLocalDatetimeInput(form.open_date);
+  const drawDateStr = toLocalDatetimeInput(form.draw_date);
 
   return (
     <Dialog open={open} onOpenChange={o => !o && onClose?.()}>
@@ -220,9 +239,27 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
               </select>
             </div>
           </div>
-          <div>
-            <Label>End date/time</Label>
-            <Input type="datetime-local" value={endDateStr} onChange={e => upd('end_date', e.target.value ? new Date(e.target.value).toISOString() : null)} />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <Label>Start date &amp; time</Label>
+              <Input
+                type="datetime-local"
+                value={startDateStr}
+                onChange={e => upd('open_date', fromLocalDatetimeInput(e.target.value))}
+                data-testid="contest-start-date"
+              />
+              <div className="text-[11px] text-slate-500 mt-1">Contest opens for entries. Leave blank to open immediately.</div>
+            </div>
+            <div>
+              <Label>End date &amp; time</Label>
+              <Input
+                type="datetime-local"
+                value={endDateStr}
+                onChange={e => upd('end_date', fromLocalDatetimeInput(e.target.value))}
+                data-testid="contest-end-date"
+              />
+              <div className="text-[11px] text-slate-500 mt-1">Last moment users can enter. Winner is drawn shortly after.</div>
+            </div>
           </div>
 
           {/* Entry Mode + attempts + leaderboard visibility */}
@@ -495,12 +532,14 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                 <Input type="number" value={form.num_prizes || 1} onChange={e => upd('num_prizes', e.target.value)} />
               </div>
               <div>
-                <Label>Open date</Label>
-                <Input type="datetime-local" value={form.open_date ? new Date(form.open_date).toISOString().slice(0, 16) : ''} onChange={e => upd('open_date', e.target.value ? new Date(e.target.value).toISOString() : null)} />
-              </div>
-              <div>
                 <Label>Draw / result date</Label>
-                <Input type="datetime-local" value={form.draw_date ? new Date(form.draw_date).toISOString().slice(0, 16) : ''} onChange={e => upd('draw_date', e.target.value ? new Date(e.target.value).toISOString() : null)} />
+                <Input
+                  type="datetime-local"
+                  value={drawDateStr}
+                  onChange={e => upd('draw_date', fromLocalDatetimeInput(e.target.value))}
+                  data-testid="contest-draw-date"
+                />
+                <div className="text-[11px] text-slate-500 mt-1">Optional. When the winner is publicly announced (usually shortly after End date).</div>
               </div>
               <div className="md:col-span-2">
                 <Label>Prize details</Label>
