@@ -108,17 +108,13 @@ export default function HeroBanner({ contests = [] }) {
 
               <div className="relative pl-glass rounded-3xl overflow-hidden shadow-2xl">
                 <div className="relative aspect-[16/10]">
-                  <picture key={current.id || current.contest_id || i}>
-                    {current.mobile_image && (
-                      <source media="(max-width: 640px)" srcSet={current.mobile_image} />
-                    )}
-                    <img
-                      src={current.image}
-                      alt={current.title}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                  </picture>
+                  <img
+                    key={current.id || current.contest_id || i}
+                    src={current.image}
+                    alt={current.title}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0B0D1F] via-[#0B0D1F]/40 to-transparent" />
 
                   <span className="absolute top-4 left-4 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-500 text-white text-[11px] font-bold uppercase tracking-widest">

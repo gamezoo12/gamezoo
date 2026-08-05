@@ -16,7 +16,7 @@ export default function Competitions() {
     id: c.contest_id, slug: c.slug, title: c.title, subtitle: c.subtitle,
     category: c.category, tag: c.tag, price: c.price,
     ticketsSold: c.tickets_sold, ticketsTotal: c.tickets_total,
-    endDate: c.end_date, image: c.image, preview_image: c.preview_image, mobile_image: c.mobile_image, jackpot: c.jackpot, gameType: c.game_type,
+    endDate: c.end_date, image: c.image, jackpot: c.jackpot, gameType: c.game_type,
   })), [contests]);
 
   const items = useMemo(() => mapped.filter(c => (cat === 'all' || c.category === cat) && c.title.toLowerCase().includes(q.toLowerCase())), [mapped, cat, q]);

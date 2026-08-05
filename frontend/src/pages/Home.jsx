@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import HeroBanner from '../components/home/HeroBanner';
 import CompetitionSection from '../components/home/CompetitionSection';
 import HowToPlaySection from '../components/home/HowToPlaySection';
-import LeaderboardPreview from '../components/home/LeaderboardPreview';
 import ReferAndEarnCard from '../components/home/ReferAndEarnCard';
 import TrustBadges from '../components/home/TrustBadges';
 import MobileHome from '../components/mobile/MobileHome';
@@ -16,7 +15,7 @@ export default function Home() {
     id: c.contest_id, slug: c.slug, title: c.title, subtitle: c.subtitle,
     category: c.category, tag: c.tag, price: c.price,
     ticketsSold: c.tickets_sold, ticketsTotal: c.tickets_total,
-    prizeAmount: c.prize_amount, endDate: c.end_date, image: c.image, preview_image: c.preview_image, mobile_image: c.mobile_image,
+    prizeAmount: c.prize_amount, endDate: c.end_date, image: c.image,
     jackpot: c.jackpot, featured: c.featured, gameType: c.game_type,
   }));
 
@@ -40,7 +39,6 @@ export default function Home() {
           <CompetitionSection title="Featured Contests" subtitle="Handpicked for you" items={featured} viewAllHref="/competitions" />
         )}
         <HowToPlaySection compact />
-        <LeaderboardPreview />
         <ReferAndEarnCard />
         <TrustBadges />
       </div>
