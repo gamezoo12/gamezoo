@@ -5,6 +5,7 @@ import HowToPlaySection from '../components/home/HowToPlaySection';
 import LeaderboardPreview from '../components/home/LeaderboardPreview';
 import ReferAndEarnCard from '../components/home/ReferAndEarnCard';
 import TrustBadges from '../components/home/TrustBadges';
+import MobileHome from '../components/mobile/MobileHome';
 import { contestsAPI } from '../lib/api';
 
 export default function Home() {
@@ -25,14 +26,24 @@ export default function Home() {
 
   return (
     <>
-      <HeroBanner contests={contests} />
-      {featured.length > 0 && (
-        <CompetitionSection title="Featured Contests" subtitle="Handpicked for you" items={featured} viewAllHref="/competitions" />
-      )}
-      <HowToPlaySection compact />
-      <LeaderboardPreview />
-      <ReferAndEarnCard />
-      <TrustBadges />
+      {/* MOBILE-ONLY redesigned experience (below 768px). Wrapped in md:hidden
+          so desktop markup below is untouched. Uses the same live APIs. */}
+      <div className="md:hidden">
+        <MobileHome />
+      </div>
+
+      {/* DESKTOP-ONLY (unchanged). hidden md:block keeps the original layout
+          exactly as designed and shipped. */}
+      <div className="hidden md:block">
+        <HeroBanner contests={contests} />
+        {featured.length > 0 && (
+          <CompetitionSection title="Featured Contests" subtitle="Handpicked for you" items={featured} viewAllHref="/competitions" />
+        )}
+        <HowToPlaySection compact />
+        <LeaderboardPreview />
+        <ReferAndEarnCard />
+        <TrustBadges />
+      </div>
     </>
   );
 }

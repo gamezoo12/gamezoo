@@ -20,6 +20,14 @@ export const authAPI = {
   otpSend: (phone) => api.post('/auth/otp/send', { phone }).then(r => r.data),
   otpVerifyBind: (phone, code) => api.post('/auth/otp/verify-bind', { phone, code }).then(r => r.data),
   otpLoginVerify: (phone, code) => api.post('/auth/otp/login-verify', { phone, code }).then(r => r.data),
+  passwordResetSend: (phone) =>
+    api.post('/auth/password-reset/send', { phone }).then(r => r.data),
+  passwordResetConfirm: (phone, code, newPassword) =>
+    api.post('/auth/password-reset/confirm', {
+      phone,
+      code,
+      new_password: newPassword,
+    }).then(r => r.data),
 };
 
 export const captchaAPI = {
@@ -45,7 +53,7 @@ export const contestsAPI = {
 export const ordersAPI = {
   checkout: (items) => api.post('/orders/checkout', { items }).then(r => r.data),
   mine: () => api.get('/orders/mine').then(r => r.data),
-  myTickets: () => api.get('/orders/my-tickets').then(r => r.data),
+  myTickets: (limit = 200) => api.get(`/orders/my-tickets?limit=${limit}`).then(r => r.data),
   myGames: () => api.get('/orders/my-games').then(r => r.data),
 };
 
@@ -182,6 +190,5 @@ export const gamesAPI = {
   submit: (data) => api.post('/games/submit', data).then(r => r.data),
   myAttempts: (ticket_id) => api.get(`/games/attempts/${ticket_id}`).then(r => r.data),
   leaderboard: (contest_id, limit = 25) => api.get(`/contests/${contest_id}/leaderboard`, { params: { limit } }).then(r => r.data),
-  globalLeaderboard: (limit = 50) => api.get('/leaderboard/global', { params: { limit } }).then(r => r.data),
 };
 

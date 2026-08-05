@@ -233,7 +233,10 @@ export default function Header() {
  </div>
  </div>
 
+ {/* Announcement ticker — DESKTOP ONLY (hidden below 768px per mobile redesign spec) */}
+ <div className="hidden md:block">
  <AnnouncementTicker />
+ </div>
  </header>
 
  {/* Mobile drawer */}

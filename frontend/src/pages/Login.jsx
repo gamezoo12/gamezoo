@@ -166,7 +166,7 @@ export default function Login() {
  {mode === 'login' ? 'Welcome back!' : 'Create your free account'}
  </h1>
  <p className="text-sm text-slate-500 mb-5">
- {mode === 'login' ? 'Great to see you again.' : 'Takes less than a minute. Mobile verification is optional — you can add it later.'}
+ {mode === 'login' ? 'Great to see you again.' : 'Create your account with mandatory mobile verification.'}
  </p>
 
  <Button onClick={google} variant="outline" className="w-full h-11 gap-2 border-slate-200 hover:bg-slate-50 hover:border-[#6C2BFF]/40 font-semibold" data-testid="google-signin">
@@ -190,7 +190,19 @@ export default function Login() {
  <TabsContent value="email" className="mt-4">
  <form onSubmit={emailSubmit} className="space-y-3">
  <div><Label className="mb-1 block">Email</Label><Input name="email" type="email" required placeholder="you@email.com" data-testid="login-email" /></div>
- <div><Label className="mb-1 block">Password</Label><Input name="password" type="password" required placeholder="Your password" data-testid="login-password" /></div>
+ <div>
+ <div className="flex items-center justify-between mb-1">
+ <Label>Password</Label>
+ <Link
+ to="/forgot-password"
+ className="text-xs font-semibold text-[#6C2BFF] hover:text-[#4A15D9]"
+ data-testid="login-forgot-password-link"
+ >
+ Forgot password?
+ </Link>
+ </div>
+ <Input name="password" type="password" required placeholder="Your password" data-testid="login-password" />
+ </div>
  <Button
  type="submit"
  disabled={busy}

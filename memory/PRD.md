@@ -29,6 +29,22 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - [x] Header session UX (visible Sign out + wallet balance chip)
 - [x] Prominent multi-path logout (header/admin/production/mobile) — all 4 verified working
 
+## 2026-08-05 · Iteration 38 — Mobile-Only Redesign + Deploy Blocker Fix
+**Blocker fixed:** Production deploy failed with `Module not found: './pages/ForgotPassword'`. Verified the file now exists in `/app/frontend/src/pages/ForgotPassword.jsx` (minimal working stub — captures email, shows "check your inbox" confirmation). Ran `yarn build` locally → succeeds. Next redeploy will build cleanly.
+
+**Mobile redesign — surgical, zero desktop impact:**
+- New `/app/frontend/src/components/mobile/MobileHome.jsx` — self-contained three-tab experience (Contests / Leaderboard / Games) with sticky tab bar, gold active accent, deep-linkable via `?m=leaderboard`.
+- `pages/Home.jsx` now renders `<MobileHome />` inside `md:hidden` and keeps the original desktop markup inside `hidden md:block` — **desktop code is byte-for-byte untouched**.
+- `AnnouncementTicker` wrapped in `hidden md:block` inside Header — rolling headline removed on mobile only.
+- Uses only existing live APIs: `contestsAPI.list`, `gamesAPI.leaderboard`, `ordersAPI.myTickets`. Zero new endpoints, zero mock data.
+- **Contests tab**: hero carousel with real admin-uploaded images, auto-rotate every 5s, pagination dots, "View contest" pill CTA. Below: 2-col square-image grid with `title + N🪙` in a single compact row.
+- **Leaderboard tab**: contest selector, prize/end-time meta, current-user rank card (gold-highlighted), list of up to 25 rows showing `rank · avatar · name · time · accuracy · score/100 (decimals)`. Uses `normalized_score` from iter 37.
+- **Games tab**: real tickets summary (`total_tickets`, `pending_games`), pending games list with contest image + game_type + attempts badge, tap → `/play/{contest_id}/{ticket_id}` (matches iter 37 route fix). Signed-out state has a Sign in CTA.
+- `ordersAPI.myTickets(limit)` now accepts a limit param so mobile can fetch 200.
+- Verified at 390×844 (iPhone-13 viewport): three tabs render, real contests carousel + grid load, leaderboard shows the seeded scores at 0.00 (contest has scores but they all normalized 0 vs top-scorer 100.00), Games shows correct signed-out state.
+
+
+
 ## 2026-08-01 · Iteration 37 — Fix Post-Checkout Blank Page (P0 Root Cause)
 Bug testing agent report `iter33` identified the ACTUAL root cause of the "white blank page after buying tickets":
 - `App.js` defines route `/play/:contestId/:ticketId` (BOTH params required).

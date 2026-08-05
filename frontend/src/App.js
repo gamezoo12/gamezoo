@@ -14,6 +14,7 @@ import DrawCentre from './pages/DrawCentre';
 import Stories from './pages/Stories';
 import FAQ from './pages/FAQ';
 import Login from './pages/Login';
+import ForgotPassword from './pages/ForgotPassword';
 import MyAccount from './pages/MyAccount';
 import Cart from './pages/Cart';
 import CartErrorBoundary from './components/CartErrorBoundary';
@@ -44,7 +45,7 @@ import UserDetailsPage from './pages/admin/UserDetailsPage';
 import LegalDocPage from './pages/legal/LegalDocPage';
 import PlayGame from './pages/PlayGame';
 import ContestLeaderboard from './pages/ContestLeaderboard';
-import GlobalLeaderboard from './pages/GlobalLeaderboard';
+import LeaderboardIndex from './pages/LeaderboardIndex';
 import HowItWorksPage from './pages/HowItWorks';
 import ReferPage from './pages/ReferPage';
 import TermsPage from './pages/legal/TermsPage';
@@ -76,6 +77,7 @@ function AppRouter() {
         <Route path="/stories" element={<Stories />} />
         <Route path="/faq" element={<FAQ />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/my-account" element={<MyAccount />} />
         <Route path="/my-account/:section" element={<MyAccount />} />
         <Route path="/legal/:slug" element={<LegalDocPage />} />
@@ -83,7 +85,7 @@ function AppRouter() {
         <Route path="/free-entry" element={<FreeEntry />} />
         <Route path="/verify" element={<VerifyFeed />} />
         <Route path="/play/:contestId/:ticketId" element={<PlayGame />} />
-        <Route path="/leaderboard" element={<GlobalLeaderboard />} />
+        <Route path="/leaderboard" element={<LeaderboardIndex />} />
         <Route path="/leaderboard/:contestId" element={<ContestLeaderboard />} />
         <Route path="/how-it-works" element={<HowItWorksPage />} />
         <Route path="/refer" element={<ReferPage />} />

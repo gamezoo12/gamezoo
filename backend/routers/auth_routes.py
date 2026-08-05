@@ -88,28 +88,27 @@ async def register(inp: RegisterInput, request: Request):
     if await db.users.find_one({'email': inp.email.lower()}):
         raise HTTPException(status_code=400, detail='Email already registered')
 
-    # Phone verification is OPTIONAL at signup. Enforce the paired-fields
-    # rule: if a phone is provided, an OTP MUST accompany it (and vice
-    # versa). If both are omitted, the account is created with no phone
-    # attached — user can bind + verify later at /api/auth/otp/verify-bind.
-    normalized_phone: Optional[str] = None
-    phone_verified = False
-    provided_phone = (inp.phone or '').strip() or None
-    provided_otp = (inp.otp_code or '').strip() or None
-    if provided_phone and not provided_otp:
-        raise HTTPException(status_code=422, detail='otp_code is required when phone is provided')
-    if provided_otp and not provided_phone:
-        raise HTTPException(status_code=422, detail='phone is required when otp_code is provided')
-    if provided_phone and provided_otp:
-        # Verify with Twilio before creating the account.
-        normalized_phone = await _verify_twilio_otp(provided_phone, provided_otp)
-        # Guard: another user must not have this phone verified already.
-        existing_phone = await db.users.find_one(
-            {'phone': normalized_phone, 'phone_verified': True}, {'_id': 1}
+    provided_phone = (inp.phone or '').strip()
+    provided_otp = (inp.otp_code or '').strip()
+
+    if not provided_phone:
+        raise HTTPException(status_code=422, detail='Phone number is required')
+    if not provided_otp:
+        raise HTTPException(status_code=422, detail='Phone verification code is required')
+
+    normalized_phone = await _verify_twilio_otp(provided_phone, provided_otp)
+
+    existing_phone = await db.users.find_one(
+        {'phone': normalized_phone, 'phone_verified': True},
+        {'_id': 1},
+    )
+    if existing_phone:
+        raise HTTPException(
+            status_code=400,
+            detail='This phone number is already registered.',
         )
-        if existing_phone:
-            raise HTTPException(status_code=400, detail='This phone number is already registered.')
-        phone_verified = True
+
+    phone_verified = True
 
     referred_by = None
     if inp.referral_code:
@@ -469,6 +468,181 @@ async def finalize_google_signup(inp: GoogleFinalizeInput, request: Request):
     return {
         'ok': True,
         'user': _to_public(fresh),
+    }
+
+
+class PasswordResetSendInput(BaseModel):
+    phone: str = Field(..., min_length=6, max_length=32)
+
+
+class PasswordResetConfirmInput(BaseModel):
+    phone: str = Field(..., min_length=6, max_length=32)
+    code: str = Field(..., min_length=4, max_length=10)
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+
+@router.post('/password-reset/send')
+async def password_reset_send(inp: PasswordResetSendInput):
+    """Send a password-reset OTP to a verified Prize League phone number.
+
+    A generic response is returned even when no matching account exists, so
+    callers cannot use this endpoint to discover registered phone numbers.
+    """
+    from deps import get_db
+    from routers.twilio_routes import _normalize_phone, _twilio_client
+    from twilio.base.exceptions import TwilioRestException
+
+    db = get_db()
+    normalized_phone = _normalize_phone(inp.phone)
+
+    user = await db.users.find_one(
+        {
+            'phone': normalized_phone,
+            'phone_verified': True,
+            'password_hash': {'$type': 'string'},
+        },
+        {'_id': 0, 'user_id': 1},
+    )
+
+    # Generic success response prevents account enumeration.
+    generic_response = {
+        'ok': True,
+        'message': (
+            'If a verified account exists for this number, '
+            'a password reset code has been sent.'
+        ),
+        'phone': normalized_phone,
+    }
+
+    if not user:
+        return generic_response
+
+    # Reuse the existing OTP send endpoint's rate-limiting collection.
+    now = datetime.now(timezone.utc)
+    recent = await db.otp_attempts.find(
+        {
+            'phone': normalized_phone,
+            'purpose': 'password_reset',
+            'sent_at': {'$gte': now - timedelta(minutes=15)},
+        },
+        {'_id': 0, 'sent_at': 1},
+    ).sort('sent_at', -1).to_list(20)
+
+    if recent:
+        newest = recent[0].get('sent_at')
+
+        if isinstance(newest, str):
+            try:
+                newest = datetime.fromisoformat(newest)
+            except Exception:
+                newest = now
+
+        if isinstance(newest, datetime) and newest.tzinfo is None:
+            newest = newest.replace(tzinfo=timezone.utc)
+
+        seconds_since = (now - newest).total_seconds()
+
+        if seconds_since < 30:
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    f'Please wait {max(1, int(30 - seconds_since))}s '
+                    'before requesting another code.'
+                ),
+            )
+
+        if len(recent) >= 5:
+            raise HTTPException(
+                status_code=429,
+                detail='Too many password reset requests. Please try again in 15 minutes.',
+            )
+
+    client, service_sid = _twilio_client()
+
+    try:
+        verification = (
+            client.verify.v2
+            .services(service_sid)
+            .verifications
+            .create(to=normalized_phone, channel='sms')
+        )
+    except TwilioRestException as exc:
+        logger.warning('password reset OTP send failed: %s', exc)
+        raise HTTPException(
+            status_code=400,
+            detail='Could not send the password reset code. Please try again.',
+        )
+    except Exception:
+        logger.exception('password reset OTP send unexpected error')
+        raise HTTPException(
+            status_code=500,
+            detail='Password reset service is temporarily unavailable.',
+        )
+
+    await db.otp_attempts.insert_one({
+        'phone': normalized_phone,
+        'purpose': 'password_reset',
+        'sent_at': now,
+        'twilio_status': verification.status,
+    })
+
+    return generic_response
+
+
+@router.post('/password-reset/confirm')
+async def password_reset_confirm(inp: PasswordResetConfirmInput):
+    """Verify Twilio OTP, set a new password, and revoke existing sessions."""
+    from deps import get_db
+
+    db = get_db()
+
+    if len(inp.new_password) < 8:
+        raise HTTPException(
+            status_code=400,
+            detail='Password must be at least 8 characters.',
+        )
+
+    normalized_phone = await _verify_twilio_otp(inp.phone, inp.code)
+
+    user = await db.users.find_one(
+        {
+            'phone': normalized_phone,
+            'phone_verified': True,
+            'password_hash': {'$type': 'string'},
+        },
+        {'_id': 0, 'user_id': 1},
+    )
+
+    if not user:
+        raise HTTPException(
+            status_code=400,
+            detail='Unable to reset password for this account.',
+        )
+
+    changed_at = datetime.now(timezone.utc)
+
+    await db.users.update_one(
+        {'user_id': user['user_id']},
+        {
+            '$set': {
+                'password_hash': hash_password(inp.new_password),
+                'password_changed_at': changed_at,
+            }
+        },
+    )
+
+    # Revoke all active Google/custom sessions for this user.
+    await db.user_sessions.delete_many({'user_id': user['user_id']})
+
+    # Remove password reset OTP request history after success.
+    await db.otp_attempts.delete_many({
+        'phone': normalized_phone,
+        'purpose': 'password_reset',
+    })
+
+    return {
+        'ok': True,
+        'message': 'Password reset successfully. You can now log in.',
     }
 
 

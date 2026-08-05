@@ -40,21 +40,36 @@ async def checkout(inp: CheckoutInput, request: Request):
 
     db = get_db()
 
-    # Idempotency: reject duplicate submissions from the same user within a
-    # 3-second window with an identical basket signature. Prevents refresh /
-    # double-click race conditions from creating duplicate orders.
+    # Protect only against accidental rapid duplicate submissions.
+    #
+    # `basket_sig` identifies the basket contents and is used for the short
+    # three-second duplicate window. `idempotency_sig` additionally contains
+    # a three-second time bucket so the existing unique Mongo index still
+    # prevents concurrent double submissions, while a genuine later purchase
+    # of the same quantity in the same contest remains allowed.
     from hashlib import sha256
     from datetime import timedelta
-    sig_material = user['user_id'] + '|' + '|'.join(sorted(f"{i.contest_id}:{i.qty}" for i in inp.items))
-    sig = sha256(sig_material.encode()).hexdigest()
+
+    basket_material = user['user_id'] + '|' + '|'.join(
+        sorted(f"{i.contest_id}:{i.qty}" for i in inp.items)
+    )
+    basket_sig = sha256(basket_material.encode()).hexdigest()
+
     now = datetime.now(timezone.utc)
     recent = await db.orders.find_one({
         'user_id': user['user_id'],
-        'idempotency_sig': sig,
+        'basket_sig': basket_sig,
         'created_at': {'$gte': now - timedelta(seconds=3)},
     }, {'_id': 0, 'order_id': 1, 'total': 1})
+
     if recent:
-        raise HTTPException(status_code=409, detail=f"Duplicate checkout detected. Existing order: {recent['order_id']}")
+        raise HTTPException(
+            status_code=409,
+            detail=f"Duplicate checkout detected. Existing order: {recent['order_id']}",
+        )
+
+    time_bucket = int(now.timestamp() // 3)
+    sig = sha256(f"{basket_sig}|{time_bucket}".encode()).hexdigest()
 
     order_items = []
     total = 0.0
@@ -144,6 +159,7 @@ async def checkout(inp: CheckoutInput, request: Request):
         debit_applied = True
 
         order_doc = order.model_dump()
+        order_doc['basket_sig'] = basket_sig
         order_doc['idempotency_sig'] = sig
         try:
             await db.orders.insert_one(order_doc)

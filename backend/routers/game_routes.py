@@ -57,15 +57,43 @@ class SubmitScoreInput(BaseModel):
     challenge_token: Optional[str] = None
 
 
-def _calc_points(game_type: str, duration_ms: int, accuracy: float, solved: bool) -> int:
-    """Speed × accuracy scoring. Faster + more accurate = more points."""
-    meta = next((g for g in GAME_TYPES if g['id'] == game_type), None)
-    target = (meta or {}).get('target_time_s', 60) * 1000
-    if not solved:
-        return max(0, int(accuracy * 200))
-    # Base 1000 for a solved game, up to 1000 speed bonus, capped
-    speed_bonus = max(0, min(1000, int(1000 * (target / max(duration_ms, 1)))))
-    return int(1000 + speed_bonus * accuracy)
+def _calc_points(
+    game_type: str,
+    duration_ms: int,
+    accuracy: float,
+    solved: bool,
+) -> float:
+    """Return a verified performance score from 0.00 to 100.00.
+
+    Weighting:
+      - Accuracy:   60 points
+      - Speed:      25 points
+      - Completion: 15 points
+
+    Faster than the configured target receives the full speed allocation.
+    Unsolved attempts receive no completion bonus.
+    """
+    meta = next(
+        (game for game in GAME_TYPES if game.get('id') == game_type),
+        {},
+    )
+    target_ms = max(
+        1000,
+        float(meta.get('target_time_s', 60)) * 1000,
+    )
+
+    safe_accuracy = max(0.0, min(1.0, float(accuracy)))
+    safe_duration = max(1, int(duration_ms))
+
+    accuracy_points = 60.0 * safe_accuracy
+    speed_ratio = max(0.0, min(1.0, target_ms / safe_duration))
+    speed_points = 25.0 * speed_ratio
+    completion_points = 15.0 if solved else 0.0
+
+    return round(
+        max(0.0, min(100.0, accuracy_points + speed_points + completion_points)),
+        2,
+    )
 
 
 @router.get('/types')
