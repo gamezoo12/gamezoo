@@ -53,8 +53,9 @@ export const contestsAPI = {
 export const ordersAPI = {
   checkout: (items) => api.post('/orders/checkout', { items }).then(r => r.data),
   mine: () => api.get('/orders/mine').then(r => r.data),
-  myTickets: () => api.get('/orders/my-tickets').then(r => r.data),
+  myTickets: (limit = 200) => api.get(`/orders/my-tickets?limit=${limit}`).then(r => r.data),
   myGames: () => api.get('/orders/my-games').then(r => r.data),
+  myJoinedContestIds: () => api.get('/orders/my-joined-contest-ids').then(r => r.data?.contest_ids || []),
 };
 
 export const publicAPI = {
@@ -171,6 +172,7 @@ export const paymentsAPI = {
     origin_url: origin_url || window.location.origin,
   }).then(r => ({ url: r.data.checkout_url, session_id: r.data.session_id })),
   status: (session_id) => api.get(`/payments/status/${session_id}`).then(r => r.data),
+  bonusStats: () => api.get('/admin/bonus/stats').then(r => r.data),
 };
 
 export const adminWalletAPI = {

@@ -1,76 +1,130 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Progress } from './ui/progress';
-import { Badge } from './ui/badge';
-import { Button } from './ui/button';
-import { Clock, Ticket } from 'lucide-react';
-import { countdown, percent, gbp, tokens as fmtTokens, tokenCount } from '../lib/format';
+import { Clock, Coins } from 'lucide-react';
+import { countdown, percent, tokenCount } from '../lib/format';
 import { api } from '../lib/api';
+import { useAuth } from '../context/AuthContext';
+import { useJoinedContestIds } from '../lib/joinedContests';
 
 export default function CompetitionCard({ c }) {
   const [t, setT] = useState(countdown(c.endDate));
+  const { user } = useAuth();
+  const joined = useJoinedContestIds(user);
+
   useEffect(() => {
-    const i = setInterval(() => setT(countdown(c.endDate)), 1000);
-    return () => clearInterval(i);
+    const timer = setInterval(() => setT(countdown(c.endDate)), 1000);
+    return () => clearInterval(timer);
   }, [c.endDate]);
 
   const pct = percent(c.ticketsSold, c.ticketsTotal);
+  const contestId = c.id || c.contest_id;
+  const isJoined = Boolean(user && contestId && joined.has(contestId));
+  const ended =
+    t.days <= 0 &&
+    t.hours <= 0 &&
+    t.mins <= 0 &&
+    t.secs <= 0;
 
   const handleClick = () => {
-    // Fire-and-forget A/B tracking: distinguishes mobile vs desktop card clicks so
-    // admins can see if a contest is being clicked more from mobile and needs a
-    // better mobile crop.
     try {
-      const isMobile = typeof window !== 'undefined' && window.innerWidth <= 640;
-      api.post(`/contests/${c.id || c.contest_id}/track-view?is_mobile=${isMobile}`).catch(() => {});
-    } catch { /* ignore */ }
+      const isMobile =
+        typeof window !== 'undefined' && window.innerWidth <= 640;
+
+      api
+        .post(`/contests/${contestId}/track-view?is_mobile=${isMobile}`)
+        .catch(() => {});
+    } catch {
+      // Non-critical analytics call.
+    }
   };
 
   return (
-    <Link to={`/competition/${c.slug}`} onClick={handleClick} className="group block" data-testid={`competition-card-${c.slug}`}>
-      <div className="prize-card bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm h-full flex flex-col">
-        <div className="relative aspect-square overflow-hidden bg-gradient-to-br from-teal-50 to-emerald-50">
-          <picture>
-            {c.mobile_image && <source media="(max-width: 640px)" srcSet={c.mobile_image} />}
-            <img src={c.image} alt={c.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
-          </picture>
-          <Badge className="absolute top-3 left-3 bg-white text-teal-700 hover:bg-white shadow">{c.tag}</Badge>
-          {c.jackpot && (
-            <Badge className="absolute top-3 right-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white border-0">BIG PRIZE</Badge>
-          )}
-          {c.gameType && (
-            <Badge
-              data-testid={`play-to-win-badge-${c.id}`}
-              className={`absolute ${c.jackpot ? 'top-11' : 'top-3'} right-3 bg-gradient-to-r from-fuchsia-500 via-rose-500 to-orange-500 text-white border-0 shadow-md`}
-            >
-              🎮 Play to win
-            </Badge>
-          )}
-          <div className="absolute bottom-3 left-3 right-3 flex items-center gap-1 text-white text-xs font-semibold">
-            <span className="bg-black/60 backdrop-blur px-2 py-1 rounded-md"><Clock className="w-3 h-3 inline mr-1" />{t.days}d {t.hours}h {t.mins}m {String(t.secs).padStart(2,'0')}s</span>
-          </div>
+    <Link
+      to={`/competition/${c.slug}`}
+      onClick={handleClick}
+      className="group block"
+      data-testid={`competition-card-${c.slug}`}
+    >
+      <div className="overflow-hidden rounded-md bg-[#161433]">
+        <div className="relative aspect-[2/1] overflow-hidden bg-transparent">
+          <img
+            src={c.image}
+            alt={c.title}
+            loading="lazy"
+            className="block h-full w-full object-cover object-center"
+          />
         </div>
-        <div className="p-3 md:p-4 flex-1 flex flex-col">
-          <div className="text-[10px] md:text-xs uppercase tracking-wide text-slate-500 mb-1 truncate">{c.subtitle}</div>
-          <h3 className="font-display font-bold text-sm md:text-base text-slate-900 line-clamp-2 min-h-[2.5rem] md:min-h-[3rem]">{c.title}</h3>
 
-          <div className="mt-2 md:mt-3">
-            <div className="flex justify-between text-[10px] md:text-xs text-slate-500 mb-1">
-              <span>{c.ticketsSold.toLocaleString()} / {c.ticketsTotal.toLocaleString()}</span>
-              <span className="font-semibold text-teal-600">{pct}%</span>
+        <div className="px-2 py-1 text-white">
+          <h3 className="truncate font-display text-sm font-extrabold">
+            {c.title}
+          </h3>
+
+          <div className="mt-0.5 flex items-center justify-between gap-2">
+            <div className="inline-flex shrink-0 items-center gap-1 font-extrabold">
+              <Coins className="h-4 w-4 text-[#FFD54A]" />
+              <span className="text-sm">{tokenCount(c.price)}</span>
             </div>
-            <Progress value={pct} className="h-1.5 md:h-2 bg-slate-100" />
+
+            <div
+              className={`inline-flex min-w-0 items-center gap-1 rounded-sm px-1.5 py-0.5 text-[9px] font-extrabold ${
+                ended
+                  ? 'bg-rose-500 text-white'
+                  : 'bg-black/45 text-white'
+              }`}
+              data-testid={`card-timer-${c.slug}`}
+            >
+              <Clock className="h-3 w-3 shrink-0" />
+              <span className="truncate">
+                {ended
+                  ? 'Ended'
+                  : `${t.days}d ${String(t.hours).padStart(2, '0')}h ${String(
+                      t.mins
+                    ).padStart(2, '0')}m`}
+              </span>
+            </div>
+
+            <div
+              data-testid={`card-join-state-${c.slug}`}
+              className={`shrink-0 rounded-sm px-2 py-0.5 text-[9px] font-extrabold ${
+                isJoined
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-[#FFD54A] text-slate-900'
+              }`}
+            >
+              {isJoined ? 'Joined' : 'Join'}
+            </div>
           </div>
 
-          <div className="mt-3 md:mt-4 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1 text-slate-900 min-w-0">
-              <Ticket className="w-4 h-4 text-orange-500 shrink-0" />
-              <span className="font-bold text-sm md:text-base">{tokenCount(c.price)} 🪙</span>
-              <span className="hidden md:inline text-xs text-slate-500">/entry</span>
+          <div className="mt-0.5">
+            <div className="flex items-center justify-between text-[9px] leading-none">
+              <span className="uppercase tracking-wider text-white/45">
+                Progress
+              </span>
+
+              <span
+                className="font-extrabold text-[#FFD54A]"
+                data-testid={`card-pct-${c.slug}`}
+              >
+                {pct}%
+              </span>
             </div>
-            <Button size="sm" className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white text-xs md:text-sm px-2.5 md:px-3">
-              Enter
-            </Button>
+
+            <div
+              className="mt-0.5 h-1 w-full overflow-hidden rounded-full bg-white/10"
+              role="progressbar"
+              aria-label={`${c.title} contest progress`}
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow={pct}
+            >
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-[#FFD54A] to-[#FFB020] transition-[width] duration-500"
+                style={{
+                  width: `${Math.max(0, Math.min(100, pct))}%`,
+                }}
+              />
+            </div>
           </div>
         </div>
       </div>

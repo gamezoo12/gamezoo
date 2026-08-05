@@ -23,7 +23,7 @@ export default function AnnouncementTicker() {
   );
   return (
     <div
-      className="pl-marquee relative overflow-hidden border-y border-white/10"
+      className="pl-marquee relative z-30 block w-full shrink-0 overflow-hidden border-y border-white/10"
       style={{ background: 'linear-gradient(90deg, #6C2BFF 0%, #8B5CFF 50%, #6C2BFF 100%)' }}
       data-testid="announcement-ticker"
       aria-label="Announcements"

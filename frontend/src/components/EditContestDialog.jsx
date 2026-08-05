@@ -97,7 +97,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
     try {
       const data = await uploadsAPI.contestImage(file, { focal_x: 0.5, focal_y: 0.5, alt: form.title || '' });
       upd('image', data?.sizes?.card || data?.recommended_image_url);
-      upd('mobile_image', data?.sizes?.mobile || data?.recommended_mobile_image_url);
+
       toast({ title: 'Image processed', description: `Generated ${Object.keys(data?.sizes || {}).length} responsive variants.` });
     } catch (err) {
       setUploadErr(err?.response?.data?.detail || err.message || 'Upload failed');
@@ -158,7 +158,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
         terms_acknowledgement: form.terms_acknowledgement || null,
         country_restrictions: form.country_restrictions || null,
         age_restriction: form.age_restriction || '18+',
-        mobile_image: form.mobile_image || null,
+
         seo_title: form.seo_title || null,
         seo_description: form.seo_description || null,
         publication_status: form.publication_status || 'published',
@@ -508,7 +508,6 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
               <div className="md:col-span-2"><Label>Terms acknowledgement</Label><textarea rows={2} value={form.terms_acknowledgement || ''} onChange={e => upd('terms_acknowledgement', e.target.value)} className="w-full rounded-lg border border-slate-200 p-2 text-sm" /></div>
               <div><Label>Country restrictions</Label><Input value={form.country_restrictions || ''} onChange={e => upd('country_restrictions', e.target.value)} placeholder="United Kingdom only" /></div>
               <div><Label>Age restriction</Label><Input value={form.age_restriction || '18+'} onChange={e => upd('age_restriction', e.target.value)} /></div>
-              <div><Label>Mobile image URL</Label><Input value={form.mobile_image || ''} onChange={e => upd('mobile_image', e.target.value)} placeholder="Optional smaller image for mobile" /></div>
               <div>
                 <Label>Contest engine</Label>
                 <select value={form.engine_type || 'leaderboard'} onChange={e => upd('engine_type', e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" data-testid="fld-engine-type">
@@ -549,7 +548,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                 initialImage={form.image}
                 onUploaded={(r) => {
                   if (r?.sizes?.card) upd('image', r.sizes.card);
-                  if (r?.sizes?.mobile) upd('mobile_image', r.sizes.mobile);
+
                 }}
               />
             </div>

@@ -16,7 +16,7 @@ export default function Competitions() {
     id: c.contest_id, slug: c.slug, title: c.title, subtitle: c.subtitle,
     category: c.category, tag: c.tag, price: c.price,
     ticketsSold: c.tickets_sold, ticketsTotal: c.tickets_total,
-    endDate: c.end_date, image: c.image, mobile_image: c.mobile_image, jackpot: c.jackpot, gameType: c.game_type,
+    endDate: c.end_date, image: c.image, jackpot: c.jackpot, gameType: c.game_type,
   })), [contests]);
 
   const items = useMemo(() => mapped.filter(c => (cat === 'all' || c.category === cat) && c.title.toLowerCase().includes(q.toLowerCase())), [mapped, cat, q]);
@@ -43,7 +43,7 @@ export default function Competitions() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+      <div className="grid grid-cols-2 gap-4 md:gap-6">
         {items.map(c => <CompetitionCard key={c.id} c={c} />)}
       </div>
       {items.length === 0 && <p className="text-center text-slate-500 py-16">No contests found.</p>}
