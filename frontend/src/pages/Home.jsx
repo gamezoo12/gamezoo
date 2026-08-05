@@ -6,6 +6,7 @@ import LeaderboardPreview from '../components/home/LeaderboardPreview';
 import ReferAndEarnCard from '../components/home/ReferAndEarnCard';
 import TrustBadges from '../components/home/TrustBadges';
 import MobileHome from '../components/mobile/MobileHome';
+import BonusPromoBanner from '../components/BonusPromoBanner';
 import { contestsAPI } from '../lib/api';
 
 export default function Home() {
@@ -36,6 +37,9 @@ export default function Home() {
           exactly as designed and shipped. */}
       <div className="hidden md:block">
         <HeroBanner contests={contests} />
+        <div className="max-w-6xl mx-auto px-4 -mt-2 mb-6">
+          <BonusPromoBanner />
+        </div>
         {featured.length > 0 && (
           <CompetitionSection title="Featured Contests" subtitle="Handpicked for you" items={featured} viewAllHref="/competitions" />
         )}

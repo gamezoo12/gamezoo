@@ -15,6 +15,7 @@ import { contestsAPI, gamesAPI, ordersAPI } from '../../lib/api';
 import { tokenCount, tokens as fmtTokens } from '../../lib/format';
 import { useAuth } from '../../context/AuthContext';
 import HowToPlaySection from '../home/HowToPlaySection';
+import BonusPromoBanner from '../BonusPromoBanner';
 
 const TABS = [
   { id: 'contests',    label: 'Contests',    Icon: ListChecks },
@@ -80,6 +81,10 @@ function ContestsPanel({ contests }) {
 
   return (
     <div className="px-4 pt-4">
+      {/* Promo banner — top-up bonus, dismissible via API "active" flag. */}
+      <div className="mb-4">
+        <BonusPromoBanner variant="compact" />
+      </div>
       {/* Hero carousel */}
       {featured.length > 0 && (
         <div className="mb-6" data-testid="mobile-hero-carousel">

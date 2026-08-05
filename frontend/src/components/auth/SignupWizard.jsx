@@ -8,6 +8,7 @@ import { useToast } from '../../hooks/use-toast';
 import { authAPI, api } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import { Phone, ShieldCheck, ArrowLeft, ArrowRight, User, Mail, Lock, Calendar, ScrollText } from 'lucide-react';
+import BonusPromoBanner from '../BonusPromoBanner';
 
 /**
  * Multi-step signup wizard:
@@ -130,6 +131,8 @@ export default function SignupWizard() {
   return (
     <div className="space-y-4" data-testid="signup-wizard">
       <Progress />
+
+      {step === 1 && <BonusPromoBanner className="mb-2" />}
 
       {step === 1 && (
         <form onSubmit={submitBasics} className="space-y-3">

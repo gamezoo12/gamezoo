@@ -12,6 +12,38 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - **Referral programme** — invite friends, both get free ticket (or £5 wallet credit fallback)
 - **Live winners ticker + leaderboard per contest**
 
+## 2026-08-05 · Iteration 40 — Bonus Token Promo integration (P0)
+User's marketing feature: **Buy 10 tokens → get 5 bonus tokens (expires in 30 days)**. Backend was already scaffolded in iter 39 (bonus.py + payments_routes hooks). This iteration completed the frontend integration end-to-end.
+
+**Backend (already shipped, verified in this iter):**
+- `bonus.py` — `maybe_grant_bonus(db, user_id, tokens, ref_session_id)` inserts a `bonus_grants` row when `tokens >= 10`. Grant record: `{grant_id, user_id, amount=5, granted_at, expires_at=+30d, status='active', ref_session_id, source='topup_bonus'}`.
+- `sweep_expired_bonuses(db)` — idempotent lazy flip of active → expired; called on every admin stats read.
+- Stripe credit path (`payments_routes._credit_wallet_once`) calls `maybe_grant_bonus` after the wallet credit; when a grant fires it also immediately applies a `wallet_tx` of kind `referral_bonus` (semantics: spendable like normal tokens) so the user sees the +5 in their balance instantly.
+- `GET /api/promo/topup-bonus` — public, no auth. Returns `{active, min_topup_tokens, bonus_amount_tokens, expiry_days, headline, sub}` for the marketing banner.
+- `GET /api/admin/bonus/stats` — admin-only aggregate `{active_tokens, active_grants, expired_tokens, expired_grants, redeemed_tokens, redeemed_grants, total_users_granted, config}`.
+
+**Frontend (this iter — surgical inserts, no refactors):**
+- `components/BonusPromoBanner.jsx` — gold gradient strip, fetches `/api/promo/topup-bonus`, renders nothing when API is down or promo inactive.
+- `lib/api.js` — added `paymentsAPI.bonusStats()`.
+- **Injected on 4 player surfaces + 1 admin surface:**
+  1. Desktop Home (`pages/Home.jsx`) — under HeroBanner, max-w constrained.
+  2. Mobile Home (`components/mobile/MobileHome.jsx::ContestsPanel`) — compact variant, above hero carousel.
+  3. Signup wizard step 1 (`components/auth/SignupWizard.jsx`) — above name/email form; only on step 1.
+  4. Wallet panel top-up section (`components/account/WalletPanel.jsx`) — inside the "Buy tokens" panel, above the 5/10/20/50/100 preset buttons.
+  5. Admin dashboard (`pages/admin/Dashboard.jsx`) — new "Bonus tokens promo" card with 4 stat tiles (Active tokens · Expired · Redeemed · Users granted) + config subtitle.
+
+**Tests (new):** `backend/tests/test_bonus_tokens.py` — 4/4 passing:
+- `test_no_grant_below_threshold` — top-up of 9 tokens creates zero grants.
+- `test_grant_at_threshold` — exactly 10 tokens grants +5, status=active, expires_at = granted_at + 30d.
+- `test_sweep_flips_expired` — grant with expires_at in the past → flipped to expired + gains `expired_at`.
+- `test_admin_stats_shape` — `get_bonus_stats` reports config + active/expired/redeemed buckets correctly.
+
+**Design decisions (user-confirmed):**
+- Bonus tokens credit into the main wallet (spendable like normal tokens) — simplest UX, correct for launch.
+- Banner appears on Signup / Home (desktop + mobile) / Wallet only — not on Cart (user's ask).
+
+**Verified live:** promo endpoint returns the correct payload, admin stats returns zero-state cleanly, banner renders on all 4 player surfaces + admin card renders with 4 stat tiles.
+
 ## Personas
 - Player – buys tickets from wallet, plays skill game, tracks entries + winnings, invites friends
 - Admin / Super-admin – full control incl. wallet adjustments

@@ -7,6 +7,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import PrizeLeagueLogo from '../layout/PrizeLeagueLogo';
+import BonusPromoBanner from '../BonusPromoBanner';
 
 const MIN_TOPUP = 5;   // tokens (1 token = £1)
 const MAX_TOPUP = 1000;
@@ -228,6 +229,7 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  <button className="text-slate-400 hover:text-slate-700" onClick={() => setShowTopup(false)} aria-label="Close"><X className="w-4 h-4" /></button>
  </div>
  <p className="text-sm text-slate-500 mb-4">Minimum {fmtTokens(MIN_TOPUP)} · Secure Stripe checkout · Tokens credited instantly.</p>
+<div className="mb-4"><BonusPromoBanner /></div>
 
  <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
  {[5, 10, 20, 50, 100].map(n => (
