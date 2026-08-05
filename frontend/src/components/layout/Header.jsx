@@ -10,7 +10,7 @@ import NotificationsBell from './NotificationsBell';
 import AnnouncementTicker from './AnnouncementTicker';
 import PrizeLeagueLogo from './PrizeLeagueLogo';
 import { useAuth } from '../../context/AuthContext';
-import { walletAPI } from '../../lib/api';
+import { walletAPI, ordersAPI } from '../../lib/api';
 import { tokenCount } from '../../lib/format';
 
 const NAV = [
@@ -27,6 +27,8 @@ export default function Header() {
  const [signOutOpen, setSignOutOpen] = useState(false);
  const [balance, setBalance] = useState(null);
  const [cartCount, setCartCount] = useState(0);
+ const [pendingDrawCount, setPendingDrawCount] = useState(0);
+ const [pendingKnown, setPendingKnown] = useState(true);
  const { pathname } = useLocation();
  const { user, logout } = useAuth();
  const profileRef = useRef(null);
@@ -52,6 +54,50 @@ export default function Header() {
  const t = setInterval(load, 30000);
  return () => clearInterval(t);
  }, [user, pathname]);
+
+ // Pending draws (mobile badge)
+ useEffect(() => {
+ if (!user) { setPendingDrawCount(0); setPendingKnown(true); return undefined; }
+ let cancelled = false;
+ (async () => {
+ try {
+ const tickets = await ordersAPI.myTickets();
+ if (cancelled) return;
+ if (!Array.isArray(tickets) || tickets.length === 0) {
+ setPendingDrawCount(0);
+ setPendingKnown(true);
+ return;
+ }
+ // Check whether tickets include contest.status / entry_mode
+ const haveStatus = tickets.some(t => t && t.contest && typeof t.contest.status === 'string');
+ if (!haveStatus) {
+ // Insufficient info — show trophy without badge
+ setPendingKnown(false);
+ setPendingDrawCount(0);
+ return;
+ }
+ // Determine pending draw contests from ticket list.
+ // We avoid counting unplayed skill-game tickets because myTickets does not include play attempts.
+ const pendingStatuses = new Set(['pending', 'awaiting_draw', 'ended', 'closed']);
+ const pendingContests = new Set();
+ tickets.forEach((t) => {
+ const c = t.contest || {};
+ const entry = (c.entry_mode || 'skill_game');
+ const status = (c.status || '').toString();
+ // Do not count unplayed skill games: exclude entry_mode === 'skill_game'
+ if (entry === 'skill_game') return;
+ if (status && pendingStatuses.has(status)) pendingContests.add(c.contest_id || t.contest_id);
+ });
+ setPendingDrawCount(pendingContests.size);
+ setPendingKnown(true);
+ } catch (e) {
+ // On error, don't show badge
+ setPendingKnown(false);
+ setPendingDrawCount(0);
+ }
+ })();
+ return () => { cancelled = true; };
+ }, [user]);
 
  // Mobile menu → prevent body scroll
  useEffect(() => {
@@ -82,14 +128,16 @@ export default function Header() {
 
  const isActive = (href) => href === '/' ? pathname === '/' : pathname.startsWith(href);
 
+ const badgeText = pendingDrawCount > 99 ? '99+' : String(pendingDrawCount);
+
  return (
  <>
  <header className="sticky top-0 z-40" data-testid="site-header">
  <div style={{ background: 'linear-gradient(180deg, #0B0D1F 0%, #161433 100%)' }} className="border-b border-white/5">
  <div className="max-w-7xl mx-auto flex items-center justify-between px-3 sm:px-4 lg:px-8 h-14 sm:h-16 md:h-[70px] gap-2">
  <Link to="/" className="shrink-0 flex items-center" data-testid="header-logo">
- {/* Compact emblem-only on tightest phones; full wordmark from ≥sm */}
- <span className="sm:hidden"><PrizeLeagueLogo size={36} emblemOnly /></span>
+ {/* Mobile (below 640px): show full wordmark; ≥sm/≥lg keep existing sizes exactly */}
+ <span className="sm:hidden"><PrizeLeagueLogo size={36} /></span>
  <span className="hidden sm:inline lg:hidden"><PrizeLeagueLogo size={44} /></span>
  <span className="hidden lg:inline"><PrizeLeagueLogo size={60} /></span>
  </Link>
@@ -122,19 +170,38 @@ export default function Header() {
  </Link>
  )}
 
+ {/* Desktop notifications kept unchanged */}
  <span className="hidden sm:inline-flex"><NotificationsBell /></span>
 
- {/* Draw Centre icon — desktop only to keep the mobile header uncluttered */}
+ {/* Draw Centre icon — desktop only kept unchanged */}
  <Link to="/draw-centre" className="hidden md:inline-flex relative p-2 rounded-lg hover:bg-white/5" aria-label="Draw centre" data-testid="header-draw-centre">
  <Trophy className="w-5 h-5 text-[#FFD54A]" />
  </Link>
 
- <Link to="/cart" className="relative p-2 rounded-lg hover:bg-white/5" aria-label="Cart" data-testid="header-cart">
+ {/* Mobile-only: trophy with pending badge */}
+ {user && (
+ <Link to="/draw-centre" className="sm:hidden relative p-2 rounded-lg" aria-label="Draw centre" data-testid="mobile-header-draw-centre">
+ <Trophy className="w-6 h-6 text-[#FFD54A]" />
+ {pendingKnown && pendingDrawCount > 0 && (
+ <span className="absolute -top-1 -right-1 bg-[#FFD54A] text-slate-900 text-[10px] font-bold rounded-full h-4 min-w-[16px] flex items-center justify-center px-1">{badgeText}</span>
+ )}
+ </Link>
+ )}
+
+ {/* Cart — hidden on mobile per spec; desktop unchanged in appearance */}
+ <Link to="/cart" className="hidden sm:inline-flex relative p-2 rounded-lg hover:bg-white/5" aria-label="Cart" data-testid="header-cart">
  <ShoppingCart className="w-5 h-5 text-white/85" />
  {cartCount > 0 && <span className="absolute -top-1 -right-1 bg-[#FFD54A] text-slate-900 text-[10px] font-bold rounded-full h-4 min-w-[16px] flex items-center justify-center px-1">{cartCount}</span>}
  </Link>
 
- {/* Compact gold PLAY button — visible from ≥sm (fuller label on md+) */}
+ {/* Mobile-only coin balance (no wallet icon) */}
+ {user && (
+ <div className="sm:hidden text-[#FFD54A] text-sm font-bold px-2" data-testid="mobile-coin-balance">
+ {balance === null ? '… 🪙' : `${tokenCount(balance)} 🪙`}
+ </div>
+ )}
+
+ {/* Compact gold PLAY button — desktop/tablet kept unchanged (hidden on mobile) */}
  <Link to="/competitions" className="hidden sm:inline-flex" data-testid="header-play-btn">
  <button className="pl-btn-gold h-9 px-3 md:px-4 rounded-full font-extrabold text-xs md:text-sm">
  PLAY <span className="hidden md:inline">NOW</span>
@@ -160,7 +227,7 @@ export default function Header() {
  </>
  ) : (
  <>
- {/* Mobile-only profile avatar → jumps to My Account */}
+ {/* Mobile-only profile avatar → jumps to My Account (first-letter only) */}
  <Link
  to="/my-account"
  className="sm:hidden"
@@ -262,55 +329,59 @@ export default function Header() {
 
  {user ? (
  <>
- {/* Wallet + Draw Centre quick-access strip (mobile-only, keeps
-     signed-in users one tap from their money and pending draws). */}
- <div className="mt-4 grid grid-cols-2 gap-2">
- <Link
- to="/my-account/wallet"
- onClick={() => setOpen(false)}
- data-testid="mobile-wallet-link"
- className="flex flex-col items-start gap-1 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10"
- >
- <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-white/60">
- <WalletIcon className="w-3 h-3" /> Tokens
- </div>
- <div className="text-[#FFD54A] font-black text-lg leading-none">
- {balance === null ? '…' : `${tokenCount(balance)} 🪙`}
- </div>
- </Link>
- <Link
- to="/draw-centre"
- onClick={() => setOpen(false)}
- data-testid="mobile-draw-centre-link"
- className="flex flex-col items-start gap-1 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10"
- >
- <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-white/60">
- <Trophy className="w-3 h-3 text-[#FFD54A]" /> Draw Centre
- </div>
- <div className="text-white font-black text-sm leading-none pt-0.5">
- View draws →
- </div>
- </Link>
- </div>
-
- <Link
- to="/my-account"
- onClick={() => setOpen(false)}
- data-testid="mobile-profile-link"
- className="mt-3 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white"
- >
- <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#8B5CFF] to-[#6C2BFF] text-white text-xs font-bold flex items-center justify-center">
- {(user.name || user.email || 'U').slice(0, 1).toUpperCase()}
- </div>
+ {/* Ordered mobile menu per spec */}
+ <Link to="/my-account" onClick={() => setOpen(false)} className="mt-4 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white" data-testid="mobile-profile-link">
+ <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#8B5CFF] to-[#6C2BFF] text-white text-xs font-bold flex items-center justify-center">{(user.name || user.email || 'U').slice(0,1).toUpperCase()}</div>
  <div className="flex-1 min-w-0">
  <div className="font-bold text-sm truncate">{user.name || user.email}</div>
- <div className="text-white/60 text-xs">Go to Profile →</div>
+ <div className="text-white/60 text-xs">My Profile →</div>
  </div>
  </Link>
+
+ <Link to="/my-account/wallet" onClick={() => setOpen(false)} className="mt-3 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white" data-testid="mobile-wallet-link">
+ <div className="text-[#FFD54A] font-black text-lg">{balance === null ? '…' : `${tokenCount(balance)} 🪙`}</div>
+ <div className="flex-1 text-sm text-white/80">Wallet</div>
+ </Link>
+
+ <Link to="/my-account/tickets" onClick={() => setOpen(false)} className="mt-3 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white" data-testid="mobile-tickets-link">
+ <div className="w-9 h-9 rounded-full bg-white/5 text-[#6C2BFF] flex items-center justify-center font-bold">🎟</div>
+ <div className="flex-1 text-sm text-white/80">My Tickets</div>
+ </Link>
+
+ <Link to="/my-account/games" onClick={() => setOpen(false)} className="mt-3 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white" data-testid="mobile-games-link">
+ <div className="w-9 h-9 rounded-full bg-white/5 text-[#f472b6] flex items-center justify-center font-bold">🎮</div>
+ <div className="flex-1 text-sm text-white/80">My Games</div>
+ </Link>
+
+ <Link to="/draw-centre" onClick={() => setOpen(false)} className="mt-3 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white" data-testid="mobile-draw-centre-link">
+ <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#8B5CFF] to-[#6C2BFF] text-white flex items-center justify-center"><Trophy className="w-5 h-5 text-[#FFD54A]" /></div>
+ <div className="flex-1 text-sm text-white/80">Draw Centre {pendingKnown && pendingDrawCount > 0 ? <span className="ml-2 text-xs bg-[#6C2BFF] text-white rounded-full px-2 py-0.5">{badgeText}</span> : null}</div>
+ </Link>
+
+ <Link to="/my-account/support" onClick={() => setOpen(false)} className="mt-3 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white" data-testid="mobile-support-link">
+ <div className="w-9 h-9 rounded-full bg-white/5 text-cyan-500 flex items-center justify-center">💬</div>
+ <div className="flex-1 text-sm text-white/80">Support</div>
+ </Link>
+
+ <Link to="/my-account/policies" onClick={() => setOpen(false)} className="mt-3 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white" data-testid="mobile-policies-link">
+ <div className="w-9 h-9 rounded-full bg-white/5 text-indigo-500 flex items-center justify-center">📄</div>
+ <div className="flex-1 text-sm text-white/80">Policies</div>
+ </Link>
+
+ <Link to="/my-account/preferences" onClick={() => setOpen(false)} className="mt-3 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white" data-testid="mobile-preferences-link">
+ <div className="w-9 h-9 rounded-full bg-white/5 text-stone-500 flex items-center justify-center">⚙️</div>
+ <div className="flex-1 text-sm text-white/80">Settings</div>
+ </Link>
+
+ <Link to="/my-account/notifications" onClick={() => setOpen(false)} className="mt-3 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white" data-testid="mobile-notifications-link">
+ <div className="w-9 h-9 rounded-full bg-white/5 text-sky-500 flex items-center justify-center">🔔</div>
+ <div className="flex-1 text-sm text-white/80">Notifications</div>
+ </Link>
+
  <button
  onClick={askLogout}
  data-testid="mobile-signout"
- className="mt-3 w-full flex items-center justify-center gap-2 py-4 px-3 rounded-xl border border-rose-500/30 text-rose-300 hover:bg-rose-500/10 font-bold"
+ className="mt-6 w-full flex items-center justify-center gap-2 py-4 px-3 rounded-xl border border-rose-500/30 text-rose-300 hover:bg-rose-500/10 font-bold"
  >
  <LogOut className="w-5 h-5" /> Sign Out
  </button>
