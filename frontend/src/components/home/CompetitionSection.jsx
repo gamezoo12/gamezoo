@@ -22,7 +22,7 @@ export default function CompetitionSection({ title, subtitle, items, viewAllHref
             </Button>
           </Link>
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
+        <div className="grid grid-cols-2 gap-3 md:gap-6">
           {items.slice(0, 4).map((c) => (
             <CompetitionCard key={c.id} c={c} />
           ))}

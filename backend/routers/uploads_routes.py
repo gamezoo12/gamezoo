@@ -18,7 +18,7 @@ from PIL import Image, ImageOps
 
 from auth import require_admin
 
-UPLOAD_DIR = Path("/app/backend/uploads")
+UPLOAD_DIR = Path(__file__).resolve().parents[1] / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 CONTEST_IMG_DIR = UPLOAD_DIR / "contest-images"
 CONTEST_IMG_DIR.mkdir(parents=True, exist_ok=True)

@@ -9,7 +9,7 @@ from auth import get_current_user, hash_password, verify_password
 
 router = APIRouter(prefix='/api/users', tags=['users'])
 
-KYC_UPLOAD_DIR = Path("/app/backend/uploads/kyc")
+KYC_UPLOAD_DIR = Path(__file__).resolve().parents[1] / "uploads" / "kyc"
 KYC_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 KYC_MAX_BYTES = 8 * 1024 * 1024  # 8 MB
 KYC_SIGNATURES = {
