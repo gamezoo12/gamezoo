@@ -29,6 +29,17 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - [x] Header session UX (visible Sign out + wallet balance chip)
 - [x] Prominent multi-path logout (header/admin/production/mobile) — all 4 verified working
 
+## 2026-08-05 · Iteration 39 — Mobile Header + Leaderboard Highlight + How-It-Works
+Three surgical mobile-only fixes on top of iter 38 (all verified PASS by testing_agent, `/app/test_reports/iteration_39.json`):
+
+1. **Header shows full PRIZE LEAGUE wordmark on mobile.** `components/layout/Header.jsx` line 92: replaced `<PrizeLeagueLogo size={36} emblemOnly />` (which showed just the "P" emblem below sm) with `<PrizeLeagueLogo size={32} />` so the wordmark is always visible.
+2. **HowToPlaySection restored under mobile Contests grid.** `MobileHome.jsx` ContestsPanel now imports and renders `<HowToPlaySection compact />` immediately below the 2-col contest tiles. Shared component reused — no duplication.
+3. **Mobile Leaderboard rows upgraded** to card-style matching the previous design: current-user row gets a gold gradient background (`from-[#FFD54A]/25 to-[#FFD54A]/5`) + gold rank avatar + black "YOU" pill; top-3 rows get purple accent; other rows use dark bg with purple avatar. Meta line now includes attempts (`⏱ 10s · 🎯 100% · 1 attempt`).
+
+`yarn build` passes. Desktop layout untouched.
+
+
+
 ## 2026-08-05 · Iteration 38 — Mobile-Only Redesign + Deploy Blocker Fix
 **Blocker fixed:** Production deploy failed with `Module not found: './pages/ForgotPassword'`. Verified the file now exists in `/app/frontend/src/pages/ForgotPassword.jsx` (minimal working stub — captures email, shows "check your inbox" confirmation). Ran `yarn build` locally → succeeds. Next redeploy will build cleanly.
 
