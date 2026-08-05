@@ -45,10 +45,10 @@ export default function CompetitionCard({ c }) {
       data-testid={`competition-card-${c.slug}`}
     >
       <div className="relative bg-[#161433] rounded-2xl overflow-hidden border border-white/5 hover:border-[#FFD54A]/40 transition shadow-sm hover:shadow-[0_10px_40px_-10px_rgba(255,213,74,0.25)] h-full flex flex-col">
-        {/* 1:1 image */}
-        <div className="relative aspect-square overflow-hidden bg-slate-900">
+        {/* 2:1 preview image (falls back to 1:1 if no preview banner uploaded) */}
+        <div className="relative aspect-[2/1] overflow-hidden bg-slate-900">
           <img
-            src={c.image}
+            src={c.previewImage || c.preview_image || c.image}
             alt={c.title}
             loading="lazy"
             className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500"

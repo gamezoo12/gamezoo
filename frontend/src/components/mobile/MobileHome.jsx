@@ -145,7 +145,7 @@ function ContestsPanel({ contests }) {
                 slug: c.slug || c.contest_id,
                 title: c.title, subtitle: c.subtitle || c.tag, tag: c.tag,
                 price: c.price, ticketsSold: c.tickets_sold, ticketsTotal: c.tickets_total,
-                endDate: c.end_date || c.end_time, image: c.image || c.hero_image,
+                endDate: c.end_date || c.end_time, image: c.image || c.hero_image, preview_image: c.preview_image,
               }}
             />
           ))}
