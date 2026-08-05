@@ -330,6 +330,8 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
               Upload exactly two images. Both are used automatically wherever the
               contest is displayed — the square on tiles/thumbnails, the wide banner
               on the detail-page hero.
+              <br/>
+              <b>Recommended sizes:</b> Contest image <b>1200×1200 px (1:1)</b> · Preview banner <b>1600×800 px (2:1)</b>. JPG / PNG / WEBP · up to 8 MB each.
             </p>
 
             <input ref={fileRefs.image} type="file" accept="image/jpeg,image/jpg,image/png,image/webp"
@@ -342,7 +344,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
               <div className="rounded-xl border-2 border-dashed border-slate-200 p-4">
                 <div className="flex items-center justify-between mb-2">
                   <div className="text-xs font-bold uppercase tracking-widest text-slate-700">Contest image · 1:1</div>
-                  <div className="text-[10px] text-slate-400">Tiles &amp; thumbnails</div>
+                  <div className="text-[10px] text-slate-400">1200×1200 · tiles &amp; thumbnails</div>
                 </div>
                 {form.image ? (
                   <div className="relative w-full aspect-square rounded-lg overflow-hidden bg-slate-50 border">
@@ -364,7 +366,9 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                     ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading…</>
                     : <><Upload className="w-4 h-4 mr-2" /> {form.image ? 'Replace 1:1 image' : 'Upload 1:1 image'}</>}
                 </Button>
-                <div className="text-[11px] text-slate-500 mt-2">Square crop. JPG / PNG / WEBP · up to 8 MB.</div>
+                <div className="text-[11px] text-slate-500 mt-2">
+                  <b>1200 × 1200 px</b> recommended · square crop · min 800×800 · JPG / PNG / WEBP · up to 8 MB.
+                </div>
                 {uploadErr.image && <div className="text-xs text-rose-600 mt-1" data-testid="contest-image-error">{uploadErr.image}</div>}
               </div>
 
@@ -372,7 +376,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
               <div className="rounded-xl border-2 border-dashed border-slate-200 p-4">
                 <div className="flex items-center justify-between mb-2">
                   <div className="text-xs font-bold uppercase tracking-widest text-slate-700">Preview banner · 2:1</div>
-                  <div className="text-[10px] text-slate-400">Detail-page hero</div>
+                  <div className="text-[10px] text-slate-400">1600×800 · detail-page hero</div>
                 </div>
                 {form.preview_image ? (
                   <div className="relative w-full aspect-[2/1] rounded-lg overflow-hidden bg-slate-50 border">
@@ -394,7 +398,9 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                     ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading…</>
                     : <><Upload className="w-4 h-4 mr-2" /> {form.preview_image ? 'Replace 2:1 image' : 'Upload 2:1 image'}</>}
                 </Button>
-                <div className="text-[11px] text-slate-500 mt-2">Wide crop. Falls back to the 1:1 image if left empty.</div>
+                <div className="text-[11px] text-slate-500 mt-2">
+                  <b>1600 × 800 px</b> recommended · wide 2:1 crop · min 1200×600 · JPG / PNG / WEBP · up to 8 MB. Falls back to the 1:1 image if left empty.
+                </div>
                 {uploadErr.preview_image && <div className="text-xs text-rose-600 mt-1" data-testid="contest-preview-image-error">{uploadErr.preview_image}</div>}
               </div>
             </div>

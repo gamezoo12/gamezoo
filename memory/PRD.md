@@ -12,7 +12,21 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - **Referral programme** — invite friends, both get free ticket (or £5 wallet credit fallback)
 - **Live winners ticker + leaderboard per contest**
 
-## 2026-08-05 · Iteration 41 — Contest UX Overhaul + First-Time Bonus + New Leaderboard
+## 2026-08-05 · Iteration 42 — Sticky "You" leaderboard hero + image size hints
+Two-part refinement on top of iter 41 leaderboard + admin-image work.
+
+**Frontend:**
+- `pages/GlobalLeaderboard.jsx` — added `<MyRankHero />` component. Renders above the podium on both the Global tab AND every per-contest tab whenever the current user has a row on that board. **Sticky (`top-16`)** so it stays pinned under the header as the list scrolls. Big #rank tile, "YOUR RANK" label, name + "YOU" pill, meta (`X contests · Y raw pts · out of N players`), gold gradient background, big 2xl score.
+- `pages/ContestLeaderboard.jsx` — replaced the neutral "Your Position" panel with the same sticky gold hero (rank + score/accuracy/time/attempts inline meta), also sticky under the header.
+- `components/ContestLeaderboardCard.jsx` — added a **compact "Your rank" strip** at the top of the embedded contest leaderboard (used on contest detail pages). Widens fetch from `limit` → 100 so we can locate the user even if they're outside the top N.
+- `EditContestDialog.jsx` — explicit image size guidance:
+  - Section subtitle now states **"Recommended sizes: Contest image 1200×1200 px (1:1) · Preview banner 1600×800 px (2:1). JPG / PNG / WEBP · up to 8 MB each."**
+  - Per-slot headers show `1200×1200 · tiles & thumbnails` and `1600×800 · detail-page hero`.
+  - Per-slot helper text spells out minimums (800×800 for 1:1, 1200×600 for 2:1).
+
+Result: signed-in players see their exact position at the top of any board with a single glance, no scrolling. Admins get the exact target dimensions for both image slots inline in the upload UI.
+
+
 Massive one-pass overhaul per user's marketing-launch punch list. All changes surgical: desktop hero untouched, existing bonus infra reused.
 
 **Backend:**

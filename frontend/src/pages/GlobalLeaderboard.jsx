@@ -88,8 +88,18 @@ function TabPill({ active, onClick, testid, children }) {
 function GlobalBoard({ rows, user }) {
   const top3 = rows.slice(0, 3);
   const rest = rows.slice(3);
+  const me = user && rows.find(p => p.user_id === user.user_id);
   return (
     <>
+      {me && (
+        <MyRankHero
+          rank={me.rank}
+          name={me.user_name}
+          score={me.normalized_score}
+          meta={`${me.contests_played} contest${me.contests_played !== 1 ? 's' : ''} · ${(me.total_points || 0).toLocaleString()} raw pts`}
+          total={rows.length}
+        />
+      )}
       {top3.length > 0 && <Podium top3={top3} user={user} />}
       {rows.length === 0 ? (
         <EmptyState />
@@ -124,8 +134,20 @@ function ContestBoard({ contestId, user }) {
 
   const top3 = rows.slice(0, 3);
   const rest = rows.slice(3);
+  const me = user && rows.find(r => r.user_id === user.user_id);
+  const meDurS = me ? (me.duration_s ?? (me.duration_ms ? +(me.duration_ms / 1000).toFixed(2) : 0)) : 0;
+  const meAccPct = me ? (me.accuracy_pct ?? Math.round((me.accuracy || 0) * 100)) : 0;
   return (
     <div data-testid="contest-board">
+      {me && (
+        <MyRankHero
+          rank={me.rank}
+          name={me.user_name}
+          score={me.normalized_score}
+          meta={<span className="inline-flex items-center gap-2"><Target className="w-3 h-3" /> {meAccPct}% <span className="text-white/40">·</span> <SpeedIcon className="w-3 h-3" /> {typeof meDurS === 'number' ? meDurS.toFixed(2) : meDurS}s</span>}
+          total={rows.length}
+        />
+      )}
       {top3.length > 0 && <Podium top3={top3} user={user} />}
       {rows.length === 0 ? (
         <EmptyState />
@@ -152,6 +174,41 @@ function ContestBoard({ contestId, user }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Sticky "YOU are here" card. Renders above the podium so the current user
+ * spots their rank instantly, without scrolling the list. `top-16` accounts
+ * for the site header height so the card locks just under it on scroll.
+ */
+function MyRankHero({ rank, name, score, meta, total }) {
+  return (
+    <div
+      data-testid="my-rank-hero"
+      className="sticky top-16 z-20 mb-4 rounded-2xl overflow-hidden shadow-[0_18px_50px_-20px_#FFD54A66] border-2 border-[#FFD54A]"
+      style={{ background: 'linear-gradient(135deg, #FFD54A 0%, #FFB020 55%, #FF8A3C 100%)' }}
+    >
+      <div className="px-4 md:px-5 py-3 md:py-4 flex items-center gap-3 md:gap-4 text-slate-900">
+        <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-slate-900 text-[#FFD54A] grid place-items-center font-black text-base md:text-lg shrink-0 shadow">
+          #{rank}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[10px] uppercase tracking-[0.3em] font-black opacity-70">Your rank</div>
+          <div className="font-display font-black text-lg md:text-xl truncate">
+            {name || 'You'}
+            <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-[#FFD54A] align-middle font-extrabold tracking-wider">YOU</span>
+          </div>
+          <div className="text-[11px] font-bold opacity-80 mt-0.5">
+            {meta}{total ? <> · out of <b>{total}</b> players</> : null}
+          </div>
+        </div>
+        <div className="text-right shrink-0">
+          <div className="font-display text-2xl md:text-3xl font-black leading-none">{(Number(score) || 0).toFixed(2)}</div>
+          <div className="text-[9px] uppercase tracking-widest opacity-70 mt-0.5">/ 100</div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -164,35 +164,35 @@ export default function ContestLeaderboard() {
 
         {user && (
           <div
-            className="relative rounded-3xl border border-[#FFD54A]/40 bg-gradient-to-br from-[#FFD54A]/15 via-[#161433]/70 to-[#0B0D1F] p-5 md:p-6 mb-6"
+            className="sticky top-16 z-20 rounded-2xl overflow-hidden shadow-[0_18px_50px_-20px_#FFD54A66] border-2 border-[#FFD54A] mb-6"
+            style={{ background: 'linear-gradient(135deg, #FFD54A 0%, #FFB020 55%, #FF8A3C 100%)' }}
             data-testid="my-leaderboard-position"
           >
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <div className="text-[11px] uppercase tracking-[0.25em] font-extrabold text-[#FFD54A]">
-                  Your Position
-                </div>
-                <div className="font-display text-3xl md:text-4xl font-black text-white mt-1">
+            <div className="px-5 py-4 flex items-center gap-4 text-slate-900">
+              <div className="w-14 h-14 rounded-2xl bg-slate-900 text-[#FFD54A] grid place-items-center font-black text-lg shrink-0 shadow">
+                {myPosition ? `#${myPosition.rank}` : '—'}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] uppercase tracking-[0.3em] font-black opacity-70">Your position</div>
+                <div className="font-display font-black text-2xl md:text-3xl leading-tight">
                   {myPosition ? `Rank #${myPosition.rank}` : 'Not ranked yet'}
+                  <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-[#FFD54A] align-middle font-extrabold tracking-wider">YOU</span>
                 </div>
+                {myPosition ? (
+                  <div className="text-[11px] font-bold opacity-80 mt-0.5">
+                    Score {Number(myPosition.points || 0).toFixed(2)}/100 · Accuracy {(Number(myPosition.accuracy || 0) * 100).toFixed(0)}% · Time {formatDuration(myPosition.duration_ms)} · {myPosition.attempts || 0} attempt{(myPosition.attempts || 0) !== 1 ? 's' : ''}
+                  </div>
+                ) : (
+                  <div className="text-[11px] font-bold opacity-80 mt-0.5">Play an official attempt to appear on this leaderboard.</div>
+                )}
               </div>
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#FFE68A] via-[#FFD54A] to-[#FF9A3C] text-slate-900 flex items-center justify-center shadow-[0_10px_30px_-10px_#FFD54A88]">
-                <Trophy className="w-7 h-7" />
-              </div>
+              {myPosition && (
+                <div className="text-right shrink-0">
+                  <div className="font-display text-3xl font-black leading-none">{Number(myPosition.points || 0).toFixed(2)}</div>
+                  <div className="text-[9px] uppercase tracking-widest opacity-70 mt-0.5">/ 100</div>
+                </div>
+              )}
             </div>
-
-            {myPosition ? (
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-5">
-                <MiniStat label="Score" value={`${Number(myPosition.points || 0).toFixed(2)}`} suffix="/ 100" tone="gold" />
-                <MiniStat label="Accuracy" value={`${(Number(myPosition.accuracy || 0) * 100).toFixed(2)}%`} />
-                <MiniStat label="Time" value={formatDuration(myPosition.duration_ms)} mono />
-                <MiniStat label="Attempts" value={myPosition.attempts || 0} />
-              </div>
-            ) : (
-              <p className="text-sm text-white/60 mt-4">
-                Complete an official game attempt to receive your position in this contest.
-              </p>
-            )}
           </div>
         )}
 

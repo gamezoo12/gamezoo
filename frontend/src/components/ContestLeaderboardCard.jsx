@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { gamesAPI } from '../lib/api';
 import { Crown, Flame, ArrowRight } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 /**
  * ContestLeaderboardCard — embeddable per-contest live board.
@@ -11,16 +12,22 @@ import { Crown, Flame, ArrowRight } from 'lucide-react';
 export default function ContestLeaderboardCard({ contestId, contestTitle, limit = 5, showFullLink = true }) {
   const [rows, setRows] = useState([]);
   const [loaded, setLoaded] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
     if (!contestId) return undefined;
-    const load = () => gamesAPI.leaderboard(contestId, limit)
+    // Fetch a wider slice so we can locate the current user even if they're
+    // outside the visible top N. `limit` still controls what we RENDER.
+    const load = () => gamesAPI.leaderboard(contestId, Math.max(limit, 100))
       .then(r => { setRows(r?.entries || r?.leaderboard || []); setLoaded(true); })
       .catch(() => setLoaded(true));
     load();
     const t = setInterval(load, 15000);
     return () => clearInterval(t);
   }, [contestId, limit]);
+
+  const me = user && rows.find(r => r.user_id === user.user_id);
+  const visible = rows.slice(0, limit);
 
   return (
     <div
@@ -58,8 +65,32 @@ export default function ContestLeaderboardCard({ contestId, contestTitle, limit 
           No scores yet — be first to play <b className="text-white">{contestTitle || 'this contest'}</b>.
         </div>
       ) : (
-        <ul className="divide-y divide-white/5">
-          {rows.map(r => {
+        <>
+          {me && (
+            <div
+              data-testid={`my-rank-strip-${contestId}`}
+              className="px-4 py-3 flex items-center gap-3 border-b border-[#FFD54A]/40"
+              style={{ background: 'linear-gradient(135deg, #FFD54A 0%, #FFB020 60%, #FF8A3C 100%)' }}
+            >
+              <div className="w-9 h-9 rounded-xl bg-slate-900 text-[#FFD54A] grid place-items-center font-black text-xs shrink-0">
+                #{me.rank}
+              </div>
+              <div className="flex-1 min-w-0 text-slate-900">
+                <div className="text-[10px] uppercase tracking-[0.3em] font-black opacity-70">Your rank</div>
+                <div className="font-black text-sm">
+                  You
+                  <span className="ml-2 text-[9px] px-1.5 py-0.5 rounded bg-slate-900 text-[#FFD54A] align-middle font-extrabold tracking-wider">YOU</span>
+                  <span className="ml-2 text-[10px] font-bold opacity-70">of {rows.length}</span>
+                </div>
+              </div>
+              <div className="text-right shrink-0 text-slate-900">
+                <div className="font-display text-lg font-black leading-none">{(Number(me.normalized_score) || 0).toFixed(2)}</div>
+                <div className="text-[9px] uppercase tracking-widest opacity-70">/ 100</div>
+              </div>
+            </div>
+          )}
+          <ul className="divide-y divide-white/5">
+            {visible.map(r => {
             const durS = r.duration_s ?? (r.duration_ms ? +(r.duration_ms / 1000).toFixed(2) : 0);
             const accPct = r.accuracy_pct ?? Math.round((r.accuracy || 0) * 100);
             const isTop = r.rank <= 3;
@@ -89,6 +120,7 @@ export default function ContestLeaderboardCard({ contestId, contestTitle, limit 
             );
           })}
         </ul>
+        </>
       )}
     </div>
   );
