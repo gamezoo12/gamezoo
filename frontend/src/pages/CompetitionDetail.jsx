@@ -132,20 +132,21 @@ export default function CompetitionDetail() {
     <div className="max-w-7xl mx-auto px-4 lg:px-8 py-8 md:py-10" data-testid="contest-detail">
       <BackButton to="/competitions" label="All contests" className="mb-4" />
       <div className="grid lg:grid-cols-2 gap-6 lg:gap-10">
-        {/* IMAGE COLUMN — dark neutral bg, object-contain, loading + fallback */}
+        {/* IMAGE COLUMN — 2:1 preview banner (falls back to 1:1 square).
+            The two-image contract from Contest Edit: `preview_image` = 2:1 banner, `image` = 1:1 tile. */}
         <div>
-          <div className="relative aspect-[4/3] md:aspect-video lg:aspect-square rounded-2xl md:rounded-3xl overflow-hidden bg-[#0B0D1F] shadow-xl">
+          <div className="relative aspect-[2/1] lg:aspect-square rounded-2xl md:rounded-3xl overflow-hidden bg-[#0B0D1F] shadow-xl">
             {imgState === 'loading' && (
               <div className="absolute inset-0 flex items-center justify-center animate-pulse">
                 <ImageIcon className="w-12 h-12 text-white/20" />
               </div>
             )}
             <img
-              src={imgState === 'fail' ? FALLBACK_IMG : c.image}
+              src={imgState === 'fail' ? FALLBACK_IMG : (c.preview_image || c.image)}
               alt={c.title}
               onLoad={() => setImgState('ok')}
               onError={() => setImgState('fail')}
-              className={`w-full h-full object-contain transition-opacity duration-300 ${imgState === 'ok' ? 'opacity-100' : 'opacity-0'}`}
+              className={`w-full h-full object-cover transition-opacity duration-300 ${imgState === 'ok' ? 'opacity-100' : 'opacity-0'}`}
               data-testid="contest-image"
             />
           </div>

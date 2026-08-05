@@ -12,6 +12,29 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - **Referral programme** — invite friends, both get free ticket (or £5 wallet credit fallback)
 - **Live winners ticker + leaderboard per contest**
 
+## 2026-08-05 · Iteration 41 — Contest UX Overhaul + First-Time Bonus + New Leaderboard
+Massive one-pass overhaul per user's marketing-launch punch list. All changes surgical: desktop hero untouched, existing bonus infra reused.
+
+**Backend:**
+- `Contest.preview_image: Optional[str]` — new 2:1 banner used on the detail-page hero. `image` stays 1:1 for tiles.
+- `PUT /api/admin/contests/{id}` + `POST /api/admin/contests` accept `preview_image`; the public GET exposes it.
+- `bonus.py::maybe_grant_bonus` — enforces **one-time-per-user** (checks `bonus_grants.count_documents({user_id}, limit=1)` — grants only if user has never received one).
+- `GET /api/orders/my-joined-contest-ids` — cheap `distinct('contest_id')` over tickets so contest tiles can render a "Joined" badge without one API call per tile.
+- Test suite `tests/test_bonus_tokens.py` (5/5 passing): added assertion that a second qualifying top-up produces no additional grant.
+
+**Frontend:**
+- `CompetitionCard.jsx` — full redesign. Dark card with 1:1 image, **countdown pill top-left** (turns rose in the last 24h), **"Joined" (green) / "Join" (gold) pill top-right** (auth-aware via new `useJoinedContestIds` hook), **percent-only progress bar** (per spec: "remove no of tickets all over the app just place percentage only"), gold token chip + Enter/Open CTA.
+- `EditContestDialog.jsx` — image section rewritten. Removed: URL input, gallery presets, focal-picker `details`, deprecated `mobile_image` URL field. Added: **two dedicated dropzones side-by-side** — "Contest image · 1:1" and "Preview banner · 2:1" — each with its own preview, replace button, and remove ×. Payload carries `preview_image`; legacy `mobile_image` is cleared to `null` on save.
+- `CompetitionDetail.jsx` — hero image swapped to 2:1 (`preview_image || image`) with `object-cover`. Falls back to 1:1 when no preview banner uploaded.
+- `pages/Home.jsx` + `components/mobile/MobileHome.jsx` — **BonusPromoBanner removed** from home. Mobile home gains a **compact "PRIZE LEAGUE · Play. Compete. Win." hero strip** in the exact slot the banner used to occupy (per spec: "don't increase the size").
+- `HeroBanner.jsx` — desktop live-contest card no longer prints `N entries` count. Uses `preview_image || image`.
+- `pages/GlobalLeaderboard.jsx` — full rewrite. Dark stage (`#0B0D1F`) with radial purple/gold glows, gold "Top players. Live." headline, gold-pill Global tab, per-contest pills, **new 3-column podium** (gold-crowned center + silver/bronze wings), rows use gold-yellow scores and `#N` rank tiles. `/leaderboard` route now points at this component.
+- `pages/ContestLeaderboard.jsx` — re-skinned to match: dark bg, gradient hero, new dark stat cards, gradient rank badges (#1 gold, #2 silver, #3 bronze), gold "YOU" pill on the current-user row.
+- `components/ContestLeaderboardCard.jsx` — dark aesthetic with gradient rank badges + gold accents.
+- `Header.jsx` — added `header-wallet-chip-mobile` so the token count shows in the mobile top-bar too (previously only in the drawer).
+- `Cart.jsx` — calls `refreshJoinedIds()` after successful checkout so "Joined" pill appears instantly.
+- `lib/joinedContests.js` (new) — tiny in-memory + `sessionStorage` cache + `useJoinedContestIds(user)` hook. One API call per session.
+
 ## 2026-08-05 · Iteration 40 — Bonus Token Promo integration (P0)
 User's marketing feature: **Buy 10 tokens → get 5 bonus tokens (expires in 30 days)**. Backend was already scaffolded in iter 39 (bonus.py + payments_routes hooks). This iteration completed the frontend integration end-to-end.
 

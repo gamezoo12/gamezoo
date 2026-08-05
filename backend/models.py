@@ -28,6 +28,7 @@ class Contest(BaseModel):
     prize_amount: float = 100.0
     end_date: datetime
     image: str
+    preview_image: Optional[str] = None  # 2:1 banner used on contest detail hero
     jackpot: bool = False
     featured: bool = False
     skill_question: SkillQuestion
@@ -133,6 +134,7 @@ class ContestPublic(BaseModel):
     prize_amount: float
     end_date: datetime
     image: str
+    preview_image: Optional[str] = None
     jackpot: bool
     featured: bool
     status: str

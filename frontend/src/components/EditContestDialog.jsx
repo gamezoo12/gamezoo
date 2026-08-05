@@ -5,7 +5,6 @@ import { Label } from './ui/label';
 import { Button } from './ui/button';
 import { adminAPI, uploadsAPI, api, API } from '../lib/api';
 import {
-  ContestImageFocalPicker,
   RandomDrawPanel,
   InstantWinComposer,
 } from './ContestEngineControls';
@@ -73,40 +72,42 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
   };
   const [form, setForm] = useState(() => (isCreate ? emptyForm : (contest || {})));
   const [busy, setBusy] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [uploadErr, setUploadErr] = useState('');
-  const fileInputRef = useRef(null);
+  const [uploading, setUploading] = useState({ image: false, preview_image: false });
+  const [uploadErr, setUploadErr] = useState({ image: '', preview_image: '' });
+  const fileRefs = { image: useRef(null), preview_image: useRef(null) };
 
-  const onPickFile = () => fileInputRef.current?.click();
-
-  const onFileChange = async (e) => {
-    setUploadErr('');
+  /**
+   * Upload a single image into either `image` (1:1 tile) or `preview_image`
+   * (2:1 banner) slot. Kept intentionally simple: we call the existing
+   * `contestImage` upload endpoint (which handles resizing) and store the
+   * resulting `card` URL into whichever field we're targeting.
+   */
+  const uploadTo = (field) => async (e) => {
+    setUploadErr(u => ({ ...u, [field]: '' }));
     const file = e.target.files?.[0];
     e.target.value = ''; // allow re-picking same file
     if (!file) return;
-    const okTypes = ['image/jpeg', 'image/png', 'image/webp'];
-    if (!okTypes.includes(file.type)) {
-      setUploadErr('Only JPG, PNG or WEBP files are allowed.');
-      return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setUploadErr(u => ({ ...u, [field]: 'Only JPG, PNG or WEBP files are allowed.' })); return;
     }
     if (file.size > 8 * 1024 * 1024) {
-      setUploadErr('File is too large. Maximum 8 MB.');
-      return;
+      setUploadErr(u => ({ ...u, [field]: 'File is too large. Maximum 8 MB.' })); return;
     }
-    setUploading(true);
+    setUploading(u => ({ ...u, [field]: true }));
     try {
       const data = await uploadsAPI.contestImage(file, { focal_x: 0.5, focal_y: 0.5, alt: form.title || '' });
-      upd('image', data?.sizes?.card || data?.recommended_image_url);
-      upd('mobile_image', data?.sizes?.mobile || data?.recommended_mobile_image_url);
-      toast({ title: 'Image processed', description: `Generated ${Object.keys(data?.sizes || {}).length} responsive variants.` });
+      const url = data?.sizes?.card || data?.recommended_image_url || data?.sizes?.mobile;
+      if (!url) throw new Error('Upload succeeded but no URL returned');
+      upd(field, url);
+      toast({ title: field === 'image' ? 'Contest image uploaded' : 'Preview image uploaded' });
     } catch (err) {
-      setUploadErr(err?.response?.data?.detail || err.message || 'Upload failed');
+      setUploadErr(u => ({ ...u, [field]: err?.response?.data?.detail || err.message || 'Upload failed' }));
     } finally {
-      setUploading(false);
+      setUploading(u => ({ ...u, [field]: false }));
     }
   };
 
-  const removeImage = () => { upd('image', ''); setUploadErr(''); };
+  const removeImage = (field) => () => { upd(field, ''); setUploadErr(u => ({ ...u, [field]: '' })); };
 
   useEffect(() => {
     if (open) setForm(isCreate ? emptyForm : (contest || {}));
@@ -124,6 +125,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
         subtitle: form.subtitle,
         category: form.category,
         image: form.image,
+        preview_image: form.preview_image || null,
         price: parseFloat(form.price) || 1,
         tickets_total: parseInt(form.tickets_total, 10) || 100,
         prize_amount: parseFloat(form.prize_amount) || 100,
@@ -158,7 +160,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
         terms_acknowledgement: form.terms_acknowledgement || null,
         country_restrictions: form.country_restrictions || null,
         age_restriction: form.age_restriction || '18+',
-        mobile_image: form.mobile_image || null,
+        mobile_image: null,  // deprecated field — kept nulled so old DB rows are cleared on save
         seo_title: form.seo_title || null,
         seo_description: form.seo_description || null,
         publication_status: form.publication_status || 'published',
@@ -322,75 +324,80 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
             </select>
           </div>
 
-          <div>
-            <Label>Competition Image</Label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/jpg,image/png,image/webp"
-              className="hidden"
-              onChange={onFileChange}
-              data-testid="contest-image-input"
-            />
+          <div className="border-t border-slate-100 pt-4">
+            <Label className="text-base font-semibold">Contest images</Label>
+            <p className="text-xs text-slate-500 mt-1 mb-3">
+              Upload exactly two images. Both are used automatically wherever the
+              contest is displayed — the square on tiles/thumbnails, the wide banner
+              on the detail-page hero.
+            </p>
 
-            {/* Preview card */}
-            <div className="mt-1 rounded-xl border-2 border-dashed border-slate-200 p-4 flex items-center gap-4">
-              {form.image ? (
-                <div className="relative w-28 h-28 shrink-0">
-                  <img src={form.image} alt="Competition preview" className="w-full h-full object-cover rounded-lg border" data-testid="contest-image-preview" />
-                  <button
-                    type="button"
-                    onClick={removeImage}
-                    disabled={uploading}
-                    data-testid="contest-image-remove"
-                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-rose-500 text-white flex items-center justify-center shadow hover:bg-rose-600 disabled:opacity-50"
-                    aria-label="Remove image"
-                  ><X className="w-3.5 h-3.5" /></button>
+            <input ref={fileRefs.image} type="file" accept="image/jpeg,image/jpg,image/png,image/webp"
+              className="hidden" onChange={uploadTo('image')} data-testid="contest-image-input" />
+            <input ref={fileRefs.preview_image} type="file" accept="image/jpeg,image/jpg,image/png,image/webp"
+              className="hidden" onChange={uploadTo('preview_image')} data-testid="contest-preview-image-input" />
+
+            <div className="grid md:grid-cols-2 gap-4">
+              {/* SQUARE — Contest image (1:1) */}
+              <div className="rounded-xl border-2 border-dashed border-slate-200 p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-xs font-bold uppercase tracking-widest text-slate-700">Contest image · 1:1</div>
+                  <div className="text-[10px] text-slate-400">Tiles &amp; thumbnails</div>
                 </div>
-              ) : (
-                <div className="w-28 h-28 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-300 text-xs shrink-0">No image</div>
-              )}
-
-              <div className="flex-1 min-w-0">
-                <Button
-                  type="button"
-                  onClick={onPickFile}
-                  disabled={uploading}
+                {form.image ? (
+                  <div className="relative w-full aspect-square rounded-lg overflow-hidden bg-slate-50 border">
+                    <img src={form.image} alt="Contest 1:1" className="w-full h-full object-cover" data-testid="contest-image-preview" />
+                    <button type="button" onClick={removeImage('image')} disabled={uploading.image}
+                      data-testid="contest-image-remove"
+                      className="absolute top-2 right-2 w-7 h-7 rounded-full bg-rose-500 text-white flex items-center justify-center shadow hover:bg-rose-600 disabled:opacity-50"
+                      aria-label="Remove contest image"
+                    ><X className="w-3.5 h-3.5" /></button>
+                  </div>
+                ) : (
+                  <div className="w-full aspect-square rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-300 text-xs">Empty · 1:1</div>
+                )}
+                <Button type="button" onClick={() => fileRefs.image.current?.click()} disabled={uploading.image}
                   data-testid="contest-image-upload-btn"
-                  className="bg-slate-900 hover:bg-slate-800 text-white"
+                  className="w-full mt-3 bg-slate-900 hover:bg-slate-800 text-white"
                 >
-                  {uploading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading…</> : <><Upload className="w-4 h-4 mr-2" /> {form.image ? 'Replace image' : 'Upload image'}</>}
+                  {uploading.image
+                    ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading…</>
+                    : <><Upload className="w-4 h-4 mr-2" /> {form.image ? 'Replace 1:1 image' : 'Upload 1:1 image'}</>}
                 </Button>
-                <div className="text-xs text-slate-500 mt-2">JPG, PNG, or WEBP · up to 8 MB · used across all contest listings automatically.</div>
-                {uploadErr && <div className="text-xs text-rose-600 mt-1" data-testid="contest-image-error">{uploadErr}</div>}
+                <div className="text-[11px] text-slate-500 mt-2">Square crop. JPG / PNG / WEBP · up to 8 MB.</div>
+                {uploadErr.image && <div className="text-xs text-rose-600 mt-1" data-testid="contest-image-error">{uploadErr.image}</div>}
+              </div>
+
+              {/* WIDE — Preview banner (2:1) */}
+              <div className="rounded-xl border-2 border-dashed border-slate-200 p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-xs font-bold uppercase tracking-widest text-slate-700">Preview banner · 2:1</div>
+                  <div className="text-[10px] text-slate-400">Detail-page hero</div>
+                </div>
+                {form.preview_image ? (
+                  <div className="relative w-full aspect-[2/1] rounded-lg overflow-hidden bg-slate-50 border">
+                    <img src={form.preview_image} alt="Contest 2:1 preview" className="w-full h-full object-cover" data-testid="contest-preview-image-preview" />
+                    <button type="button" onClick={removeImage('preview_image')} disabled={uploading.preview_image}
+                      data-testid="contest-preview-image-remove"
+                      className="absolute top-2 right-2 w-7 h-7 rounded-full bg-rose-500 text-white flex items-center justify-center shadow hover:bg-rose-600 disabled:opacity-50"
+                      aria-label="Remove preview image"
+                    ><X className="w-3.5 h-3.5" /></button>
+                  </div>
+                ) : (
+                  <div className="w-full aspect-[2/1] rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-300 text-xs">Empty · 2:1</div>
+                )}
+                <Button type="button" onClick={() => fileRefs.preview_image.current?.click()} disabled={uploading.preview_image}
+                  data-testid="contest-preview-image-upload-btn"
+                  className="w-full mt-3 bg-slate-900 hover:bg-slate-800 text-white"
+                >
+                  {uploading.preview_image
+                    ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading…</>
+                    : <><Upload className="w-4 h-4 mr-2" /> {form.preview_image ? 'Replace 2:1 image' : 'Upload 2:1 image'}</>}
+                </Button>
+                <div className="text-[11px] text-slate-500 mt-2">Wide crop. Falls back to the 1:1 image if left empty.</div>
+                {uploadErr.preview_image && <div className="text-xs text-rose-600 mt-1" data-testid="contest-preview-image-error">{uploadErr.preview_image}</div>}
               </div>
             </div>
-
-            {/* Advanced: paste an external URL (kept for backwards compat) */}
-            <details className="mt-3">
-              <summary className="text-xs text-slate-500 cursor-pointer hover:text-slate-700">Advanced — paste an external image URL instead</summary>
-              <Input value={form.image || ''} onChange={e => upd('image', e.target.value)} placeholder="https://…" className="mt-2" />
-              <div className="mt-2">
-                <div className="text-xs text-slate-500 mb-1">Or pick from the gallery:</div>
-                <div className="flex gap-2 flex-wrap">
-                  {[
-                    'https://images.pexels.com/photos/928187/pexels-photo-928187.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
-                    'https://images.pexels.com/photos/15633962/pexels-photo-15633962.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
-                    'https://images.pexels.com/photos/19240616/pexels-photo-19240616.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
-                    'https://images.pexels.com/photos/9462148/pexels-photo-9462148.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
-                    'https://images.pexels.com/photos/973406/pexels-photo-973406.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
-                    'https://images.pexels.com/photos/27064826/pexels-photo-27064826.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
-                  ].map(url => (
-                    <button
-                      key={url}
-                      type="button"
-                      onClick={() => upd('image', url)}
-                      className={`w-14 h-14 rounded-lg overflow-hidden border-2 ${form.image === url ? 'border-[#6C2BFF]' : 'border-transparent hover:border-slate-300'}`}
-                    ><img src={url} alt="" className="w-full h-full object-cover" /></button>
-                  ))}
-                </div>
-              </div>
-            </details>
           </div>
           <div className="flex flex-wrap items-center gap-4">
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!form.jackpot} onChange={e => upd('jackpot', e.target.checked)} /> Jackpot</label>
@@ -508,7 +515,6 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
               <div className="md:col-span-2"><Label>Terms acknowledgement</Label><textarea rows={2} value={form.terms_acknowledgement || ''} onChange={e => upd('terms_acknowledgement', e.target.value)} className="w-full rounded-lg border border-slate-200 p-2 text-sm" /></div>
               <div><Label>Country restrictions</Label><Input value={form.country_restrictions || ''} onChange={e => upd('country_restrictions', e.target.value)} placeholder="United Kingdom only" /></div>
               <div><Label>Age restriction</Label><Input value={form.age_restriction || '18+'} onChange={e => upd('age_restriction', e.target.value)} /></div>
-              <div><Label>Mobile image URL</Label><Input value={form.mobile_image || ''} onChange={e => upd('mobile_image', e.target.value)} placeholder="Optional smaller image for mobile" /></div>
               <div>
                 <Label>Contest engine</Label>
                 <select value={form.engine_type || 'leaderboard'} onChange={e => upd('engine_type', e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" data-testid="fld-engine-type">
@@ -539,22 +545,6 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
             </div>
           </details>
 
-          {/* ---- Focal-point image uploader ---- */}
-          <details className="pt-3 border-t border-slate-100" data-testid="focal-picker-section">
-            <summary className="cursor-pointer text-base font-semibold text-[#6C2BFF] py-2 select-none">
-              Image upload with focal-point picker (recommended)
-            </summary>
-            <div className="mt-3">
-              <ContestImageFocalPicker
-                initialImage={form.image}
-                onUploaded={(r) => {
-                  if (r?.sizes?.card) upd('image', r.sizes.card);
-                  if (r?.sizes?.mobile) upd('mobile_image', r.sizes.mobile);
-                }}
-              />
-            </div>
-          </details>
-
           {/* ---- Engine 2: Random Draw controls ---- */}
           {!isCreate && form.engine_type === 'random_draw' && (
             <details className="pt-3 border-t border-slate-100" data-testid="random-draw-section">
@@ -580,10 +570,10 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button
             onClick={save}
-            disabled={busy || uploading}
+            disabled={busy || uploading.image || uploading.preview_image}
             data-testid="contest-save-btn"
             className="bg-[#6C2BFF] hover:bg-[#4A15D9]"
-          >{busy ? 'Saving…' : uploading ? 'Uploading image…' : (isCreate ? 'Create contest' : 'Save changes')}</Button>
+          >{busy ? 'Saving…' : (uploading.image || uploading.preview_image) ? 'Uploading image…' : (isCreate ? 'Create contest' : 'Save changes')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

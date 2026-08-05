@@ -273,6 +273,7 @@ async def create_contest_api(payload: dict, request: Request):
             prize_amount=prize_amount,
             end_date=end_date_val,
             image=payload.get('image') or 'https://images.pexels.com/photos/928187/pexels-photo-928187.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+            preview_image=payload.get('preview_image') or None,
             jackpot=bool(payload.get('jackpot')) or prize_amount >= 250,
             featured=bool(payload.get('featured')),
             skill_question=SkillQuestion(
@@ -302,7 +303,7 @@ async def update_contest_full(contest_id: str, payload: dict, request: Request):
     await require_admin(request)
     from deps import get_db
     db = get_db()
-    allowed = {'title', 'subtitle', 'category', 'tag', 'image', 'price', 'tickets_total',
+    allowed = {'title', 'subtitle', 'category', 'tag', 'image', 'preview_image', 'price', 'tickets_total',
                'prize_amount', 'end_date', 'jackpot', 'featured', 'status', 'skill_question',
                'skill_question_type', 'skill_question_difficulty',
                'game_type', 'game_config', 'entry_mode', 'max_attempts', 'attempts_per_ticket',

@@ -1,18 +1,19 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { gamesAPI, contestsAPI } from '../lib/api';
-import { Trophy, Medal, Award, Crown, ArrowRight, Flame, Zap, Zap as SpeedIcon, Target } from 'lucide-react';
+import { Crown, Flame, Zap, Target, Zap as SpeedIcon, TrendingUp, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 /**
- * Global leaderboard — public page.
- * Shows top players across ALL contests + per-contest leaderboards for game-enabled contests.
- * Auto-refreshes every 15s.
+ * Global leaderboard — 2026-08 redesign.
+ * Aesthetic: deep-purple stage, gold spotlight on the winner, gradient number
+ * tiles for #2/#3, magnetic hover on rows, live-refresh every 15s. Replaces
+ * the previous mixed-teal/orange design.
  */
 export default function GlobalLeaderboard() {
   const [rows, setRows] = useState([]);
   const [contests, setContests] = useState([]);
-  const [tab, setTab] = useState('global'); // 'global' | contest_id
+  const [tab, setTab] = useState('global');
   const { user } = useAuth();
 
   useEffect(() => {
@@ -23,119 +24,97 @@ export default function GlobalLeaderboard() {
     return () => clearInterval(t);
   }, []);
 
-  const medal = (rank) => {
-    if (rank === 1) return { Icon: Crown, cls: 'bg-gradient-to-br from-amber-400 to-orange-500 text-white ring-4 ring-amber-200' };
-    if (rank === 2) return { Icon: Trophy, cls: 'bg-gradient-to-br from-slate-300 to-slate-500 text-white' };
-    if (rank === 3) return { Icon: Medal, cls: 'bg-gradient-to-br from-amber-700 to-amber-900 text-white' };
-    return { Icon: null, cls: 'bg-slate-100 text-slate-500' };
-  };
-
-  const topThree = rows.slice(0, 3);
-
   return (
-    <div className="max-w-5xl mx-auto px-4 lg:px-8 py-10" data-testid="global-leaderboard-page">
-      <div className="bg-gradient-to-br from-slate-900 via-fuchsia-900 to-orange-800 text-white rounded-3xl p-8 mb-6 relative overflow-hidden">
-        <div className="absolute -right-8 -top-8 w-40 h-40 bg-amber-400/20 rounded-full blur-3xl" />
-        <div className="absolute -left-8 -bottom-8 w-40 h-40 bg-fuchsia-500/20 rounded-full blur-3xl" />
-        <div className="relative">
-          <div className="text-white/80 text-xs uppercase tracking-widest flex items-center gap-2">
-            <Flame className="w-4 h-4" /> Prize League leaderboard
-          </div>
-          <h1 className="font-display text-4xl md:text-5xl font-extrabold mt-2">Top players, live.</h1>
-          <p className="text-white/80 text-sm mt-2 max-w-xl">Every score across every game counts. Highest points win. Auto-refreshes every 15 seconds.</p>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-1 mb-4 no-scrollbar" data-testid="leaderboard-tabs">
-        <button
-          onClick={() => setTab('global')}
-          data-testid="tab-global"
-          className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap border ${tab === 'global' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:border-slate-400'}`}
-        >
-          <Zap className="w-3.5 h-3.5 inline mr-1" /> Global
-        </button>
-        {contests.map(c => (
-          <button
-            key={c.contest_id}
-            onClick={() => setTab(c.contest_id)}
-            data-testid={`tab-contest-${c.contest_id}`}
-            className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap border ${tab === c.contest_id ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-slate-700 border-slate-200 hover:border-orange-400'}`}
-          >
-            {c.title.length > 26 ? `${c.title.slice(0, 26)}…` : c.title}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'global' ? (
-        <>
-          {/* Podium */}
-          {topThree.length > 0 && (
-            <div className="grid grid-cols-3 gap-3 mb-6" data-testid="podium">
-              {[1, 0, 2].map(idx => {
-                const p = topThree[idx];
-                if (!p) return <div key={idx} />;
-                const m = medal(p.rank);
-                const heights = { 1: 'h-40 mt-6', 0: 'h-52', 2: 'h-32 mt-14' };
-                const grads = { 1: 'from-slate-300 to-slate-500', 0: 'from-amber-400 via-orange-500 to-rose-500', 2: 'from-amber-700 to-amber-900' };
-                return (
-                  <div key={p.user_id} className={`rounded-2xl bg-gradient-to-b ${grads[idx]} ${heights[idx]} p-4 text-white flex flex-col items-center justify-end text-center shadow-lg`}>
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold mb-2 bg-white/20`}>
-                      {m.Icon ? <m.Icon className="w-6 h-6" /> : p.rank}
-                    </div>
-                    <div className="font-bold truncate w-full">{p.user_name}</div>
-                    <div className="text-2xl font-extrabold font-display">{(p.normalized_score ?? 0).toFixed(2)}</div>
-                    <div className="text-xs opacity-90">{p.contests_played} contest{p.contests_played !== 1 ? 's' : ''} · {(p.total_points || 0).toLocaleString()} pts</div>
-                  </div>
-                );
-              })}
+    <div className="min-h-[calc(100vh-4rem)] bg-[#0B0D1F]" data-testid="global-leaderboard-page">
+      <div className="max-w-5xl mx-auto px-4 lg:px-8 py-8 md:py-12">
+        {/* Hero */}
+        <div className="relative overflow-hidden rounded-3xl mb-6 border border-white/5" style={{
+          background: 'radial-gradient(120% 100% at 0% 0%, #6C2BFF33 0%, transparent 50%), radial-gradient(120% 100% at 100% 100%, #FFD54A22 0%, transparent 55%), linear-gradient(180deg, #161433 0%, #0B0D1F 100%)',
+        }}>
+          <div className="absolute -right-16 -top-16 w-64 h-64 rounded-full bg-[#FFD54A]/10 blur-3xl" />
+          <div className="absolute -left-20 -bottom-20 w-72 h-72 rounded-full bg-[#6C2BFF]/25 blur-3xl" />
+          <div className="relative p-6 md:p-10">
+            <div className="text-[#FFD54A]/90 text-[11px] uppercase tracking-[0.35em] font-bold flex items-center gap-2">
+              <Flame className="w-4 h-4" /> Prize League leaderboard
             </div>
-          )}
-
-          <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-            {rows.length === 0 ? (
-              <div className="p-10 text-center text-slate-500" data-testid="empty-global">
-                No scores yet. Be the first player on the board!
-                <div className="mt-4"><Link to="/competitions" className="text-orange-600 font-semibold hover:underline inline-flex items-center gap-1">Browse contests <ArrowRight className="w-4 h-4" /></Link></div>
-              </div>
-            ) : (
-              <ul className="divide-y divide-slate-100" data-testid="global-list">
-                {rows.map(p => {
-                  const m = medal(p.rank);
-                  const isMe = user && p.user_id === user.user_id;
-                  return (
-                    <li key={p.user_id} data-testid={`global-row-${p.rank}`} className={`flex items-center gap-3 p-4 ${isMe ? 'bg-[#FFD54A]/15 border-l-4 border-[#FFD54A]' : (p.rank <= 3 ? 'bg-gradient-to-r from-amber-50/50 to-transparent' : '')}`}>
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${m.cls}`}>
-                        {m.Icon ? <m.Icon className="w-5 h-5" /> : p.rank}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-slate-900 truncate flex items-center gap-1">
-                          {p.user_name} {isMe && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#FFD54A] text-slate-900 font-bold">YOU</span>}
-                        </div>
-                        <div className="text-xs text-slate-500">{p.contests_played} contest{p.contests_played !== 1 ? 's' : ''} · {(p.total_points || 0).toLocaleString()} raw pts</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-display text-2xl font-extrabold text-orange-600">{(p.normalized_score ?? 0).toFixed(2)}</div>
-                        <div className="text-[10px] text-slate-400 uppercase tracking-wider">/ 100</div>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+            <h1 className="font-display text-4xl md:text-6xl font-black text-white mt-3 leading-[0.95]">
+              Top players. <span className="bg-gradient-to-r from-[#FFE68A] via-[#FFD54A] to-[#FF9A3C] bg-clip-text text-transparent">Live.</span>
+            </h1>
+            <p className="text-white/60 text-sm md:text-base mt-3 max-w-xl">
+              Every score across every contest — normalized to 100. Auto-refreshes every 15 seconds. Tie-break: accuracy → speed.
+            </p>
           </div>
-        </>
-      ) : (
-        <ContestBoard contestId={tab} />
-      )}
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-2 overflow-x-auto pb-1 mb-6 -mx-1 px-1 no-scrollbar" data-testid="leaderboard-tabs">
+          <TabPill active={tab === 'global'} onClick={() => setTab('global')} testid="tab-global">
+            <Zap className="w-3.5 h-3.5" /> Global
+          </TabPill>
+          {contests.map(c => (
+            <TabPill
+              key={c.contest_id}
+              active={tab === c.contest_id}
+              onClick={() => setTab(c.contest_id)}
+              testid={`tab-contest-${c.contest_id}`}
+            >
+              {c.title.length > 22 ? `${c.title.slice(0, 22)}…` : c.title}
+            </TabPill>
+          ))}
+        </div>
+
+        {tab === 'global' ? <GlobalBoard rows={rows} user={user} /> : <ContestBoard contestId={tab} user={user} />}
+      </div>
     </div>
   );
 }
 
-function ContestBoard({ contestId }) {
+function TabPill({ active, onClick, testid, children }) {
+  return (
+    <button
+      onClick={onClick}
+      data-testid={testid}
+      className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-extrabold uppercase tracking-wider whitespace-nowrap transition ${
+        active
+          ? 'bg-[#FFD54A] text-slate-900 shadow-[0_6px_24px_-6px_#FFD54A88]'
+          : 'bg-white/5 text-white/70 border border-white/10 hover:text-white hover:bg-white/10'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function GlobalBoard({ rows, user }) {
+  const top3 = rows.slice(0, 3);
+  const rest = rows.slice(3);
+  return (
+    <>
+      {top3.length > 0 && <Podium top3={top3} user={user} />}
+      {rows.length === 0 ? (
+        <EmptyState />
+      ) : (
+        <div className="mt-6 rounded-2xl bg-[#161433]/70 border border-white/5 overflow-hidden backdrop-blur">
+          <ul className="divide-y divide-white/5" data-testid="global-list">
+            {rest.map(p => (
+              <BoardRow
+                key={p.user_id}
+                rank={p.rank}
+                name={p.user_name}
+                sub={`${p.contests_played} contest${p.contests_played !== 1 ? 's' : ''} · ${(p.total_points || 0).toLocaleString()} pts`}
+                score={p.normalized_score}
+                isMe={user && p.user_id === user.user_id}
+              />
+            ))}
+          </ul>
+        </div>
+      )}
+    </>
+  );
+}
+
+function ContestBoard({ contestId, user }) {
   const [rows, setRows] = useState([]);
-  const [expanded, setExpanded] = useState(null);
-  const { user } = useAuth();
   useEffect(() => {
     const load = () => gamesAPI.leaderboard(contestId, 100).then(r => setRows(r?.entries || r?.leaderboard || [])).catch(() => {});
     load();
@@ -143,69 +122,125 @@ function ContestBoard({ contestId }) {
     return () => clearInterval(t);
   }, [contestId]);
 
-  const medal = (rank) => {
-    if (rank === 1) return { Icon: Trophy, cls: 'bg-gradient-to-br from-amber-400 to-orange-500 text-white' };
-    if (rank === 2) return { Icon: Medal, cls: 'bg-gradient-to-br from-slate-300 to-slate-500 text-white' };
-    if (rank === 3) return { Icon: Award, cls: 'bg-gradient-to-br from-amber-700 to-amber-900 text-white' };
-    return { Icon: null, cls: 'bg-slate-100 text-slate-500' };
-  };
-
+  const top3 = rows.slice(0, 3);
+  const rest = rows.slice(3);
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden" data-testid="contest-board">
+    <div data-testid="contest-board">
+      {top3.length > 0 && <Podium top3={top3} user={user} />}
       {rows.length === 0 ? (
-        <div className="p-10 text-center text-slate-500">No scores yet for this contest.</div>
+        <EmptyState />
       ) : (
-        <ul className="divide-y divide-slate-100" data-testid="contest-list">
-          {rows.map(r => {
-            const m = medal(r.rank);
-            const isMe = user && r.user_id === user.user_id;
-            const isOpen = expanded === r.user_id;
-            const durS = r.duration_s ?? (r.duration_ms ? +(r.duration_ms / 1000).toFixed(2) : 0);
-            const accPct = r.accuracy_pct ?? Math.round((r.accuracy || 0) * 100);
-            return (
-              <li key={r.user_id} data-testid={`contest-row-${r.rank}`}>
-                <button
-                  type="button"
-                  onClick={() => setExpanded(isOpen ? null : r.user_id)}
-                  className={`w-full text-left flex items-center gap-3 p-4 hover:bg-slate-50 transition ${isMe ? 'bg-[#FFD54A]/15 border-l-4 border-[#FFD54A]' : (r.rank <= 3 ? 'bg-gradient-to-r from-amber-50/40 to-transparent' : '')}`}
-                >
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${m.cls}`}>
-                    {m.Icon ? <m.Icon className="w-5 h-5" /> : r.rank}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-slate-900 truncate flex items-center gap-1">
-                      {r.user_name} {isMe && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#FFD54A] text-slate-900 font-bold">YOU</span>}
-                      {r.public_id && <span className="text-[10px] text-slate-400 font-mono">· {r.public_id}</span>}
-                    </div>
-                    <div className="text-xs text-slate-500">{durS.toFixed?.(2) || durS}s · {accPct}% accuracy · tap to see full details</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-display text-2xl font-extrabold text-orange-600">{(r.normalized_score ?? 0).toFixed(2)}</div>
-                    <div className="text-[10px] text-slate-400 uppercase tracking-wider">/ 100</div>
-                  </div>
-                </button>
-                {isOpen && (
-                  <div className="px-4 pb-4 pt-1 bg-slate-50/60 grid grid-cols-3 gap-2 text-center" data-testid={`contest-row-detail-${r.rank}`}>
-                    <div className="rounded-lg bg-white p-2">
-                      <div className="text-[10px] text-slate-500 uppercase flex items-center justify-center gap-1"><Target className="w-3 h-3" /> Accuracy</div>
-                      <div className="font-bold text-slate-900">{accPct}%</div>
-                    </div>
-                    <div className="rounded-lg bg-white p-2">
-                      <div className="text-[10px] text-slate-500 uppercase flex items-center justify-center gap-1"><SpeedIcon className="w-3 h-3" /> Speed</div>
-                      <div className="font-bold text-slate-900">{durS}s</div>
-                    </div>
-                    <div className="rounded-lg bg-white p-2">
-                      <div className="text-[10px] text-slate-500 uppercase">Raw points</div>
-                      <div className="font-bold text-slate-900">{(r.points || 0).toLocaleString()}</div>
-                    </div>
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+        <div className="mt-6 rounded-2xl bg-[#161433]/70 border border-white/5 overflow-hidden backdrop-blur">
+          <ul className="divide-y divide-white/5" data-testid="contest-list">
+            {rest.map(r => {
+              const durS = r.duration_s ?? (r.duration_ms ? +(r.duration_ms / 1000).toFixed(2) : 0);
+              const accPct = r.accuracy_pct ?? Math.round((r.accuracy || 0) * 100);
+              return (
+                <BoardRow
+                  key={r.user_id}
+                  rank={r.rank}
+                  name={r.user_name}
+                  sub={<span className="inline-flex items-center gap-2"><Target className="w-3 h-3" /> {accPct}% <span className="text-white/30">·</span> <SpeedIcon className="w-3 h-3" /> {typeof durS === 'number' ? durS.toFixed(2) : durS}s</span>}
+                  score={r.normalized_score}
+                  isMe={user && r.user_id === user.user_id}
+                />
+              );
+            })}
+          </ul>
+          <div className="p-3 text-[10px] text-white/40 text-center uppercase tracking-widest">
+            Scores normalized 0–100 · leader = 100.00
+          </div>
+        </div>
       )}
-      <div className="p-3 border-t border-slate-100 text-[10px] text-slate-400 text-center">Scores normalized 0–100 · leader always = 100.00 · tie-break: accuracy → speed</div>
+    </div>
+  );
+}
+
+function Podium({ top3, user }) {
+  // Order visually: 2nd — 1st (taller, center) — 3rd
+  const order = [1, 0, 2];
+  const heights = ['h-40', 'h-52', 'h-32'];
+  const offsets = ['pt-8', 'pt-0', 'pt-16'];
+  const grads = [
+    'from-slate-200 via-slate-300 to-slate-500',       // silver
+    'from-[#FFE68A] via-[#FFD54A] to-[#FF9A3C]',       // gold
+    'from-[#F0A56D] via-[#B4703F] to-[#7A4522]',       // bronze
+  ];
+  const rings = ['ring-slate-400/30', 'ring-[#FFD54A]/40', 'ring-[#B4703F]/30'];
+  const labels = ['SILVER', 'GOLD', 'BRONZE'];
+  return (
+    <div className="grid grid-cols-3 gap-3" data-testid="podium">
+      {order.map((idx, colIdx) => {
+        const p = top3[idx];
+        if (!p) return <div key={idx} className={heights[colIdx] + ' ' + offsets[colIdx]} />;
+        const isMe = user && p.user_id === user.user_id;
+        return (
+          <div key={p.user_id} className={`${offsets[colIdx]}`} data-testid={`podium-rank-${p.rank}`}>
+            <div className={`relative rounded-3xl overflow-hidden ${heights[colIdx]} bg-gradient-to-b ${grads[colIdx]} p-3 md:p-4 shadow-2xl ring-2 ${rings[colIdx]} flex flex-col items-center justify-end text-center`}>
+              {idx === 0 && (
+                <Crown className="absolute -top-3 left-1/2 -translate-x-1/2 w-8 h-8 text-[#FFD54A] drop-shadow" />
+              )}
+              <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/25 flex items-center justify-center font-black text-white text-lg md:text-xl mb-2 border-2 border-white/40">
+                {p.user_name?.[0]?.toUpperCase() || 'P'}
+              </div>
+              <div className="text-white/95 font-extrabold text-xs md:text-sm truncate w-full">
+                {p.user_name || 'Player'}
+                {isMe && <span className="ml-1 text-[8px] px-1 py-0.5 rounded bg-black/40 text-[#FFD54A] align-middle">YOU</span>}
+              </div>
+              <div className="font-display text-2xl md:text-3xl font-black text-white leading-none mt-1">
+                {(p.normalized_score ?? 0).toFixed(2)}
+              </div>
+              <div className="text-white/75 text-[10px] uppercase tracking-widest mt-0.5">{labels[colIdx]}</div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function BoardRow({ rank, name, sub, score, isMe }) {
+  return (
+    <li
+      data-testid={`lb-row-${rank}`}
+      className={`flex items-center gap-3 px-4 md:px-5 py-3 transition ${
+        isMe
+          ? 'bg-gradient-to-r from-[#FFD54A]/15 via-[#FFD54A]/5 to-transparent border-l-4 border-[#FFD54A]'
+          : 'hover:bg-white/[0.03]'
+      }`}
+    >
+      <div className={`w-10 h-10 rounded-xl grid place-items-center font-black text-sm shrink-0 ${
+        isMe
+          ? 'bg-[#FFD54A] text-slate-900'
+          : rank <= 10
+            ? 'bg-white/10 text-white ring-1 ring-white/10'
+            : 'bg-white/[0.04] text-white/60'
+      }`}>#{rank}</div>
+      <div className="flex-1 min-w-0">
+        <div className="text-white font-bold truncate flex items-center gap-1.5">
+          {isMe ? 'You' : (name || 'Player')}
+          {isMe && <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-900 text-[#FFD54A] font-extrabold tracking-wider">YOU</span>}
+        </div>
+        <div className="text-[11px] text-white/50">{sub}</div>
+      </div>
+      <div className="text-right shrink-0">
+        <div className="font-display text-xl md:text-2xl font-black text-[#FFD54A]">{(Number(score) || 0).toFixed(2)}</div>
+        <div className="text-[9px] text-white/40 uppercase tracking-widest">/ 100</div>
+      </div>
+    </li>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="rounded-2xl bg-[#161433]/70 border border-white/5 p-10 text-center text-white/60" data-testid="empty-global">
+      <TrendingUp className="w-8 h-8 mx-auto text-white/20 mb-2" />
+      No scores yet. Be the first on the board!
+      <div className="mt-4">
+        <Link to="/competitions" className="text-[#FFD54A] font-extrabold hover:underline inline-flex items-center gap-1">
+          Browse contests <ArrowRight className="w-4 h-4" />
+        </Link>
+      </div>
     </div>
   );
 }

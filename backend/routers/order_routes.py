@@ -258,6 +258,20 @@ async def my_orders(request: Request, limit: int = 50):
     return orders
 
 
+@router.get('/my-joined-contest-ids')
+async def my_joined_contest_ids(request: Request):
+    """Cheap endpoint used by the contest tile "Joined" badge — returns just
+    the distinct contest_ids the current user has bought a ticket for. No
+    contest metadata, no ticket rows, no enrichment. O(1) storage in the
+    client (a Set) so listings can render a badge without extra round-trips.
+    """
+    user = await get_current_user(request)
+    from deps import get_db
+    db = get_db()
+    ids = await db.tickets.distinct('contest_id', {'user_id': user['user_id']})
+    return {'contest_ids': ids}
+
+
 @router.get('/my-tickets')
 async def my_tickets(request: Request, limit: int = 200):
     """Return the user's tickets ENRICHED with contest title/image/slug/game_type

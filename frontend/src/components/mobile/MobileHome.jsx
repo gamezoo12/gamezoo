@@ -15,7 +15,7 @@ import { contestsAPI, gamesAPI, ordersAPI } from '../../lib/api';
 import { tokenCount, tokens as fmtTokens } from '../../lib/format';
 import { useAuth } from '../../context/AuthContext';
 import HowToPlaySection from '../home/HowToPlaySection';
-import BonusPromoBanner from '../BonusPromoBanner';
+import CompetitionCard from '../CompetitionCard';
 
 const TABS = [
   { id: 'contests',    label: 'Contests',    Icon: ListChecks },
@@ -81,9 +81,19 @@ function ContestsPanel({ contests }) {
 
   return (
     <div className="px-4 pt-4">
-      {/* Promo banner — top-up bonus, dismissible via API "active" flag. */}
-      <div className="mb-4">
-        <BonusPromoBanner variant="compact" />
+      {/* Compact mobile hero — same slot the promo banner used to occupy.
+          Kept small on purpose (per spec: "don't increase the size"). */}
+      <div className="mb-4 rounded-2xl overflow-hidden relative bg-gradient-to-br from-[#3E0BAA] via-[#6C2BFF] to-[#8B5CFF] px-4 py-3 shadow" data-testid="mobile-hero-strip">
+        <div className="pointer-events-none absolute -right-6 -top-6 w-24 h-24 rounded-full bg-[#FFD54A]/25 blur-2xl" />
+        <div className="pointer-events-none absolute -left-4 -bottom-6 w-20 h-20 rounded-full bg-white/10 blur-2xl" />
+        <div className="relative">
+          <div className="font-display font-extrabold tracking-tight leading-none text-[22px] bg-gradient-to-r from-[#FFE68A] via-[#FFD54A] to-[#FFB020] bg-clip-text text-transparent">
+            PRIZE LEAGUE
+          </div>
+          <div className="font-display font-bold text-white text-[13px] mt-1">
+            Play. Compete. Win.
+          </div>
+        </div>
       </div>
       {/* Hero carousel */}
       {featured.length > 0 && (
@@ -96,7 +106,7 @@ function ContestsPanel({ contests }) {
                 className={`absolute inset-0 transition-opacity duration-500 ${i === heroIdx ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                 data-testid={`mobile-hero-slide-${i}`}
               >
-                <img src={c.image || c.hero_image} alt={c.title} className="w-full h-full object-cover" loading={i === 0 ? 'eager' : 'lazy'} />
+                <img src={c.preview_image || c.image || c.hero_image} alt={c.title} className="w-full h-full object-cover" loading={i === 0 ? 'eager' : 'lazy'} />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 p-4">
                   <div className="font-display font-extrabold text-lg text-white leading-tight line-clamp-2">{c.title}</div>
@@ -128,22 +138,16 @@ function ContestsPanel({ contests }) {
       ) : (
         <div className="grid grid-cols-2 gap-3" data-testid="mobile-contest-grid">
           {contests.map(c => (
-            <Link
+            <CompetitionCard
               key={c.contest_id}
-              to={`/contests/${c.slug || c.contest_id}`}
-              className="bg-white/5 border border-white/10 rounded-xl overflow-hidden hover:border-[#FFD54A]/40 transition"
-              data-testid={`mobile-contest-tile-${c.contest_id}`}
-            >
-              <div className="aspect-square bg-slate-800 overflow-hidden">
-                <img src={c.image || c.hero_image} alt={c.title} loading="lazy" className="w-full h-full object-cover" />
-              </div>
-              <div className="p-2 flex items-center justify-between gap-2 text-xs">
-                <div className="font-bold text-white truncate">{c.title}</div>
-                <div className="shrink-0 flex items-center gap-0.5 text-[#FFD54A] font-extrabold">
-                  {tokenCount(c.price)}<Coins className="w-3 h-3" />
-                </div>
-              </div>
-            </Link>
+              c={{
+                id: c.contest_id, contest_id: c.contest_id,
+                slug: c.slug || c.contest_id,
+                title: c.title, subtitle: c.subtitle || c.tag, tag: c.tag,
+                price: c.price, ticketsSold: c.tickets_sold, ticketsTotal: c.tickets_total,
+                endDate: c.end_date || c.end_time, image: c.image || c.hero_image,
+              }}
+            />
           ))}
         </div>
       )}

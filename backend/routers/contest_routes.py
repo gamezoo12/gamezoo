@@ -20,6 +20,7 @@ def _to_public(c: dict) -> dict:
         'prize_amount': c['prize_amount'],
         'end_date': c['end_date'],
         'image': c['image'],
+        'preview_image': c.get('preview_image'),
         'jackpot': c.get('jackpot', False),
         'featured': c.get('featured', False),
         'status': c.get('status', 'live'),

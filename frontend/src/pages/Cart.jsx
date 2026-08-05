@@ -167,6 +167,8 @@ export default function Cart() {
       setCheckoutSuccess(r);
       setCheckoutStep('success');
       loadWallet();
+      // Refresh the joined-contest cache so tiles instantly flip to "Joined".
+      import('../lib/joinedContests').then(m => m.refreshJoinedIds()).catch(() => {});
       toast({
         title: 'Payment successful 🎉',
         description: `${r.tickets} ticket${r.tickets !== 1 ? 's' : ''} confirmed · ${fmtTokens(r.total)} · Order #${r.order_id}`,

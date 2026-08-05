@@ -65,6 +65,11 @@ def test_grant_at_threshold():
             assert r['status'] == 'active'
             delta = r['expires_at'] - r['granted_at']
             assert abs(delta - timedelta(days=BONUS_EXPIRY_DAYS)) < timedelta(seconds=5)
+            # Second top-up should NOT grant again — one-time per user rule.
+            r2 = await maybe_grant_bonus(db, 'test_bonus_u2', BONUS_MIN_TOPUP * 5)
+            assert r2 is None
+            count = await db.bonus_grants.count_documents({'user_id': 'test_bonus_u2'})
+            assert count == 1, f'expected exactly 1 grant, got {count}'
         finally:
             await db.bonus_grants.delete_many({'user_id': 'test_bonus_u2'})
             client.close()

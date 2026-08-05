@@ -121,6 +121,17 @@ export default function Header() {
  {balance === null ? '…' : `${tokenCount(balance)} 🪙`}
  </Link>
  )}
+ {user && (
+ <Link
+ to="/my-account/wallet"
+ data-testid="header-wallet-chip-mobile"
+ className="md:hidden inline-flex items-center gap-1 px-2 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[#FFD54A] text-[11px] font-extrabold transition"
+ title="Your token balance"
+ >
+ <WalletIcon className="w-3 h-3" />
+ {balance === null ? '…' : tokenCount(balance)}
+ </Link>
+ )}
 
  <span className="hidden sm:inline-flex"><NotificationsBell /></span>
 

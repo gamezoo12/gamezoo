@@ -113,7 +113,7 @@ export default function HeroBanner({ contests = [] }) {
                       <source media="(max-width: 640px)" srcSet={current.mobile_image} />
                     )}
                     <img
-                      src={current.image}
+                      src={current.preview_image || current.image}
                       alt={current.title}
                       className="w-full h-full object-cover"
                       loading="lazy"
@@ -129,8 +129,7 @@ export default function HeroBanner({ contests = [] }) {
                     <div className="text-white font-display text-2xl md:text-3xl font-extrabold mb-2 drop-shadow">{current.title}</div>
                     <div className="flex items-center justify-between gap-3 flex-wrap">
                       <div className="text-white/85 text-sm">
-                        <span className="font-bold text-[#FFD54A]">{Math.round(current.price ?? 0)} 🪙</span> Entry ·
-                        {' '}<span className="text-white/70">{(current.tickets_sold || 0).toLocaleString()} entries</span>
+                        <span className="font-bold text-[#FFD54A]">{Math.round(current.price ?? 0)} 🪙</span> Entry
                       </div>
                       <Link to={`/competition/${current.slug || current.contest_id}`}>
                         <button className="pl-btn-purple px-4 py-2 rounded-full text-sm font-bold" data-testid="hero-view-contest">View Contest</button>

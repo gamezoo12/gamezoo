@@ -18,12 +18,20 @@ BONUS_EXPIRY_DAYS = 30         # 1 month
 
 
 async def maybe_grant_bonus(db, user_id: str, tokens_purchased: int, ref_session_id: Optional[str] = None) -> Optional[dict]:
-    """Called from the Stripe top-up credit path. If tokens ≥ threshold,
-    inserts a bonus_grants row and returns the grant doc so the caller can
-    credit the wallet in the SAME atomic write path (`_apply_tx` of kind bonus).
-    Returns None when the top-up is below threshold.
+    """Called from the Stripe top-up credit path. If tokens ≥ threshold AND
+    the user has never received a bonus before, inserts a bonus_grants row and
+    returns the grant doc so the caller can credit the wallet in the SAME
+    atomic write path (`_apply_tx` of kind bonus).
+
+    Returns None when:
+      - the top-up is below threshold, OR
+      - the user has already received a bonus (one-time-per-user rule).
     """
     if tokens_purchased < BONUS_MIN_TOPUP:
+        return None
+    # ONE-TIME per user — the bonus is a first-time-buyer reward.
+    existing = await db.bonus_grants.count_documents({'user_id': user_id}, limit=1)
+    if existing:
         return None
     now = datetime.now(timezone.utc)
     grant = {

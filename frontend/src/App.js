@@ -45,7 +45,7 @@ import UserDetailsPage from './pages/admin/UserDetailsPage';
 import LegalDocPage from './pages/legal/LegalDocPage';
 import PlayGame from './pages/PlayGame';
 import ContestLeaderboard from './pages/ContestLeaderboard';
-import LeaderboardIndex from './pages/LeaderboardIndex';
+import LeaderboardIndex from './pages/GlobalLeaderboard';
 import HowItWorksPage from './pages/HowItWorks';
 import ReferPage from './pages/ReferPage';
 import TermsPage from './pages/legal/TermsPage';
