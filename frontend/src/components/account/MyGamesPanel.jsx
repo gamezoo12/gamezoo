@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Gamepad2, Play, ChevronRight, Trophy, Clock, CheckCircle2, XCircle } from 'lucide-react';
+import { Gamepad2, Play, ChevronRight, Trophy, Clock, CheckCircle2, XCircle, History } from 'lucide-react';
 import { ordersAPI } from '../../lib/api';
 
 /**
@@ -65,9 +65,38 @@ export default function MyGamesPanel() {
                 <span className="text-xs text-slate-500">{timeLeft(g.end_date)}</span>
               </div>
               <div className="font-display font-bold text-slate-900 mt-1 truncate">{g.contest_title}</div>
-              <div className="text-xs text-slate-500 mt-0.5">
-                Attempts <b className="text-slate-900">{g.attempts_used}/{g.max_attempts}</b>
-                {g.best_points != null && <> · Best score <b className="text-[#6C2BFF]">{g.best_points}</b></>}
+
+              {/* Prominent attempts usage: two chips side-by-side */}
+              <div className="mt-2 flex flex-wrap items-center gap-2" data-testid={`attempts-block-${g.ticket_id}`}>
+                <span
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900 text-white text-[11px] font-extrabold"
+                  data-testid={`attempts-used-${g.ticket_id}`}
+                  title="Attempts used"
+                >
+                  <History className="w-3 h-3 text-slate-300" />
+                  Used <b className="text-[#FFD54A]">{g.attempts_used}</b>
+                </span>
+                <span
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-extrabold ${
+                    (g.max_attempts - g.attempts_used) > 0
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-rose-500 text-white'
+                  }`}
+                  data-testid={`attempts-left-${g.ticket_id}`}
+                  title="Attempts remaining"
+                >
+                  <Play className="w-3 h-3" />
+                  Left <b>{Math.max(0, g.max_attempts - g.attempts_used)}</b> / {g.max_attempts}
+                </span>
+                {g.best_points != null && (
+                  <span
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#6C2BFF]/10 text-[#6C2BFF] text-[11px] font-extrabold border border-[#6C2BFF]/20"
+                    title="Best score"
+                    data-testid={`best-score-${g.ticket_id}`}
+                  >
+                    <Trophy className="w-3 h-3" /> Best {Number(g.best_points).toFixed(2)}
+                  </span>
+                )}
               </div>
             </div>
 

@@ -96,7 +96,12 @@ function GlobalBoard({ rows, user }) {
           rank={me.rank}
           name={me.user_name}
           score={me.normalized_score}
-          meta={`${me.contests_played} contest${me.contests_played !== 1 ? 's' : ''} · ${(me.total_points || 0).toLocaleString()} raw pts`}
+          stats={[
+            { label: 'Contests', value: me.contests_played || 0 },
+            { label: 'Total pts', value: (me.total_points || 0).toLocaleString() },
+            { label: 'Wins', value: me.wins || 0 },
+            { label: 'Global', value: `#${me.rank}` },
+          ]}
           total={rows.length}
         />
       )}
@@ -144,7 +149,12 @@ function ContestBoard({ contestId, user }) {
           rank={me.rank}
           name={me.user_name}
           score={me.normalized_score}
-          meta={<span className="inline-flex items-center gap-2"><Target className="w-3 h-3" /> {meAccPct}% <span className="text-white/40">·</span> <SpeedIcon className="w-3 h-3" /> {typeof meDurS === 'number' ? meDurS.toFixed(2) : meDurS}s</span>}
+          stats={[
+            { label: 'Rank', value: `#${me.rank}` },
+            { label: 'Accuracy', value: `${meAccPct}%` },
+            { label: 'Time', value: `${typeof meDurS === 'number' ? meDurS.toFixed(2) : meDurS}s` },
+            { label: 'Attempts', value: me.attempts ?? '—' },
+          ]}
           total={rows.length}
         />
       )}
@@ -182,33 +192,52 @@ function ContestBoard({ contestId, user }) {
  * Sticky "YOU are here" card. Renders above the podium so the current user
  * spots their rank instantly, without scrolling the list. `top-16` accounts
  * for the site header height so the card locks just under it on scroll.
+ *
+ * `stats` is a list of `{label, value, sub?}` — rendered as high-contrast
+ * dark-on-gold chips so the numbers are legible against the gold gradient.
  */
-function MyRankHero({ rank, name, score, meta, total }) {
+function MyRankHero({ rank, name, score, stats = [], total }) {
   return (
     <div
       data-testid="my-rank-hero"
       className="sticky top-16 z-20 mb-4 rounded-2xl overflow-hidden shadow-[0_18px_50px_-20px_#FFD54A66] border-2 border-[#FFD54A]"
-      style={{ background: 'linear-gradient(135deg, #FFD54A 0%, #FFB020 55%, #FF8A3C 100%)' }}
+      style={{ background: 'linear-gradient(135deg, #FFE68A 0%, #FFD54A 50%, #FFB020 100%)' }}
     >
-      <div className="px-4 md:px-5 py-3 md:py-4 flex items-center gap-3 md:gap-4 text-slate-900">
-        <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-slate-900 text-[#FFD54A] grid place-items-center font-black text-base md:text-lg shrink-0 shadow">
+      {/* Top row — rank + name + big score */}
+      <div className="px-4 md:px-5 pt-3 md:pt-4 pb-2 flex items-center gap-3 md:gap-4">
+        <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-slate-900 text-[#FFD54A] grid place-items-center font-black text-lg md:text-2xl shrink-0 shadow-lg ring-2 ring-slate-900/30">
           #{rank}
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="text-[10px] uppercase tracking-[0.3em] font-black opacity-70">Your rank</div>
-          <div className="font-display font-black text-lg md:text-xl truncate">
+        <div className="flex-1 min-w-0 text-slate-900">
+          <div className="text-[10px] uppercase tracking-[0.3em] font-black">Your rank</div>
+          <div className="font-display font-black text-lg md:text-xl truncate leading-tight">
             {name || 'You'}
             <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-[#FFD54A] align-middle font-extrabold tracking-wider">YOU</span>
           </div>
-          <div className="text-[11px] font-bold opacity-80 mt-0.5">
-            {meta}{total ? <> · out of <b>{total}</b> players</> : null}
-          </div>
+          {total ? <div className="text-[11px] font-bold text-slate-900/80 mt-0.5">out of <b>{total}</b> players</div> : null}
         </div>
         <div className="text-right shrink-0">
-          <div className="font-display text-2xl md:text-3xl font-black leading-none">{(Number(score) || 0).toFixed(2)}</div>
-          <div className="text-[9px] uppercase tracking-widest opacity-70 mt-0.5">/ 100</div>
+          <div className="font-display text-3xl md:text-4xl font-black text-slate-900 leading-none tabular-nums">{(Number(score) || 0).toFixed(2)}</div>
+          <div className="text-[10px] uppercase tracking-widest text-slate-900/70 mt-1 font-black">Score / 100</div>
         </div>
       </div>
+
+      {/* Bottom row — high-contrast individual stat chips */}
+      {stats.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5 px-4 md:px-5 pb-3 md:pb-4">
+          {stats.map((s, i) => (
+            <div
+              key={i}
+              data-testid={`hero-stat-${(s.label || '').toLowerCase().replace(/\s+/g,'-')}`}
+              className="bg-slate-900 rounded-xl px-3 py-2 text-center"
+            >
+              <div className="text-[9px] uppercase tracking-[0.2em] font-black text-[#FFD54A] leading-none">{s.label}</div>
+              <div className="text-white font-display text-lg md:text-xl font-black mt-1 leading-none tabular-nums">{s.value}</div>
+              {s.sub && <div className="text-[9px] text-white/50 mt-0.5">{s.sub}</div>}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

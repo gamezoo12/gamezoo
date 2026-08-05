@@ -165,34 +165,41 @@ export default function ContestLeaderboard() {
         {user && (
           <div
             className="sticky top-16 z-20 rounded-2xl overflow-hidden shadow-[0_18px_50px_-20px_#FFD54A66] border-2 border-[#FFD54A] mb-6"
-            style={{ background: 'linear-gradient(135deg, #FFD54A 0%, #FFB020 55%, #FF8A3C 100%)' }}
+            style={{ background: 'linear-gradient(135deg, #FFE68A 0%, #FFD54A 50%, #FFB020 100%)' }}
             data-testid="my-leaderboard-position"
           >
-            <div className="px-5 py-4 flex items-center gap-4 text-slate-900">
-              <div className="w-14 h-14 rounded-2xl bg-slate-900 text-[#FFD54A] grid place-items-center font-black text-lg shrink-0 shadow">
+            {/* Header row: rank + name + big score */}
+            <div className="px-5 pt-4 pb-2 flex items-center gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-slate-900 text-[#FFD54A] grid place-items-center font-black text-2xl shrink-0 shadow-lg ring-2 ring-slate-900/30">
                 {myPosition ? `#${myPosition.rank}` : '—'}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[10px] uppercase tracking-[0.3em] font-black opacity-70">Your position</div>
+              <div className="flex-1 min-w-0 text-slate-900">
+                <div className="text-[10px] uppercase tracking-[0.3em] font-black">Your position</div>
                 <div className="font-display font-black text-2xl md:text-3xl leading-tight">
                   {myPosition ? `Rank #${myPosition.rank}` : 'Not ranked yet'}
                   <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-[#FFD54A] align-middle font-extrabold tracking-wider">YOU</span>
                 </div>
-                {myPosition ? (
-                  <div className="text-[11px] font-bold opacity-80 mt-0.5">
-                    Score {Number(myPosition.points || 0).toFixed(2)}/100 · Accuracy {(Number(myPosition.accuracy || 0) * 100).toFixed(0)}% · Time {formatDuration(myPosition.duration_ms)} · {myPosition.attempts || 0} attempt{(myPosition.attempts || 0) !== 1 ? 's' : ''}
-                  </div>
-                ) : (
-                  <div className="text-[11px] font-bold opacity-80 mt-0.5">Play an official attempt to appear on this leaderboard.</div>
+                {!myPosition && (
+                  <div className="text-[11px] font-bold text-slate-900/80 mt-0.5">Play an official attempt to appear on this leaderboard.</div>
                 )}
               </div>
               {myPosition && (
                 <div className="text-right shrink-0">
-                  <div className="font-display text-3xl font-black leading-none">{Number(myPosition.points || 0).toFixed(2)}</div>
-                  <div className="text-[9px] uppercase tracking-widest opacity-70 mt-0.5">/ 100</div>
+                  <div className="font-display text-4xl font-black text-slate-900 leading-none tabular-nums">{Number(myPosition.points || 0).toFixed(2)}</div>
+                  <div className="text-[10px] uppercase tracking-widest text-slate-900/70 mt-1 font-black">Score / 100</div>
                 </div>
               )}
             </div>
+
+            {/* Bottom chips: dark tiles with gold labels for max legibility over gold BG */}
+            {myPosition && (
+              <div className="grid grid-cols-4 gap-1.5 px-5 pb-4">
+                <StatChip label="Rank" value={`#${myPosition.rank}`} testid="my-stat-rank" />
+                <StatChip label="Accuracy" value={`${(Number(myPosition.accuracy || 0) * 100).toFixed(0)}%`} testid="my-stat-accuracy" />
+                <StatChip label="Time" value={formatDuration(myPosition.duration_ms)} mono testid="my-stat-time" />
+                <StatChip label="Attempts" value={myPosition.attempts || 0} testid="my-stat-attempts" />
+              </div>
+            )}
           </div>
         )}
 
@@ -287,7 +294,16 @@ function StatCard({ label, value, Icon, tone, mono }) {
   );
 }
 
-function MiniStat({ label, value, suffix, mono, tone }) {
+function StatChip({ label, value, mono, testid }) {
+  return (
+    <div className="bg-slate-900 rounded-xl px-3 py-2 text-center" data-testid={testid}>
+      <div className="text-[9px] uppercase tracking-[0.2em] font-black text-[#FFD54A] leading-none">{label}</div>
+      <div className={`text-white ${mono ? 'font-mono text-base' : 'font-display text-lg'} font-black mt-1 leading-none tabular-nums`}>{value}</div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value, suffix, mono, tone }) { // eslint-disable-line no-unused-vars
   const isGold = tone === 'gold';
   return (
     <div className="rounded-xl bg-white/5 border border-white/10 p-3">

@@ -12,6 +12,21 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - **Referral programme** — invite friends, both get free ticket (or £5 wallet credit fallback)
 - **Live winners ticker + leaderboard per contest**
 
+## 2026-08-05 · Iteration 44 — Leaderboard readability + explicit attempts UI on every game
+
+**Leaderboard "You" hero readability fix** — The gold gradient overlaid on gold-tinted text made the score hard to read. Rebuilt with:
+- Larger 64px black rank tile with gold text + ring
+- Big black 3xl–4xl score number with clear "SCORE / 100" label
+- **4 dark chips underneath**, gold labels + white values (`CONTESTS · TOTAL PTS · WINS · GLOBAL` for global tab; `RANK · ACCURACY · TIME · ATTEMPTS` for contest tabs / contest full page). Tiles use `bg-slate-900` on the gold hero so contrast is maximum.
+- Applied to both `pages/GlobalLeaderboard.jsx` and `pages/ContestLeaderboard.jsx` for consistency.
+
+**Attempts visibility on every game surface**:
+- `components/account/MyGamesPanel.jsx` — replaced the small subtext "Attempts X/Y" with two prominent pill chips: **`Used N`** (dark chip, gold count) + **`Left N / M`** (emerald when >0, rose when exhausted). Best score is now its own purple chip.
+- `pages/PlayGame.jsx` — during actual gameplay the hero now shows the same pill set: `Ticket #NNNNNN`, `Used N`, `Left N / M` (emerald/rose auto-switch), `Best NN.NN / 100`. No more tiny-text sub-line — players see attempts left at a glance while playing.
+
+Data-testids: `hero-stat-*`, `my-stat-*`, `attempts-used-*`, `attempts-left-*`, `best-score-*`, `playgame-attempts-used`, `playgame-attempts-left`, `playgame-best-score`.
+
+
 ## 2026-08-05 · Iteration 43 — Contest date fields consolidated + timezone-safe datetime input
 Bug: EditContestDialog had **"End date/time"** in the main form AND **"Open date" + "Draw / result date"** duplicated inside the Advanced accordion. Every save also silently shifted saved datetimes by the browser TZ offset because `toISOString().slice(0,16)` returns UTC but `<input type="datetime-local">` interprets its value as LOCAL.
 

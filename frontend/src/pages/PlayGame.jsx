@@ -305,12 +305,36 @@ export default function PlayGame() {
             {contest.title}
           </h1>
 
-          <div className="mt-2 text-white/80 text-sm">
-            Ticket #{ticketId.slice(-6)} · Attempts left:{' '}
-            <b>
-              {attemptsLeft}/{totalAllowed}
-            </b>{' '}
-            · Best: <b>{bestScore.toFixed(2)}</b> / 100
+          {/* Prominent attempts + best-score pills — used and left at a glance */}
+          <div className="mt-3 flex flex-wrap items-center gap-2" data-testid="playgame-attempts-block">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 text-white text-xs font-extrabold border border-white/10">
+              Ticket #{ticketId.slice(-6)}
+            </span>
+            <span
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/40 text-white text-xs font-extrabold border border-white/10"
+              data-testid="playgame-attempts-used"
+              title="Attempts used"
+            >
+              Used <b className="text-[#FFD54A] tabular-nums">{attempts.length}</b>
+            </span>
+            <span
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-extrabold ${
+                attemptsLeft > 0
+                  ? 'bg-emerald-500 text-white shadow-[0_0_18px_-4px_#10b98188]'
+                  : 'bg-rose-500 text-white'
+              }`}
+              data-testid="playgame-attempts-left"
+              title="Attempts remaining"
+            >
+              Left <b className="tabular-nums">{attemptsLeft}</b> / {totalAllowed}
+            </span>
+            <span
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FFD54A] text-slate-900 text-xs font-extrabold"
+              data-testid="playgame-best-score"
+              title="Your best score"
+            >
+              Best <b className="tabular-nums">{bestScore.toFixed(2)}</b> / 100
+            </span>
           </div>
         </div>
       </div>
