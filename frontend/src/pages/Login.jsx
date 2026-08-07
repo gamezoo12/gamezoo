@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
@@ -81,6 +81,20 @@ function PhoneLoginForm({ onLoggedIn }) {
 export default function Login() {
  const [mode, setMode] = useState('login');
  const [busy, setBusy] = useState(false);
+
+ useEffect(() => {
+   const params = new URLSearchParams(window.location.search);
+   const requestedTab = params.get('tab');
+   const referralCode = String(params.get('ref') || '').trim().toUpperCase();
+
+   if (requestedTab === 'signup' || referralCode) {
+     setMode('register');
+   }
+
+   if (referralCode) {
+     localStorage.setItem('pl_referral_code', referralCode);
+   }
+ }, []);
  const nav = useNavigate();
  const { toast } = useToast();
  const { login, setGoogleUser } = useAuth();

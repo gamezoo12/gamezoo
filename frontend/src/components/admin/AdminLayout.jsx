@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Package, ShoppingBag, Trophy, BarChart3, LogOut, Shield, CreditCard, Settings as SettingsIcon, ShieldCheck, Wallet as WalletIcon, Gamepad2, Menu, X, ClipboardList, FileText, Building2, Mailbox } from 'lucide-react';
+import { LayoutDashboard, Users, Package, ShoppingBag, Trophy, BarChart3, LogOut, Shield, CreditCard, Settings as SettingsIcon, ShieldCheck, Wallet as WalletIcon, Gamepad2, Menu, X, ClipboardList, FileText, Building2, Mailbox, Gift } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import PrizeLeagueLogo from '../layout/PrizeLeagueLogo';
 import MeeraChat from '../MeeraChat';
@@ -8,6 +8,7 @@ import MeeraChat from '../MeeraChat';
 const LINKS = [
  { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
  { to: '/admin/users', label: 'Users', icon: Users },
+ { to: '/admin/referrals', label: 'Referrals & Bonuses', icon: Gift },
  { to: '/admin/roles', label: 'Roles & Permissions', icon: ShieldCheck },
  { to: '/admin/kyc', label: 'KYC', icon: Shield },
  { to: '/admin/competitions', label: 'Contests', icon: Package },

@@ -225,6 +225,26 @@ async def checkout(inp: CheckoutInput, request: Request):
             ref_order_id=order.order_id,
         )
 
+    # Referral qualification runs only AFTER the order, wallet debit and
+    # ticket creation have successfully completed.
+    try:
+        from routers.referral_routes import record_contest_entry
+
+        await record_contest_entry(
+            db,
+            user['user_id'],
+            order.order_id,
+        )
+    except Exception:
+        # Referral processing must never turn a successful paid contest
+        # entry into a failed checkout.
+        import logging
+        logging.exception(
+            'Referral contest-entry qualification failed user=%s order=%s',
+            user.get('user_id'),
+            order.order_id,
+        )
+
     # Return the first ticket_id + slug of the first item's contest so the
     # frontend can offer "Play now" straight after checkout without an extra
     # round-trip (see Cart.jsx post-checkout flow).

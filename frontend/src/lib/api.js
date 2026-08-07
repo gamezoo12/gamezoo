@@ -172,7 +172,6 @@ export const paymentsAPI = {
     origin_url: origin_url || window.location.origin,
   }).then(r => ({ url: r.data.checkout_url, session_id: r.data.session_id })),
   status: (session_id) => api.get(`/payments/status/${session_id}`).then(r => r.data),
-  bonusStats: () => api.get('/admin/bonus/stats').then(r => r.data),
 };
 
 export const adminWalletAPI = {

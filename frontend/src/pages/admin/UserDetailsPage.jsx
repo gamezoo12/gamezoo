@@ -13,7 +13,7 @@ import BackButton from '../../components/BackButton';
 import { gbp } from '../../lib/format';
 import {
   User as UserIcon, ShieldCheck, Wallet, Ticket, Trophy, LifeBuoy,
-  AlertTriangle, Ban, RotateCcw, Trash2, Clock, Mail,
+  AlertTriangle, Ban, RotateCcw, Trash2, Clock, Mail, Gift, CheckCircle2,
 } from 'lucide-react';
 
 const Section = ({ title, icon: Icon, children }) => (
@@ -90,7 +90,12 @@ export default function UserDetailsPage() {
   if (state === 'missing') return <div className="p-6 text-slate-500">User not found.</div>;
   if (state === 'error') return <div className="p-6 text-rose-600">Failed to load.</div>;
 
-  const { identity, kyc, wallet, stats, orders, tickets, scores, wallet_transactions, notifications, support_cases, referrals, sessions, admin_actions } = data;
+  const {
+    identity, kyc, wallet, stats, orders, tickets, scores,
+    wallet_transactions, notifications, support_cases, referrals,
+    referral_joined_via, referrer_user, signup_bonus,
+    sessions, admin_actions
+  } = data;
   const suspended = !!identity.suspended;
   const erased = !!identity.erased;
 
@@ -192,6 +197,201 @@ export default function UserDetailsPage() {
           }
         </Section>
       </div>
+
+      <Section title="Bonuses & Referrals" icon={Gift}>
+        <div className="grid md:grid-cols-2 gap-5">
+
+          {/* Signup bonus */}
+          <div className="rounded-xl border border-slate-200 p-4">
+            <div className="font-bold text-sm mb-3">Signup bonus</div>
+
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between gap-3">
+                <span className="text-slate-500">Offer eligible</span>
+                <span className="font-semibold">
+                  {signup_bonus?.eligible ? 'Yes' : 'No'}
+                </span>
+              </div>
+
+              <div className="flex justify-between gap-3">
+                <span className="text-slate-500">Required top-up</span>
+                <span className="font-semibold">£10+ in one verified payment</span>
+              </div>
+
+              <div className="flex justify-between gap-3">
+                <span className="text-slate-500">Qualifying top-up</span>
+                <span className={signup_bonus?.qualifying_topup_completed ? 'text-emerald-700 font-semibold' : 'text-amber-700 font-semibold'}>
+                  {signup_bonus?.qualifying_topup_completed
+                    ? `Completed${signup_bonus?.qualifying_topup_amount_gbp != null ? ` · ${gbp(signup_bonus.qualifying_topup_amount_gbp)}` : ''}`
+                    : 'Waiting'}
+                </span>
+              </div>
+
+              <div className="flex justify-between gap-3">
+                <span className="text-slate-500">5-token bonus</span>
+                <span className={signup_bonus?.granted ? 'text-emerald-700 font-semibold' : 'text-slate-600 font-semibold'}>
+                  {signup_bonus?.granted
+                    ? `Granted · ${signup_bonus?.tokens || 5} tokens`
+                    : 'Not granted'}
+                </span>
+              </div>
+
+              {signup_bonus?.granted_at && (
+                <div className="flex justify-between gap-3">
+                  <span className="text-slate-500">Granted at</span>
+                  <span>{new Date(signup_bonus.granted_at).toLocaleString('en-GB')}</span>
+                </div>
+              )}
+
+              {signup_bonus?.tx_id && (
+                <div>
+                  <div className="text-slate-500">Reward transaction</div>
+                  <div className="font-mono break-all mt-0.5">{signup_bonus.tx_id}</div>
+                </div>
+              )}
+
+              {signup_bonus?.qualifying_topup_session_id && (
+                <div>
+                  <div className="text-slate-500">Qualifying Stripe session</div>
+                  <div className="font-mono break-all mt-0.5">
+                    {signup_bonus.qualifying_topup_session_id}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* How this user joined */}
+          <div className="rounded-xl border border-slate-200 p-4">
+            <div className="font-bold text-sm mb-3">Joined via referral</div>
+
+            {!referral_joined_via ? (
+              <div className="text-xs text-slate-400">
+                This user did not register through a referral.
+              </div>
+            ) : (
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between gap-3">
+                  <span className="text-slate-500">Referral code</span>
+                  <span className="font-mono font-semibold">
+                    {referral_joined_via.code || '—'}
+                  </span>
+                </div>
+
+                <div>
+                  <div className="text-slate-500">Invited by</div>
+                  <div className="font-semibold mt-0.5">
+                    {referrer_user?.name || 'Unknown user'}
+                  </div>
+                  <div className="text-slate-500">
+                    {referrer_user?.public_id || referrer_user?.email || ''}
+                  </div>
+                </div>
+
+                <div className="flex justify-between gap-3">
+                  <span className="text-slate-500">£10 top-up</span>
+                  <span className={referral_joined_via.topup_qualified ? 'text-emerald-700 font-semibold' : 'text-amber-700 font-semibold'}>
+                    {referral_joined_via.topup_qualified ? 'Completed' : 'Waiting'}
+                  </span>
+                </div>
+
+                <div className="flex justify-between gap-3">
+                  <span className="text-slate-500">Contest entry</span>
+                  <span className={referral_joined_via.contest_entered ? 'text-emerald-700 font-semibold' : 'text-amber-700 font-semibold'}>
+                    {referral_joined_via.contest_entered ? 'Completed' : 'Waiting'}
+                  </span>
+                </div>
+
+                <div className="flex justify-between gap-3">
+                  <span className="text-slate-500">Referrer reward</span>
+                  <span className={referral_joined_via.reward_granted ? 'text-emerald-700 font-semibold' : 'text-slate-600 font-semibold'}>
+                    {referral_joined_via.reward_granted
+                      ? `${referral_joined_via.reward_tokens || 5} tokens granted`
+                      : 'Not granted'}
+                  </span>
+                </div>
+
+                <div className="flex justify-between gap-3">
+                  <span className="text-slate-500">Status</span>
+                  <span className="font-semibold">
+                    {referral_joined_via.status || 'pending'}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Referrals made by this user */}
+        <div className="mt-5">
+          <div className="font-bold text-sm mb-3">
+            Referrals made by this user ({referrals?.length || 0})
+          </div>
+
+          {!referrals?.length ? (
+            <div className="text-xs text-slate-400">
+              No users referred yet.
+            </div>
+          ) : (
+            <div className="overflow-x-auto border border-slate-200 rounded-xl">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-50 text-slate-500">
+                  <tr>
+                    <th className="text-left px-3 py-2">User</th>
+                    <th className="text-left px-3 py-2">Code</th>
+                    <th className="text-left px-3 py-2">£10 top-up</th>
+                    <th className="text-left px-3 py-2">Contest</th>
+                    <th className="text-left px-3 py-2">Reward</th>
+                    <th className="text-left px-3 py-2">Status</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {referrals.map((r, i) => (
+                    <tr key={r.referral_id || i} className="border-t border-slate-100">
+                      <td className="px-3 py-2">
+                        <div className="font-semibold">
+                          {r.referred_name || r.referred_public_id || 'User'}
+                        </div>
+                        <div className="text-slate-400">
+                          {r.referred_email || r.referred_user_id}
+                        </div>
+                      </td>
+
+                      <td className="px-3 py-2 font-mono">{r.code || '—'}</td>
+
+                      <td className="px-3 py-2">
+                        {r.topup_qualified
+                          ? <span className="text-emerald-700 font-semibold">✓ Complete</span>
+                          : <span className="text-amber-700">Waiting</span>}
+                      </td>
+
+                      <td className="px-3 py-2">
+                        {r.contest_entered
+                          ? <span className="text-emerald-700 font-semibold">✓ Complete</span>
+                          : <span className="text-amber-700">Waiting</span>}
+                      </td>
+
+                      <td className="px-3 py-2">
+                        {r.reward_granted
+                          ? <span className="text-emerald-700 font-semibold inline-flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" />
+                              {r.reward_tokens || 5} tokens
+                            </span>
+                          : '—'}
+                      </td>
+
+                      <td className="px-3 py-2 font-semibold">
+                        {r.display_status || r.status || 'pending'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </Section>
 
       <Section title="Admin actions history" icon={Clock}>
         {admin_actions.length === 0 ? <div className="text-xs text-slate-400">No admin actions recorded.</div> :

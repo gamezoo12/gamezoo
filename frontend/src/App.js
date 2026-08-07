@@ -42,6 +42,7 @@ import AdminLegalDocs from './pages/admin/LegalDocsAdmin';
 import CompanySettingsAdmin from './pages/admin/CompanySettings';
 import PostalEntriesAdmin from './pages/admin/PostalEntriesAdmin';
 import UserDetailsPage from './pages/admin/UserDetailsPage';
+import ReferralsBonusesAdmin from './pages/admin/ReferralsBonusesAdmin';
 import LegalDocPage from './pages/legal/LegalDocPage';
 import PlayGame from './pages/PlayGame';
 import ContestLeaderboard from './pages/ContestLeaderboard';
@@ -105,6 +106,7 @@ function AppRouter() {
       <Route path="/admin" element={<AdminLayout />}>
         <Route index element={<AdminDashboard />} />
         <Route path="users" element={<AdminUsers />} />
+        <Route path="referrals" element={<ReferralsBonusesAdmin />} />
         <Route path="kyc" element={<AdminKyc />} />
         <Route path="competitions" element={<AdminCompetitions />} />
         <Route path="games" element={<AdminGames />} />

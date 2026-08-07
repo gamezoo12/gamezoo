@@ -29,9 +29,31 @@ export default function SignupWizard() {
   const [data, setData] = useState({
     name: '', email: '', dob: '', password: '',
     phone: '', normalizedPhone: '', code: '', address: '',
+    referralCode: '',
     accept_terms: false,
   });
   const [cooldown, setCooldown] = useState(0);
+
+  // Capture referral links such as /login?tab=signup&ref=ABCDEFGH
+  // and /?ref=ABCDEFGH. Keep it locally so the code survives navigation.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const queryCode = String(params.get('ref') || '').trim().toUpperCase();
+
+    if (queryCode) {
+      localStorage.setItem('pl_referral_code', queryCode);
+      setData((d) => ({ ...d, referralCode: queryCode }));
+      return;
+    }
+
+    const savedCode = String(
+      localStorage.getItem('pl_referral_code') || ''
+    ).trim().toUpperCase();
+
+    if (savedCode) {
+      setData((d) => ({ ...d, referralCode: savedCode }));
+    }
+  }, []);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -99,6 +121,9 @@ export default function SignupWizard() {
         accept_terms: true,
         dob: data.dob,
         address: data.address || null,
+        referral_code: data.referralCode.trim()
+          ? data.referralCode.trim().toUpperCase()
+          : null,
       };
       // Only include phone/otp when the user actually verified them.
       if (data.normalizedPhone && data.code && data.code.length === 6) {
@@ -107,6 +132,7 @@ export default function SignupWizard() {
       }
       const r = await api.post('/auth/register', payload).then(x => x.data);
       if (r?.token) localStorage.setItem('gz_token', r.token);
+      localStorage.removeItem('pl_referral_code');
       await refresh?.();
       toast({ title: `Welcome to Prize League, ${data.name.split(' ')[0]}! 🎉`, description: 'Your account is ready.' });
       nav('/', { replace: true });
@@ -161,6 +187,39 @@ export default function SignupWizard() {
               <Input data-testid="signup-password" className="pl-9" type="password" required minLength={8} value={data.password} onChange={e => set('password', e.target.value)} placeholder="At least 8 characters" />
             </div>
           </div>
+          <div>
+            <Label className="mb-1 block">
+              Referral code
+              <span className="text-slate-400 text-xs font-normal"> (optional)</span>
+            </Label>
+            <Input
+              data-testid="signup-referral-code"
+              value={data.referralCode}
+              onChange={e =>
+                set(
+                  'referralCode',
+                  e.target.value
+                    .toUpperCase()
+                    .replace(/[^A-Z0-9]/g, '')
+                    .slice(0, 32)
+                )
+              }
+              placeholder="Enter referral code"
+              autoCapitalize="characters"
+              autoComplete="off"
+            />
+            <p className="text-[11px] text-slate-500 mt-1">
+              Have a friend&apos;s invite code? Enter it here before creating your account.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-[#FFD54A]/50 bg-[#FFD54A]/10 px-3 py-2.5">
+            <p className="text-xs text-slate-700">
+              <strong>New member offer:</strong> top up £10 or more in one verified payment
+              after signup to receive <strong>5 bonus tokens</strong>.
+            </p>
+          </div>
+
           <Button data-testid="signup-step1-next" type="submit" className="w-full h-11 pl-btn-gold text-slate-900 font-extrabold">
             Continue <ArrowRight className="w-4 h-4 ml-1" />
           </Button>

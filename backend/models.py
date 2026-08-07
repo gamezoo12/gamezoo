@@ -88,7 +88,7 @@ class Wallet(BaseModel):
 class WalletTx(BaseModel):
     tx_id: str = Field(default_factory=lambda: new_id('tx'))
     user_id: str
-    kind: Literal['topup', 'spend', 'refund', 'admin_adjust', 'referral_bonus']
+    kind: Literal['topup', 'spend', 'refund', 'admin_adjust', 'referral_bonus', 'signup_bonus']
     amount: float  # positive for credits, negative for debits
     balance_after: float
     note: str = ''
@@ -98,11 +98,36 @@ class WalletTx(BaseModel):
 
 class Referral(BaseModel):
     referral_id: str = Field(default_factory=lambda: new_id('ref'))
-    referrer_user_id: str  # who invited
-    referred_user_id: str  # who was invited
+    referrer_user_id: str
+    referred_user_id: str
     code: str
+
+    # pending until both referral requirements are satisfied
     status: Literal['pending', 'completed'] = 'pending'
+
+    # New token referral programme
+    program_version: str = 'tokens_v2'
+
+    # Condition 1: one verified Stripe top-up of £10+
+    topup_qualified: bool = False
+    topup_qualified_at: Optional[datetime] = None
+    topup_amount_gbp: Optional[float] = None
+    topup_session_id: Optional[str] = None
+
+    # Condition 2: successfully enter at least one contest
+    contest_entered: bool = False
+    contest_entered_at: Optional[datetime] = None
+    first_contest_order_id: Optional[str] = None
+
+    # Reward is issued to referrer exactly once
+    reward_granted: bool = False
+    reward_tokens: float = 0.0
+    reward_tx_id: Optional[str] = None
+    completed_at: Optional[datetime] = None
+
+    # Legacy field retained only so old Mongo records remain compatible
     reward_ticket_id: Optional[str] = None
+
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -154,6 +179,16 @@ class User(BaseModel):
     must_change_password: bool = False  # forced on Super Admin first login
     referral_code: str = Field(default_factory=lambda: uuid.uuid4().hex[:8].upper())
     referred_by: Optional[str] = None  # user_id of referrer
+
+    # Signup bonus programme.
+    # Defaults False so accounts created before this feature are not
+    # automatically enrolled retroactively.
+    signup_bonus_offer_eligible: bool = False
+    signup_bonus_granted: bool = False
+    signup_bonus_granted_at: Optional[datetime] = None
+    signup_bonus_tokens: float = 0.0
+    signup_bonus_tx_id: Optional[str] = None
+    signup_bonus_topup_session_id: Optional[str] = None
     phone: Optional[str] = None  # E.164 format, e.g. +447xxxxxxxxx
     phone_verified: bool = False
     dob: Optional[str] = None  # ISO date YYYY-MM-DD

@@ -16,8 +16,8 @@ export default function ReferralPromo() {
   }, [user]);
 
   const shareUrl = code
-    ? `${window.location.origin}/?ref=${code}`
-    : `${window.location.origin}/`;
+    ? `${window.location.origin}/login?tab=signup&ref=${encodeURIComponent(code)}`
+    : `${window.location.origin}/login?tab=signup`;
 
   const copyLink = async () => {
     try {
@@ -41,15 +41,16 @@ export default function ReferralPromo() {
                 <Gift className="w-3.5 h-3.5 text-amber-300" /> Refer &amp; Earn
               </div>
               <h2 className="mt-4 font-display text-3xl lg:text-4xl font-extrabold leading-tight">
-                Invite a friend, <span className="text-amber-300">both</span> get a <span className="bg-gradient-to-r from-amber-200 to-orange-300 bg-clip-text text-transparent">free ticket</span>
+                Invite a friend and <span className="text-amber-300">earn</span> <span className="bg-gradient-to-r from-amber-200 to-orange-300 bg-clip-text text-transparent">5 tokens</span>
               </h2>
               <p className="mt-3 text-white/80 text-base max-w-lg">
-                Share your unique referral link. When your friend signs up and buys their first ticket, we automatically drop a free ticket into both your accounts.
+                Share your unique referral link. Your friend must sign up with your code, top up £10 or more in one verified payment and enter at least one contest. Once qualified, you automatically receive 5 referral reward tokens.
               </p>
               <ul className="mt-5 space-y-2 text-sm text-white/80">
                 <li className="flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center font-bold text-xs">1</span> Share your link</li>
-                <li className="flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center font-bold text-xs">2</span> Friend signs up + verifies</li>
-                <li className="flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center font-bold text-xs">3</span> Both of you get 1 free ticket 🎉</li>
+                <li className="flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center font-bold text-xs">2</span> Friend signs up with your referral code</li>
+                <li className="flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center font-bold text-xs">3</span> Friend tops up £10+ and enters at least one contest</li>
+                <li className="flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center font-bold text-xs">4</span> You receive 5 referral reward tokens 🪙</li>
               </ul>
             </div>
 
@@ -78,8 +79,8 @@ export default function ReferralPromo() {
               ) : (
                 <>
                   <div className="text-lg font-display font-bold">Ready to invite friends?</div>
-                  <p className="text-white/80 text-sm mt-1">Sign up to get your personal invite link and start earning free tickets.</p>
-                  <Link to="/login" className="mt-4 inline-block">
+                  <p className="text-white/80 text-sm mt-1">Sign up to get your personal invite link and start earning referral reward tokens.</p>
+                  <Link to="/login?tab=signup" className="mt-4 inline-block">
                     <Button className="bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white shadow-lg">
                       Sign up free <ArrowRight className="w-4 h-4 ml-1" />
                     </Button>

@@ -2,9 +2,9 @@ import ReferAndEarnCard from '../components/home/ReferAndEarnCard';
 import { Gift, Users, Coins } from 'lucide-react';
 
 const HOW = [
-  { Icon: Gift,   title: 'Get your code',      text: 'Sign in to grab your unique referral code and share link.' },
-  { Icon: Users,  title: 'Invite friends',     text: 'Share your link on WhatsApp, Instagram or copy-paste anywhere.' },
-  { Icon: Coins,  title: 'Both get rewarded',  text: 'When they enter their first contest, you both get a free ticket (or 5 bonus tokens).' },
+  { Icon: Gift, title: 'Get your code', text: 'Sign in to get your unique referral code and invite link.' },
+  { Icon: Users, title: 'Invite friends', text: 'Your friend enters your code during signup, tops up £10 or more in one verified payment, and enters at least one contest.' },
+  { Icon: Coins, title: 'Earn 5 tokens', text: 'Once both requirements are completed, 5 referral reward tokens are automatically credited to your wallet.' },
 ];
 
 export default function ReferPage() {
@@ -16,7 +16,7 @@ export default function ReferPage() {
             Refer &amp; <span className="pl-gold-text">Earn</span>
           </h1>
           <p className="mt-4 text-white/75 max-w-xl mx-auto">
-            Bring your crew to Prize League. Every friend who joins boosts both your chances.
+            Invite friends to Prize League and earn 5 tokens when an eligible referral completes the qualifying requirements.
           </p>
         </div>
       </section>

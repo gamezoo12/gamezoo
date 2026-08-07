@@ -240,6 +240,28 @@ async def _credit_wallet_once(db, tx: dict) -> Optional[dict]:
         body=f'You now have tokens ready to enter contests. Purchase total £{amount_gbp:.2f}.',
         ref_tx_id=tx_receipt,
     )
+
+    # Bonus qualification is based ONLY on this verified Stripe payment.
+    # A normal £5 top-up remains valid but does not qualify.
+    try:
+        from routers.referral_routes import record_verified_topup
+
+        await record_verified_topup(
+            db,
+            tx["user_id"],
+            amount_gbp,
+            tx.get("session_id"),
+        )
+    except Exception:
+        # Never fail or reverse a valid Stripe wallet credit because the
+        # promotional reward subsystem had a temporary problem.
+        import logging
+        logging.exception(
+            'Bonus qualification failed after verified top-up user=%s session=%s',
+            tx.get("user_id"),
+            tx.get("session_id"),
+        )
+
     return r
 
 

@@ -111,12 +111,21 @@ async def register(inp: RegisterInput, request: Request):
     phone_verified = True
 
     referred_by = None
-    if inp.referral_code:
+    referral_code = (inp.referral_code or '').strip().upper()
+
+    if referral_code:
         ref_user = await db.users.find_one(
-            {'referral_code': inp.referral_code.upper()}, {'_id': 0, 'user_id': 1}
+            {'referral_code': referral_code},
+            {'_id': 0, 'user_id': 1},
         )
-        if ref_user:
-            referred_by = ref_user['user_id']
+
+        if not ref_user:
+            raise HTTPException(
+                status_code=400,
+                detail='Invalid referral code. Check the code or leave the field blank.',
+            )
+
+        referred_by = ref_user['user_id']
 
     username = await _generate_username(db, inp.name, inp.dob)
     public_id = await allocate_user_public_id(db)
@@ -130,6 +139,7 @@ async def register(inp: RegisterInput, request: Request):
         method='email',
         role='user',
         referred_by=referred_by,
+        signup_bonus_offer_eligible=True,
         phone=normalized_phone,
         phone_verified=phone_verified,
         dob=inp.dob,
@@ -143,7 +153,7 @@ async def register(inp: RegisterInput, request: Request):
         r = Referral(
             referrer_user_id=referred_by,
             referred_user_id=user.user_id,
-            code=inp.referral_code.upper(),
+            code=referral_code,
         )
         await db.referrals.insert_one(r.model_dump())
 

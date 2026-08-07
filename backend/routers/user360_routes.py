@@ -50,7 +50,81 @@ async def user_360(user_id: str, request: Request):
     txs = await db.wallet_transactions.find({'user_id': user_id}, {'_id': 0}).sort('created_at', -1).limit(100).to_list(100)
     notifs = await db.notifications.find({'user_id': user_id}, {'_id': 0}).sort('created_at', -1).limit(30).to_list(30)
     support = await db.support_cases.find({'user_id': user_id}, {'_id': 0}).sort('created_at', -1).limit(30).to_list(30)
-    referrals = await db.referrals.find({'referrer_user_id': user_id}, {'_id': 0}).limit(50).to_list(50)
+    referrals = await db.referrals.find(
+        {'referrer_user_id': user_id},
+        {'_id': 0},
+    ).sort('created_at', -1).limit(50).to_list(50)
+
+    # Referral through which this user originally joined Prize League.
+    referred_by_referral = await db.referrals.find_one(
+        {'referred_user_id': user_id},
+        {'_id': 0},
+    )
+
+    # Resolve safe display details for referral relationships.
+    outgoing_ids = [
+        r.get('referred_user_id')
+        for r in referrals
+        if r.get('referred_user_id')
+    ]
+
+    outgoing_users = {}
+    if outgoing_ids:
+        docs = await db.users.find(
+            {'user_id': {'$in': outgoing_ids}},
+            {
+                '_id': 0,
+                'user_id': 1,
+                'name': 1,
+                'email': 1,
+                'public_id': 1,
+            },
+        ).to_list(100)
+
+        outgoing_users = {x['user_id']: x for x in docs}
+
+    for ref in referrals:
+        referred = outgoing_users.get(ref.get('referred_user_id'), {})
+        ref['referred_name'] = referred.get('name')
+        ref['referred_email'] = referred.get('email')
+        ref['referred_public_id'] = referred.get('public_id')
+
+        if ref.get('status') == 'completed':
+            ref['display_status'] = 'Rewarded'
+        elif not ref.get('topup_qualified'):
+            ref['display_status'] = 'Waiting for £10 top-up'
+        elif not ref.get('contest_entered'):
+            ref['display_status'] = 'Waiting for contest entry'
+        else:
+            ref['display_status'] = 'Processing reward'
+
+    referrer_user = None
+    if referred_by_referral and referred_by_referral.get('referrer_user_id'):
+        referrer_user = await db.users.find_one(
+            {'user_id': referred_by_referral['referrer_user_id']},
+            {
+                '_id': 0,
+                'user_id': 1,
+                'name': 1,
+                'email': 1,
+                'public_id': 1,
+                'referral_code': 1,
+            },
+        )
+
+    signup_bonus = {
+        'eligible': bool(u.get('signup_bonus_offer_eligible')),
+        'qualifying_topup_completed': bool(u.get('qualifying_topup_completed')),
+        'qualifying_topup_amount_gbp': u.get('qualifying_topup_amount_gbp'),
+        'qualifying_topup_at': u.get('qualifying_topup_at'),
+        'qualifying_topup_session_id': u.get('qualifying_topup_session_id'),
+        'granted': bool(u.get('signup_bonus_granted')),
+        'granted_at': u.get('signup_bonus_granted_at'),
+        'tokens': u.get('signup_bonus_tokens') or 0,
+        'tx_id': u.get('signup_bonus_tx_id'),
+        'topup_session_id': u.get('signup_bonus_topup_session_id'),
+    }
+
     sessions = await db.user_sessions.find({'user_id': user_id}, {'_id': 0}).sort('created_at', -1).limit(20).to_list(20)
     admin_actions = await db.audit_log.find(
         {'target_user_id': user_id}, {'_id': 0},
@@ -76,6 +150,9 @@ async def user_360(user_id: str, request: Request):
         'notifications': notifs,
         'support_cases': support,
         'referrals': referrals,
+        'referral_joined_via': referred_by_referral,
+        'referrer_user': referrer_user,
+        'signup_bonus': signup_bonus,
         'sessions': sessions,
         'admin_actions': admin_actions,
     }

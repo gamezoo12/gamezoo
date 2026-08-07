@@ -217,7 +217,7 @@ export default function MyAccount() {
   }, [searchParams]);
 
   const copyReferralLink = async () => {
-    const url = `${window.location.origin}/?ref=${referral?.code}`;
+    const url = `${window.location.origin}/login?tab=signup&ref=${encodeURIComponent(referral?.code || '')}`;
     try {
       await navigator.clipboard.writeText(url);
       setCopiedRef(true);
@@ -640,56 +640,166 @@ export default function MyAccount() {
 
         {active === 'referrals' && (
           <div className="space-y-6" data-testid="panel-referrals">
+
+            {/* Referral summary */}
             <div className="bg-gradient-to-br from-rose-500 via-red-500 to-orange-500 text-white rounded-2xl p-6 shadow-xl">
-              <div className="grid md:grid-cols-3 gap-4">
-                <div>
-                  <div className="text-white/85 text-xs uppercase tracking-wider">Free tickets earned</div>
-                  <div className="font-display text-4xl font-extrabold">{referral?.tickets_earned ?? 0}</div>
-                </div>
-                <div>
-                  <div className="text-white/85 text-xs uppercase tracking-wider">Completed</div>
-                  <div className="font-display text-4xl font-extrabold">{referral?.completed ?? 0}</div>
-                </div>
-                <div>
-                  <div className="text-white/85 text-xs uppercase tracking-wider">Pending</div>
-                  <div className="font-display text-4xl font-extrabold">{referral?.pending ?? 0}</div>
+
+              <div className="mb-5">
+                <div className="text-sm font-bold">Refer & Earn</div>
+                <div className="text-xs text-white/85 mt-1">
+                  Invite a friend. They must top up £10 or more in one verified payment
+                  and enter at least one contest. You then receive 5 referral reward tokens.
                 </div>
               </div>
+
+              <div className="grid md:grid-cols-3 gap-4">
+                <div>
+                  <div className="text-white/85 text-xs uppercase tracking-wider">
+                    Referral tokens earned
+                  </div>
+                  <div className="font-display text-4xl font-extrabold">
+                    {referral?.tokens_earned ?? 0}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-white/85 text-xs uppercase tracking-wider">
+                    Rewarded
+                  </div>
+                  <div className="font-display text-4xl font-extrabold">
+                    {referral?.completed ?? 0}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-white/85 text-xs uppercase tracking-wider">
+                    Pending
+                  </div>
+                  <div className="font-display text-4xl font-extrabold">
+                    {referral?.pending ?? 0}
+                  </div>
+                </div>
+              </div>
+
               <div className="mt-6 bg-white/10 backdrop-blur rounded-xl p-4">
-                <div className="text-xs uppercase text-white/85 mb-2">Your referral link — share it</div>
+                <div className="text-xs uppercase text-white/85 mb-2">
+                  Your referral link — share it
+                </div>
+
                 <div className="flex flex-col sm:flex-row gap-2">
                   <div className="flex-1 bg-black/30 rounded-lg px-3 py-2 font-mono text-sm text-amber-200 overflow-hidden text-ellipsis whitespace-nowrap">
-                    {referral ? `${window.location.origin}/?ref=${referral.code}` : 'Loading…'}
+                    {referral
+                      ? `${window.location.origin}/login?tab=signup&ref=${referral.code}`
+                      : 'Loading…'}
                   </div>
-                  <Button onClick={copyReferralLink} data-testid="account-referral-copy" className="bg-white text-slate-900 hover:bg-white/90">
-                    {copiedRef ? <><Check className="w-4 h-4 mr-1" /> Copied</> : <><Copy className="w-4 h-4 mr-1" /> Copy</>}
+
+                  <Button
+                    onClick={copyReferralLink}
+                    data-testid="account-referral-copy"
+                    className="bg-white text-slate-900 hover:bg-white/90"
+                  >
+                    {copiedRef
+                      ? <><Check className="w-4 h-4 mr-1" /> Copied</>
+                      : <><Copy className="w-4 h-4 mr-1" /> Copy</>}
                   </Button>
                 </div>
               </div>
             </div>
 
+            {/* Referral progress */}
             <div className="bg-white rounded-2xl border border-slate-100 p-6">
-              <h3 className="font-display font-bold text-lg mb-3">People you&apos;ve invited</h3>
+              <h3 className="font-display font-bold text-lg mb-1">
+                People you&apos;ve invited
+              </h3>
+
+              <p className="text-sm text-slate-500 mb-4">
+                Track each referral&apos;s progress toward your 5-token reward.
+              </p>
+
               {referralList.length === 0 ? (
                 <div className="text-sm text-slate-500 text-center py-6">
                   You haven&apos;t invited anyone yet. Share your link above to start earning.
                 </div>
               ) : (
                 <ul className="divide-y divide-slate-100">
-                  {referralList.map(r => (
-                    <li key={r.referral_id} className="py-3 flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-fuchsia-500 to-orange-500 text-white text-sm font-bold flex items-center justify-center">
-                        {(r.referred_name || r.referred_email || '?').slice(0, 1).toUpperCase()}
-                      </div>
-                      <div className="flex-1">
-                        <div className="text-sm font-medium">{r.referred_name || 'Friend'}</div>
-                        <div className="text-xs text-slate-500">{r.referred_email}</div>
-                      </div>
-                      <span className={`text-xs px-2 py-1 rounded-full ${r.status === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                        {r.status === 'completed' ? 'Completed +1 ticket' : 'Pending'}
-                      </span>
-                    </li>
-                  ))}
+                  {referralList.map(r => {
+                    const rewarded =
+                      r.reward_granted === true ||
+                      r.status === 'completed';
+
+                    const toppedUp =
+                      r.topup_qualified === true;
+
+                    const entered =
+                      r.contest_entered === true;
+
+                    let statusLabel = 'Waiting for £10 top-up';
+                    let statusClass =
+                      'bg-amber-100 text-amber-700';
+
+                    if (rewarded) {
+                      statusLabel = `Rewarded +${r.reward_tokens || 5} tokens`;
+                      statusClass =
+                        'bg-emerald-100 text-emerald-700';
+                    } else if (toppedUp && !entered) {
+                      statusLabel = 'Waiting for contest entry';
+                      statusClass =
+                        'bg-blue-100 text-blue-700';
+                    } else if (toppedUp && entered) {
+                      statusLabel = 'Processing reward';
+                      statusClass =
+                        'bg-violet-100 text-violet-700';
+                    }
+
+                    return (
+                      <li
+                        key={r.referral_id}
+                        className="py-4 flex flex-col sm:flex-row sm:items-center gap-3"
+                      >
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="w-9 h-9 shrink-0 rounded-full bg-gradient-to-br from-fuchsia-500 to-orange-500 text-white text-sm font-bold flex items-center justify-center">
+                            {(r.referred_name || r.referred_email || '?')
+                              .slice(0, 1)
+                              .toUpperCase()}
+                          </div>
+
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium truncate">
+                              {r.referred_name || 'Friend'}
+                            </div>
+
+                            <div className="text-xs text-slate-500 truncate">
+                              {r.referred_email || 'Referral registered'}
+                            </div>
+
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              <span className={`text-[11px] px-2 py-0.5 rounded-full ${
+                                toppedUp
+                                  ? 'bg-emerald-50 text-emerald-700'
+                                  : 'bg-slate-100 text-slate-500'
+                              }`}>
+                                {toppedUp ? '✓ £10+ top-up' : '○ £10+ top-up'}
+                              </span>
+
+                              <span className={`text-[11px] px-2 py-0.5 rounded-full ${
+                                entered
+                                  ? 'bg-emerald-50 text-emerald-700'
+                                  : 'bg-slate-100 text-slate-500'
+                              }`}>
+                                {entered ? '✓ Contest entered' : '○ Contest entry'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <span
+                          className={`self-start sm:self-center shrink-0 text-xs font-medium px-2.5 py-1.5 rounded-full ${statusClass}`}
+                        >
+                          {statusLabel}
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>
