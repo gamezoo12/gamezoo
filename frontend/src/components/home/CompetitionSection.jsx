@@ -3,7 +3,14 @@ import CompetitionCard from '../CompetitionCard';
 import { Button } from '../ui/button';
 import { ArrowRight } from 'lucide-react';
 
-export default function CompetitionSection({ title, subtitle, items, viewAllHref = '/competitions', accent = "orange" }) {
+export default function CompetitionSection({
+  title,
+  subtitle,
+  items,
+  viewAllHref = '/competitions',
+  accent = "orange",
+  hideViewAll = false,
+}) {
   const accentDot = accent === 'orange' ? 'bg-orange-500' : accent === 'amber' ? 'bg-amber-500' : 'bg-orange-500';
   return (
     <section className="py-8 md:py-12">
@@ -16,11 +23,13 @@ export default function CompetitionSection({ title, subtitle, items, viewAllHref
             </div>
             <h2 className="font-display text-2xl md:text-4xl font-extrabold text-slate-900 leading-tight">{title}</h2>
           </div>
+          {!hideViewAll && (
           <Link to={viewAllHref} className="inline-flex shrink-0">
             <Button variant="ghost" size="sm" className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 text-xs md:text-sm">
               View All <ArrowRight className="w-4 h-4 ml-1" />
             </Button>
           </Link>
+        )}
         </div>
         <div className="grid grid-cols-2 gap-3 md:gap-6">
           {items.slice(0, 4).map((c) => (

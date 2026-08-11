@@ -135,7 +135,18 @@ export default function SignupWizard() {
       localStorage.removeItem('pl_referral_code');
       await refresh?.();
       toast({ title: `Welcome to Prize League, ${data.name.split(' ')[0]}! 🎉`, description: 'Your account is ready.' });
-      nav('/', { replace: true });
+
+      const params = new URLSearchParams(window.location.search);
+      const requestedNext = String(params.get('next') || '').trim();
+
+      // Only allow internal Prize League paths. This prevents open redirects.
+      const safeNext =
+        requestedNext.startsWith('/') &&
+        !requestedNext.startsWith('//')
+          ? requestedNext
+          : '/';
+
+      nav(safeNext, { replace: true });
     } catch (err) {
       const raw = err?.response?.data?.detail;
       const detail = Array.isArray(raw) ? raw.map(e => e.msg).join('. ') : (raw || 'Please try again.');

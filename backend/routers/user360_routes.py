@@ -158,6 +158,269 @@ async def user_360(user_id: str, request: Request):
     }
 
 
+
+class AdminOtpVerifyRequest(BaseModel):
+    code: str
+
+
+@router.post('/{user_id}/phone/send-otp')
+async def admin_send_phone_otp(
+    user_id: str,
+    request: Request,
+):
+    admin = await require_admin(request)
+
+    from deps import get_db
+    from routers.twilio_routes import (
+        _normalize_phone,
+        _twilio_client,
+    )
+    from twilio.base.exceptions import TwilioRestException
+    from datetime import timedelta
+
+    db = get_db()
+
+    user = await db.users.find_one(
+        {'user_id': user_id},
+        {
+            '_id': 0,
+            'user_id': 1,
+            'phone': 1,
+            'phone_verified': 1,
+            'erased': 1,
+        },
+    )
+
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail='User not found',
+        )
+
+    if user.get('erased'):
+        raise HTTPException(
+            status_code=400,
+            detail='Cannot verify an erased account',
+        )
+
+    if not user.get('phone'):
+        raise HTTPException(
+            status_code=400,
+            detail='User has no phone number',
+        )
+
+    phone = _normalize_phone(user['phone'])
+
+    if user.get('phone_verified'):
+        return {
+            'ok': True,
+            'already_verified': True,
+            'phone': phone,
+        }
+
+    existing = await db.users.find_one(
+        {
+            'phone': phone,
+            'phone_verified': True,
+            'user_id': {'$ne': user_id},
+        },
+        {'_id': 1},
+    )
+
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail='This phone is already verified on another account',
+        )
+
+    now = datetime.now(timezone.utc)
+
+    recent = await db.otp_attempts.find(
+        {
+            'phone': phone,
+            'purpose': 'admin_phone_verify',
+            'sent_at': {
+                '$gte': now - timedelta(minutes=15)
+            },
+        },
+        {
+            '_id': 0,
+            'sent_at': 1,
+        },
+    ).sort('sent_at', -1).to_list(20)
+
+    if recent:
+        newest = recent[0].get('sent_at')
+
+        if isinstance(newest, str):
+            try:
+                newest = datetime.fromisoformat(newest)
+            except Exception:
+                newest = now
+
+        if isinstance(newest, datetime) and newest.tzinfo is None:
+            newest = newest.replace(tzinfo=timezone.utc)
+
+        seconds_since = (
+            now - newest
+        ).total_seconds()
+
+        if seconds_since < 30:
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    f'Please wait '
+                    f'{max(1, int(30 - seconds_since))}s '
+                    'before sending another code.'
+                ),
+            )
+
+        if len(recent) >= 5:
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    'Too many OTP requests. '
+                    'Please try again in 15 minutes.'
+                ),
+            )
+
+    client, service_sid = _twilio_client()
+
+    try:
+        verification = (
+            client.verify.v2
+            .services(service_sid)
+            .verifications
+            .create(
+                to=phone,
+                channel='sms',
+            )
+        )
+    except TwilioRestException:
+        raise HTTPException(
+            status_code=400,
+            detail='Could not send SMS verification code',
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail='SMS verification service unavailable',
+        )
+
+    await db.otp_attempts.insert_one({
+        'phone': phone,
+        'purpose': 'admin_phone_verify',
+        'target_user_id': user_id,
+        'sent_at': now,
+    })
+
+    await db.audit_log.insert_one({
+        'audit_id': f'aud_{uuid.uuid4().hex[:12]}',
+        'kind': 'admin_phone_verification_sent',
+        'admin_email': admin.get('email'),
+        'admin_user_id': admin.get('user_id'),
+        'target_user_id': user_id,
+        'at': now,
+    })
+
+    return {
+        'ok': True,
+        'phone': phone,
+        'status': verification.status,
+    }
+
+
+@router.post('/{user_id}/phone/verify-otp')
+async def admin_verify_phone_otp(
+    user_id: str,
+    payload: AdminOtpVerifyRequest,
+    request: Request,
+):
+    admin = await require_admin(request)
+
+    from deps import get_db
+    from otp_verify import verify_twilio_otp
+
+    db = get_db()
+
+    user = await db.users.find_one(
+        {'user_id': user_id},
+        {
+            '_id': 0,
+            'user_id': 1,
+            'phone': 1,
+            'phone_verified': 1,
+            'erased': 1,
+        },
+    )
+
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail='User not found',
+        )
+
+    if user.get('erased'):
+        raise HTTPException(
+            status_code=400,
+            detail='Cannot verify an erased account',
+        )
+
+    if not user.get('phone'):
+        raise HTTPException(
+            status_code=400,
+            detail='User has no phone number',
+        )
+
+    phone = await verify_twilio_otp(
+        user['phone'],
+        payload.code,
+    )
+
+    existing = await db.users.find_one(
+        {
+            'phone': phone,
+            'phone_verified': True,
+            'user_id': {'$ne': user_id},
+        },
+        {'_id': 1},
+    )
+
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail='This phone is already verified on another account',
+        )
+
+    now = datetime.now(timezone.utc)
+
+    await db.users.update_one(
+        {'user_id': user_id},
+        {
+            '$set': {
+                'phone': phone,
+                'phone_verified': True,
+                'phone_verified_at': now,
+            }
+        },
+    )
+
+    await db.audit_log.insert_one({
+        'audit_id': f'aud_{uuid.uuid4().hex[:12]}',
+        'kind': 'admin_phone_verification_completed',
+        'admin_email': admin.get('email'),
+        'admin_user_id': admin.get('user_id'),
+        'target_user_id': user_id,
+        'at': now,
+    })
+
+    return {
+        'ok': True,
+        'phone': phone,
+        'verified': True,
+    }
+
+
 @router.post('/{user_id}/suspend')
 async def suspend_user(user_id: str, payload: DeleteRequest, request: Request):
     admin = await require_admin(request)

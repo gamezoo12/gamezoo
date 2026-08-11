@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { adminAPI, api } from '../../lib/api';
+import { adminAPI, api, uploadsAPI } from '../../lib/api';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Switch } from '../../components/ui/switch';
 import { Textarea } from '../../components/ui/textarea';
 import { useToast } from '../../hooks/use-toast';
-import { Settings as SettingsIcon, Save, Trash2, AlertTriangle } from 'lucide-react';
+import { Settings as SettingsIcon, Save, Trash2, AlertTriangle, Upload, Image as ImageIcon, X } from 'lucide-react';
 
 export default function SettingsPage() {
   const [s, setS] = useState(null);
@@ -15,6 +15,105 @@ export default function SettingsPage() {
 
   useEffect(() => { adminAPI.getSettings().then(setS).catch(() => setS({})); }, []);
   const upd = (k, v) => setS(prev => ({ ...prev, [k]: v }));
+
+  const promotionCount = Math.max(
+    1,
+    Math.min(5, Number(s?.promotion_slide_count) || 1)
+  );
+
+  const promotionSlides = Array.from(
+    { length: promotionCount },
+    (_, index) => ({
+      url: String(s?.promotion_slides?.[index]?.url || ''),
+    })
+  );
+
+  const setPromotionCount = (value) => {
+    const count = Math.max(1, Math.min(5, Number(value) || 1));
+
+    setS(prev => {
+      const existing = Array.isArray(prev?.promotion_slides)
+        ? prev.promotion_slides
+        : [];
+
+      return {
+        ...prev,
+        promotion_slide_count: count,
+        promotion_slides: Array.from(
+          { length: count },
+          (_, index) => ({
+            url: String(existing[index]?.url || ''),
+          })
+        ),
+      };
+    });
+  };
+
+  const uploadPromotionSlide = async (index, file) => {
+    if (!file) return;
+
+    try {
+      const result = await uploadsAPI.image(file);
+
+      setS(prev => {
+        const count = Math.max(
+          1,
+          Math.min(5, Number(prev?.promotion_slide_count) || 1)
+        );
+
+        const slides = Array.from(
+          { length: count },
+          (_, position) => ({
+            url: String(prev?.promotion_slides?.[position]?.url || ''),
+          })
+        );
+
+        slides[index] = {
+          url: result?.url || '',
+        };
+
+        return {
+          ...prev,
+          promotion_slides: slides,
+        };
+      });
+
+      toast({
+        title: `Promotion ${index + 1} uploaded`,
+        description: 'Press Save settings to publish the slider change.',
+      });
+    } catch (e) {
+      toast({
+        title: 'Upload failed',
+        description:
+          e?.response?.data?.detail ||
+          'Could not upload promotion image.',
+      });
+    }
+  };
+
+  const removePromotionSlide = (index) => {
+    setS(prev => {
+      const count = Math.max(
+        1,
+        Math.min(5, Number(prev?.promotion_slide_count) || 1)
+      );
+
+      const slides = Array.from(
+        { length: count },
+        (_, position) => ({
+          url: String(prev?.promotion_slides?.[position]?.url || ''),
+        })
+      );
+
+      slides[index] = { url: '' };
+
+      return {
+        ...prev,
+        promotion_slides: slides,
+      };
+    });
+  };
 
   const save = async () => {
     setBusy(true);
@@ -40,6 +139,113 @@ export default function SettingsPage() {
         <div className="grid md:grid-cols-2 gap-4">
           <div><Label>Site name</Label><Input value={s.site_name || ''} onChange={e => upd('site_name', e.target.value)} /></div>
           <div><Label>Tagline</Label><Input value={s.tagline || ''} onChange={e => upd('tagline', e.target.value)} /></div>
+        </div>
+      </section>
+
+      <section
+        className="bg-white rounded-2xl border border-slate-100 p-6 space-y-5"
+        data-testid="homepage-promotions-settings"
+      >
+        <div>
+          <h3 className="font-display font-bold text-lg">
+            Homepage Promotions
+          </h3>
+          <p className="text-sm text-slate-500 mt-1">
+            Choose how many promotion slides appear at the top of the homepage.
+            Recommended image size: 1600 × 800 px (2:1).
+          </p>
+        </div>
+
+        <div className="max-w-xs">
+          <Label>Number of slides</Label>
+
+          <select
+            value={promotionCount}
+            onChange={e => setPromotionCount(e.target.value)}
+            className="mt-1 w-full h-10 rounded-md border border-slate-200 bg-white px-3 text-sm"
+            data-testid="promotion-slide-count"
+          >
+            {[1, 2, 3, 4, 5].map(count => (
+              <option key={count} value={count}>
+                {count} {count === 1 ? 'slide' : 'slides'}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-4">
+          {promotionSlides.map((slide, index) => (
+            <div
+              key={index}
+              className="rounded-2xl border border-slate-200 overflow-hidden"
+              data-testid={`promotion-admin-slot-${index}`}
+            >
+              <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                <div className="font-bold text-sm">
+                  Slide {index + 1}
+                </div>
+
+                {slide.url && (
+                  <button
+                    type="button"
+                    onClick={() => removePromotionSlide(index)}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600 hover:text-rose-700"
+                  >
+                    <X className="w-4 h-4" />
+                    Remove
+                  </button>
+                )}
+              </div>
+
+              <div className="p-4">
+                <div className="relative aspect-[2/1] rounded-xl overflow-hidden bg-slate-100 border border-slate-200">
+                  {slide.url ? (
+                    <img
+                      src={slide.url}
+                      alt={`Promotion ${index + 1}`}
+                      className="w-full h-full object-cover object-center"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400">
+                      <ImageIcon className="w-8 h-8 mb-2" />
+                      <div className="text-xs">
+                        No image uploaded
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <label className="mt-3 inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-[#6C2BFF] hover:bg-[#4A15D9] text-white text-sm font-bold cursor-pointer">
+                  <Upload className="w-4 h-4" />
+                  {slide.url ? 'Replace image' : 'Upload image'}
+
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      uploadPromotionSlide(index, file);
+                      e.target.value = '';
+                    }}
+                    data-testid={`promotion-upload-${index}`}
+                  />
+                </label>
+
+                {slide.url && (
+                  <div className="mt-2 text-[11px] text-slate-400 break-all">
+                    {slide.url}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="rounded-xl bg-violet-50 border border-violet-100 px-4 py-3 text-xs text-violet-800">
+          Upload all required images, then use the main
+          <strong> Save settings </strong>
+          button below. The homepage slider updates from these saved settings.
         </div>
       </section>
 

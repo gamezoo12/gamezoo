@@ -91,6 +91,11 @@ export const adminAPI = {
   stats: () => api.get('/admin/stats').then(r => r.data),
   users: () => api.get('/admin/users').then(r => r.data),
   updateUser: (id, data) => api.put(`/admin/users/${id}`, data).then(r => r.data),
+  user360: (id) => api.get(`/admin/users/${id}/360`).then(r => r.data),
+  sendUserPhoneOtp: (id) =>
+    api.post(`/admin/users/${id}/phone/send-otp`).then(r => r.data),
+  verifyUserPhoneOtp: (id, code) =>
+    api.post(`/admin/users/${id}/phone/verify-otp`, { code }).then(r => r.data),
   suspendUser: (id) => api.post(`/admin/users/${id}/suspend`).then(r => r.data),
   unsuspendUser: (id) => api.post(`/admin/users/${id}/unsuspend`).then(r => r.data),
   orders: () => api.get('/admin/orders').then(r => r.data),

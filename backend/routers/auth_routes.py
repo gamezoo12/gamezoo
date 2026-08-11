@@ -111,21 +111,40 @@ async def register(inp: RegisterInput, request: Request):
     phone_verified = True
 
     referred_by = None
+    influencer_promo = None
+
+    # One acquisition code per signup.
+    # The same field can contain either:
+    #   1. an admin-created influencer promo code, OR
+    #   2. an existing user's personal referral code.
     referral_code = (inp.referral_code or '').strip().upper()
 
     if referral_code:
-        ref_user = await db.users.find_one(
-            {'referral_code': referral_code},
-            {'_id': 0, 'user_id': 1},
+        from services.reward_program import (
+            find_active_influencer_promo,
         )
 
-        if not ref_user:
-            raise HTTPException(
-                status_code=400,
-                detail='Invalid referral code. Check the code or leave the field blank.',
+        influencer_promo = await find_active_influencer_promo(
+            db,
+            referral_code,
+        )
+
+        if not influencer_promo:
+            ref_user = await db.users.find_one(
+                {'referral_code': referral_code},
+                {'_id': 0, 'user_id': 1},
             )
 
-        referred_by = ref_user['user_id']
+            if not ref_user:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        'Invalid referral or promo code. '
+                        'Check the code or leave the field blank.'
+                    ),
+                )
+
+            referred_by = ref_user['user_id']
 
     username = await _generate_username(db, inp.name, inp.dob)
     public_id = await allocate_user_public_id(db)
@@ -150,12 +169,39 @@ async def register(inp: RegisterInput, request: Request):
     await db.users.insert_one(doc)
 
     if referred_by:
+        # Existing personal referral behaviour — unchanged.
         r = Referral(
             referrer_user_id=referred_by,
             referred_user_id=user.user_id,
             code=referral_code,
         )
         await db.referrals.insert_one(r.model_dump())
+
+    elif influencer_promo:
+        # Influencer attribution only.
+        # No reward is credited during signup.
+        from services.reward_program import (
+            create_influencer_attribution,
+        )
+
+        await create_influencer_attribution(
+            db,
+            user_id=user.user_id,
+            promo=influencer_promo,
+        )
+
+        await db.users.update_one(
+            {'user_id': user.user_id},
+            {
+                '$set': {
+                    'acquisition_type': 'influencer',
+                    'influencer_promo_id':
+                        influencer_promo['promo_id'],
+                    'influencer_promo_code':
+                        influencer_promo['code'],
+                }
+            },
+        )
 
     token = create_jwt(user.user_id)
     return {

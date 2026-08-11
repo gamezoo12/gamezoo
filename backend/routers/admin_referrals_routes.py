@@ -126,6 +126,17 @@ async def admin_referrals_bonuses(request: Request):
             ref['display_status'] = 'Processing reward'
 
     # ---------------------------------------------------------
+    # Influencer programme
+    # ---------------------------------------------------------
+    from services.reward_program import (
+        get_reward_settings,
+        influencer_admin_snapshot,
+    )
+
+    reward_settings = await get_reward_settings(db)
+    influencer = await influencer_admin_snapshot(db)
+
+    # ---------------------------------------------------------
     # Summary
     # ---------------------------------------------------------
     signup_eligible = sum(
@@ -210,19 +221,53 @@ async def admin_referrals_bonuses(request: Request):
 
             'signup_tokens_granted': total_signup_tokens,
             'referral_tokens_granted': total_referral_tokens,
+            'influencer_signups':
+                influencer['summary']['influencer_signups'],
+
+            'influencer_rewards_issued':
+                influencer['summary']['influencer_rewards_issued'],
+
+            'influencer_tokens_granted':
+                influencer['summary']['influencer_tokens_granted'],
+
+            'influencer_pending':
+                influencer['summary']['influencer_pending'],
+
+            'all_rewards_issued': (
+                signup_granted
+                + referral_rewarded
+                + influencer['summary']['influencer_rewards_issued']
+            ),
+
             'total_bonus_tokens_granted': round(
-                total_signup_tokens + total_referral_tokens,
+                total_signup_tokens
+                + total_referral_tokens
+                + influencer['summary']['influencer_tokens_granted'],
                 2,
             ),
         },
         'signup_bonuses': bonus_users,
         'referrals': referrals,
+        'influencer_promos': influencer['promos'],
+        'influencer_attributions': influencer['attributions'],
+        'reward_settings': reward_settings,
         'rules': {
             'minimum_wallet_topup_gbp': 5,
-            'signup_qualifying_topup_gbp': 10,
-            'signup_bonus_tokens': 5,
-            'referral_qualifying_topup_gbp': 10,
-            'referral_required_contest_entries': 1,
-            'referral_reward_tokens': 5,
+            'signup_qualifying_topup_gbp':
+                reward_settings['signup_qualifying_topup_gbp'],
+            'signup_bonus_tokens':
+                reward_settings['signup_reward_tokens'],
+            'referral_qualifying_topup_gbp':
+                reward_settings['referral_qualifying_topup_gbp'],
+            'referral_required_contest_entries':
+                1 if reward_settings['referral_contest_entry_required'] else 0,
+            'referral_reward_tokens':
+                reward_settings['referral_reward_tokens'],
+            'influencer_qualifying_topup_gbp':
+                reward_settings['influencer_qualifying_topup_gbp'],
+            'influencer_reward_tokens':
+                reward_settings['influencer_reward_tokens'],
+            'influencer_contest_entry_required':
+                reward_settings['influencer_contest_entry_required'],
         },
     }

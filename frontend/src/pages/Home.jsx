@@ -1,45 +1,98 @@
 import { useEffect, useState } from 'react';
-import HeroBanner from '../components/home/HeroBanner';
+import { Link } from 'react-router-dom';
+
+import PromotionBanner from '../components/home/PromotionBanner';
 import CompetitionSection from '../components/home/CompetitionSection';
 import HowToPlaySection from '../components/home/HowToPlaySection';
 import ReferAndEarnCard from '../components/home/ReferAndEarnCard';
 import TrustBadges from '../components/home/TrustBadges';
+import GamePreviewSection from '../components/home/GamePreviewSection';
 import MobileHome from '../components/mobile/MobileHome';
 import { contestsAPI } from '../lib/api';
 
 export default function Home() {
   const [contests, setContests] = useState([]);
-  useEffect(() => { contestsAPI.list().then(setContests).catch(() => {}); }, []);
+
+  useEffect(() => {
+    contestsAPI.list()
+      .then(setContests)
+      .catch(() => {});
+  }, []);
 
   const mapped = contests.map(c => ({
-    id: c.contest_id, slug: c.slug, title: c.title, subtitle: c.subtitle,
-    category: c.category, tag: c.tag, price: c.price,
-    ticketsSold: c.tickets_sold, ticketsTotal: c.tickets_total,
-    prizeAmount: c.prize_amount, endDate: c.end_date, image: c.image,
-    jackpot: c.jackpot, featured: c.featured, gameType: c.game_type,
+    id: c.contest_id,
+    contest_id: c.contest_id,
+    slug: c.slug,
+    title: c.title,
+    subtitle: c.subtitle,
+    category: c.category,
+    tag: c.tag,
+    price: c.price,
+    ticketsSold: c.tickets_sold,
+    ticketsTotal: c.tickets_total,
+    prizeAmount: c.prize_amount,
+    endDate: c.end_date,
+    image: c.image,
+    jackpot: c.jackpot,
+    featured: c.featured,
+    gameType: c.game_type,
   }));
 
-  const featured = [...mapped]
-    .sort((a, b) => (b.featured ? 2 : 0) + (b.jackpot ? 1 : 0) - ((a.featured ? 2 : 0) + (a.jackpot ? 1 : 0)))
+  const homeContests = [...mapped]
+    .sort(
+      (a, b) =>
+        (b.featured ? 2 : 0) +
+        (b.jackpot ? 1 : 0) -
+        ((a.featured ? 2 : 0) + (a.jackpot ? 1 : 0))
+    )
     .slice(0, 4);
 
   return (
     <>
-      {/* MOBILE-ONLY redesigned experience (below 768px). Wrapped in md:hidden
-          so desktop markup below is untouched. Uses the same live APIs. */}
+      {/* MOBILE */}
       <div className="md:hidden">
         <MobileHome />
       </div>
 
-      {/* DESKTOP-ONLY (unchanged). hidden md:block keeps the original layout
-          exactly as designed and shipped. */}
-      <div className="hidden md:block">
-        <HeroBanner contests={contests} />
-        {featured.length > 0 && (
-          <CompetitionSection title="Featured Contests" subtitle="Handpicked for you" items={featured} viewAllHref="/competitions" />
+      {/* DESKTOP */}
+      <div className="hidden md:block bg-white">
+        {/* 1 — clean promotion holder */}
+        <PromotionBanner />
+
+        {/* 2 — optional admin-controlled public game previews */}
+        <GamePreviewSection />
+
+        {/* 3 — only four contests */}
+        {homeContests.length > 0 && (
+          <>
+            <CompetitionSection
+              title="Contests"
+              subtitle="Explore our latest skill contests"
+              items={homeContests}
+              viewAllHref="/competitions"
+              hideViewAll
+            />
+
+            {/* 4 — More Contests after the four cards */}
+            <div className="max-w-7xl mx-auto px-4 lg:px-8 pb-10 flex justify-center">
+              <Link
+                to="/competitions"
+                className="inline-flex items-center justify-center min-w-[180px] h-12 px-7 rounded-full bg-[#6C2BFF] text-white font-extrabold shadow-lg hover:opacity-90 transition"
+                data-testid="home-more-contests"
+              >
+                More Contests →
+              </Link>
+            </div>
+          </>
         )}
+
+        {/* 5 */}
         <HowToPlaySection compact />
+
+        {/* 6 */}
         <ReferAndEarnCard />
+
+        {/* 7 */}
         <TrustBadges />
       </div>
     </>

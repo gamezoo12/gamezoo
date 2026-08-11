@@ -45,6 +45,8 @@ import UserDetailsPage from './pages/admin/UserDetailsPage';
 import ReferralsBonusesAdmin from './pages/admin/ReferralsBonusesAdmin';
 import LegalDocPage from './pages/legal/LegalDocPage';
 import PlayGame from './pages/PlayGame';
+import GameArena from './pages/GameArena';
+import GamePreview from './pages/GamePreview';
 import ContestLeaderboard from './pages/ContestLeaderboard';
 import LeaderboardIndex from './pages/LeaderboardIndex';
 import HowItWorksPage from './pages/HowItWorks';
@@ -86,6 +88,8 @@ function AppRouter() {
         <Route path="/free-entry" element={<FreeEntry />} />
         <Route path="/verify" element={<VerifyFeed />} />
         <Route path="/play/:contestId/:ticketId" element={<PlayGame />} />
+        <Route path="/games" element={<GameArena />} />
+        <Route path="/games/:gameId" element={<GamePreview />} />
         <Route path="/leaderboard" element={<LeaderboardIndex />} />
         <Route path="/leaderboard/:contestId" element={<ContestLeaderboard />} />
         <Route path="/how-it-works" element={<HowItWorksPage />} />

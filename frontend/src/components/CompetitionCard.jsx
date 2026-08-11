@@ -5,6 +5,7 @@ import { countdown, percent, tokenCount } from '../lib/format';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { useJoinedContestIds } from '../lib/joinedContests';
+import { resolveMediaUrl, useFallbackImage } from '../lib/media';
 
 export default function CompetitionCard({ c }) {
   const [t, setT] = useState(countdown(c.endDate));
@@ -48,9 +49,10 @@ export default function CompetitionCard({ c }) {
       <div className="overflow-hidden rounded-md bg-[#161433]">
         <div className="relative aspect-[2/1] overflow-hidden bg-transparent">
           <img
-            src={c.image}
+            src={resolveMediaUrl(c.image)}
             alt={c.title}
             loading="lazy"
+            onError={useFallbackImage}
             className="block h-full w-full object-cover object-center"
           />
         </div>

@@ -1,4 +1,6 @@
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import EmailStr, TypeAdapter, ValidationError
+import uuid
 from datetime import datetime, timedelta, timezone
 
 from auth import require_admin, get_current_user, verify_password
@@ -79,55 +81,551 @@ async def audit_logs(request: Request, limit: int = 200):
 @router.get('/users')
 async def all_users(request: Request):
     await require_admin(request)
+
     from deps import get_db
     db = get_db()
-    users = await db.users.find({}, {'_id': 0, 'password_hash': 0}).sort('created_at', -1).to_list(1000)
+
+    users = await db.users.find(
+        {},
+        {'_id': 0, 'password_hash': 0},
+    ).sort('created_at', -1).to_list(5000)
+
     if not users:
         return users
 
-    # Bulk-join tickets / orders / kyc in 3 aggregations instead of 3 per user.
-    # Previously this endpoint fired 1 + 3×N queries (3001 for 1000 users) and
-    # timed out at scale — deployment blocker flagged in the launch review.
-    user_ids = [u['user_id'] for u in users]
+    user_ids = [
+        u['user_id']
+        for u in users
+        if u.get('user_id')
+    ]
 
+    # Tickets
     tickets_agg = await db.tickets.aggregate([
-        {'$match': {'user_id': {'$in': user_ids}}},
-        {'$group': {'_id': '$user_id', 'count': {'$sum': 1}}},
+        {
+            '$match': {
+                'user_id': {'$in': user_ids}
+            }
+        },
+        {
+            '$group': {
+                '_id': '$user_id',
+                'count': {'$sum': 1},
+                'contest_ids': {'$addToSet': '$contest_id'},
+            }
+        },
     ]).to_list(None)
-    tickets_by_user = {t['_id']: t['count'] for t in tickets_agg}
 
+    tickets_by_user = {
+        t['_id']: {
+            'tickets': t.get('count', 0),
+            'contests': len(t.get('contest_ids') or []),
+        }
+        for t in tickets_agg
+    }
+
+    # Orders / spend
     orders_agg = await db.orders.aggregate([
-        {'$match': {'user_id': {'$in': user_ids}}},
-        {'$group': {'_id': '$user_id', 'total': {'$sum': '$total'}}},
+        {
+            '$match': {
+                'user_id': {'$in': user_ids},
+                'status': {'$ne': 'refunded'},
+            }
+        },
+        {
+            '$group': {
+                '_id': '$user_id',
+                'orders_count': {'$sum': 1},
+                'spent': {'$sum': '$total'},
+            }
+        },
     ]).to_list(None)
-    spent_by_user = {o['_id']: o['total'] for o in orders_agg}
 
+    orders_by_user = {
+        o['_id']: {
+            'orders_count': o.get('orders_count', 0),
+            'spent': float(o.get('spent') or 0),
+        }
+        for o in orders_agg
+    }
+
+    # KYC
     kyc_docs = await db.kyc.find(
         {'user_id': {'$in': user_ids}},
-        {'_id': 0, 'user_id': 1, 'status': 1},
+        {
+            '_id': 0,
+            'user_id': 1,
+            'status': 1,
+        },
     ).to_list(None)
-    kyc_by_user = {k['user_id']: k.get('status', 'none') for k in kyc_docs}
+
+    kyc_by_user = {
+        k['user_id']: k.get('status', 'none')
+        for k in kyc_docs
+    }
+
+    # Wallets
+    wallets = await db.wallets.find(
+        {'user_id': {'$in': user_ids}},
+        {
+            '_id': 0,
+            'user_id': 1,
+            'balance': 1,
+            'lifetime_topup': 1,
+            'lifetime_spend': 1,
+        },
+    ).to_list(None)
+
+    wallets_by_user = {
+        w['user_id']: w
+        for w in wallets
+    }
+
+    # Referrals where user joined through personal referral
+    joined_refs = await db.referrals.find(
+        {
+            'referred_user_id': {'$in': user_ids},
+        },
+        {
+            '_id': 0,
+            'referred_user_id': 1,
+            'status': 1,
+            'reward_granted': 1,
+            'topup_qualified': 1,
+            'contest_entered': 1,
+            'code': 1,
+        },
+    ).to_list(None)
+
+    joined_ref_by_user = {
+        r['referred_user_id']: r
+        for r in joined_refs
+    }
+
+    # Influencer attribution
+    influencer_rows = await db.influencer_attributions.find(
+        {
+            'user_id': {'$in': user_ids},
+        },
+        {
+            '_id': 0,
+            'user_id': 1,
+            'promo_id': 1,
+            'code': 1,
+            'influencer_name': 1,
+            'campaign_name': 1,
+            'status': 1,
+            'topup_qualified': 1,
+            'contest_entered': 1,
+            'reward_granted': 1,
+            'reward_tokens': 1,
+        },
+    ).to_list(None)
+
+    influencer_by_user = {
+        a['user_id']: a
+        for a in influencer_rows
+    }
+
+    # Winnings
+    winnings_agg = await db.winners.aggregate([
+        {
+            '$match': {
+                'user_id': {'$in': user_ids},
+            }
+        },
+        {
+            '$group': {
+                '_id': '$user_id',
+                'winnings': {'$sum': '$prize_amount'},
+                'wins': {'$sum': 1},
+            }
+        },
+    ]).to_list(None)
+
+    winnings_by_user = {
+        w['_id']: {
+            'winnings': float(w.get('winnings') or 0),
+            'wins': w.get('wins', 0),
+        }
+        for w in winnings_agg
+    }
 
     for u in users:
-        u['tickets'] = tickets_by_user.get(u['user_id'], 0)
-        u['spent'] = spent_by_user.get(u['user_id'], 0)
-        u['kyc_status'] = kyc_by_user.get(u['user_id'], 'none')
+        uid = u['user_id']
+
+        ticket_stats = tickets_by_user.get(uid, {})
+        order_stats = orders_by_user.get(uid, {})
+        wallet = wallets_by_user.get(uid, {})
+        joined_ref = joined_ref_by_user.get(uid)
+        influencer = influencer_by_user.get(uid)
+        win_stats = winnings_by_user.get(uid, {})
+
+        u['tickets'] = ticket_stats.get('tickets', 0)
+        u['contests_count'] = ticket_stats.get('contests', 0)
+
+        u['orders_count'] = order_stats.get('orders_count', 0)
+        u['spent'] = order_stats.get('spent', 0)
+
+        u['kyc_status'] = kyc_by_user.get(uid, 'none')
+
+        u['wallet_balance'] = float(wallet.get('balance') or 0)
+        u['lifetime_topup'] = float(wallet.get('lifetime_topup') or 0)
+        u['lifetime_spend'] = float(wallet.get('lifetime_spend') or 0)
+
+        u['winnings'] = win_stats.get('winnings', 0)
+        u['wins'] = win_stats.get('wins', 0)
+
+        if influencer:
+            u['acquisition_type'] = 'influencer'
+            u['influencer_code'] = influencer.get('code')
+            u['influencer_name'] = influencer.get('influencer_name')
+            u['influencer_campaign'] = influencer.get('campaign_name')
+            u['influencer_reward_granted'] = bool(
+                influencer.get('reward_granted')
+            )
+            u['influencer_reward_status'] = influencer.get('status')
+        elif joined_ref:
+            u['acquisition_type'] = 'referral'
+            u['joined_referral_code'] = joined_ref.get('code')
+            u['referral_reward_granted'] = bool(
+                joined_ref.get('reward_granted')
+            )
+            u['referral_status'] = joined_ref.get('status')
+        else:
+            u['acquisition_type'] = (
+                u.get('acquisition_type')
+                or 'organic'
+            )
+
+        u['signup_bonus_status'] = (
+            'granted'
+            if u.get('signup_bonus_granted')
+            else (
+                'eligible'
+                if u.get('signup_bonus_offer_eligible')
+                else 'none'
+            )
+        )
+
     return users
 
 
 @router.put('/users/{user_id}')
 async def update_user(user_id: str, payload: dict, request: Request):
-    await _require_role(request, ['admin', 'super_admin'])
+    admin = await _require_role(
+        request,
+        ['admin', 'super_admin'],
+    )
+
     from deps import get_db
+    from routers.twilio_routes import _normalize_phone
+
     db = get_db()
-    allowed = {'name', 'email', 'role', 'picture'}
-    updates = {k: v for k, v in (payload or {}).items() if k in allowed}
-    if 'role' in updates and updates['role'] not in ('user', 'admin', 'super_admin', 'operator', 'support'):
-        raise HTTPException(status_code=400, detail='Invalid role')
-    r = await db.users.update_one({'user_id': user_id}, {'$set': updates})
-    if r.matched_count == 0:
-        raise HTTPException(status_code=404, detail='User not found')
-    return {'ok': True, 'updates': updates}
+
+    current = await db.users.find_one(
+        {'user_id': user_id},
+    )
+
+    if not current:
+        raise HTTPException(
+            status_code=404,
+            detail='User not found',
+        )
+
+    allowed = {
+        'name',
+        'username',
+        'email',
+        'phone',
+        'dob',
+        'address',
+        'picture',
+        'role',
+    }
+
+    updates = {
+        k: v
+        for k, v in (payload or {}).items()
+        if k in allowed
+    }
+
+    if not updates:
+        raise HTTPException(
+            status_code=400,
+            detail='No editable profile fields supplied',
+        )
+
+    # -----------------------------------------
+    # Name
+    # -----------------------------------------
+    if 'name' in updates:
+        name = str(updates['name'] or '').strip()
+
+        if not name:
+            raise HTTPException(
+                status_code=400,
+                detail='Name cannot be empty',
+            )
+
+        if len(name) > 160:
+            raise HTTPException(
+                status_code=400,
+                detail='Name is too long',
+            )
+
+        updates['name'] = name
+
+    # -----------------------------------------
+    # Username
+    # -----------------------------------------
+    if 'username' in updates:
+        username = str(
+            updates['username'] or ''
+        ).strip()
+
+        if username:
+            if len(username) > 80:
+                raise HTTPException(
+                    status_code=400,
+                    detail='Username is too long',
+                )
+
+            duplicate = await db.users.find_one(
+                {
+                    'username': username,
+                    'user_id': {'$ne': user_id},
+                },
+                {'_id': 1},
+            )
+
+            if duplicate:
+                raise HTTPException(
+                    status_code=409,
+                    detail='Username is already in use',
+                )
+
+            updates['username'] = username
+        else:
+            updates['username'] = None
+
+    # -----------------------------------------
+    # Email
+    # -----------------------------------------
+    if 'email' in updates:
+        raw_email = str(
+            updates['email'] or ''
+        ).strip().lower()
+
+        try:
+            validated_email = str(
+                TypeAdapter(EmailStr).validate_python(
+                    raw_email
+                )
+            )
+        except ValidationError:
+            raise HTTPException(
+                status_code=400,
+                detail='Invalid email address',
+            )
+
+        duplicate = await db.users.find_one(
+            {
+                'email': validated_email,
+                'user_id': {'$ne': user_id},
+            },
+            {'_id': 1},
+        )
+
+        if duplicate:
+            raise HTTPException(
+                status_code=409,
+                detail='Email address is already in use',
+            )
+
+        updates['email'] = validated_email
+
+        # There is currently no production email-verification provider.
+        # Keep the flag false when an email address changes.
+        if validated_email != (
+            str(current.get('email') or '')
+            .strip()
+            .lower()
+        ):
+            updates['email_verified'] = False
+            updates['email_verified_at'] = None
+
+    # -----------------------------------------
+    # Phone
+    # -----------------------------------------
+    if 'phone' in updates:
+        raw_phone = str(
+            updates['phone'] or ''
+        ).strip()
+
+        if raw_phone:
+            phone = _normalize_phone(raw_phone)
+
+            duplicate = await db.users.find_one(
+                {
+                    'phone': phone,
+                    'user_id': {'$ne': user_id},
+                },
+                {'_id': 1},
+            )
+
+            if duplicate:
+                raise HTTPException(
+                    status_code=409,
+                    detail='Phone number is already in use',
+                )
+
+            updates['phone'] = phone
+
+            if phone != current.get('phone'):
+                updates['phone_verified'] = False
+                updates['phone_verified_at'] = None
+        else:
+            updates['phone'] = None
+            updates['phone_verified'] = False
+            updates['phone_verified_at'] = None
+
+    # -----------------------------------------
+    # DOB
+    # -----------------------------------------
+    if 'dob' in updates:
+        raw_dob = str(
+            updates['dob'] or ''
+        ).strip()
+
+        if raw_dob:
+            try:
+                dob = datetime.strptime(
+                    raw_dob,
+                    '%Y-%m-%d',
+                ).date()
+            except ValueError:
+                raise HTTPException(
+                    status_code=400,
+                    detail='DOB must use YYYY-MM-DD',
+                )
+
+            today = datetime.now(
+                timezone.utc
+            ).date()
+
+            age = (
+                today.year
+                - dob.year
+                - (
+                    (today.month, today.day)
+                    < (dob.month, dob.day)
+                )
+            )
+
+            if age < 18:
+                raise HTTPException(
+                    status_code=400,
+                    detail='User must be at least 18 years old',
+                )
+
+            updates['dob'] = raw_dob
+        else:
+            updates['dob'] = None
+
+    # -----------------------------------------
+    # Address / picture
+    # -----------------------------------------
+    for field, maximum in (
+        ('address', 500),
+        ('picture', 2000),
+    ):
+        if field in updates:
+            value = str(
+                updates[field] or ''
+            ).strip()
+
+            if len(value) > maximum:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f'{field} is too long',
+                )
+
+            updates[field] = value or None
+
+    # -----------------------------------------
+    # Role
+    # -----------------------------------------
+    if 'role' in updates:
+        valid_roles = (
+            'user',
+            'admin',
+            'super_admin',
+            'operator',
+            'support',
+        )
+
+        if updates['role'] not in valid_roles:
+            raise HTTPException(
+                status_code=400,
+                detail='Invalid role',
+            )
+
+        # Only super_admin can assign/remove admin-level roles.
+        if (
+            admin.get('role') != 'super_admin'
+            and updates['role'] != current.get('role')
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail='Only Super Admin can change user roles',
+            )
+
+    # Never allow generic profile editing to touch erased accounts.
+    if current.get('erased'):
+        raise HTTPException(
+            status_code=400,
+            detail='Erased users cannot be edited',
+        )
+
+    changed = {
+        k: v
+        for k, v in updates.items()
+        if current.get(k) != v
+    }
+
+    if not changed:
+        return {
+            'ok': True,
+            'updates': {},
+            'unchanged': True,
+        }
+
+    now = datetime.now(timezone.utc)
+
+    await db.users.update_one(
+        {'user_id': user_id},
+        {
+            '$set': {
+                **changed,
+                'profile_updated_at': now,
+            }
+        },
+    )
+
+    await db.audit_log.insert_one({
+        'audit_id': f'aud_{uuid.uuid4().hex[:12]}',
+        'kind': 'user_profile_update',
+        'admin_email': admin.get('email'),
+        'admin_user_id': admin.get('user_id'),
+        'target_user_id': user_id,
+        'changed_fields': sorted(changed.keys()),
+        'at': now,
+    })
+
+    return {
+        'ok': True,
+        'updates': changed,
+    }
 
 
 # NOTE: /users/{user_id}/suspend and /users/{user_id}/unsuspend were previously

@@ -33,6 +33,437 @@ const StatCard = ({ label, value, tone = 'slate' }) => (
   </div>
 );
 
+
+function ProfileManagementCard({ userId, identity, onReload }) {
+  const { toast } = useToast();
+
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState('');
+
+  const makeForm = () => ({
+    name: identity?.name || '',
+    username: identity?.username || '',
+    email: identity?.email || '',
+    phone: identity?.phone || '',
+    dob: identity?.dob || '',
+    address: identity?.address || '',
+    picture: identity?.picture || '',
+  });
+
+  const [form, setForm] = useState(makeForm);
+
+  useEffect(() => {
+    setForm({
+      name: identity?.name || '',
+      username: identity?.username || '',
+      email: identity?.email || '',
+      phone: identity?.phone || '',
+      dob: identity?.dob || '',
+      address: identity?.address || '',
+      picture: identity?.picture || '',
+    });
+
+    setOtp('');
+    setOtpSent(false);
+  }, [
+    identity?.name,
+    identity?.username,
+    identity?.email,
+    identity?.phone,
+    identity?.dob,
+    identity?.address,
+    identity?.picture,
+  ]);
+
+  const change = (field, value) => {
+    setForm(current => ({
+      ...current,
+      [field]: value,
+    }));
+  };
+
+  const cancelEdit = () => {
+    setForm(makeForm());
+    setEditing(false);
+  };
+
+  const save = async () => {
+    if (!form.name.trim()) {
+      toast({
+        title: 'Name required',
+        description: 'The user name cannot be empty.',
+      });
+      return;
+    }
+
+    if (!form.email.trim()) {
+      toast({
+        title: 'Email required',
+        description: 'Enter a valid email address.',
+      });
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      await adminAPI.updateUser(userId, {
+        name: form.name.trim(),
+        username: form.username.trim(),
+        email: form.email.trim(),
+        phone: form.phone.trim(),
+        dob: form.dob || null,
+        address: form.address.trim(),
+        picture: form.picture.trim(),
+      });
+
+      toast({
+        title: 'Profile updated',
+        description: 'User profile changes were saved and audited.',
+      });
+
+      setEditing(false);
+      setOtp('');
+      setOtpSent(false);
+
+      await onReload();
+    } catch (e) {
+      toast({
+        title: 'Profile update failed',
+        description:
+          e?.response?.data?.detail ||
+          'Unable to update the user profile.',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const sendOtp = async () => {
+    try {
+      setSendingOtp(true);
+
+      const result = await adminAPI.sendUserPhoneOtp(userId);
+
+      if (result?.already_verified) {
+        toast({
+          title: 'Already verified',
+          description: 'This phone number is already verified.',
+        });
+
+        await onReload();
+        return;
+      }
+
+      setOtpSent(true);
+
+      toast({
+        title: 'Verification code sent',
+        description:
+          'Ask the user for the SMS verification code, then enter it below.',
+      });
+    } catch (e) {
+      toast({
+        title: 'Could not send OTP',
+        description:
+          e?.response?.data?.detail ||
+          'SMS verification could not be sent.',
+      });
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  const verifyOtp = async () => {
+    const code = otp.trim();
+
+    if (!code) {
+      toast({
+        title: 'Enter verification code',
+      });
+      return;
+    }
+
+    try {
+      setVerifyingOtp(true);
+
+      await adminAPI.verifyUserPhoneOtp(
+        userId,
+        code
+      );
+
+      toast({
+        title: 'Phone verified',
+        description:
+          'Twilio approved the verification code and the user is now verified.',
+      });
+
+      setOtp('');
+      setOtpSent(false);
+
+      await onReload();
+    } catch (e) {
+      toast({
+        title: 'Verification failed',
+        description:
+          e?.response?.data?.detail ||
+          'The verification code was not accepted.',
+      });
+    } finally {
+      setVerifyingOtp(false);
+    }
+  };
+
+  return (
+    <div
+      className="bg-white rounded-2xl border border-slate-100 overflow-hidden"
+      data-testid="admin-profile-management"
+    >
+      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
+        <div>
+          <h3 className="font-display font-extrabold text-lg">
+            Profile Management
+          </h3>
+
+          <p className="text-xs text-slate-500 mt-1">
+            Edit account identity and manage verified phone status.
+          </p>
+        </div>
+
+        {!editing ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setEditing(true)}
+            disabled={!!identity?.erased}
+            data-testid="edit-user-profile"
+          >
+            Edit Profile
+          </Button>
+        ) : (
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={cancelEdit}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              size="sm"
+              onClick={save}
+              disabled={saving}
+              data-testid="save-user-profile"
+            >
+              {saving ? 'Saving…' : 'Save Changes'}
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <div className="p-5 space-y-5">
+        <div className="grid md:grid-cols-2 gap-4">
+          {[
+            ['Full Name', 'name', 'text'],
+            ['Username', 'username', 'text'],
+            ['Email', 'email', 'email'],
+            ['Phone', 'phone', 'tel'],
+            ['Date of Birth', 'dob', 'date'],
+            ['Profile Picture URL', 'picture', 'url'],
+          ].map(([label, field, type]) => (
+            <div key={field}>
+              <label className="block text-xs font-bold text-slate-600 mb-1.5">
+                {label}
+              </label>
+
+              {editing ? (
+                <Input
+                  type={type}
+                  value={form[field]}
+                  onChange={e =>
+                    change(field, e.target.value)
+                  }
+                  data-testid={`edit-user-${field}`}
+                />
+              ) : (
+                <div className="min-h-10 px-3 py-2 rounded-md bg-slate-50 border border-slate-100 text-sm break-all">
+                  {identity?.[field] || '—'}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div>
+          <label className="block text-xs font-bold text-slate-600 mb-1.5">
+            Address
+          </label>
+
+          {editing ? (
+            <textarea
+              value={form.address}
+              onChange={e =>
+                change('address', e.target.value)
+              }
+              rows={3}
+              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6C2BFF]/20"
+              data-testid="edit-user-address"
+            />
+          ) : (
+            <div className="min-h-10 px-3 py-2 rounded-md bg-slate-50 border border-slate-100 text-sm">
+              {identity?.address || '—'}
+            </div>
+          )}
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-4">
+          <div className="rounded-xl border border-slate-100 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="font-bold text-sm">
+                  Email Verification
+                </div>
+
+                <div className="text-xs text-slate-500 mt-1 break-all">
+                  {identity?.email || 'No email'}
+                </div>
+              </div>
+
+              {identity?.email_verified ? (
+                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
+                  Verified
+                </span>
+              ) : (
+                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600">
+                  Unverified
+                </span>
+              )}
+            </div>
+
+            {!identity?.email_verified && (
+              <p className="text-xs text-slate-500 mt-3">
+                No manual verification is available. Email verification
+                requires a production email verification provider.
+              </p>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-slate-100 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="font-bold text-sm">
+                  Phone Verification
+                </div>
+
+                <div className="text-xs text-slate-500 mt-1">
+                  {identity?.phone || 'No phone number'}
+                </div>
+              </div>
+
+              {identity?.phone_verified ? (
+                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
+                  Verified
+                </span>
+              ) : (
+                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
+                  Unverified
+                </span>
+              )}
+            </div>
+
+            {!identity?.phone_verified &&
+             identity?.phone &&
+             !identity?.erased && (
+              <div className="mt-4 space-y-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={sendOtp}
+                  disabled={sendingOtp}
+                  data-testid="send-user-phone-otp"
+                >
+                  {sendingOtp
+                    ? 'Sending…'
+                    : otpSent
+                    ? 'Resend SMS Code'
+                    : 'Send SMS Verification Code'}
+                </Button>
+
+                {otpSent && (
+                  <div className="flex gap-2">
+                    <Input
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      placeholder="Enter SMS code"
+                      value={otp}
+                      onChange={e =>
+                        setOtp(
+                          e.target.value
+                            .replace(/\D/g, '')
+                            .slice(0, 10)
+                        )
+                      }
+                      data-testid="user-phone-otp-code"
+                    />
+
+                    <Button
+                      onClick={verifyOtp}
+                      disabled={
+                        verifyingOtp ||
+                        !otp.trim()
+                      }
+                      data-testid="verify-user-phone-otp"
+                    >
+                      {verifyingOtp
+                        ? 'Verifying…'
+                        : 'Verify'}
+                    </Button>
+                  </div>
+                )}
+
+                <p className="text-[11px] text-slate-500">
+                  Verification is completed only after Twilio accepts
+                  the SMS code. Admin cannot bypass this step.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {(identity?.phone_verified_at ||
+          identity?.email_verified_at) && (
+          <div className="text-xs text-slate-500 border-t pt-4">
+            {identity?.phone_verified_at && (
+              <div>
+                Phone verified:{' '}
+                {new Date(
+                  identity.phone_verified_at
+                ).toLocaleString('en-GB')}
+              </div>
+            )}
+
+            {identity?.email_verified_at && (
+              <div>
+                Email verified:{' '}
+                {new Date(
+                  identity.email_verified_at
+                ).toLocaleString('en-GB')}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 export default function UserDetailsPage() {
   const { user_id } = useParams();
   const nav = useNavigate();
@@ -101,6 +532,13 @@ export default function UserDetailsPage() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6" data-testid="user-360-page">
+
+      <ProfileManagementCard
+        userId={user_id}
+        identity={data?.identity || {}}
+        onReload={load}
+      />
+
       <BackButton to="/admin/users" label="All users" className="mb-1" />
 
       {/* Hero */}

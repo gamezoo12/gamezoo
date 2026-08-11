@@ -88,7 +88,7 @@ class Wallet(BaseModel):
 class WalletTx(BaseModel):
     tx_id: str = Field(default_factory=lambda: new_id('tx'))
     user_id: str
-    kind: Literal['topup', 'spend', 'refund', 'admin_adjust', 'referral_bonus', 'signup_bonus']
+    kind: Literal['topup', 'spend', 'refund', 'admin_adjust', 'referral_bonus', 'signup_bonus', 'influencer_bonus']
     amount: float  # positive for credits, negative for debits
     balance_after: float
     note: str = ''
