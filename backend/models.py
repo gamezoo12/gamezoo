@@ -170,6 +170,8 @@ class User(BaseModel):
     user_id: str = Field(default_factory=lambda: new_id('user'))
     public_id: Optional[str] = None  # sequential PLxxxxx — assigned atomically at register
     email: EmailStr
+    email_verified: bool = False
+    email_verified_at: Optional[datetime] = None
     name: str
     username: Optional[str] = None  # auto-generated: firstname + DOB-day + NN
     picture: Optional[str] = None
@@ -191,6 +193,7 @@ class User(BaseModel):
     signup_bonus_topup_session_id: Optional[str] = None
     phone: Optional[str] = None  # E.164 format, e.g. +447xxxxxxxxx
     phone_verified: bool = False
+    phone_verified_at: Optional[datetime] = None
     dob: Optional[str] = None  # ISO date YYYY-MM-DD
     address: Optional[str] = None
     terms_accepted_at: Optional[datetime] = None
@@ -201,6 +204,8 @@ class UserPublic(BaseModel):
     user_id: str
     public_id: Optional[str] = None
     email: str
+    email_verified: bool = False
+    email_verified_at: Optional[datetime] = None
     name: str
     username: Optional[str] = None
     picture: Optional[str] = None
@@ -208,6 +213,7 @@ class UserPublic(BaseModel):
     method: str
     phone: Optional[str] = None
     phone_verified: bool = False
+    phone_verified_at: Optional[datetime] = None
     dob: Optional[str] = None
     address: Optional[str] = None
     terms_accepted_at: Optional[datetime] = None
@@ -218,11 +224,12 @@ class RegisterInput(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8, description="Minimum 8 characters")
     name: str = Field(..., min_length=1)
-    # Phone verification is OPTIONAL at signup (feb 2026). Users can bind and
-    # verify a phone later via /api/auth/otp/verify-bind. If phone is
-    # provided, an OTP code MUST accompany it (see the register handler).
-    phone: Optional[str] = Field(default=None, max_length=32)
-    otp_code: Optional[str] = Field(default=None, max_length=10)
+    # Both email and phone verification are mandatory for email/password
+    # registration. The backend independently checks both Twilio Verify codes
+    # before creating the account.
+    email_otp_code: str = Field(..., min_length=4, max_length=10)
+    phone: str = Field(..., min_length=6, max_length=32)
+    otp_code: str = Field(..., min_length=4, max_length=10)
     accept_terms: bool = Field(..., description="Must be true")
     dob: str = Field(..., description="YYYY-MM-DD, 18+ enforced server-side")
     address: Optional[str] = None

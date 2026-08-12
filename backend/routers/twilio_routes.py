@@ -14,11 +14,11 @@ from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
-from twilio.rest import Client
 from twilio.base.exceptions import TwilioRestException
 
 from auth import create_jwt, get_current_user
 from models import UserPublic
+from otp_verify import normalize_phone, twilio_verify_client
 
 
 def _to_public(user_doc: dict) -> dict:
@@ -29,38 +29,14 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix='/api/auth/otp', tags=['auth-otp'])
 
-# E.164: leading '+' then 8-15 digits
-_E164 = re.compile(r'^\+[1-9]\d{7,14}$')
-
-
 def _normalize_phone(raw: str) -> str:
-    """Return E.164-normalized phone or raise 400.
-    Accepts +CC formats; also treats UK local mobiles beginning with '07'
-    as +44 by stripping leading zero when no '+' prefix is provided.
-    """
-    if not raw:
-        raise HTTPException(status_code=400, detail='Phone number required')
-    p = re.sub(r'[\s()\-.]', '', raw.strip())
-    if p.startswith('00'):
-        p = '+' + p[2:]
-    if not p.startswith('+'):
-        # naive UK fallback: 07xxx -> +447xxx
-        if p.startswith('0') and len(p) >= 10:
-            p = '+44' + p[1:]
-        else:
-            raise HTTPException(status_code=400, detail='Use international format e.g. +447700900123')
-    if not _E164.match(p):
-        raise HTTPException(status_code=400, detail='Invalid phone format. Use E.164 e.g. +447700900123')
-    return p
+    # Backward-compatible alias for existing imports.
+    return normalize_phone(raw)
 
 
-def _twilio_client() -> tuple[Client, str]:
-    sid = os.environ.get('TWILIO_ACCOUNT_SID')
-    token = os.environ.get('TWILIO_AUTH_TOKEN')
-    service = os.environ.get('TWILIO_VERIFY_SERVICE_SID')
-    if not sid or not token or not service:
-        raise HTTPException(status_code=503, detail='SMS service not configured')
-    return Client(sid, token), service
+def _twilio_client():
+    # Backward-compatible alias for existing imports.
+    return twilio_verify_client()
 
 
 class SendOtpInput(BaseModel):
@@ -70,6 +46,155 @@ class SendOtpInput(BaseModel):
 class VerifyOtpInput(BaseModel):
     phone: str = Field(..., min_length=6, max_length=32)
     code: str = Field(..., min_length=4, max_length=10)
+
+
+class SendEmailOtpInput(BaseModel):
+    email: str = Field(..., min_length=3, max_length=320)
+
+
+@router.post('/email/send')
+async def send_email_otp(inp: SendEmailOtpInput):
+    """Send a Twilio Verify email code.
+
+    Public signup endpoint with per-email cooldown and rate limiting.
+    The SendGrid API key remains configured inside Twilio and is never
+    exposed to the browser.
+    """
+    from deps import get_db
+
+    db = get_db()
+
+    email = (inp.email or '').strip().lower()
+
+    if not email or '@' not in email:
+        raise HTTPException(
+            status_code=400,
+            detail='Valid email address required',
+        )
+
+    # Do not send verification codes for existing accounts.
+    existing = await db.users.find_one(
+        {'email': email},
+        {'_id': 1},
+    )
+
+    if existing:
+        raise HTTPException(
+            status_code=400,
+            detail='Email already registered',
+        )
+
+    now = datetime.now(timezone.utc)
+
+    recent = await db.otp_attempts.find(
+        {
+            'channel': 'email',
+            'email': email,
+            'sent_at': {
+                '$gte': now - timedelta(minutes=15)
+            },
+        },
+        {
+            '_id': 0,
+            'sent_at': 1,
+        },
+    ).sort(
+        'sent_at',
+        -1,
+    ).to_list(20)
+
+    if recent:
+        newest = recent[0]['sent_at']
+
+        if isinstance(newest, str):
+            try:
+                newest = datetime.fromisoformat(
+                    newest
+                )
+            except Exception:
+                newest = now
+
+        seconds_since = (
+            now - newest
+        ).total_seconds()
+
+        if seconds_since < 30:
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    f'Please wait '
+                    f'{int(30 - seconds_since)}s '
+                    f'before requesting another code.'
+                ),
+            )
+
+        if len(recent) >= 5:
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    'Too many verification requests. '
+                    'Please try again in 15 minutes.'
+                ),
+            )
+
+    client, service_sid = _twilio_client()
+
+    try:
+        verification = (
+            client.verify.v2
+            .services(service_sid)
+            .verifications
+            .create(
+                to=email,
+                channel='email',
+            )
+        )
+
+    except TwilioRestException as exc:
+        logger.warning(
+            'Twilio email send failed: %s',
+            exc,
+        )
+
+        detail = (
+            'Could not send verification email. '
+            'Check the address and try again.'
+        )
+
+        if exc.code in (60203, 60212):
+            detail = (
+                'Too many attempts. '
+                'Please wait and try again.'
+            )
+
+        raise HTTPException(
+            status_code=400,
+            detail=detail,
+        )
+
+    except Exception:
+        logger.exception(
+            'Twilio email send unexpected error'
+        )
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                'Email verification service '
+                'temporarily unavailable'
+            ),
+        )
+
+    await db.otp_attempts.insert_one({
+        'channel': 'email',
+        'email': email,
+        'sent_at': now,
+    })
+
+    return {
+        'ok': True,
+        'status': verification.status,
+        'email': email,
+    }
 
 
 @router.post('/send')

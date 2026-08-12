@@ -73,8 +73,8 @@ async def _verify_twilio_otp(phone: str, code: str) -> str:
 async def register(inp: RegisterInput, request: Request):
     """Mandatory OTP + T&Cs signup for email/password users.
 
-    Enforces: 18+ age, unique email, valid Twilio OTP for the phone,
-    accepted T&Cs, and auto-generates a unique username.
+    Enforces: 18+ age, unique email, approved Twilio Verify codes for
+    both email and phone, accepted T&Cs, and a unique username.
     """
     from deps import get_db
     from models import Referral
@@ -85,8 +85,38 @@ async def register(inp: RegisterInput, request: Request):
 
     _assert_18_plus(inp.dob)
 
-    if await db.users.find_one({'email': inp.email.lower()}):
-        raise HTTPException(status_code=400, detail='Email already registered')
+    normalized_email = inp.email.strip().lower()
+
+    if await db.users.find_one({'email': normalized_email}):
+        raise HTTPException(
+            status_code=400,
+            detail='Email already registered',
+        )
+
+    provided_email_otp = (
+        inp.email_otp_code or ''
+    ).strip()
+
+    if not provided_email_otp:
+        raise HTTPException(
+            status_code=422,
+            detail='Email verification code is required',
+        )
+
+    from otp_verify import verify_twilio_email_otp
+
+    try:
+        await verify_twilio_email_otp(
+            normalized_email,
+            provided_email_otp,
+        )
+    except HTTPException as exc:
+        if exc.status_code == 400:
+            raise HTTPException(
+                status_code=400,
+                detail='Email verification code is invalid or expired',
+            )
+        raise
 
     provided_phone = (inp.phone or '').strip()
     provided_otp = (inp.otp_code or '').strip()
@@ -96,7 +126,18 @@ async def register(inp: RegisterInput, request: Request):
     if not provided_otp:
         raise HTTPException(status_code=422, detail='Phone verification code is required')
 
-    normalized_phone = await _verify_twilio_otp(provided_phone, provided_otp)
+    try:
+        normalized_phone = await _verify_twilio_otp(
+            provided_phone,
+            provided_otp,
+        )
+    except HTTPException as exc:
+        if exc.status_code == 400:
+            raise HTTPException(
+                status_code=400,
+                detail='Phone verification code is invalid or expired',
+            )
+        raise
 
     existing_phone = await db.users.find_one(
         {'phone': normalized_phone, 'phone_verified': True},
@@ -150,7 +191,9 @@ async def register(inp: RegisterInput, request: Request):
     public_id = await allocate_user_public_id(db)
 
     user = User(
-        email=inp.email.lower(),
+        email=normalized_email,
+        email_verified=True,
+        email_verified_at=datetime.now(timezone.utc),
         name=inp.name.strip(),
         username=username,
         public_id=public_id,
@@ -161,6 +204,7 @@ async def register(inp: RegisterInput, request: Request):
         signup_bonus_offer_eligible=True,
         phone=normalized_phone,
         phone_verified=phone_verified,
+        phone_verified_at=datetime.now(timezone.utc),
         dob=inp.dob,
         address=(inp.address or None),
         terms_accepted_at=datetime.now(timezone.utc),
