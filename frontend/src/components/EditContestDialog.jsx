@@ -248,7 +248,10 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                   upd('attempts_per_ticket', v);
                   upd('max_attempts', v);  // keep legacy field in sync
                 }}
-                disabled={(form.entry_mode || 'skill_game') !== 'skill_game'}
+                disabled={
+                  (form.entry_mode || 'skill_game') !== 'skill_game' &&
+                  (form.engine_type || 'leaderboard') !== 'leaderboard'
+                }
                 data-testid="contest-attempts-per-ticket"
               />
               <div className="text-xs text-slate-500 mt-1">
