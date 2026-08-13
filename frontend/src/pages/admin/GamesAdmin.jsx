@@ -565,7 +565,7 @@ export default function GamesAdmin() {
               <div className="mt-3 flex items-center gap-3 text-xs text-slate-500">
                 <span>⏱ Target: <b>{g.target_time_s}s</b></span>
                 <span>·</span>
-                <span>🔁 Attempts: <b>{g.max_attempts}</b></span>
+                <span>🔁 Default attempts: <b>{g.max_attempts}</b> / ticket</span>
                 <span>·</span>
                 <span className="capitalize">🎯 {g.category}</span>
               </div>

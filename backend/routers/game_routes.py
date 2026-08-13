@@ -119,10 +119,10 @@ async def submit_score(inp: SubmitScoreInput, request: Request):
     apt = int(contest.get('attempts_per_ticket') or contest.get('max_attempts') or (meta or {}).get('max_attempts', 3))
     apt = max(1, min(apt, 10))
 
-    # Count tickets this user owns for THIS contest — total attempts pool.
-    tickets_owned = await db.tickets.count_documents({'user_id': user['user_id'], 'contest_id': contest['contest_id']})
-    tickets_owned = max(1, tickets_owned)
-    total_allowed = apt * tickets_owned
+    # Attempts are enforced independently PER TICKET.
+    # Buying additional tickets creates additional independent game entries;
+    # it must never increase the attempt allowance of an existing ticket.
+    total_allowed = apt
 
     # Turnstile challenge — required only when a site key is configured (prod).
     # Test envs (no key) skip this check so pytest suites keep working.
@@ -145,11 +145,17 @@ async def submit_score(inp: SubmitScoreInput, request: Request):
         except (ValueError, TypeError):
             pass
 
-    # Pool of attempts across ALL of the user's tickets for this contest.
-    prior_total = await db.game_scores.count_documents({'user_id': user['user_id'], 'contest_id': contest['contest_id']})
-    prior_ticket = await db.game_scores.count_documents({'ticket_id': inp.ticket_id})
-    if prior_total >= total_allowed:
-        raise HTTPException(status_code=400, detail=f'No attempts left ({total_allowed} used across your {tickets_owned} ticket{"" if tickets_owned == 1 else "s"})')
+    # Enforce the configured attempt allowance against THIS ticket only.
+    prior_ticket = await db.game_scores.count_documents({
+        'ticket_id': inp.ticket_id,
+        'contest_id': contest['contest_id'],
+        'user_id': user['user_id'],
+    })
+    if prior_ticket >= total_allowed:
+        raise HTTPException(
+            status_code=400,
+            detail=f'No attempts left for this ticket ({total_allowed} allowed per ticket)',
+        )
 
     pts = _calc_points(game_type, inp.duration_ms, inp.accuracy, inp.solved)
     score = GameScore(
@@ -164,8 +170,16 @@ async def submit_score(inp: SubmitScoreInput, request: Request):
         attempts_used=prior_ticket + 1,
     )
     await db.game_scores.insert_one(score.model_dump())
-    attempts_left = total_allowed - (prior_total + 1)
-    return {'ok': True, 'points': pts, 'attempts_left': attempts_left, 'total_allowed': total_allowed, 'tickets': tickets_owned, 'score': score.model_dump()}
+    attempts_left = max(0, total_allowed - (prior_ticket + 1))
+    return {
+        'ok': True,
+        'points': pts,
+        'attempts_left': attempts_left,
+        'total_allowed': total_allowed,
+        'attempts_per_ticket': apt,
+        'ticket_id': inp.ticket_id,
+        'score': score.model_dump(),
+    }
 
 
 @public_router.get('/leaderboard/global')

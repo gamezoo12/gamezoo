@@ -344,15 +344,6 @@ async def my_games(request: Request):
     # Bulk-fetch usage stats to avoid N+1: previously this endpoint fired one
     # `count_documents` + one `find` per ticket, meaning a user with 50
     # tickets across 10 contests would hit the DB 100+ times.
-    active_contest_ids = list(contests.keys())
-    used_by_contest: dict[str, int] = {}
-    if active_contest_ids:
-        used_agg = await db.game_scores.aggregate([
-            {'$match': {'user_id': user['user_id'], 'contest_id': {'$in': active_contest_ids}}},
-            {'$group': {'_id': '$contest_id', 'n': {'$sum': 1}}},
-        ]).to_list(None)
-        used_by_contest = {u['_id']: u['n'] for u in used_agg}
-
     ticket_ids = [t['ticket_id'] for t in tickets]
     attempts_by_ticket: dict[str, list] = {}
     if ticket_ids:
@@ -374,9 +365,12 @@ async def my_games(request: Request):
         apt = int(c.get('attempts_per_ticket') or c.get('max_attempts') or 3)
         apt = max(1, min(apt, 10))
         tickets_owned = sum(1 for t2 in tickets if t2['contest_id'] == c['contest_id'])
-        total_allowed = apt * max(1, tickets_owned)
-        used = used_by_contest.get(c['contest_id'], 0)
+
+        # Every purchased ticket is an independent leaderboard entry and gets
+        # its own attempts_per_ticket allowance.
+        total_allowed = apt
         attempts = attempts_by_ticket.get(t['ticket_id'], [])
+        used = len(attempts)
         best = attempts[0] if attempts else None
 
         end_raw = c.get('end_date')
@@ -401,7 +395,7 @@ async def my_games(request: Request):
             'end_date': c.get('end_date'),
             'attempts_used': used,
             'attempts_remaining': max(0, total_allowed - used),
-            'max_attempts': total_allowed,  # legacy key = pooled total
+            'max_attempts': total_allowed,  # legacy key; now per-ticket
             'attempts_per_ticket': apt,
             'tickets_owned': tickets_owned,
             'best_points': best.get('points') if best else None,

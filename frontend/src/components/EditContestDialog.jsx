@@ -13,9 +13,9 @@ import { useToast } from '../hooks/use-toast';
 import { Upload, X, Loader2 } from 'lucide-react';
 
 const CATS = [
-  { value: 'prize-draws', label: 'Prize Draws' },
+  { value: 'prize-draws', label: 'Prize Competitions' },
   { value: 'instant-wins', label: 'Instant Wins' },
-  { value: 'jackpot', label: 'Jackpot' },
+  { value: 'jackpot', label: 'Featured Prize' },
   { value: 'new-games', label: 'New Game' },
 ];
 
@@ -234,7 +234,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
               >
                 <option value="skill_game">Skill Game</option>
-                <option value="random_tickets">Random Ticket Numbers</option>
+                <option value="random_tickets">Allocated Entry Numbers</option>
               </select>
               <div className="text-xs text-slate-500 mt-1">Determines the public flow after payment.</div>
             </div>
@@ -252,8 +252,8 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                 data-testid="contest-attempts-per-ticket"
               />
               <div className="text-xs text-slate-500 mt-1">
-                Total attempts a user gets = <b>tickets bought × attempts per ticket</b>. Default 3.
-                Example: 10 tickets × 3 = 30 total attempts pooled.
+                Each purchased ticket is an independent game entry with <b>this many attempts</b>.
+                Example: 1 attempt per ticket means every ticket can be played once.
               </div>
             </div>
             <div>
@@ -278,7 +278,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                 disabled={(form.entry_mode || 'skill_game') === 'skill_game'}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
               >
-                <option value="random_draw">Random draw (default)</option>
+                <option value="random_draw">Automated winner selection</option>
                 <option value="manual">Manual (requires reason)</option>
               </select>
               <div className="text-xs text-slate-500 mt-1">Only for random-ticket contests. Skill contests auto-rank by score.</div>
@@ -287,7 +287,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
 
           <div className="grid grid-cols-1 gap-2 border-t border-slate-100 pt-4">
             <Label>Skill game (played after ticket purchase)</Label>
-            <p className="text-xs text-slate-500 -mt-1 mb-1">Optional. If none, winner is picked by admin/random draw.</p>
+            <p className="text-xs text-slate-500 -mt-1 mb-1">Optional. If none, winner is picked by admin/automated winner selection.</p>
             <select
               value={form.game_type || ''}
               onChange={e => upd('game_type', e.target.value || null)}
@@ -393,7 +393,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
             </details>
           </div>
           <div className="flex flex-wrap items-center gap-4">
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!form.jackpot} onChange={e => upd('jackpot', e.target.checked)} /> Jackpot</label>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!form.jackpot} onChange={e => upd('jackpot', e.target.checked)} /> Featured Prize</label>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!form.featured} onChange={e => upd('featured', e.target.checked)} /> Featured</label>
             {isCreate && (
               <div className="flex items-center gap-2 text-sm ml-auto">
@@ -486,7 +486,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                 <Input type="datetime-local" value={form.open_date ? new Date(form.open_date).toISOString().slice(0, 16) : ''} onChange={e => upd('open_date', e.target.value ? new Date(e.target.value).toISOString() : null)} />
               </div>
               <div>
-                <Label>Draw / result date</Label>
+                <Label>Result date</Label>
                 <Input type="datetime-local" value={form.draw_date ? new Date(form.draw_date).toISOString().slice(0, 16) : ''} onChange={e => upd('draw_date', e.target.value ? new Date(e.target.value).toISOString() : null)} />
               </div>
               <div className="md:col-span-2">
@@ -512,7 +512,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                 <Label>Contest engine</Label>
                 <select value={form.engine_type || 'leaderboard'} onChange={e => upd('engine_type', e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" data-testid="fld-engine-type">
                   <option value="leaderboard">Skill Leaderboard (Engine 1) — active</option>
-                  <option value="random_draw">Random draw (Engine 2) — requires legal flag</option>
+                  <option value="random_draw">Automated winner selection (Engine 2) — requires legal flag</option>
                   <option value="instant_win">Instant win (Engine 3) — requires legal flag</option>
                 </select>
               </div>
@@ -554,11 +554,11 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
             </div>
           </details>
 
-          {/* ---- Engine 2: Random Draw controls ---- */}
+          {/* ---- Engine 2: Winner Selection Controls ---- */}
           {!isCreate && form.engine_type === 'random_draw' && (
-            <details className="pt-3 border-t border-slate-100" data-testid="random-draw-section">
+            <details className="pt-3 border-t border-slate-100" data-testid="automated selection-section">
               <summary className="cursor-pointer text-base font-semibold text-[#6C2BFF] py-2 select-none">
-                Random Draw controls (Engine 2)
+                Winner Selection Controls (Engine 2)
               </summary>
               <div className="mt-3"><RandomDrawPanel contestId={contest.contest_id} /></div>
             </details>

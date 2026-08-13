@@ -35,7 +35,7 @@ class Contest(BaseModel):
     game_type: Optional[str] = None  # e.g. 'jigsaw_3x3', 'memory_match', 'number_sequence', ...
     game_config: dict = Field(default_factory=dict)  # per-game options (image url, difficulty, time limit)
     max_attempts: int = 3  # legacy alias for attempts_per_ticket — kept for back-compat
-    attempts_per_ticket: int = 3  # Total attempts = tickets_bought * attempts_per_ticket (1..10)
+    attempts_per_ticket: int = 3  # Independent attempt allowance for each purchased ticket (1..10)
     status: str = 'live'  # live | drawn | archived
 
     # ----- Extended admin-editable fields (added for Phase-1 launch spec) -----
