@@ -476,3 +476,394 @@
     animation-duration: 1.8s;
   }
 }
+
+/* =========================================================
+   MOBILE-FIRST WORLD CONTROLS
+   ========================================================= */
+
+.pl-world-mobile-header {
+  pointer-events: none;
+  position: absolute;
+  z-index: 20;
+
+  top: 0;
+  left: 0;
+  right: 0;
+
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+
+  padding:
+    max(10px, env(safe-area-inset-top))
+    10px
+    8px;
+}
+
+.pl-world-icon-button,
+.pl-world-mobile-brand,
+.pl-world-mobile-prize,
+.pl-world-map-tools,
+.pl-world-bottom-controls {
+  border:
+    1px solid
+    rgba(225, 188, 105, 0.52);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(48, 31, 23, 0.95),
+      rgba(78, 53, 37, 0.88)
+    );
+
+  box-shadow:
+    0 10px 28px
+    rgba(28, 15, 9, 0.28);
+
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.pl-world-icon-button {
+  pointer-events: auto;
+
+  width: 44px;
+  height: 44px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 14px;
+
+  color: #ffe29a;
+
+  cursor: pointer;
+}
+
+.pl-world-mobile-brand {
+  justify-self: start;
+
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  min-width: 0;
+
+  padding:
+    7px
+    10px;
+
+  border-radius: 15px;
+
+  color: #f2cf77;
+}
+
+.pl-world-mobile-brand div,
+.pl-world-mobile-prize div {
+  min-width: 0;
+}
+
+.pl-world-mobile-brand span,
+.pl-world-mobile-prize span,
+.pl-world-bottom-center span {
+  display: block;
+
+  color: #e7c06e;
+
+  font-family:
+    Inter,
+    system-ui,
+    sans-serif;
+
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+
+.pl-world-mobile-brand strong {
+  display: block;
+
+  max-width: 180px;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  margin-top: 1px;
+
+  color: #fff;
+
+  font-size: 13px;
+}
+
+.pl-world-mobile-prize {
+  justify-self: end;
+
+  display: flex;
+  align-items: center;
+  gap: 7px;
+
+  padding:
+    7px
+    10px;
+
+  border-radius: 15px;
+
+  color: #f1ca6b;
+}
+
+.pl-world-mobile-prize strong {
+  display: block;
+
+  margin-top: 1px;
+
+  color: #fff;
+
+  font-size: 12px;
+}
+
+.pl-world-map-tools {
+  pointer-events: auto;
+
+  position: absolute;
+  z-index: 20;
+
+  left: 10px;
+  top: 50%;
+
+  transform:
+    translateY(-50%);
+
+  display: flex;
+  flex-direction: column;
+
+  overflow: hidden;
+
+  border-radius: 16px;
+}
+
+.pl-world-map-tools button {
+  width: 46px;
+  height: 46px;
+
+  display: grid;
+  place-items: center;
+
+  border: 0;
+
+  color: #ffe29a;
+
+  background: transparent;
+
+  cursor: pointer;
+}
+
+.pl-world-map-tools button + button {
+  border-top:
+    1px solid
+    rgba(225, 188, 105, 0.28);
+}
+
+.pl-world-bottom-controls {
+  pointer-events: auto;
+
+  position: absolute;
+  z-index: 20;
+
+  left: 50%;
+
+  bottom:
+    max(
+      9px,
+      env(safe-area-inset-bottom)
+    );
+
+  transform:
+    translateX(-50%);
+
+  width:
+    min(
+      560px,
+      calc(100vw - 18px)
+    );
+
+  display: grid;
+  grid-template-columns:
+    minmax(90px, 1fr)
+    minmax(120px, 1.4fr)
+    minmax(90px, 1fr);
+
+  align-items: center;
+
+  overflow: hidden;
+
+  border-radius: 19px;
+}
+
+.pl-world-bottom-controls > button {
+  min-height: 58px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  border: 0;
+
+  color: #f7dc98;
+
+  background: transparent;
+
+  cursor: pointer;
+
+  font-family:
+    Inter,
+    system-ui,
+    sans-serif;
+
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.pl-world-bottom-controls > button:first-child {
+  border-right:
+    1px solid
+    rgba(225, 188, 105, 0.24);
+}
+
+.pl-world-bottom-controls > button:last-child {
+  border-left:
+    1px solid
+    rgba(225, 188, 105, 0.24);
+}
+
+.pl-world-bottom-center {
+  text-align: center;
+
+  padding:
+    7px
+    5px;
+}
+
+.pl-world-bottom-center strong {
+  display: block;
+
+  margin-top: 3px;
+
+  color: #fff;
+
+  font-size: 11px;
+}
+
+.pl-world-touch-hint {
+  pointer-events: none;
+
+  position: absolute;
+  z-index: 15;
+
+  left: 50%;
+  bottom: 78px;
+
+  transform:
+    translateX(-50%);
+
+  padding:
+    6px
+    10px;
+
+  border-radius: 999px;
+
+  color:
+    rgba(
+      255,
+      255,
+      255,
+      0.8
+    );
+
+  background:
+    rgba(
+      30,
+      20,
+      15,
+      0.68
+    );
+
+  font-family:
+    Inter,
+    system-ui,
+    sans-serif;
+
+  font-size: 9px;
+  font-weight: 700;
+
+  white-space: nowrap;
+}
+
+/* Hide the old desktop HUD from the previous map pass. */
+.pl-world-topbar,
+.pl-world-map-help,
+.pl-world-arena-key,
+.pl-world-bottom-bar {
+  display: none !important;
+}
+
+@media (min-width: 761px) {
+  .pl-world-mobile-header {
+    padding:
+      16px
+      22px
+      10px;
+  }
+
+  .pl-world-mobile-brand strong {
+    max-width: none;
+    font-size: 16px;
+  }
+
+  .pl-world-mobile-prize strong {
+    font-size: 14px;
+  }
+
+  .pl-world-map-tools {
+    left: 22px;
+  }
+
+  .pl-world-touch-hint {
+    bottom: 85px;
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 390px) {
+  .pl-world-mobile-brand svg {
+    display: none;
+  }
+
+  .pl-world-mobile-brand {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .pl-world-mobile-brand strong {
+    max-width: 118px;
+    font-size: 11px;
+  }
+
+  .pl-world-mobile-prize {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .pl-world-bottom-controls {
+    grid-template-columns:
+      86px
+      1fr
+      86px;
+  }
+
+  .pl-world-bottom-controls > button span {
+    font-size: 9px;
+  }
+}

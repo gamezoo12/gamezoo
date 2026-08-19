@@ -2,17 +2,23 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft,
-  Castle,
   Crown,
+  Home,
   Map,
-  MousePointer2,
+  Minus,
+  Plus,
   Trophy,
-  ZoomIn,
 } from 'lucide-react';
 
 import { useAuth } from '../context/AuthContext';
 import WorldCanvas from './components/WorldCanvas';
 import './styles/world.css';
+
+function dispatchWorldEvent(name) {
+  window.dispatchEvent(
+    new CustomEvent(name),
+  );
+}
 
 export default function PrizeLeagueWorld() {
   const navigate = useNavigate();
@@ -22,9 +28,11 @@ export default function PrizeLeagueWorld() {
     return (
       <div className="pl-world-loading">
         <div className="pl-world-loading-orb" />
+
         <div className="pl-world-loading-title">
           Opening the Kingdom
         </div>
+
         <div className="pl-world-loading-subtitle">
           Preparing Prize League World…
         </div>
@@ -48,118 +56,127 @@ export default function PrizeLeagueWorld() {
 
       <div className="pl-world-vignette" />
 
-      <header className="pl-world-topbar">
+      <header className="pl-world-mobile-header">
         <motion.button
           type="button"
-          className="pl-world-round-button"
+          className="pl-world-icon-button"
           onClick={() => navigate(-1)}
-          whileTap={{ scale: 0.94 }}
+          whileTap={{ scale: 0.92 }}
           aria-label="Leave Prize League World"
         >
           <ArrowLeft size={21} />
         </motion.button>
 
         <motion.div
-          className="pl-world-brand"
-          initial={{ y: -30, opacity: 0 }}
+          className="pl-world-mobile-brand"
+          initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
         >
-          <div className="pl-world-brand-mark">
-            <Crown size={19} />
-          </div>
+          <Crown size={18} />
 
           <div>
-            <div className="pl-world-brand-eyebrow">
-              SEASON 1
-            </div>
-
-            <div className="pl-world-brand-title">
-              Prize League Kingdom
-            </div>
+            <span>SEASON 1</span>
+            <strong>
+              Prize League World
+            </strong>
           </div>
         </motion.div>
 
         <motion.div
-          className="pl-world-season-chip"
-          initial={{ y: -30, opacity: 0 }}
+          className="pl-world-mobile-prize"
+          initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
         >
-          <Trophy size={18} />
+          <Trophy size={16} />
 
           <div>
-            <span>SEASON PRIZES</span>
-            <strong>UP TO £127,500</strong>
+            <span>UP TO</span>
+            <strong>£127,500</strong>
           </div>
         </motion.div>
       </header>
 
-      <motion.aside
-        className="pl-world-map-help"
-        initial={{ x: -35, opacity: 0 }}
-        animate={{ x: 0, opacity: 1 }}
-        transition={{ delay: 0.2 }}
-      >
-        <div className="pl-world-map-help-title">
-          <Castle size={18} />
-          <div>
-            <span>THE KINGDOM</span>
-            <strong>550 destinations</strong>
-          </div>
-        </div>
-
-        <div className="pl-world-map-help-row">
-          <MousePointer2 size={15} />
-          <span>Drag to explore</span>
-        </div>
-
-        <div className="pl-world-map-help-row">
-          <ZoomIn size={15} />
-          <span>Scroll to zoom</span>
-        </div>
-
-        <div className="pl-world-map-help-row">
-          <Map size={15} />
-          <span>10 connected royal realms</span>
-        </div>
-      </motion.aside>
-
       <motion.div
-        className="pl-world-arena-key"
-        initial={{ x: 35, opacity: 0 }}
+        className="pl-world-map-tools"
+        initial={{ x: -20, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
-        transition={{ delay: 0.3 }}
+        transition={{ delay: 0.18 }}
       >
-        <Crown size={20} />
+        <button
+          type="button"
+          onClick={() =>
+            dispatchWorldEvent(
+              'pl-world-zoom-in',
+            )
+          }
+          aria-label="Zoom in"
+        >
+          <Plus size={20} />
+        </button>
 
-        <div>
-          <span>CHAMPION ARENAS</span>
-          <strong>50 Prize Destinations</strong>
-          <small>
-            Arenas 1–5 reveal their prizes. Future prizes remain a mystery.
-          </small>
-        </div>
+        <button
+          type="button"
+          onClick={() =>
+            dispatchWorldEvent(
+              'pl-world-zoom-out',
+            )
+          }
+          aria-label="Zoom out"
+        >
+          <Minus size={20} />
+        </button>
       </motion.div>
 
       <motion.div
-        className="pl-world-bottom-bar"
-        initial={{ y: 35, opacity: 0 }}
+        className="pl-world-bottom-controls"
+        initial={{ y: 28, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        transition={{ delay: 0.4 }}
+        transition={{ delay: 0.28 }}
       >
-        <div>
-          <span>SEASON 1 JOURNEY</span>
+        <button
+          type="button"
+          onClick={() =>
+            dispatchWorldEvent(
+              'pl-world-start',
+            )
+          }
+        >
+          <Home size={19} />
+
+          <span>
+            Season Start
+          </span>
+        </button>
+
+        <div className="pl-world-bottom-center">
+          <span>
+            500 LEVELS
+          </span>
+
           <strong>
-            500 Skill Levels • 50 Champion Arenas
+            50 Champion Arenas
           </strong>
         </div>
 
-        <div className="pl-world-prize-preview">
-          <span>ARENA PRIZES</span>
-          <strong>
-            £100 • £200 • £300 • £400 • £500 • ???
-          </strong>
-        </div>
+        <button
+          type="button"
+          onClick={() =>
+            dispatchWorldEvent(
+              'pl-world-overview',
+            )
+          }
+        >
+          <Map size={19} />
+
+          <span>
+            Overview
+          </span>
+        </button>
       </motion.div>
+
+      <div className="pl-world-touch-hint">
+        Drag to explore • Pinch to zoom
+      </div>
     </div>
   );
 }

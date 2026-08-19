@@ -729,6 +729,13 @@ export default function WorldCanvas() {
     const arenas = [];
     const torches = [];
     const clouds = [];
+    const levelMarkers = [];
+    const regionBanners = [];
+
+    const activePointers = new Map();
+
+    let pinchStartDistance = null;
+    let pinchStartZoom = null;
 
     const clampCamera = () => {
       if (!app || !camera) return;
@@ -785,6 +792,53 @@ export default function WorldCanvas() {
         pointerY - worldY * zoom;
 
       clampCamera();
+    };
+
+    const focusOnPoint = (
+      worldX,
+      worldY,
+      targetZoom,
+    ) => {
+      if (!app || !camera) return;
+
+      zoom = Math.max(
+        MIN_ZOOM,
+        Math.min(MAX_ZOOM, targetZoom),
+      );
+
+      camera.scale.set(zoom);
+
+      camera.x =
+        app.renderer.width / 2 -
+        worldX * zoom;
+
+      camera.y =
+        app.renderer.height / 2 -
+        worldY * zoom;
+
+      clampCamera();
+    };
+
+    const focusSeasonStart = () => {
+      // This is the visual Season 1 entry point only.
+      // It does NOT represent user progression.
+      const firstRegion =
+        regionPosition(0);
+
+      const firstChapterCenterX =
+        firstRegion.x + 500;
+
+      const firstChapterCenterY =
+        firstRegion.y + 930;
+
+      const mobile =
+        app.renderer.width <= 760;
+
+      focusOnPoint(
+        firstChapterCenterX,
+        firstChapterCenterY,
+        mobile ? 0.72 : 0.48,
+      );
     };
 
     const fitWorld = () => {
@@ -922,6 +976,7 @@ export default function WorldCanvas() {
               origin.y + 95,
             );
 
+          regionBanners.push(banner);
           camera.addChild(banner);
 
           const regionDestinations =
@@ -952,6 +1007,11 @@ export default function WorldCanvas() {
                     origin.y +
                       localPosition.y,
                   );
+
+                marker.__levelNumber =
+                  destination.levelNumber;
+
+                levelMarkers.push(marker);
 
                 camera.addChild(marker);
 
@@ -1116,11 +1176,36 @@ export default function WorldCanvas() {
 
       camera.addChild(finalCrown);
 
-      fitWorld();
+      if (app.renderer.width <= 760) {
+        focusSeasonStart();
+      } else {
+        fitWorld();
+      }
+
+      let lastViewportWidth =
+        app.renderer.width;
 
       const resizeObserver =
         new ResizeObserver(() => {
-          clampCamera();
+          const currentWidth =
+            app.renderer.width;
+
+          const crossedMobileBoundary =
+            (lastViewportWidth <= 760) !==
+            (currentWidth <= 760);
+
+          if (crossedMobileBoundary) {
+            if (currentWidth <= 760) {
+              focusSeasonStart();
+            } else {
+              fitWorld();
+            }
+          } else {
+            clampCamera();
+          }
+
+          lastViewportWidth =
+            currentWidth;
         });
 
       resizeObserver.observe(host);
@@ -1161,27 +1246,117 @@ export default function WorldCanvas() {
       app.canvas.addEventListener(
         'pointerdown',
         (event) => {
-          dragging = true;
-
-          dragStartX = event.clientX;
-          dragStartY = event.clientY;
-
-          cameraStartX = camera.x;
-          cameraStartY = camera.y;
-
-          app.canvas.setPointerCapture(
+          activePointers.set(
             event.pointerId,
+            {
+              x: event.clientX,
+              y: event.clientY,
+            },
           );
 
-          app.canvas.style.cursor =
-            'grabbing';
+          try {
+            app.canvas.setPointerCapture(
+              event.pointerId,
+            );
+          } catch (_) {
+            // Pointer capture is optional.
+          }
+
+          if (activePointers.size === 1) {
+            dragging = true;
+
+            dragStartX = event.clientX;
+            dragStartY = event.clientY;
+
+            cameraStartX = camera.x;
+            cameraStartY = camera.y;
+
+            app.canvas.style.cursor =
+              'grabbing';
+          }
+
+          if (activePointers.size === 2) {
+            dragging = false;
+
+            const points =
+              Array.from(
+                activePointers.values(),
+              );
+
+            pinchStartDistance =
+              Math.hypot(
+                points[1].x - points[0].x,
+                points[1].y - points[0].y,
+              );
+
+            pinchStartZoom = zoom;
+          }
         },
       );
 
       app.canvas.addEventListener(
         'pointermove',
         (event) => {
-          if (!dragging) return;
+          if (
+            activePointers.has(
+              event.pointerId,
+            )
+          ) {
+            activePointers.set(
+              event.pointerId,
+              {
+                x: event.clientX,
+                y: event.clientY,
+              },
+            );
+          }
+
+          if (
+            activePointers.size === 2 &&
+            pinchStartDistance &&
+            pinchStartZoom
+          ) {
+            const points =
+              Array.from(
+                activePointers.values(),
+              );
+
+            const distance =
+              Math.hypot(
+                points[1].x - points[0].x,
+                points[1].y - points[0].y,
+              );
+
+            const midpointX =
+              (points[0].x + points[1].x) /
+              2;
+
+            const midpointY =
+              (points[0].y + points[1].y) /
+              2;
+
+            const bounds =
+              app.canvas.getBoundingClientRect();
+
+            applyZoom(
+              pinchStartZoom *
+                (
+                  distance /
+                  pinchStartDistance
+                ),
+              midpointX - bounds.left,
+              midpointY - bounds.top,
+            );
+
+            return;
+          }
+
+          if (
+            !dragging ||
+            activePointers.size !== 1
+          ) {
+            return;
+          }
 
           camera.x =
             cameraStartX +
@@ -1197,7 +1372,35 @@ export default function WorldCanvas() {
         },
       );
 
-      const stopDragging = () => {
+      const stopDragging = (event) => {
+        if (event?.pointerId != null) {
+          activePointers.delete(
+            event.pointerId,
+          );
+        }
+
+        if (activePointers.size < 2) {
+          pinchStartDistance = null;
+          pinchStartZoom = null;
+        }
+
+        if (activePointers.size === 1) {
+          const remaining =
+            Array.from(
+              activePointers.values(),
+            )[0];
+
+          dragging = true;
+
+          dragStartX = remaining.x;
+          dragStartY = remaining.y;
+
+          cameraStartX = camera.x;
+          cameraStartY = camera.y;
+
+          return;
+        }
+
         dragging = false;
 
         if (app?.canvas) {
@@ -1217,6 +1420,72 @@ export default function WorldCanvas() {
       );
 
       app.canvas.style.cursor = 'grab';
+
+      const handleOverview = () => {
+        fitWorld();
+      };
+
+      const handleStartFocus = () => {
+        focusSeasonStart();
+      };
+
+      const handleZoomIn = () => {
+        applyZoom(
+          zoom * 1.22,
+          app.renderer.width / 2,
+          app.renderer.height / 2,
+        );
+      };
+
+      const handleZoomOut = () => {
+        applyZoom(
+          zoom * 0.82,
+          app.renderer.width / 2,
+          app.renderer.height / 2,
+        );
+      };
+
+      window.addEventListener(
+        'pl-world-overview',
+        handleOverview,
+      );
+
+      window.addEventListener(
+        'pl-world-start',
+        handleStartFocus,
+      );
+
+      window.addEventListener(
+        'pl-world-zoom-in',
+        handleZoomIn,
+      );
+
+      window.addEventListener(
+        'pl-world-zoom-out',
+        handleZoomOut,
+      );
+
+      app.__worldNavigationCleanup = () => {
+        window.removeEventListener(
+          'pl-world-overview',
+          handleOverview,
+        );
+
+        window.removeEventListener(
+          'pl-world-start',
+          handleStartFocus,
+        );
+
+        window.removeEventListener(
+          'pl-world-zoom-in',
+          handleZoomIn,
+        );
+
+        window.removeEventListener(
+          'pl-world-zoom-out',
+          handleZoomOut,
+        );
+      };
 
       let elapsed = 0;
 
@@ -1243,6 +1512,37 @@ export default function WorldCanvas() {
             ) {
               cloud.x = -200;
             }
+          },
+        );
+
+        // Level-of-detail:
+        // at wide overview zooms, keep the kingdom clean.
+        // As the player zooms in, individual levels become readable.
+        levelMarkers.forEach(
+          (marker) => {
+            const level =
+              marker.__levelNumber || 0;
+
+            if (zoom < 0.17) {
+              marker.visible =
+                level % 10 === 0;
+            } else {
+              marker.visible = true;
+            }
+
+            const scale =
+              zoom < 0.28
+                ? 1.2
+                : 1;
+
+            marker.scale.set(scale);
+          },
+        );
+
+        regionBanners.forEach(
+          (banner) => {
+            banner.visible =
+              zoom <= 0.5;
           },
         );
 
@@ -1307,6 +1607,12 @@ export default function WorldCanvas() {
         app?.__worldResizeObserver
       ) {
         app.__worldResizeObserver.disconnect();
+      }
+
+      if (
+        app?.__worldNavigationCleanup
+      ) {
+        app.__worldNavigationCleanup();
       }
 
       if (app && initialized) {
