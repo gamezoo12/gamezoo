@@ -867,3 +867,73 @@
     font-size: 9px;
   }
 }
+
+/* Royal Village V3 — strict phone HUD */
+
+@media (max-width: 760px) {
+  .pl-world-page {
+    overflow: hidden;
+  }
+
+  .pl-world-bottom-controls {
+    width: calc(100% - 16px);
+    max-width: none;
+
+    left: 8px;
+    right: 8px;
+
+    transform: none;
+
+    grid-template-columns:
+      92px
+      minmax(0, 1fr)
+      92px;
+
+    border-radius: 16px;
+  }
+
+  .pl-world-bottom-controls > button {
+    min-width: 0;
+    padding: 0 6px;
+  }
+
+  .pl-world-bottom-controls > button span {
+    white-space: nowrap;
+    font-size: 9px;
+  }
+
+  .pl-world-bottom-center {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .pl-world-bottom-center span {
+    font-size: 7px;
+  }
+
+  .pl-world-bottom-center strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    font-size: 9px;
+  }
+
+  .pl-world-touch-hint {
+    bottom: 76px;
+  }
+}
+
+@media (max-width: 370px) {
+  .pl-world-bottom-controls {
+    grid-template-columns:
+      78px
+      minmax(0, 1fr)
+      78px;
+  }
+
+  .pl-world-bottom-controls > button {
+    flex-direction: column;
+    gap: 2px;
+  }
+}

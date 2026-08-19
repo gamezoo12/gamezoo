@@ -499,9 +499,6 @@ export default function WorldCanvas() {
     let player = null;
 
     let entranceAnimation = null;
-    let progressionAnimation = null;
-    let celebrationOverlay = null;
-    const levelMarkers = new Map();
 
     const clampCamera = () => {
       if (!app || !camera) return;
@@ -1165,20 +1162,14 @@ export default function WorldCanvas() {
 
       LEVEL_POINTS.forEach(
         (point) => {
-          const marker =
+          camera.addChild(
             createLevelMarker(
               point.level,
               point.name,
               point.x,
               point.y,
-            );
-
-          levelMarkers.set(
-            point.level,
-            marker,
+            ),
           );
-
-          camera.addChild(marker);
         },
       );
 
@@ -1251,11 +1242,11 @@ export default function WorldCanvas() {
         new Graphics();
 
       board.roundRect(
-        -115,
-        -34,
-        230,
-        68,
-        15,
+        -190,
+        -48,
+        380,
+        96,
+        18,
       );
 
       board.fill({
@@ -1264,25 +1255,25 @@ export default function WorldCanvas() {
       });
 
       board.stroke({
-        width: 4,
+        width: 5,
         color: 0xd6ad55,
       });
 
       const line1 =
         textLabel(
           'ROYAL VILLAGE',
-          17,
+          24,
         );
 
-      line1.y = -10;
+      line1.y = -15;
 
       const line2 =
         textLabel(
           'LEVELS 1–10',
-          11,
+          16,
         );
 
-      line2.y = 14;
+      line2.y = 19;
 
       startBoard.addChild(
         board,
@@ -1295,225 +1286,6 @@ export default function WorldCanvas() {
       );
 
       focusStart();
-
-      /*
-       * Production progression hook.
-       *
-       * IMPORTANT:
-       * This function does NOT determine whether a level was won.
-       * It only performs the visual transition AFTER the application
-       * receives a verified successful level result.
-       *
-       * Later the backend/game-result flow can dispatch:
-       *
-       * window.dispatchEvent(
-       *   new CustomEvent('pl-world-level-complete', {
-       *     detail: {
-       *       completedLevel: 1,
-       *       nextLevel: 2,
-       *       verified: true,
-       *     },
-       *   }),
-       * );
-       */
-
-      const showCelebration = (
-        completedLevel,
-        nextLevel,
-      ) => {
-        if (celebrationOverlay) {
-          celebrationOverlay.destroy({
-            children: true,
-          });
-        }
-
-        celebrationOverlay =
-          new Container();
-
-        celebrationOverlay.x =
-          app.renderer.width / 2;
-
-        celebrationOverlay.y =
-          app.renderer.height * 0.34;
-
-        const panel =
-          new Graphics();
-
-        panel.roundRect(
-          -150,
-          -62,
-          300,
-          124,
-          22,
-        );
-
-        panel.fill({
-          color: 0x2f2018,
-          alpha: 0.97,
-        });
-
-        panel.stroke({
-          width: 5,
-          color: 0xe5bd57,
-        });
-
-        const title =
-          textLabel(
-            'CONGRATULATIONS!',
-            21,
-          );
-
-        title.y = -27;
-
-        const completed =
-          textLabel(
-            `LEVEL ${completedLevel} COMPLETE`,
-            14,
-          );
-
-        completed.y = 5;
-
-        const unlocked =
-          textLabel(
-            `LEVEL ${nextLevel} UNLOCKED`,
-            12,
-          );
-
-        unlocked.y = 32;
-
-        celebrationOverlay.addChild(
-          panel,
-          title,
-          completed,
-          unlocked,
-        );
-
-        app.stage.addChild(
-          celebrationOverlay,
-        );
-      };
-
-      const beginProgressionWalk = (
-        completedLevel,
-        nextLevel,
-      ) => {
-        const from =
-          LEVEL_POINTS.find(
-            (point) =>
-              point.level ===
-              completedLevel,
-          );
-
-        const to =
-          LEVEL_POINTS.find(
-            (point) =>
-              point.level ===
-              nextLevel,
-          );
-
-        if (
-          !from ||
-          !to ||
-          !player
-        ) {
-          return;
-        }
-
-        entranceAnimation = null;
-
-        player.x = from.x;
-        player.y = from.y + 72;
-
-        const nextMarker =
-          levelMarkers.get(
-            nextLevel,
-          );
-
-        if (nextMarker) {
-          nextMarker.scale.set(1);
-
-          nextMarker.alpha = 1;
-        }
-
-        showCelebration(
-          completedLevel,
-          nextLevel,
-        );
-
-        progressionAnimation = {
-          phase: 'celebrate',
-          phaseTime: 0,
-
-          completedLevel,
-          nextLevel,
-
-          startX: from.x,
-          startY: from.y + 72,
-
-          endX: to.x,
-          endY: to.y + 72,
-
-          progress: 0,
-          duration: 175,
-        };
-      };
-
-      const handleVerifiedLevelComplete =
-        (event) => {
-          const detail =
-            event?.detail || {};
-
-          // Never animate progression from an unverified client event.
-          if (
-            detail.verified !== true
-          ) {
-            if (
-              process.env.NODE_ENV !==
-              'production'
-            ) {
-              console.warn(
-                '[PrizeLeagueWorld] Ignored unverified progression event.',
-              );
-            }
-
-            return;
-          }
-
-          const completedLevel =
-            Number(
-              detail.completedLevel,
-            );
-
-          const nextLevel =
-            Number(
-              detail.nextLevel,
-            );
-
-          if (
-            !Number.isInteger(
-              completedLevel,
-            ) ||
-            !Number.isInteger(
-              nextLevel,
-            ) ||
-            nextLevel !==
-              completedLevel + 1 ||
-            completedLevel < 1 ||
-            nextLevel > 10
-          ) {
-            return;
-          }
-
-          beginProgressionWalk(
-            completedLevel,
-            nextLevel,
-          );
-        };
-
-      window.addEventListener(
-        'pl-world-level-complete',
-        handleVerifiedLevelComplete,
-      );
 
       const resizeObserver =
         new ResizeObserver(() => {
@@ -1595,11 +1367,6 @@ export default function WorldCanvas() {
           window.removeEventListener(
             'pl-world-zoom-out',
             handleZoomOut,
-          );
-
-          window.removeEventListener(
-            'pl-world-level-complete',
-            handleVerifiedLevelComplete,
           );
         };
 
@@ -1871,200 +1638,6 @@ export default function WorldCanvas() {
           }
 
           if (
-            player &&
-            progressionAnimation
-          ) {
-            progressionAnimation.phaseTime +=
-              ticker.deltaTime;
-
-            if (
-              progressionAnimation.phase ===
-              'celebrate'
-            ) {
-              if (
-                celebrationOverlay
-              ) {
-                const pulse =
-                  1 +
-                  Math.sin(
-                    elapsed * 5,
-                  ) *
-                    0.025;
-
-                celebrationOverlay.scale.set(
-                  pulse,
-                );
-              }
-
-              if (
-                progressionAnimation.phaseTime >
-                105
-              ) {
-                if (
-                  celebrationOverlay
-                ) {
-                  app.stage.removeChild(
-                    celebrationOverlay,
-                  );
-
-                  celebrationOverlay.destroy({
-                    children: true,
-                  });
-
-                  celebrationOverlay =
-                    null;
-                }
-
-                progressionAnimation.phase =
-                  'walk';
-
-                progressionAnimation.phaseTime =
-                  0;
-              }
-            } else if (
-              progressionAnimation.phase ===
-              'walk'
-            ) {
-              progressionAnimation.progress +=
-                ticker.deltaTime /
-                progressionAnimation.duration;
-
-              const t =
-                Math.min(
-                  1,
-                  progressionAnimation.progress,
-                );
-
-              const eased =
-                t < 0.5
-                  ? 2 * t * t
-                  : 1 -
-                    Math.pow(
-                      -2 * t + 2,
-                      2,
-                    ) / 2;
-
-              const curve =
-                Math.sin(
-                  eased * Math.PI,
-                ) * 55;
-
-              const direction =
-                progressionAnimation.endX >=
-                progressionAnimation.startX
-                  ? 1
-                  : -1;
-
-              player.x =
-                progressionAnimation.startX +
-                (
-                  progressionAnimation.endX -
-                  progressionAnimation.startX
-                ) *
-                  eased +
-                curve * direction;
-
-              player.y =
-                progressionAnimation.startY +
-                (
-                  progressionAnimation.endY -
-                  progressionAnimation.startY
-                ) *
-                  eased;
-
-              player.rotation =
-                Math.sin(
-                  elapsed * 9,
-                ) *
-                  0.04;
-
-              const mobile =
-                app.renderer.width <=
-                760;
-
-              if (mobile) {
-                const desiredCameraX =
-                  app.renderer.width / 2 -
-                  player.x * zoom;
-
-                const desiredCameraY =
-                  app.renderer.height * 0.63 -
-                  player.y * zoom;
-
-                camera.x +=
-                  (
-                    desiredCameraX -
-                    camera.x
-                  ) *
-                    0.075;
-
-                camera.y +=
-                  (
-                    desiredCameraY -
-                    camera.y
-                  ) *
-                    0.075;
-
-                clampCamera();
-              }
-
-              if (t >= 1) {
-                player.rotation = 0;
-
-                player.x =
-                  progressionAnimation.endX;
-
-                player.y =
-                  progressionAnimation.endY;
-
-                progressionAnimation.phase =
-                  'arrive';
-
-                progressionAnimation.phaseTime =
-                  0;
-              }
-            } else if (
-              progressionAnimation.phase ===
-              'arrive'
-            ) {
-              const marker =
-                levelMarkers.get(
-                  progressionAnimation.nextLevel,
-                );
-
-              if (marker) {
-                const pulse =
-                  1 +
-                  Math.sin(
-                    elapsed * 5,
-                  ) *
-                    0.06;
-
-                marker.scale.set(
-                  pulse,
-                );
-              }
-
-              player.y =
-                progressionAnimation.endY +
-                Math.sin(
-                  elapsed * 2.7,
-                ) *
-                  2;
-
-              if (
-                progressionAnimation.phaseTime >
-                90
-              ) {
-                if (marker) {
-                  marker.scale.set(1);
-                }
-
-                progressionAnimation =
-                  null;
-              }
-            }
-          } else if (
             player &&
             entranceAnimation
           ) {
