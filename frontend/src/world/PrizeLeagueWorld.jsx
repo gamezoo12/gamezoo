@@ -2,11 +2,12 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft,
-  Clock3,
+  Castle,
   Crown,
   Map,
-  ShieldCheck,
+  MousePointer2,
   Trophy,
+  ZoomIn,
 } from 'lucide-react';
 
 import { useAuth } from '../context/AuthContext';
@@ -22,10 +23,10 @@ export default function PrizeLeagueWorld() {
       <div className="pl-world-loading">
         <div className="pl-world-loading-orb" />
         <div className="pl-world-loading-title">
-          Entering Prize League World
+          Opening the Kingdom
         </div>
         <div className="pl-world-loading-subtitle">
-          Preparing your adventure…
+          Preparing Prize League World…
         </div>
       </div>
     );
@@ -55,176 +56,110 @@ export default function PrizeLeagueWorld() {
           whileTap={{ scale: 0.94 }}
           aria-label="Leave Prize League World"
         >
-          <ArrowLeft size={22} />
+          <ArrowLeft size={21} />
         </motion.button>
 
         <motion.div
           className="pl-world-brand"
-          initial={{ y: -28, opacity: 0 }}
+          initial={{ y: -30, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.55 }}
         >
           <div className="pl-world-brand-mark">
-            <Crown size={18} />
+            <Crown size={19} />
           </div>
 
           <div>
             <div className="pl-world-brand-eyebrow">
-              FREE CONTESTS
+              SEASON 1
             </div>
 
             <div className="pl-world-brand-title">
-              Prize League World
+              Prize League Kingdom
             </div>
           </div>
         </motion.div>
 
         <motion.div
-          className="pl-world-user-chip"
-          initial={{ y: -28, opacity: 0 }}
+          className="pl-world-season-chip"
+          initial={{ y: -30, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{
-            duration: 0.55,
-            delay: 0.08,
-          }}
         >
-          <div className="pl-world-user-avatar">
-            {String(
-              user?.first_name ||
-              user?.name ||
-              'P',
-            )
-              .trim()
-              .charAt(0)
-              .toUpperCase()}
-          </div>
+          <Trophy size={18} />
 
-          <div className="pl-world-user-copy">
-            <span>PLAYER</span>
-            <strong>
-              {user?.first_name ||
-                user?.name ||
-                'Prize League Player'}
-            </strong>
+          <div>
+            <span>SEASON PRIZES</span>
+            <strong>UP TO £127,500</strong>
           </div>
         </motion.div>
       </header>
 
       <motion.aside
-        className="pl-world-status-card"
-        initial={{ x: -50, opacity: 0 }}
+        className="pl-world-map-help"
+        initial={{ x: -35, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
-        transition={{
-          duration: 0.65,
-          delay: 0.2,
-        }}
+        transition={{ delay: 0.2 }}
       >
-        <div className="pl-world-status-heading">
-          <div className="pl-world-status-icon">
-            <Map size={19} />
-          </div>
-
+        <div className="pl-world-map-help-title">
+          <Castle size={18} />
           <div>
-            <span>WORLD 01</span>
-            <strong>Champions Town</strong>
+            <span>THE KINGDOM</span>
+            <strong>550 destinations</strong>
           </div>
         </div>
 
-        <div className="pl-world-status-line">
-          <ShieldCheck size={17} />
-          <span>
-            Progress is verified by Prize League servers.
-          </span>
+        <div className="pl-world-map-help-row">
+          <MousePointer2 size={15} />
+          <span>Drag to explore</span>
         </div>
 
-        <div className="pl-world-status-line">
-          <Clock3 size={17} />
-          <span>
-            Level release timing will be loaded from the active cycle.
-          </span>
+        <div className="pl-world-map-help-row">
+          <ZoomIn size={15} />
+          <span>Scroll to zoom</span>
+        </div>
+
+        <div className="pl-world-map-help-row">
+          <Map size={15} />
+          <span>10 connected royal realms</span>
         </div>
       </motion.aside>
 
       <motion.div
-        className="pl-world-prize-card"
-        initial={{
-          x: 50,
-          opacity: 0,
-        }}
-        animate={{
-          x: 0,
-          opacity: 1,
-        }}
-        transition={{
-          duration: 0.65,
-          delay: 0.28,
-        }}
+        className="pl-world-arena-key"
+        initial={{ x: 35, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        transition={{ delay: 0.3 }}
       >
-        <div className="pl-world-prize-icon">
-          <Trophy size={25} />
-        </div>
+        <Crown size={20} />
 
         <div>
-          <span>PRIZE ARENA</span>
-          <strong>
-            Complete the progression path
-          </strong>
+          <span>CHAMPION ARENAS</span>
+          <strong>50 Prize Destinations</strong>
           <small>
-            Official leaderboard appears at the Prize Level only.
+            Arenas 1–5 reveal their prizes. Future prizes remain a mystery.
           </small>
         </div>
       </motion.div>
 
       <motion.div
-        className="pl-world-bottom-panel"
-        initial={{
-          y: 45,
-          opacity: 0,
-        }}
-        animate={{
-          y: 0,
-          opacity: 1,
-        }}
-        transition={{
-          duration: 0.7,
-          delay: 0.35,
-        }}
+        className="pl-world-bottom-bar"
+        initial={{ y: 35, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.4 }}
       >
-        <div className="pl-world-bottom-copy">
-          <span>YOUR JOURNEY</span>
+        <div>
+          <span>SEASON 1 JOURNEY</span>
           <strong>
-            Follow the path through 10 skill levels
+            500 Skill Levels • 50 Champion Arenas
           </strong>
-          <small>
-            Live progression will activate after the World backend
-            is connected.
-          </small>
         </div>
 
-        <div className="pl-world-progress">
-          <div className="pl-world-progress-label">
-            <span>World path</span>
-            <span>Prize Arena →</span>
-          </div>
-
-          <div className="pl-world-progress-track">
-            <motion.div
-              className="pl-world-progress-preview"
-              initial={{ width: 0 }}
-              animate={{ width: '8%' }}
-              transition={{
-                delay: 0.8,
-                duration: 0.8,
-              }}
-            />
-          </div>
+        <div className="pl-world-prize-preview">
+          <span>ARENA PRIZES</span>
+          <strong>
+            £100 • £200 • £300 • £400 • £500 • ???
+          </strong>
         </div>
       </motion.div>
-
-      <div className="pl-world-environment-label">
-        <span className="pl-world-live-dot" />
-        WORLD ENGINE ACTIVE
-      </div>
     </div>
   );
 }

@@ -6,287 +6,703 @@ import {
   Text,
 } from 'pixi.js';
 
-const WORLD_WIDTH = 2400;
-const WORLD_HEIGHT = 1350;
+import {
+  KINGDOM_REGIONS,
+  SEASON_ONE_DESTINATIONS,
+} from '../data/season1Map';
 
-function roundedPanel(x, y, width, height, fill, alpha = 1) {
-  const g = new Graphics();
+const WORLD_WIDTH = 13200;
+const WORLD_HEIGHT = 5800;
 
-  g.roundRect(x, y, width, height, 28);
-  g.fill({
-    color: fill,
-    alpha,
+const REGION_WIDTH = 1260;
+const REGION_HEIGHT = 2150;
+const REGION_GAP_X = 80;
+const REGION_GAP_Y = 230;
+
+const MIN_ZOOM = 0.11;
+const MAX_ZOOM = 1.15;
+
+const THEMES = {
+  village: {
+    ground: 0x77b962,
+    darkGround: 0x4f8a4c,
+    path: 0xd3b47c,
+    water: 0x55b9d6,
+    accent: 0xf3c85d,
+    building: 0xc99465,
+    roof: 0x8c453f,
+  },
+  forest: {
+    ground: 0x397f45,
+    darkGround: 0x245a35,
+    path: 0xa98d62,
+    water: 0x4598b5,
+    accent: 0x9ad96f,
+    building: 0x8e7655,
+    roof: 0x42563d,
+  },
+  river: {
+    ground: 0x70aa65,
+    darkGround: 0x477c52,
+    path: 0xc2a676,
+    water: 0x3f9fc8,
+    accent: 0x75d7eb,
+    building: 0xd0b081,
+    roof: 0x657690,
+  },
+  desert: {
+    ground: 0xd8bd77,
+    darkGround: 0xb28b50,
+    path: 0xe9d39b,
+    water: 0x4cb3c2,
+    accent: 0xf2d261,
+    building: 0xc39558,
+    roof: 0x85563c,
+  },
+  mountain: {
+    ground: 0x78856d,
+    darkGround: 0x515c51,
+    path: 0xb8a57f,
+    water: 0x6daec4,
+    accent: 0xd4d4c8,
+    building: 0x838074,
+    roof: 0x4c4d53,
+  },
+  ice: {
+    ground: 0xa9d2d8,
+    darkGround: 0x729ea9,
+    path: 0xdde6df,
+    water: 0x70cce5,
+    accent: 0xe9fbff,
+    building: 0xa7c0ca,
+    roof: 0x6b829e,
+  },
+  temple: {
+    ground: 0x758953,
+    darkGround: 0x536338,
+    path: 0xb9a371,
+    water: 0x4ca29b,
+    accent: 0xd9bc62,
+    building: 0x9b8a68,
+    roof: 0x67644e,
+  },
+  volcano: {
+    ground: 0x574c43,
+    darkGround: 0x39332f,
+    path: 0x806b58,
+    water: 0xa33d25,
+    accent: 0xe87c3e,
+    building: 0x70655c,
+    roof: 0x3d3430,
+  },
+  sky: {
+    ground: 0xaac7b3,
+    darkGround: 0x7da08e,
+    path: 0xd7d2b3,
+    water: 0x85cfe0,
+    accent: 0xf4e0a0,
+    building: 0xc2bba8,
+    roof: 0x74859e,
+  },
+  crown: {
+    ground: 0x648950,
+    darkGround: 0x425e38,
+    path: 0xd5bb77,
+    water: 0x5aa9c3,
+    accent: 0xf5c542,
+    building: 0xc7a56d,
+    roof: 0x703c4e,
+  },
+};
+
+function makeText(text, options = {}) {
+  const label = new Text({
+    text,
+    style: {
+      fontFamily: 'Georgia, Times New Roman, serif',
+      fill: options.fill ?? 0xffffff,
+      fontSize: options.fontSize ?? 22,
+      fontWeight: options.fontWeight ?? '700',
+      align: options.align ?? 'center',
+      letterSpacing: options.letterSpacing ?? 0,
+      stroke: options.stroke
+        ? {
+            color: options.stroke,
+            width: options.strokeWidth ?? 4,
+          }
+        : undefined,
+    },
   });
 
-  return g;
+  if (options.anchor !== false) {
+    label.anchor.set(0.5);
+  }
+
+  return label;
 }
 
-function createCloud(x, y, scale = 1) {
-  const cloud = new Container();
-  cloud.x = x;
-  cloud.y = y;
-  cloud.scale.set(scale);
-
-  const shadow = new Graphics();
-  shadow.ellipse(20, 18, 105, 35);
-  shadow.fill({
-    color: 0x77b6cf,
-    alpha: 0.12,
-  });
-
-  const body = new Graphics();
-
-  body.circle(-52, 0, 38);
-  body.circle(-8, -21, 53);
-  body.circle(42, -3, 42);
-  body.roundRect(-88, -5, 175, 52, 26);
-
-  body.fill({
-    color: 0xffffff,
-    alpha: 0.88,
-  });
-
-  cloud.addChild(shadow, body);
-
-  cloud.worldSpeed = 0.12 + Math.random() * 0.08;
-
-  return cloud;
-}
-
-function createTree(x, y, scale = 1) {
+function createTree(x, y, scale = 1, snowy = false) {
   const tree = new Container();
-
   tree.x = x;
   tree.y = y;
   tree.scale.set(scale);
 
   const shadow = new Graphics();
-  shadow.ellipse(0, 12, 44, 17);
+  shadow.ellipse(0, 9, 25, 9);
   shadow.fill({
-    color: 0x123e30,
-    alpha: 0.14,
+    color: 0x132619,
+    alpha: 0.18,
   });
 
   const trunk = new Graphics();
-  trunk.roundRect(-8, -52, 16, 64, 7);
-  trunk.fill(0x815739);
+  trunk.roundRect(-5, -35, 10, 45, 4);
+  trunk.fill(0x765037);
 
-  const crownBack = new Graphics();
-  crownBack.circle(-20, -66, 30);
-  crownBack.circle(20, -67, 31);
-  crownBack.fill(0x16784c);
+  const foliage = new Graphics();
 
-  const crown = new Graphics();
-  crown.circle(0, -91, 39);
-  crown.circle(-26, -82, 28);
-  crown.circle(29, -81, 29);
-  crown.fill(0x24a968);
+  foliage.circle(0, -55, 23);
+  foliage.circle(-16, -43, 18);
+  foliage.circle(17, -43, 18);
 
-  tree.addChild(shadow, trunk, crownBack, crown);
+  foliage.fill(
+    snowy
+      ? 0xe8f5f5
+      : 0x2f7543,
+  );
+
+  tree.addChild(shadow, trunk, foliage);
 
   return tree;
 }
 
-function createHouse(x, y, bodyColor, roofColor, scale = 1) {
-  const house = new Container();
+function createMountain(x, y, scale = 1, snowy = false) {
+  const mountain = new Container();
+  mountain.x = x;
+  mountain.y = y;
+  mountain.scale.set(scale);
 
+  const back = new Graphics();
+  back.moveTo(-100, 40);
+  back.lineTo(0, -95);
+  back.lineTo(100, 40);
+  back.closePath();
+  back.fill(0x657064);
+
+  const face = new Graphics();
+  face.moveTo(-15, -74);
+  face.lineTo(0, -95);
+  face.lineTo(30, -54);
+  face.lineTo(16, -61);
+  face.lineTo(8, -45);
+  face.closePath();
+  face.fill(
+    snowy
+      ? 0xf5f9f7
+      : 0xb3b0a0,
+  );
+
+  mountain.addChild(back, face);
+
+  return mountain;
+}
+
+function createVillageHouse(x, y, theme, scale = 1) {
+  const house = new Container();
   house.x = x;
   house.y = y;
   house.scale.set(scale);
 
   const shadow = new Graphics();
-  shadow.ellipse(0, 20, 95, 34);
+  shadow.ellipse(0, 9, 37, 14);
   shadow.fill({
-    color: 0x17394f,
-    alpha: 0.16,
+    color: 0x182018,
+    alpha: 0.2,
   });
 
   const body = new Graphics();
-  body.roundRect(-70, -94, 140, 112, 17);
-  body.fill(bodyColor);
+  body.roundRect(-28, -42, 56, 50, 7);
+  body.fill(theme.building);
 
   const roof = new Graphics();
-  roof.moveTo(-88, -91);
-  roof.lineTo(0, -155);
-  roof.lineTo(88, -91);
+  roof.moveTo(-37, -39);
+  roof.lineTo(0, -73);
+  roof.lineTo(37, -39);
   roof.closePath();
-  roof.fill(roofColor);
+  roof.fill(theme.roof);
 
   const door = new Graphics();
-  door.roundRect(-17, -43, 34, 60, 8);
-  door.fill(0x5a392d);
+  door.roundRect(-7, -18, 14, 26, 4);
+  door.fill(0x51352d);
 
-  const windows = new Graphics();
-  windows.roundRect(-54, -67, 28, 30, 7);
-  windows.roundRect(26, -67, 28, 30, 7);
-  windows.fill(0x9fe7ff);
+  const chimney = new Graphics();
+  chimney.rect(14, -65, 7, 21);
+  chimney.fill(0x665148);
 
-  house.addChild(shadow, body, roof, windows, door);
+  house.addChild(
+    shadow,
+    body,
+    chimney,
+    roof,
+    door,
+  );
 
   return house;
 }
 
-function createPrizeArena(x, y) {
-  const arena = new Container();
-
-  arena.x = x;
-  arena.y = y;
+function createCastle(x, y, theme, scale = 1) {
+  const castle = new Container();
+  castle.x = x;
+  castle.y = y;
+  castle.scale.set(scale);
 
   const shadow = new Graphics();
-  shadow.ellipse(0, 36, 190, 65);
+  shadow.ellipse(0, 25, 105, 30);
   shadow.fill({
-    color: 0x111827,
+    color: 0x171717,
     alpha: 0.22,
   });
 
-  const base = new Graphics();
-  base.roundRect(-160, -95, 320, 125, 35);
-  base.fill(0x172038);
+  const main = new Graphics();
+  main.roundRect(-70, -98, 140, 120, 9);
+  main.fill(theme.building);
 
-  const upper = new Graphics();
-  upper.roundRect(-128, -153, 256, 76, 28);
-  upper.fill(0x273555);
+  const leftTower = new Graphics();
+  leftTower.roundRect(-105, -120, 50, 140, 6);
+  leftTower.fill(theme.building);
 
-  const roof = new Graphics();
-  roof.moveTo(-145, -145);
-  roof.lineTo(0, -230);
-  roof.lineTo(145, -145);
-  roof.closePath();
-  roof.fill(0xffc932);
+  const rightTower = new Graphics();
+  rightTower.roundRect(55, -120, 50, 140, 6);
+  rightTower.fill(theme.building);
 
-  const entrance = new Graphics();
-  entrance.roundRect(-42, -75, 84, 105, 25);
-  entrance.fill(0x090e1c);
+  const battlements = new Graphics();
 
-  const glow = new Graphics();
-  glow.circle(0, -184, 37);
-  glow.fill({
-    color: 0xffdf65,
-    alpha: 0.95,
-  });
+  for (let i = -3; i <= 3; i += 1) {
+    battlements.rect(i * 19 - 7, -112, 14, 20);
+  }
 
-  const trophy = new Text({
-    text: '🏆',
-    style: {
-      fontSize: 43,
-    },
-  });
+  battlements.fill(theme.accent);
 
-  trophy.anchor.set(0.5);
-  trophy.x = 0;
-  trophy.y = -186;
+  const gate = new Graphics();
+  gate.roundRect(-22, -34, 44, 56, 22);
+  gate.fill(0x2f2927);
 
-  const title = new Text({
-    text: 'PRIZE ARENA',
-    style: {
-      fontFamily: 'Arial, sans-serif',
-      fontSize: 26,
-      fontWeight: '900',
-      fill: 0xffffff,
-      letterSpacing: 2,
-    },
-  });
+  const banners = new Graphics();
+  banners.rect(-89, -103, 13, 38);
+  banners.rect(76, -103, 13, 38);
+  banners.fill(0xb33338);
 
-  title.anchor.set(0.5);
-  title.y = -115;
-
-  arena.addChild(
+  castle.addChild(
     shadow,
-    base,
-    upper,
-    roof,
-    entrance,
-    glow,
-    trophy,
-    title,
+    main,
+    leftTower,
+    rightTower,
+    battlements,
+    gate,
+    banners,
   );
 
-  return arena;
+  return castle;
 }
 
-function createLevelMarker(level, x, y) {
-  const marker = new Container();
+function createTorch(x, y) {
+  const torch = new Container();
+  torch.x = x;
+  torch.y = y;
 
+  const pole = new Graphics();
+  pole.roundRect(-2, -19, 4, 24, 2);
+  pole.fill(0x5f402d);
+
+  const flame = new Graphics();
+  flame.moveTo(0, -34);
+  flame.bezierCurveTo(-12, -23, -9, -13, 0, -12);
+  flame.bezierCurveTo(10, -14, 12, -24, 0, -34);
+  flame.fill(0xffbe3b);
+
+  torch.addChild(pole, flame);
+  torch.flame = flame;
+  torch.seed = Math.random() * Math.PI * 2;
+
+  return torch;
+}
+
+function createLevelMarker(levelNumber, x, y) {
+  const marker = new Container();
   marker.x = x;
   marker.y = y;
 
   const shadow = new Graphics();
-  shadow.ellipse(0, 25, 50, 20);
+  shadow.ellipse(0, 8, 18, 7);
   shadow.fill({
-    color: 0x12283e,
-    alpha: 0.18,
+    color: 0x151515,
+    alpha: 0.2,
   });
 
-  const outer = new Graphics();
-  outer.circle(0, 0, 47);
-  outer.fill(0xffffff);
+  const stone = new Graphics();
+  stone.roundRect(-16, -30, 32, 35, 9);
+  stone.fill(0x77766e);
 
-  const inner = new Graphics();
-  inner.circle(0, 0, 38);
-  inner.fill(0x17213d);
+  const plaque = new Graphics();
+  plaque.roundRect(-12, -25, 24, 21, 6);
+  plaque.fill(0xc7a85f);
 
-  const ring = new Graphics();
-  ring.circle(0, 0, 40);
-  ring.stroke({
-    width: 5,
-    color: 0xffc62f,
+  const number = makeText(String(levelNumber), {
+    fontSize: levelNumber >= 100 ? 8 : 9,
+    fill: 0x332719,
+    fontWeight: '900',
   });
 
-  const number = new Text({
-    text: String(level),
-    style: {
-      fontFamily: 'Arial, sans-serif',
-      fontSize: 27,
-      fontWeight: '900',
-      fill: 0xffffff,
-    },
-  });
+  number.y = -14;
 
-  number.anchor.set(0.5);
-
-  marker.addChild(shadow, outer, inner, ring, number);
-
-  marker.pulseSeed = level * 0.7;
+  marker.addChild(
+    shadow,
+    stone,
+    plaque,
+    number,
+  );
 
   return marker;
 }
 
-function createPlayer() {
-  const player = new Container();
+function createArena(arena, x, y, theme) {
+  const root = new Container();
+  root.x = x;
+  root.y = y;
+
+  root.__arena = arena;
 
   const shadow = new Graphics();
-  shadow.ellipse(0, 14, 25, 11);
+  shadow.ellipse(0, 25, 95, 28);
   shadow.fill({
-    color: 0x07182a,
+    color: 0x19150f,
     alpha: 0.25,
   });
 
-  const legs = new Graphics();
-  legs.roundRect(-13, -7, 11, 28, 6);
-  legs.roundRect(3, -7, 11, 28, 6);
-  legs.fill(0x1f2937);
+  const base = new Graphics();
+  base.roundRect(-80, -65, 160, 85, 14);
+  base.fill(0x554739);
 
-  const body = new Graphics();
-  body.roundRect(-21, -58, 42, 55, 15);
-  body.fill(0x111827);
+  const wall = new Graphics();
+  wall.roundRect(-66, -110, 132, 60, 10);
+  wall.fill(theme.building);
 
-  const head = new Graphics();
-  head.circle(0, -79, 21);
-  head.fill(0xd9a079);
+  const towers = new Graphics();
+  towers.roundRect(-88, -120, 37, 122, 8);
+  towers.roundRect(51, -120, 37, 122, 8);
+  towers.fill(theme.building);
 
-  const hair = new Graphics();
-  hair.arc(0, -82, 22, Math.PI, Math.PI * 2);
-  hair.lineTo(22, -81);
-  hair.arc(0, -80, 21, 0, Math.PI, true);
-  hair.fill(0x151515);
+  const crowns = new Graphics();
+  crowns.moveTo(-90, -116);
+  crowns.lineTo(-70, -147);
+  crowns.lineTo(-50, -116);
+  crowns.closePath();
 
-  const badge = new Graphics();
-  badge.circle(0, -35, 6);
-  badge.fill(0xffc62f);
+  crowns.moveTo(50, -116);
+  crowns.lineTo(70, -147);
+  crowns.lineTo(90, -116);
+  crowns.closePath();
 
-  player.addChild(shadow, legs, body, head, hair, badge);
+  crowns.fill(0xd6af45);
 
-  return player;
+  const gate = new Graphics();
+  gate.roundRect(-22, -44, 44, 64, 22);
+  gate.fill(0x211a17);
+
+  const board = new Graphics();
+  board.roundRect(-76, -200, 152, 63, 12);
+  board.fill(0x38251c);
+  board.stroke({
+    width: 5,
+    color: 0xd6af45,
+  });
+
+  const title = makeText(
+    arena.finalArena
+      ? 'FINAL CROWN ARENA'
+      : `CHAMPION ARENA ${arena.arenaNumber}`,
+    {
+      fontSize: arena.finalArena ? 11 : 10,
+      fill: 0xffe699,
+      fontWeight: '900',
+    },
+  );
+
+  title.y = -185;
+
+  const prize = makeText(
+    arena.prize
+      ? `£${arena.prize}`
+      : 'MYSTERY PRIZE',
+    {
+      fontSize: arena.prize ? 22 : 14,
+      fill: 0xffffff,
+      fontWeight: '900',
+    },
+  );
+
+  prize.y = -158;
+
+  const crown = makeText(
+    '♛',
+    {
+      fontSize: 24,
+      fill: 0xffd453,
+    },
+  );
+
+  crown.y = -112;
+
+  root.addChild(
+    shadow,
+    base,
+    wall,
+    towers,
+    crowns,
+    gate,
+    board,
+    title,
+    prize,
+    crown,
+  );
+
+  root.board = board;
+  root.crown = crown;
+  root.animationSeed = arena.arenaNumber * 0.47;
+
+  return root;
+}
+
+function createRegionBanner(region, x, y) {
+  const root = new Container();
+  root.x = x;
+  root.y = y;
+
+  const board = new Graphics();
+  board.roundRect(-220, -52, 440, 104, 18);
+  board.fill({
+    color: 0x2f211a,
+    alpha: 0.94,
+  });
+  board.stroke({
+    width: 5,
+    color: 0xb99a58,
+  });
+
+  const regionNumber = makeText(
+    `KINGDOM ${String(region.id).padStart(2, '0')}`,
+    {
+      fontSize: 13,
+      fill: 0xdcbf78,
+      letterSpacing: 2,
+      fontWeight: '900',
+    },
+  );
+
+  regionNumber.y = -27;
+
+  const name = makeText(
+    region.name,
+    {
+      fontSize: 26,
+      fill: 0xffffff,
+      fontWeight: '900',
+    },
+  );
+
+  name.y = 1;
+
+  const subtitle = makeText(
+    region.subtitle,
+    {
+      fontSize: 11,
+      fill: 0xe0d5bf,
+      fontWeight: '600',
+    },
+  );
+
+  subtitle.y = 30;
+
+  root.addChild(
+    board,
+    regionNumber,
+    name,
+    subtitle,
+  );
+
+  return root;
+}
+
+function regionPosition(regionIndex) {
+  const row = Math.floor(regionIndex / 5);
+  const column =
+    row % 2 === 0
+      ? regionIndex % 5
+      : 4 - (regionIndex % 5);
+
+  return {
+    x: 520 + column * (REGION_WIDTH + REGION_GAP_X),
+    y: 470 + row * (REGION_HEIGHT + REGION_GAP_Y),
+  };
+}
+
+function destinationLocalPosition(localIndex) {
+  const column = Math.floor(localIndex / 10);
+  const rowInColumn = localIndex % 10;
+
+  const reverse = column % 2 === 1;
+
+  const row = reverse
+    ? 9 - rowInColumn
+    : rowInColumn;
+
+  return {
+    x: 130 + column * 215,
+    y: 280 + row * 148,
+  };
+}
+
+function createRegionTerrain(region, originX, originY) {
+  const theme = THEMES[region.theme];
+  const regionContainer = new Container();
+
+  regionContainer.x = originX;
+  regionContainer.y = originY;
+
+  const base = new Graphics();
+  base.roundRect(
+    0,
+    0,
+    REGION_WIDTH,
+    REGION_HEIGHT,
+    100,
+  );
+  base.fill(theme.ground);
+
+  const edge = new Graphics();
+  edge.roundRect(
+    18,
+    18,
+    REGION_WIDTH - 36,
+    REGION_HEIGHT - 36,
+    90,
+  );
+  edge.stroke({
+    width: 8,
+    color: theme.darkGround,
+    alpha: 0.35,
+  });
+
+  const river = new Graphics();
+
+  river.moveTo(40, 1630);
+  river.bezierCurveTo(
+    250,
+    1510,
+    420,
+    1770,
+    650,
+    1640,
+  );
+  river.bezierCurveTo(
+    870,
+    1515,
+    1030,
+    1740,
+    1220,
+    1595,
+  );
+
+  river.stroke({
+    width: region.theme === 'volcano' ? 74 : 64,
+    color: theme.water,
+    alpha: 0.9,
+  });
+
+  const road = new Graphics();
+
+  for (let chapter = 0; chapter < 5; chapter += 1) {
+    const start = destinationLocalPosition(chapter * 10);
+    const end = destinationLocalPosition(chapter * 10 + 9);
+
+    road.moveTo(start.x, start.y);
+    road.bezierCurveTo(
+      start.x + 65,
+      (start.y + end.y) / 2,
+      end.x - 65,
+      (start.y + end.y) / 2,
+      end.x,
+      end.y,
+    );
+  }
+
+  road.stroke({
+    width: 34,
+    color: theme.path,
+    alpha: 0.95,
+  });
+
+  regionContainer.addChild(
+    base,
+    edge,
+    river,
+    road,
+  );
+
+  const snowy =
+    region.theme === 'ice' ||
+    region.theme === 'mountain';
+
+  for (let i = 0; i < 24; i += 1) {
+    const x =
+      45 +
+      ((i * 193) % (REGION_WIDTH - 90));
+
+    const y =
+      170 +
+      ((i * 281) % (REGION_HEIGHT - 280));
+
+    if (i % 6 === 0) {
+      regionContainer.addChild(
+        createMountain(
+          x,
+          y,
+          0.75 + (i % 3) * 0.15,
+          snowy,
+        ),
+      );
+    } else {
+      regionContainer.addChild(
+        createTree(
+          x,
+          y,
+          0.62 + (i % 4) * 0.08,
+          region.theme === 'ice',
+        ),
+      );
+    }
+  }
+
+  for (let i = 0; i < 9; i += 1) {
+    regionContainer.addChild(
+      createVillageHouse(
+        180 + ((i * 311) % 880),
+        210 + ((i * 401) % 1600),
+        theme,
+        0.72 + (i % 3) * 0.08,
+      ),
+    );
+  }
+
+  regionContainer.addChild(
+    createCastle(
+      REGION_WIDTH - 180,
+      215,
+      theme,
+      region.id === 10 ? 1.25 : 0.9,
+    ),
+  );
+
+  return regionContainer;
 }
 
 export default function WorldCanvas() {
@@ -297,9 +713,104 @@ export default function WorldCanvas() {
 
     if (!host) return undefined;
 
-    let destroyed = false;
-    let initialized = false;
     let app = null;
+    let initialized = false;
+    let destroyed = false;
+
+    let camera = null;
+    let zoom = 0.22;
+
+    let dragging = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let cameraStartX = 0;
+    let cameraStartY = 0;
+
+    const arenas = [];
+    const torches = [];
+    const clouds = [];
+
+    const clampCamera = () => {
+      if (!app || !camera) return;
+
+      const rendererWidth = app.renderer.width;
+      const rendererHeight = app.renderer.height;
+
+      const scaledWorldWidth = WORLD_WIDTH * zoom;
+      const scaledWorldHeight = WORLD_HEIGHT * zoom;
+
+      const minimumX =
+        rendererWidth - scaledWorldWidth - 150;
+
+      const minimumY =
+        rendererHeight - scaledWorldHeight - 150;
+
+      camera.x = Math.min(
+        150,
+        Math.max(minimumX, camera.x),
+      );
+
+      camera.y = Math.min(
+        150,
+        Math.max(minimumY, camera.y),
+      );
+    };
+
+    const applyZoom = (
+      nextZoom,
+      pointerX,
+      pointerY,
+    ) => {
+      if (!camera) return;
+
+      const oldZoom = zoom;
+
+      zoom = Math.max(
+        MIN_ZOOM,
+        Math.min(MAX_ZOOM, nextZoom),
+      );
+
+      const worldX =
+        (pointerX - camera.x) / oldZoom;
+
+      const worldY =
+        (pointerY - camera.y) / oldZoom;
+
+      camera.scale.set(zoom);
+
+      camera.x =
+        pointerX - worldX * zoom;
+
+      camera.y =
+        pointerY - worldY * zoom;
+
+      clampCamera();
+    };
+
+    const fitWorld = () => {
+      if (!app || !camera) return;
+
+      const width = app.renderer.width;
+      const height = app.renderer.height;
+
+      zoom = Math.min(
+        width / WORLD_WIDTH,
+        height / WORLD_HEIGHT,
+      ) * 0.94;
+
+      zoom = Math.max(
+        MIN_ZOOM,
+        Math.min(0.24, zoom),
+      );
+
+      camera.scale.set(zoom);
+
+      camera.x =
+        (width - WORLD_WIDTH * zoom) / 2;
+
+      camera.y =
+        (height - WORLD_HEIGHT * zoom) / 2;
+    };
 
     const start = async () => {
       app = new Application();
@@ -308,7 +819,10 @@ export default function WorldCanvas() {
         backgroundAlpha: 0,
         antialias: true,
         autoDensity: true,
-        resolution: Math.min(window.devicePixelRatio || 1, 2),
+        resolution: Math.min(
+          window.devicePixelRatio || 1,
+          2,
+        ),
         resizeTo: host,
         preference: 'webgl',
       });
@@ -316,316 +830,485 @@ export default function WorldCanvas() {
       initialized = true;
 
       if (destroyed) {
-        app.destroy(true, { children: true });
+        app.destroy(true, {
+          children: true,
+        });
+
         return;
       }
 
-      app.canvas.className = 'pl-world-canvas';
+      app.canvas.className =
+        'pl-world-canvas';
+
       host.appendChild(app.canvas);
 
-      const world = new Container();
+      camera = new Container();
 
-      app.stage.addChild(world);
+      app.stage.addChild(camera);
 
-      const sky = new Graphics();
-      sky.rect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
-      sky.fill(0xa9e5ff);
+      const worldBackground = new Graphics();
+      worldBackground.rect(
+        0,
+        0,
+        WORLD_WIDTH,
+        WORLD_HEIGHT,
+      );
+      worldBackground.fill(0x9ccbe0);
 
-      const distantHills = new Graphics();
+      camera.addChild(worldBackground);
 
-      distantHills.moveTo(0, 530);
-      distantHills.bezierCurveTo(250, 250, 460, 470, 680, 315);
-      distantHills.bezierCurveTo(880, 190, 1080, 430, 1270, 286);
-      distantHills.bezierCurveTo(1510, 105, 1760, 430, 1990, 250);
-      distantHills.bezierCurveTo(2160, 135, 2310, 310, 2400, 270);
-      distantHills.lineTo(WORLD_WIDTH, 620);
-      distantHills.lineTo(0, 620);
-      distantHills.closePath();
-      distantHills.fill(0x78bd91);
-
-      const midHills = new Graphics();
-
-      midHills.moveTo(0, 610);
-      midHills.bezierCurveTo(230, 430, 410, 650, 660, 455);
-      midHills.bezierCurveTo(880, 340, 1110, 620, 1340, 420);
-      midHills.bezierCurveTo(1530, 300, 1810, 570, 2040, 405);
-      midHills.bezierCurveTo(2220, 320, 2320, 440, 2400, 390);
-      midHills.lineTo(2400, 730);
-      midHills.lineTo(0, 730);
-      midHills.closePath();
-      midHills.fill(0x46a46d);
-
-      const ground = new Graphics();
-      ground.rect(0, 590, WORLD_WIDTH, WORLD_HEIGHT - 590);
-      ground.fill(0x72c66c);
-
-      const grassLight = new Graphics();
-      grassLight.ellipse(480, 850, 430, 260);
-      grassLight.ellipse(1520, 880, 520, 300);
-      grassLight.fill({
-        color: 0x99da79,
-        alpha: 0.55,
-      });
-
-      const river = new Graphics();
-
-      river.moveTo(0, 1040);
-      river.bezierCurveTo(420, 895, 670, 1125, 1010, 1010);
-      river.bezierCurveTo(1340, 900, 1600, 1110, 1930, 960);
-      river.bezierCurveTo(2130, 870, 2280, 890, 2400, 850);
-      river.lineTo(2400, 1040);
-      river.bezierCurveTo(2150, 1080, 2040, 1080, 1810, 1180);
-      river.bezierCurveTo(1430, 1340, 1110, 1160, 760, 1270);
-      river.bezierCurveTo(420, 1370, 190, 1210, 0, 1270);
-      river.closePath();
-      river.fill(0x52bce2);
-
-      const riverHighlight = new Graphics();
-
-      riverHighlight.moveTo(100, 1115);
-      riverHighlight.bezierCurveTo(500, 990, 720, 1170, 1090, 1050);
-      riverHighlight.bezierCurveTo(1400, 950, 1640, 1130, 1960, 995);
-
-      riverHighlight.stroke({
-        width: 10,
-        color: 0xcaf4ff,
+      const parchment = new Graphics();
+      parchment.roundRect(
+        120,
+        110,
+        WORLD_WIDTH - 240,
+        WORLD_HEIGHT - 220,
+        120,
+      );
+      parchment.fill({
+        color: 0xb8c991,
         alpha: 0.42,
       });
 
-      const path = new Graphics();
+      camera.addChild(parchment);
 
-      path.moveTo(250, 1030);
-      path.bezierCurveTo(450, 890, 520, 760, 740, 805);
-      path.bezierCurveTo(950, 845, 1040, 690, 1235, 730);
-      path.bezierCurveTo(1430, 770, 1515, 640, 1735, 695);
-      path.bezierCurveTo(1930, 745, 2045, 600, 2210, 610);
+      for (let i = 0; i < 18; i += 1) {
+        const cloud = new Container();
 
-      path.stroke({
-        width: 76,
-        color: 0xe7c990,
-      });
+        cloud.x =
+          300 +
+          ((i * 811) % (WORLD_WIDTH - 600));
 
-      const pathEdge = new Graphics();
+        cloud.y =
+          140 +
+          ((i * 317) % (WORLD_HEIGHT - 400));
 
-      pathEdge.moveTo(250, 1030);
-      pathEdge.bezierCurveTo(450, 890, 520, 760, 740, 805);
-      pathEdge.bezierCurveTo(950, 845, 1040, 690, 1235, 730);
-      pathEdge.bezierCurveTo(1430, 770, 1515, 640, 1735, 695);
-      pathEdge.bezierCurveTo(1930, 745, 2045, 600, 2210, 610);
+        const shape = new Graphics();
+        shape.circle(-35, 0, 28);
+        shape.circle(0, -14, 38);
+        shape.circle(39, 1, 27);
+        shape.roundRect(-60, -2, 120, 35, 18);
+        shape.fill({
+          color: 0xffffff,
+          alpha: 0.32,
+        });
 
-      pathEdge.stroke({
-        width: 7,
-        color: 0xf6e5b8,
-        alpha: 0.9,
-      });
+        cloud.addChild(shape);
+        cloud.speed =
+          0.1 + (i % 4) * 0.035;
 
-      world.addChild(
-        sky,
-        distantHills,
-        midHills,
-        ground,
-        grassLight,
-        river,
-        riverHighlight,
-        path,
-        pathEdge,
+        clouds.push(cloud);
+        camera.addChild(cloud);
+      }
+
+      KINGDOM_REGIONS.forEach(
+        (region, regionIndex) => {
+          const origin =
+            regionPosition(regionIndex);
+
+          const terrain =
+            createRegionTerrain(
+              region,
+              origin.x,
+              origin.y,
+            );
+
+          camera.addChild(terrain);
+
+          const banner =
+            createRegionBanner(
+              region,
+              origin.x + REGION_WIDTH / 2,
+              origin.y + 95,
+            );
+
+          camera.addChild(banner);
+
+          const regionDestinations =
+            SEASON_ONE_DESTINATIONS.filter(
+              (destination) =>
+                destination.regionId ===
+                region.id,
+            );
+
+          let progressionIndex = 0;
+
+          regionDestinations.forEach(
+            (destination) => {
+              if (
+                destination.type ===
+                'level'
+              ) {
+                const localPosition =
+                  destinationLocalPosition(
+                    progressionIndex,
+                  );
+
+                const marker =
+                  createLevelMarker(
+                    destination.levelNumber,
+                    origin.x +
+                      localPosition.x,
+                    origin.y +
+                      localPosition.y,
+                  );
+
+                camera.addChild(marker);
+
+                progressionIndex += 1;
+
+                return;
+              }
+
+              const chapterWithinRegion =
+                ((destination.arenaNumber -
+                  1) %
+                  5);
+
+              const arenaX =
+                origin.x +
+                1180 -
+                chapterWithinRegion * 16;
+
+              const arenaY =
+                origin.y +
+                440 +
+                chapterWithinRegion * 325;
+
+              const arena =
+                createArena(
+                  destination,
+                  arenaX,
+                  arenaY,
+                  THEMES[region.theme],
+                );
+
+              arenas.push(arena);
+              camera.addChild(arena);
+
+              const leftTorch =
+                createTorch(
+                  arenaX - 103,
+                  arenaY - 20,
+                );
+
+              const rightTorch =
+                createTorch(
+                  arenaX + 103,
+                  arenaY - 20,
+                );
+
+              torches.push(
+                leftTorch,
+                rightTorch,
+              );
+
+              camera.addChild(
+                leftTorch,
+                rightTorch,
+              );
+            },
+          );
+        },
       );
 
-      const clouds = [
-        createCloud(170, 150, 1.05),
-        createCloud(720, 118, 0.82),
-        createCloud(1370, 175, 1.2),
-        createCloud(1990, 120, 0.9),
-      ];
+      const seasonGate =
+        createCastle(
+          480,
+          380,
+          THEMES.village,
+          1.5,
+        );
 
-      clouds.forEach((cloud) => world.addChild(cloud));
+      camera.addChild(seasonGate);
 
-      const houses = [
-        createHouse(390, 700, 0xf4cf79, 0xd95d55, 1),
-        createHouse(820, 630, 0xdfe3ff, 0x6b5cc8, 0.86),
-        createHouse(1430, 595, 0xffd8c4, 0xce5b6f, 0.95),
-        createHouse(1840, 565, 0xcfeee5, 0x367e70, 0.88),
-      ];
+      const seasonBoard = new Container();
+      seasonBoard.x = 760;
+      seasonBoard.y = 250;
 
-      houses.forEach((house) => world.addChild(house));
+      const seasonPanel =
+        new Graphics();
 
-      const treePositions = [
-        [170, 760, 1.05],
-        [265, 670, 0.8],
-        [520, 640, 0.75],
-        [650, 900, 1],
-        [955, 605, 0.8],
-        [1090, 910, 1.1],
-        [1290, 560, 0.74],
-        [1580, 900, 1.05],
-        [1690, 530, 0.78],
-        [2015, 795, 1.1],
-        [2160, 515, 0.85],
-        [2260, 760, 0.92],
-      ];
-
-      treePositions.forEach(([x, y, scale]) => {
-        world.addChild(createTree(x, y, scale));
-      });
-
-      const levelPositions = [
-        [1, 270, 985],
-        [2, 455, 875],
-        [3, 665, 805],
-        [4, 865, 825],
-        [5, 1045, 740],
-        [6, 1235, 730],
-        [7, 1430, 735],
-        [8, 1600, 665],
-        [9, 1775, 700],
-        [10, 1960, 670],
-      ];
-
-      const markers = levelPositions.map(([level, x, y]) => {
-        const marker = createLevelMarker(level, x, y);
-        world.addChild(marker);
-        return marker;
-      });
-
-      const arena = createPrizeArena(2210, 590);
-      world.addChild(arena);
-
-      const sign = roundedPanel(
-        73,
-        710,
-        290,
-        98,
-        0x17213d,
-        0.93,
+      seasonPanel.roundRect(
+        -300,
+        -90,
+        600,
+        180,
+        26,
       );
 
-      const signTitle = new Text({
-        text: 'WELCOME TO',
-        style: {
-          fontFamily: 'Arial, sans-serif',
-          fontSize: 18,
-          fontWeight: '700',
-          fill: 0xffd85d,
-          letterSpacing: 2,
+      seasonPanel.fill({
+        color: 0x2a1b16,
+        alpha: 0.96,
+      });
+
+      seasonPanel.stroke({
+        width: 8,
+        color: 0xc9a244,
+      });
+
+      const seasonTitle =
+        makeText(
+          'PRIZE LEAGUE WORLD — SEASON 1',
+          {
+            fontSize: 24,
+            fill: 0xffe7a1,
+            fontWeight: '900',
+          },
+        );
+
+      seasonTitle.y = -48;
+
+      const seasonPrize =
+        makeText(
+          'UP TO £127,500 IN SEASON PRIZES',
+          {
+            fontSize: 31,
+            fill: 0xffffff,
+            fontWeight: '900',
+          },
+        );
+
+      seasonPrize.y = 0;
+
+      const seasonMeta =
+        makeText(
+          '500 LEVELS  •  50 CHAMPION ARENAS',
+          {
+            fontSize: 17,
+            fill: 0xd9c899,
+            fontWeight: '700',
+          },
+        );
+
+      seasonMeta.y = 47;
+
+      seasonBoard.addChild(
+        seasonPanel,
+        seasonTitle,
+        seasonPrize,
+        seasonMeta,
+      );
+
+      camera.addChild(seasonBoard);
+
+      const finalRegion =
+        regionPosition(9);
+
+      const finalCrown = makeText(
+        '♛',
+        {
+          fontSize: 120,
+          fill: 0xffd75a,
+          stroke: 0x513712,
+          strokeWidth: 8,
         },
-      });
+      );
 
-      signTitle.x = 102;
-      signTitle.y = 727;
+      finalCrown.x =
+        finalRegion.x +
+        REGION_WIDTH -
+        80;
 
-      const signText = new Text({
-        text: 'PRIZE LEAGUE WORLD',
-        style: {
-          fontFamily: 'Arial, sans-serif',
-          fontSize: 24,
-          fontWeight: '900',
-          fill: 0xffffff,
-        },
-      });
+      finalCrown.y =
+        finalRegion.y +
+        160;
 
-      signText.x = 102;
-      signText.y = 754;
+      camera.addChild(finalCrown);
 
-      world.addChild(sign, signTitle, signText);
+      fitWorld();
 
-      const player = createPlayer();
-      player.x = 225;
-      player.y = 962;
-
-      world.addChild(player);
-
-      let elapsed = 0;
-
-      const resizeWorld = () => {
-        const rendererWidth = app.renderer.width;
-        const rendererHeight = app.renderer.height;
-
-        const scale = Math.max(
-          rendererWidth / WORLD_WIDTH,
-          rendererHeight / WORLD_HEIGHT,
-        );
-
-        world.scale.set(scale);
-
-        const visibleWidth = rendererWidth / scale;
-        const visibleHeight = rendererHeight / scale;
-
-        world.x = Math.min(
-          0,
-          (rendererWidth - WORLD_WIDTH * scale) / 2,
-        );
-
-        world.y = Math.max(
-          (rendererHeight - WORLD_HEIGHT * scale) / 2,
-          rendererHeight - visibleHeight * scale,
-        );
-
-        if (rendererWidth < 760) {
-          const mobileScale = rendererHeight / WORLD_HEIGHT;
-
-          world.scale.set(mobileScale);
-          world.x = 0;
-          world.y = 0;
-        }
-      };
-
-      resizeWorld();
-
-      const resizeObserver = new ResizeObserver(() => {
-        resizeWorld();
-      });
+      const resizeObserver =
+        new ResizeObserver(() => {
+          clampCamera();
+        });
 
       resizeObserver.observe(host);
 
+      app.__worldResizeObserver =
+        resizeObserver;
+
+      app.canvas.addEventListener(
+        'wheel',
+        (event) => {
+          event.preventDefault();
+
+          const bounds =
+            app.canvas.getBoundingClientRect();
+
+          const pointerX =
+            event.clientX - bounds.left;
+
+          const pointerY =
+            event.clientY - bounds.top;
+
+          const factor =
+            event.deltaY < 0
+              ? 1.12
+              : 0.89;
+
+          applyZoom(
+            zoom * factor,
+            pointerX,
+            pointerY,
+          );
+        },
+        {
+          passive: false,
+        },
+      );
+
+      app.canvas.addEventListener(
+        'pointerdown',
+        (event) => {
+          dragging = true;
+
+          dragStartX = event.clientX;
+          dragStartY = event.clientY;
+
+          cameraStartX = camera.x;
+          cameraStartY = camera.y;
+
+          app.canvas.setPointerCapture(
+            event.pointerId,
+          );
+
+          app.canvas.style.cursor =
+            'grabbing';
+        },
+      );
+
+      app.canvas.addEventListener(
+        'pointermove',
+        (event) => {
+          if (!dragging) return;
+
+          camera.x =
+            cameraStartX +
+            event.clientX -
+            dragStartX;
+
+          camera.y =
+            cameraStartY +
+            event.clientY -
+            dragStartY;
+
+          clampCamera();
+        },
+      );
+
+      const stopDragging = () => {
+        dragging = false;
+
+        if (app?.canvas) {
+          app.canvas.style.cursor =
+            'grab';
+        }
+      };
+
+      app.canvas.addEventListener(
+        'pointerup',
+        stopDragging,
+      );
+
+      app.canvas.addEventListener(
+        'pointercancel',
+        stopDragging,
+      );
+
+      app.canvas.style.cursor = 'grab';
+
+      let elapsed = 0;
+
       app.ticker.add((ticker) => {
-        const delta = ticker.deltaTime;
-        elapsed += delta * 0.035;
+        elapsed +=
+          ticker.deltaTime * 0.035;
 
-        clouds.forEach((cloud, index) => {
-          cloud.x += cloud.worldSpeed * delta;
+        clouds.forEach(
+          (cloud, index) => {
+            cloud.x +=
+              cloud.speed *
+              ticker.deltaTime;
 
-          if (cloud.x > WORLD_WIDTH + 150) {
-            cloud.x = -200;
-          }
+            cloud.y +=
+              Math.sin(
+                elapsed +
+                  index * 0.7,
+              ) *
+              0.025;
 
-          cloud.y += Math.sin(elapsed + index) * 0.025;
-        });
+            if (
+              cloud.x >
+              WORLD_WIDTH + 200
+            ) {
+              cloud.x = -200;
+            }
+          },
+        );
 
-        markers.forEach((marker) => {
-          const pulse =
-            1 +
+        arenas.forEach(
+          (arena) => {
+            const wave =
+              Math.sin(
+                elapsed * 2 +
+                  arena.animationSeed,
+              );
+
+            arena.crown.y =
+              -112 + wave * 3;
+
+            arena.board.alpha =
+              0.9 +
+              Math.abs(wave) * 0.1;
+
+            if (
+              arena.__arena.finalArena
+            ) {
+              const pulse =
+                1 +
+                Math.sin(
+                  elapsed * 1.7,
+                ) *
+                  0.025;
+
+              arena.scale.set(pulse);
+            }
+          },
+        );
+
+        torches.forEach((torch) => {
+          const scale =
+            0.92 +
             Math.sin(
-              elapsed * 2.2 + marker.pulseSeed,
-            ) * 0.035;
+              elapsed * 5 +
+                torch.seed,
+            ) *
+              0.1;
 
-          marker.scale.set(pulse);
+          torch.flame.scale.set(
+            1,
+            scale,
+          );
         });
-
-        arena.y = 590 + Math.sin(elapsed * 1.2) * 2;
-
-        player.y =
-          962 +
-          Math.sin(elapsed * 3.1) * 2;
       });
-
-      app.__worldResizeObserver = resizeObserver;
     };
 
     start().catch((error) => {
-      console.error('[PrizeLeagueWorld] renderer failed:', error);
+      console.error(
+        '[PrizeLeagueWorld] Kingdom map renderer failed:',
+        error,
+      );
     });
 
     return () => {
       destroyed = true;
 
-      if (app?.__worldResizeObserver) {
+      if (
+        app?.__worldResizeObserver
+      ) {
         app.__worldResizeObserver.disconnect();
       }
 
-      // React development StrictMode can run cleanup before Pixi's
-      // asynchronous Application.init() has completed. Destroying a
-      // partially initialized Pixi Application causes the resize plugin
-      // _cancelResize runtime error.
       if (app && initialized) {
         app.destroy(true, {
           children: true,
@@ -644,7 +1327,7 @@ export default function WorldCanvas() {
     <div
       ref={hostRef}
       className="pl-world-render-host"
-      aria-label="Prize League animated world"
+      aria-label="Prize League Season 1 kingdom world"
     />
   );
 }
