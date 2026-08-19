@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Button } from './ui/button';
-import { adminAPI, uploadsAPI, api, API } from '../lib/api';
+import { adminAPI, uploadsAPI, gamesAPI, api, API } from '../lib/api';
 import {
   ContestImageFocalPicker,
   RandomDrawPanel,
@@ -75,6 +75,8 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadErr, setUploadErr] = useState('');
+  const [availableGames, setAvailableGames] = useState([]);
+  const [gamesLoading, setGamesLoading] = useState(false);
   const fileInputRef = useRef(null);
 
   const onPickFile = () => fileInputRef.current?.click();
@@ -112,6 +114,31 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
     if (open) setForm(isCreate ? emptyForm : (contest || {}));
   }, [contest, open, isCreate]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    if (!open) return;
+
+    let active = true;
+    setGamesLoading(true);
+
+    gamesAPI.types()
+      .then((response) => {
+        if (!active) return;
+        const list = Array.isArray(response?.games) ? response.games : [];
+        setAvailableGames(list);
+      })
+      .catch(() => {
+        if (!active) return;
+        setAvailableGames([]);
+      })
+      .finally(() => {
+        if (active) setGamesLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [open]);
+
   if (!isCreate && !contest) return null;
 
   const upd = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -134,6 +161,37 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
         skill_question_type: form.skill_question_type || 'addition',
         skill_question_difficulty: form.skill_question_difficulty || 'easy',
         game_type: form.game_type || null,
+
+        // Official skill-game configuration
+        entry_mode: form.entry_mode || 'skill_game',
+        attempts_per_ticket: Math.max(
+          1,
+          Math.min(
+            10,
+            parseInt(
+              form.attempts_per_ticket ?? form.max_attempts ?? 3,
+              10
+            ) || 1
+          )
+        ),
+        max_attempts: Math.max(
+          1,
+          Math.min(
+            10,
+            parseInt(
+              form.attempts_per_ticket ?? form.max_attempts ?? 3,
+              10
+            ) || 1
+          )
+        ),
+        leaderboard_visibility:
+          form.leaderboard_visibility || 'live',
+        winner_selection_method:
+          form.winner_selection_method || 'random_draw',
+        game_config:
+          form.game_config && typeof form.game_config === 'object'
+            ? form.game_config
+            : {},
 
         // Extended editable fields (Phase-1 launch spec)
         short_description: form.short_description || null,
@@ -297,31 +355,46 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
               data-testid="contest-game-select"
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
             >
-              <option value="">— None (winner picked manually) —</option>
-              <optgroup label="Puzzles">
-                <option value="jigsaw_3x3">Image Jigsaw (3×3)</option>
-                <option value="jigsaw_4x4">Image Jigsaw (4×4)</option>
-                <option value="slider_puzzle">15-Slider Puzzle</option>
-                <option value="odd_one_out">Odd One Out</option>
-              </optgroup>
-              <optgroup label="Memory">
-                <option value="memory_match">Memory Match (pairs)</option>
-                <option value="simon_says">Simon Says (sequence)</option>
-                <option value="pattern_repeat">Pattern Repeat</option>
-              </optgroup>
-              <optgroup label="Reaction">
-                <option value="number_sequence">Number Sequence 1→20</option>
-                <option value="target_tap">Target Tap</option>
-                <option value="reaction_time">Reaction Time</option>
-                <option value="whack_a_mole">Whack-a-Mole</option>
-                <option value="color_match">Color Match (Stroop)</option>
-                <option value="math_sprint">Math Sprint</option>
-              </optgroup>
-              <optgroup label="Trivia &amp; Word">
-                <option value="emoji_riddle">Emoji Riddle</option>
-                <option value="word_unscramble">Word Unscramble</option>
-                <option value="trivia_quiz">Trivia Quiz</option>
-              </optgroup>
+              <option value="">
+                — None (winner picked manually) —
+              </option>
+
+              {gamesLoading && (
+                <option disabled>Loading games…</option>
+              )}
+
+              {!gamesLoading &&
+                Object.entries(
+                  availableGames.reduce((groups, game) => {
+                    const category = game.category || 'other';
+                    if (!groups[category]) groups[category] = [];
+                    groups[category].push(game);
+                    return groups;
+                  }, {})
+                )
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .map(([category, categoryGames]) => (
+                    <optgroup
+                      key={category}
+                      label={
+                        category.charAt(0).toUpperCase() +
+                        category.slice(1)
+                      }
+                    >
+                      {categoryGames
+                        .slice()
+                        .sort((a, b) =>
+                          String(a.label || a.id).localeCompare(
+                            String(b.label || b.id)
+                          )
+                        )
+                        .map((game) => (
+                          <option key={game.id} value={game.id}>
+                            {game.label || game.id}
+                          </option>
+                        ))}
+                    </optgroup>
+                  ))}
             </select>
           </div>
 

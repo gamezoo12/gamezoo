@@ -50,7 +50,7 @@ export default function Cart() {
 
   const loadSkillFor = async (item) => {
     // Fetch a fresh challenge for a single item that needs one.
-    if (!item.slug) return;  // random-draw items have no skill
+    if (!item.slug) return;  // automated selection items have no skill
     setSkills(prev => ({ ...prev, [item.contest_id]: { ...(prev[item.contest_id] || {}), verifying: true, error: null } }));
     try {
       const ch = await contestsAPI.skillChallenge(item.slug);
@@ -385,7 +385,7 @@ export default function Cart() {
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-slate-900 break-words">{i.title}</div>
                   <div className="text-xs text-slate-500 mt-0.5">
-                    {(i.entry_mode || 'skill_game') === 'random_tickets' ? 'Random Ticket Draw' : 'Skill Contest'} · {fmtTokens(i.price)}/entry
+                    {(i.entry_mode || 'skill_game') === 'random_tickets' ? 'Entry Competition' : 'Skill Contest'} · {fmtTokens(i.price)}/entry
                   </div>
 
                   <div className="flex items-center gap-2 mt-3">

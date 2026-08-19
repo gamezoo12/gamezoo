@@ -78,15 +78,15 @@ export default function DrawCentre() {
           <Trophy className="w-6 h-6 text-[#FFD54A]" />
         </div>
         <div>
-          <h1 className="font-display text-3xl md:text-4xl font-extrabold text-slate-900">Draw Centre</h1>
-          <p className="text-sm text-slate-500">Track your pending draws and see the latest published results.</p>
+          <h1 className="font-display text-3xl md:text-4xl font-extrabold text-slate-900">Results Centre</h1>
+          <p className="text-sm text-slate-500">Track your pending results and see the latest published results.</p>
         </div>
       </div>
 
       <Tabs defaultValue="pending">
         <TabsList className="grid grid-cols-2 w-full max-w-md">
-          <TabsTrigger value="pending" data-testid="tab-pending">Pending Draws {pending.length ? <span className="ml-2 text-xs bg-[#6C2BFF] text-white rounded-full px-2 py-0.5">{pending.length}</span> : null}</TabsTrigger>
-          <TabsTrigger value="results" data-testid="tab-results">Draw Results</TabsTrigger>
+          <TabsTrigger value="pending" data-testid="tab-pending">Pending Results {pending.length ? <span className="ml-2 text-xs bg-[#6C2BFF] text-white rounded-full px-2 py-0.5">{pending.length}</span> : null}</TabsTrigger>
+          <TabsTrigger value="results" data-testid="tab-results">Competition Results</TabsTrigger>
         </TabsList>
 
         {/* PENDING */}
@@ -98,11 +98,11 @@ export default function DrawCentre() {
               <Link to="/login" className="inline-block mt-4 px-4 py-2 rounded-full pl-btn-gold text-slate-900 font-bold">Sign in</Link>
             </div>
           ) : loading ? (
-            <div className="text-slate-500 py-8">Loading your pending draws…</div>
+            <div className="text-slate-500 py-8">Loading your pending results…</div>
           ) : pending.length === 0 ? (
             <div className="bg-white rounded-2xl border border-slate-100 p-10 text-center" data-testid="pending-empty">
               <Sparkles className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-              <p className="text-slate-600">No pending draws yet.</p>
+              <p className="text-slate-600">No pending results yet.</p>
               <Link to="/competitions" className="inline-block mt-4 px-4 py-2 rounded-full pl-btn-purple text-white font-bold">Browse contests</Link>
             </div>
           ) : (
@@ -124,7 +124,7 @@ export default function DrawCentre() {
                       <Badge className="bg-[#6C2BFF]/10 text-[#6C2BFF] hover:bg-[#6C2BFF]/10">{ticketCount} ticket{ticketCount !== 1 ? 's' : ''}</Badge>
                       <Countdown endDate={contest.end_date} />
                     </div>
-                    <div className="text-[11px] text-slate-500 mt-2">Draw: {new Date(contest.end_date).toLocaleString('en-GB')}</div>
+                    <div className="text-[11px] text-slate-500 mt-2">Ends: {new Date(contest.end_date).toLocaleString('en-GB')}</div>
                   </div>
                 </Link>
               ))}
@@ -135,11 +135,11 @@ export default function DrawCentre() {
         {/* RESULTS */}
         <TabsContent value="results" className="mt-6">
           {loading ? (
-            <div className="text-slate-500 py-8">Loading published draws…</div>
+            <div className="text-slate-500 py-8">Loading published results…</div>
           ) : myResults.length === 0 ? (
             <div className="bg-white rounded-2xl border border-slate-100 p-10 text-center" data-testid="results-empty">
               <Trophy className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-              <p className="text-slate-600">No draw results published yet.</p>
+              <p className="text-slate-600">No competition results published yet.</p>
             </div>
           ) : (
             <div className="bg-white rounded-2xl border border-slate-100 overflow-x-auto">
@@ -150,7 +150,7 @@ export default function DrawCentre() {
                     <th className="text-left p-3">Winner</th>
                     <th className="text-left p-3">Ticket</th>
                     <th className="text-left p-3">Prize</th>
-                    <th className="text-left p-3">Drawn at</th>
+                    <th className="text-left p-3">Result published</th>
                     <th className="text-left p-3">Your result</th>
                   </tr>
                 </thead>

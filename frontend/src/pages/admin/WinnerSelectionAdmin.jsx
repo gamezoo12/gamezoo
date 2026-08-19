@@ -42,10 +42,10 @@ export default function WinnerSelectionAdmin() {
   };
 
   const doDraw = async () => {
-    if (!window.confirm('Run a random draw? This selects a preview winner — you still need to publish afterwards.')) return;
+    if (!window.confirm('Run a automated winner selection? This selects a preview winner — you still need to publish afterwards.')) return;
     setBusy(true);
     try { const r = await adminAPI.wsDraw(selCid); toast({ title: `Drew ticket #${r.winner_ticket_number}` }); await load(selCid); }
-    catch (e) { toast({ title: 'Draw failed', description: e?.response?.data?.detail }); }
+    catch (e) { toast({ title: 'Winner selection failed', description: e?.response?.data?.detail }); }
     finally { setBusy(false); }
   };
 
@@ -108,16 +108,16 @@ export default function WinnerSelectionAdmin() {
                 <Button onClick={doPublish} disabled={busy} className="mt-3 pl-btn-gold" data-testid="ws-publish"><Lock className="w-4 h-4 mr-1" /> Publish + Lock winner</Button>
               </>
             ) : (
-              <div className="text-slate-600 text-sm">No preview yet. Run a random draw or manual pick below.</div>
+              <div className="text-slate-600 text-sm">No preview yet. Run a automated winner selection or manual pick below.</div>
             )}
           </div>
 
           {!published && (
             <div className="grid md:grid-cols-2 gap-4">
               <div className="rounded-2xl border border-slate-200 p-5">
-                <div className="font-bold text-slate-900 flex items-center gap-2"><Dice5 className="w-5 h-5 text-[#6C2BFF]" /> Random draw</div>
+                <div className="font-bold text-slate-900 flex items-center gap-2"><Dice5 className="w-5 h-5 text-[#6C2BFF]" /> Automated winner selection</div>
                 <p className="text-xs text-slate-500 mt-1">Cryptographically-secure random selection from all {tickets.length} paid tickets.</p>
-                <Button onClick={doDraw} disabled={busy || tickets.length === 0} data-testid="ws-draw" className="mt-3 pl-btn-purple">Run random draw</Button>
+                <Button onClick={doDraw} disabled={busy || tickets.length === 0} data-testid="ws-draw" className="mt-3 pl-btn-purple">Run automated winner selection</Button>
               </div>
               <div className="rounded-2xl border border-slate-200 p-5">
                 <div className="font-bold text-slate-900 flex items-center gap-2"><Hand className="w-5 h-5 text-[#6C2BFF]" /> Manual pick</div>

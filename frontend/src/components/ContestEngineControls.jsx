@@ -155,7 +155,7 @@ export function RandomDrawPanel({ contestId }) {
   const isSuperAdmin = user?.role === 'super_admin';
 
   const refresh = () =>
-    api.get(`/admin/engines/random-draw/${contestId}`).then(r => setDraws(r.data.draws || [])).catch(() => {});
+    api.get(`/admin/engines/automated selection/${contestId}`).then(r => setDraws(r.data.draws || [])).catch(() => {});
 
   useEffect(() => { refresh(); /* eslint-disable-next-line */ }, [contestId]);
 
@@ -164,34 +164,34 @@ export function RandomDrawPanel({ contestId }) {
     try {
       const payload = { num_winners: parseInt(numWinners, 10) };
       if (showRedraw) { payload.reason = reason; payload.approver_admin_email = approver; }
-      await api.post(`/admin/engines/random-draw/${contestId}`, payload);
-      toast({ title: 'Draw executed', description: 'Review the winners below then publish.' });
+      await api.post(`/admin/engines/automated selection/${contestId}`, payload);
+      toast({ title: 'Winner selection completed', description: 'Review the winners below then publish.' });
       refresh();
     } catch (err) {
-      toast({ title: 'Draw failed', description: err?.response?.data?.detail || err.message });
+      toast({ title: 'Winner selection failed', description: err?.response?.data?.detail || err.message });
     } finally { setBusy(false); }
   };
 
   const publish = async (drawId) => {
-    if (!window.confirm('Publish these winners as the final draw? Contest status will change to "drawn".')) return;
+    if (!window.confirm('Publish these winners as the final result? Contest status will change to "drawn".')) return;
     try {
-      await api.post(`/admin/engines/random-draw/${contestId}/confirm/${drawId}`);
-      toast({ title: 'Draw published' });
+      await api.post(`/admin/engines/automated selection/${contestId}/confirm/${drawId}`);
+      toast({ title: 'Result published' });
       refresh();
     } catch (err) { toast({ title: 'Failed', description: err?.response?.data?.detail }); }
   };
 
   if (!isSuperAdmin) {
-    return <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 flex items-center gap-2"><Lock className="w-4 h-4" /> Random Draw execution is restricted to Super Admin.</div>;
+    return <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 flex items-center gap-2"><Lock className="w-4 h-4" /> Automated winner selection is restricted to Super Admin.</div>;
   }
 
   const hasDraws = draws.length > 0;
 
   return (
-    <div className="space-y-4" data-testid="random-draw-panel">
+    <div className="space-y-4" data-testid="automated selection-panel">
       <div className="rounded-lg bg-rose-50 border border-rose-200 p-3 text-xs text-rose-800 flex items-start gap-2">
         <ShieldAlert className="w-4 h-4 mt-0.5" />
-        <span>The Random-Draw engine must be enabled in Company Settings after legal review. This UI will return 423 if the flag is OFF.</span>
+        <span>The Automated Selection Engine must be enabled in Company Settings after legal review. This UI will return 423 if the flag is OFF.</span>
       </div>
 
       <div className="grid md:grid-cols-3 gap-2 items-end">
@@ -246,7 +246,7 @@ export function RandomDrawPanel({ contestId }) {
                 <div className="flex gap-2 mt-2">
                   {!d.confirmed && <Button size="sm" onClick={() => publish(d.draw_id)} className="bg-emerald-600 hover:bg-emerald-700" data-testid={`draw-publish-${d.draw_id}`}>Publish</Button>}
                   <a
-                    href={`${API}/admin/engines/random-draw/${contestId}/report/${d.draw_id}`}
+                    href={`${API}/admin/engines/automated selection/${contestId}/report/${d.draw_id}`}
                     target="_blank"
                     rel="noreferrer"
                     data-testid={`draw-download-${d.draw_id}`}

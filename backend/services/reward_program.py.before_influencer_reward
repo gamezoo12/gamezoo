@@ -1,0 +1,231 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
+
+from fastapi import HTTPException
+
+
+DEFAULT_REWARD_SETTINGS = {
+    # Signup bonus
+    "signup_reward_tokens": 5.0,
+    "signup_qualifying_topup_gbp": 10.0,
+
+    # Personal referral bonus
+    "referral_reward_tokens": 5.0,
+    "referral_qualifying_topup_gbp": 10.0,
+    "referral_contest_entry_required": True,
+
+    # Influencer promo bonus
+    "influencer_reward_tokens": 2.0,
+    "influencer_qualifying_topup_gbp": 10.0,
+    "influencer_contest_entry_required": True,
+}
+
+
+async def get_reward_settings(db) -> dict:
+    """
+    Return current reward programme settings.
+
+    New settings keys always receive safe defaults so old databases remain
+    compatible without requiring a migration.
+    """
+    doc = await db.reward_settings.find_one(
+        {"_id": "app"},
+        {"_id": 0},
+    ) or {}
+
+    return {
+        **DEFAULT_REWARD_SETTINGS,
+        **doc,
+    }
+
+
+async def save_reward_settings(db, payload: dict) -> dict:
+    """
+    Admin-only caller can update future reward rules.
+
+    Already-issued wallet rewards are never recalculated.
+    """
+    allowed = set(DEFAULT_REWARD_SETTINGS)
+
+    updates = {
+        key: value
+        for key, value in (payload or {}).items()
+        if key in allowed
+    }
+
+    numeric_fields = {
+        "signup_reward_tokens": (0.0, 1000.0),
+        "signup_qualifying_topup_gbp": (0.0, 10000.0),
+
+        "referral_reward_tokens": (0.0, 1000.0),
+        "referral_qualifying_topup_gbp": (0.0, 10000.0),
+
+        "influencer_reward_tokens": (0.0, 1000.0),
+        "influencer_qualifying_topup_gbp": (0.0, 10000.0),
+    }
+
+    for field, (minimum, maximum) in numeric_fields.items():
+        if field not in updates:
+            continue
+
+        try:
+            value = round(float(updates[field]), 2)
+        except (TypeError, ValueError):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid value for {field}",
+            )
+
+        if value < minimum or value > maximum:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{field} is outside the allowed range",
+            )
+
+        updates[field] = value
+
+    boolean_fields = (
+        "referral_contest_entry_required",
+        "influencer_contest_entry_required",
+    )
+
+    for field in boolean_fields:
+        if field not in updates:
+            continue
+
+        if not isinstance(updates[field], bool):
+            raise HTTPException(
+                status_code=400,
+                detail=f"{field} must be true or false",
+            )
+
+    if updates:
+        updates["updated_at"] = datetime.now(timezone.utc)
+
+        await db.reward_settings.update_one(
+            {"_id": "app"},
+            {"$set": updates},
+            upsert=True,
+        )
+
+    return await get_reward_settings(db)
+
+
+def _promo_is_available(promo: dict, now: datetime) -> bool:
+    """
+    Validate whether an influencer campaign can accept a NEW signup.
+
+    Reward qualification itself will be handled separately later.
+    """
+    if not promo.get("active", True):
+        return False
+
+    starts_at = promo.get("starts_at")
+    expires_at = promo.get("expires_at")
+
+    if starts_at and starts_at > now:
+        return False
+
+    if expires_at and expires_at < now:
+        return False
+
+    max_redemptions = int(promo.get("max_redemptions") or 0)
+
+    # Redemptions count actual rewards, not signups.
+    # A campaign may continue collecting attributed users until the
+    # redemption cap is actually reached.
+    if max_redemptions > 0:
+        if int(promo.get("redemptions") or 0) >= max_redemptions:
+            return False
+
+    return True
+
+
+async def find_active_influencer_promo(
+    db,
+    code: str,
+):
+    code = str(code or "").strip().upper()
+
+    if not code:
+        return None
+
+    promo = await db.influencer_promos.find_one(
+        {"code": code},
+        {"_id": 0},
+    )
+
+    if not promo:
+        return None
+
+    if not _promo_is_available(
+        promo,
+        datetime.now(timezone.utc),
+    ):
+        return None
+
+    return promo
+
+
+async def create_influencer_attribution(
+    db,
+    *,
+    user_id: str,
+    promo: dict,
+):
+    """
+    Attach one influencer campaign to a newly-created account.
+
+    NO wallet credit happens here.
+    """
+    import uuid
+
+    now = datetime.now(timezone.utc)
+
+    existing = await db.influencer_attributions.find_one(
+        {"user_id": user_id},
+        {"_id": 1},
+    )
+
+    if existing:
+        return False
+
+    attribution = {
+        "attribution_id": f"ipa_{uuid.uuid4().hex}",
+        "user_id": user_id,
+
+        "promo_id": promo["promo_id"],
+        "code": promo["code"],
+        "influencer_name": promo.get("influencer_name") or "",
+        "campaign_name": promo.get("campaign_name") or "",
+
+        "status": "pending",
+
+        "topup_qualified": False,
+        "contest_entered": False,
+
+        "reward_granted": False,
+        "reward_tokens": 0.0,
+        "reward_tx_id": None,
+
+        "created_at": now,
+    }
+
+    await db.influencer_attributions.insert_one(
+        attribution
+    )
+
+    await db.influencer_promos.update_one(
+        {"promo_id": promo["promo_id"]},
+        {
+            "$inc": {
+                "signups": 1,
+            },
+            "$set": {
+                "updated_at": now,
+            },
+        },
+    )
+
+    return True

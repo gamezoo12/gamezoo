@@ -163,13 +163,13 @@ export default function CompanySettingsAdmin() {
           <h2 className="font-display font-bold text-lg text-rose-800">Legally restricted contest engines</h2>
         </div>
         <p className="text-sm text-rose-800/80 mb-3">
-          Random-draw and instant-win competitions may have different UK legal
+          Automated selection and instant-win competitions may have different UK legal
           treatment. These engines remain <strong>disabled</strong> until formal
           legal advice is obtained and a signed approval document is uploaded.
         </p>
         <div className="flex flex-col gap-2">
           {[
-            ['random_draw_engine_enabled', 'Enable random-draw engine (Contest Type 2)'],
+            ['random_draw_engine_enabled', 'Enable automated selection engine (Contest Type 2)'],
             ['instant_win_engine_enabled', 'Enable instant-win engine (Contest Type 3)'],
           ].map(([k, label]) => (
             <label key={k} className="flex items-center gap-2 text-sm">

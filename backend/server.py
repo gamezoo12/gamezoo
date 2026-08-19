@@ -259,7 +259,17 @@ app.mount("/api/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads"
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origin_regex=r'https?://(localhost(:\d+)?|127\.0\.0\.1(:\d+)?|.*\.preview\.emergentagent\.com|prizeleague\.co\.uk|.*\.prizeleague\.co\.uk|.*\.emergent\.host)',
+    allow_origin_regex=(
+        r'https?://('
+        r'localhost(:\d+)?|'
+        r'127\.0\.0\.1(:\d+)?|'
+        r'.*\.preview\.emergentagent\.com|'
+        r'.*\.preview\.static\.emergentagent\.com|'
+        r'prizeleague\.co\.uk|'
+        r'.*\.prizeleague\.co\.uk|'
+        r'.*\.emergent\.host'
+        r')'
+    ),
     allow_methods=['*'],
     allow_headers=['*'],
 )
@@ -308,6 +318,17 @@ async def _ensure_core_indexes():
     # not prevent the others from being created.
     _idx_specs = [
         ('users',                 [('email', 1)],         {'unique': True}),
+        (
+            'users',
+            [('google_sub', 1)],
+            {
+                'unique': True,
+                'partialFilterExpression': {
+                    'google_sub': {'$type': 'string'}
+                },
+                'name': 'ux_users_google_sub_str',
+            },
+        ),
         ('users',                 [('public_id', 1)],     {'unique': True, 'partialFilterExpression': {'public_id': {'$type': 'string'}}, 'name': 'ux_users_public_id_str'}),
         ('users',                 [('user_id', 1)],       {'unique': True}),
         ('contests',              [('slug', 1)],          {'unique': True, 'sparse': True}),

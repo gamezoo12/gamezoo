@@ -173,14 +173,14 @@ export default function Header() {
  {/* Desktop notifications kept unchanged */}
  <span className="hidden sm:inline-flex"><NotificationsBell /></span>
 
- {/* Draw Centre icon — desktop only kept unchanged */}
- <Link to="/draw-centre" className="hidden md:inline-flex relative p-2 rounded-lg hover:bg-white/5" aria-label="Draw centre" data-testid="header-draw-centre">
+ {/* Results Centre icon — desktop only kept unchanged */}
+ <Link to="/draw-centre" className="hidden md:inline-flex relative p-2 rounded-lg hover:bg-white/5" aria-label="Results centre" data-testid="header-draw-centre">
  <Trophy className="w-5 h-5 text-[#FFD54A]" />
  </Link>
 
  {/* Mobile-only: trophy with pending badge */}
  {user && (
- <Link to="/draw-centre" className="sm:hidden relative p-2 rounded-lg" aria-label="Draw centre" data-testid="mobile-header-draw-centre">
+ <Link to="/draw-centre" className="sm:hidden relative p-2 rounded-lg" aria-label="Results centre" data-testid="mobile-header-draw-centre">
  <Trophy className="w-6 h-6 text-[#FFD54A]" />
  {pendingKnown && pendingDrawCount > 0 && (
  <span className="absolute -top-1 -right-1 bg-[#FFD54A] text-slate-900 text-[10px] font-bold rounded-full h-4 min-w-[16px] flex items-center justify-center px-1">{badgeText}</span>
@@ -355,7 +355,7 @@ export default function Header() {
 
  <Link to="/draw-centre" onClick={() => setOpen(false)} className="mt-3 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white" data-testid="mobile-draw-centre-link">
  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#8B5CFF] to-[#6C2BFF] text-white flex items-center justify-center"><Trophy className="w-5 h-5 text-[#FFD54A]" /></div>
- <div className="flex-1 text-sm text-white/80">Draw Centre {pendingKnown && pendingDrawCount > 0 ? <span className="ml-2 text-xs bg-[#6C2BFF] text-white rounded-full px-2 py-0.5">{badgeText}</span> : null}</div>
+ <div className="flex-1 text-sm text-white/80">Results Centre {pendingKnown && pendingDrawCount > 0 ? <span className="ml-2 text-xs bg-[#6C2BFF] text-white rounded-full px-2 py-0.5">{badgeText}</span> : null}</div>
  </Link>
 
  <Link to="/my-account/support" onClick={() => setOpen(false)} className="mt-3 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white" data-testid="mobile-support-link">

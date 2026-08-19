@@ -10,7 +10,28 @@ import { contestsAPI, walletAPI } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import BackButton from '../components/BackButton';
 
-const FALLBACK_IMG = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400"><rect width="400" height="400" fill="%23111828"/><text x="50%" y="50%" text-anchor="middle" dy=".35em" fill="%236C2BFF" font-family="sans-serif" font-size="28" font-weight="bold">Prize League</text></svg>';
+const FALLBACK_IMG = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400"><rect width="800" height="400" fill="%23111828"/><text x="50%" y="50%" text-anchor="middle" dy=".35em" fill="%236C2BFF" font-family="sans-serif" font-size="28" font-weight="bold">Prize League</text></svg>';
+
+const resolveContestImage = (value) => {
+  const image = String(value || '').trim();
+
+  if (!image) return FALLBACK_IMG;
+
+  if (
+    image.startsWith('http://') ||
+    image.startsWith('https://') ||
+    image.startsWith('data:') ||
+    image.startsWith('blob:')
+  ) {
+    return image;
+  }
+
+  const backend = String(
+    process.env.REACT_APP_BACKEND_URL || window.location.origin
+  ).replace(/\/$/, '');
+
+  return `${backend}/${image.replace(/^\//, '')}`;
+};
 
 function saleStatus(sold, total) {
   const pct = percent(sold, total);
@@ -31,7 +52,7 @@ export default function CompetitionDetail() {
   const [answer, setAnswer] = useState('');
   const [verified, setVerified] = useState(false);
   const [wrong, setWrong] = useState(false);
-  const [imgState, setImgState] = useState('loading'); // loading | ok | fail
+  const [imgState, setImgState] = useState('loading');
   const [wallet, setWallet] = useState(null);
   // Dynamic skill-challenge state — question + signed token + options come
   // from GET /contests/{slug}/skill-challenge and are refreshed on wrong
@@ -68,6 +89,10 @@ export default function CompetitionDetail() {
     if (!user) { setWallet(null); return; }
     walletAPI.me().then(setWallet).catch(() => setWallet(null));
   }, [user]);
+
+  useEffect(() => {
+    setImgState('loading');
+  }, [c?.image]);
 
   useEffect(() => {
     if (!c) return;
@@ -130,22 +155,37 @@ export default function CompetitionDetail() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 lg:px-8 py-8 md:py-10" data-testid="contest-detail">
-      <BackButton to="/competitions" label="All contests" className="mb-4" />
+      <BackButton
+        fallback="/competitions"
+        label="Back"
+        className="mb-4"
+      />
       <div className="grid lg:grid-cols-2 gap-6 lg:gap-10">
-        {/* IMAGE COLUMN — dark neutral bg, object-contain, loading + fallback */}
+        {/* One admin-uploaded contest banner — fixed 2:1 everywhere */}
         <div>
-          <div className="relative aspect-[4/3] md:aspect-video lg:aspect-square rounded-2xl md:rounded-3xl overflow-hidden bg-[#0B0D1F] shadow-xl">
+          <div className="relative aspect-[2/1] overflow-hidden rounded-xl bg-[#0B0D1F] shadow-xl">
             {imgState === 'loading' && (
               <div className="absolute inset-0 flex items-center justify-center animate-pulse">
-                <ImageIcon className="w-12 h-12 text-white/20" />
+                <ImageIcon className="w-10 h-10 text-white/20" />
               </div>
             )}
+
             <img
-              src={imgState === 'fail' ? FALLBACK_IMG : c.image}
-              alt={c.title}
-              onLoad={() => setImgState('ok')}
-              onError={() => setImgState('fail')}
-              className={`w-full h-full object-contain transition-opacity duration-300 ${imgState === 'ok' ? 'opacity-100' : 'opacity-0'}`}
+              key={c.image}
+              src={resolveContestImage(c.image)}
+              alt={c.title || 'Prize League contest'}
+              loading="eager"
+              fetchPriority="high"
+              decoding="async"
+              onError={(event) => {
+                const image = event.currentTarget;
+
+                if (image.src !== FALLBACK_IMG) {
+                  image.onerror = null;
+                  image.src = FALLBACK_IMG;
+                }
+              }}
+              className="block h-full w-full object-cover object-center"
               data-testid="contest-image"
             />
           </div>
@@ -155,9 +195,9 @@ export default function CompetitionDetail() {
         <div>
           <div className="flex flex-wrap gap-2 mb-3">
             <Badge className="bg-[#6C2BFF]/10 text-[#6C2BFF] hover:bg-[#6C2BFF]/10">{c.tag}</Badge>
-            {c.jackpot && <Badge className="bg-gradient-to-r from-amber-400 to-orange-500 text-white">BIG PRIZE</Badge>}
+            {c.jackpot && <Badge className="bg-gradient-to-r from-amber-400 to-orange-500 text-white">FEATURED PRIZE</Badge>}
             <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100" data-testid="entry-mode-badge">
-              {isSkillGame ? 'Skill Contest' : 'Random Ticket Draw'}
+              {isSkillGame ? 'Skill Contest' : 'Entry Competition'}
             </Badge>
             <Badge className={status.tone + ' border-0'} data-testid="sale-status-badge">{status.label}</Badge>
           </div>
@@ -166,7 +206,7 @@ export default function CompetitionDetail() {
 
           {/* Countdown */}
           <div className="mt-6 p-4 rounded-2xl bg-slate-50 border border-slate-100">
-            <div className="flex items-center gap-2 text-sm text-slate-600 mb-2"><Clock className="w-4 h-4 text-[#6C2BFF]" /> Draw ends in</div>
+            <div className="flex items-center gap-2 text-sm text-slate-600 mb-2"><Clock className="w-4 h-4 text-[#6C2BFF]" /> Competition ends in</div>
             <div className="flex gap-2">
               {[{k:'Days',v:t.days},{k:'Hours',v:t.hours},{k:'Mins',v:t.mins},{k:'Secs',v:t.secs}].map((x) => (
                 <div key={x.k} className="flex-1 bg-white rounded-xl p-3 text-center border border-slate-100">
@@ -237,7 +277,7 @@ export default function CompetitionDetail() {
             </div>
           ) : (
             <div className="mt-6 p-4 md:p-5 rounded-2xl border-2 border-amber-200 bg-amber-50" data-testid="random-ticket-info">
-              <div className="flex items-center gap-2 mb-2"><Ticket className="w-5 h-5 text-amber-700" /><div className="font-display font-bold text-slate-900">Random Ticket Draw</div></div>
+              <div className="flex items-center gap-2 mb-2"><Ticket className="w-5 h-5 text-amber-700" /><div className="font-display font-bold text-slate-900">Entry Competition</div></div>
               <p className="text-sm text-slate-700">After successful payment, you&apos;ll be allocated unique ticket numbers server-side. A winner is drawn at random after the contest closes.</p>
             </div>
           )}
@@ -317,12 +357,29 @@ export default function CompetitionDetail() {
                 ? 'Answer skill question first'
                 : (!confirmed ? 'Tick the confirmation to buy' : `Buy ${tickets} ticket${tickets > 1 ? 's' : ''} → Basket`)}
             </Button>
-            <Link to={`/results/${c.slug}`} className="block mt-2" data-testid="see-results-link">
+            <Link
+              to={`/leaderboard/${c.contest_id}`}
+              className="block mt-2"
+              data-testid="contest-leaderboard-link"
+            >
               <Button variant="outline" className="w-full h-10 text-sm">
-                🏆 See results &amp; leaderboard
+                🏆 View Contest Leaderboard
               </Button>
             </Link>
-            <p className="text-[11px] text-slate-500 text-center mt-2"><Link to="/free-entry" className="text-[#6C2BFF] hover:underline">Free postal entry route</Link> available — no purchase necessary.</p>
+            <div
+              className="mt-3 rounded-xl border-2 border-[#FFD54A] bg-[#FFD54A]/15 px-4 py-3 text-center"
+              data-testid="free-postal-entry-notice"
+            >
+              <Link
+                to="/free-entry"
+                className="text-sm font-black uppercase tracking-wide text-slate-900 hover:underline"
+              >
+                Free Postal Entry Available
+              </Link>
+              <div className="mt-0.5 text-xs font-bold text-slate-700">
+                No purchase necessary · 18+ only
+              </div>
+            </div>
           </div>
 
           {/* Contest T&Cs — single long-scroll list per admin-editable fields */}
@@ -341,7 +398,7 @@ export default function CompetitionDetail() {
                 ['Free postal entry instructions', c.free_postal_entry_instructions || 'See the Free Postal Entry Policy for the current instructions and postal address.'],
                 ['Contest opening date', c.open_date ? new Date(c.open_date).toLocaleString('en-GB') : 'This contest is currently open.'],
                 ['Contest closing date', c.end_date ? new Date(c.end_date).toLocaleString('en-GB') : '—'],
-                ['Draw / result date', c.draw_date ? new Date(c.draw_date).toLocaleString('en-GB') : 'Within 24 hours of closing.'],
+                ['Result date', c.draw_date ? new Date(c.draw_date).toLocaleString('en-GB') : 'Within 24 hours of closing.'],
                 ['Prize details', c.prize_details || `Grand prize: ${gbp(c.prize_amount)}.`],
                 ['Number of prizes', String(c.num_prizes || 1)],
                 ['Prize values', c.prize_values || `Total prize pool value: ${gbp(c.prize_amount)}.`],

@@ -459,67 +459,321 @@ async function submit(e){
 </body></html>""")
 
 
-@router.post('/session')
-async def google_session(request: Request):
-    """Exchange Emergent OAuth session_id for backend cookie + user."""
-    session_id = request.headers.get('X-Session-ID') or request.headers.get('x-session-id')
-    if not session_id:
-        raise HTTPException(status_code=400, detail='Missing X-Session-ID header')
-    data = await exchange_emergent_session(session_id)
-    if not data:
-        raise HTTPException(status_code=401, detail='Invalid session_id')
+class GoogleCredentialInput(BaseModel):
+    credential: str = Field(
+        ...,
+        min_length=20,
+        description='Google Identity Services ID token',
+    )
 
+
+@router.post('/google')
+async def google_direct_auth(inp: GoogleCredentialInput):
+    """
+    Production Google Identity Services authentication.
+
+    The browser sends Google's signed ID credential.
+    Prize League verifies it server-side before trusting email/name/sub.
+
+    New Google users:
+      - email is automatically verified
+      - no Prize League password is created
+      - phone/DOB/Terms remain pending until /google/finalize
+
+    Returning users:
+      - same Google sub reopens the same Prize League account
+      - no duplicate signup bonus or referral is created here
+    """
     from deps import get_db
+
+    try:
+        from google.oauth2 import id_token
+        from google.auth.transport import requests as google_requests
+    except Exception:
+        logger.exception(
+            'google-auth package unavailable'
+        )
+        raise HTTPException(
+            status_code=503,
+            detail='Google authentication is temporarily unavailable.',
+        )
+
+    client_id = (
+        os.environ.get('GOOGLE_CLIENT_ID')
+        or ''
+    ).strip()
+
+    if not client_id:
+        logger.error(
+            'GOOGLE_CLIENT_ID is not configured'
+        )
+        raise HTTPException(
+            status_code=503,
+            detail='Google authentication is not configured.',
+        )
+
+    try:
+        claims = id_token.verify_oauth2_token(
+            inp.credential,
+            google_requests.Request(),
+            client_id,
+        )
+    except Exception:
+        logger.warning(
+            'Google ID-token verification failed'
+        )
+        raise HTTPException(
+            status_code=401,
+            detail='Google sign-in could not be verified.',
+        )
+
+    google_sub = str(
+        claims.get('sub') or ''
+    ).strip()
+
+    email = str(
+        claims.get('email') or ''
+    ).strip().lower()
+
+    email_verified = bool(
+        claims.get('email_verified')
+    )
+
+    if (
+        not google_sub
+        or not email
+        or not email_verified
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail='Google account email is not verified.',
+        )
+
+    name = (
+        str(claims.get('name') or '').strip()
+        or email.split('@')[0]
+        or 'Prize League User'
+    )
+
+    picture = (
+        str(claims.get('picture') or '').strip()
+        or None
+    )
+
     db = get_db()
-    email = data['email'].lower()
-    user = await db.users.find_one({'email': email}, {'_id': 0})
+
+    # Primary identity lookup: stable Google subject.
+    user = await db.users.find_one(
+        {'google_sub': google_sub},
+        {'_id': 0},
+    )
+
+    # Migration/account-link fallback:
+    # Existing Prize League users created before google_sub support
+    # may already exist under this verified Google email.
     if not user:
-        public_id = await allocate_user_public_id(db)
+        user = await db.users.find_one(
+            {'email': email},
+            {'_id': 0},
+        )
+
+    now = datetime.now(timezone.utc)
+
+    created = False
+
+    if not user:
+        public_id = await allocate_user_public_id(
+            db
+        )
+
         user_obj = User(
             email=email,
-            name=data.get('name') or email,
+            email_verified=True,
+            email_verified_at=now,
+            google_sub=google_sub,
+            name=name,
             public_id=public_id,
-            picture=data.get('picture'),
+            picture=picture,
             method='google',
             role='user',
+
+            # Signup bonus eligibility deliberately stays False here.
+            # It becomes True only after successful first
+            # /google/finalize completion.
+            signup_bonus_offer_eligible=False,
         )
+
         doc = user_obj.model_dump()
+
         await db.users.insert_one(doc)
+
         user = doc
+        created = True
+
     else:
-        await db.users.update_one({'user_id': user['user_id']}, {'$set': {
-            'name': data.get('name') or user['name'],
-            'picture': data.get('picture') or user.get('picture'),
-        }})
+        if user.get('suspended'):
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    'This account has been suspended. '
+                    'Please contact support.'
+                ),
+            )
 
-    session_token = data['session_token']
-    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
-    await db.user_sessions.update_one(
-        {'session_token': session_token},
-        {'$set': {
-            'user_id': user['user_id'],
-            'session_token': session_token,
-            'expires_at': expires_at,
-            'created_at': datetime.now(timezone.utc),
-        }},
-        upsert=True,
+        updates = {
+            'google_sub': google_sub,
+            'email_verified': True,
+            'name': name or user.get('name'),
+            'picture': picture or user.get('picture'),
+        }
+
+        if not user.get('email_verified_at'):
+            updates['email_verified_at'] = now
+
+        # Preserve the original auth method for an existing
+        # password account. A newly-created Google account remains
+        # method='google'; a password account can safely gain Google
+        # as an additional verified sign-in method.
+        await db.users.update_one(
+            {'user_id': user['user_id']},
+            {'$set': updates},
+        )
+
+        user = {
+            **user,
+            **updates,
+        }
+
+    token = create_jwt(
+        user['user_id']
     )
 
-    resp = JSONResponse({
+    needs_finalize = (
+        not bool(user.get('phone_verified'))
+        or not bool(user.get('terms_accepted_at'))
+        or not bool(user.get('dob'))
+    )
+
+    return {
+        'ok': True,
+        'created': created,
+        'needs_finalize': needs_finalize,
         'user': _to_public(user),
-        'session_token': session_token,
-    })
-    resp.set_cookie(
-        key='session_token',
-        value=session_token,
-        max_age=7 * 24 * 60 * 60,
-        expires=expires_at,
-        path='/',
-        httponly=True,
-        secure=True,
-        samesite='none',
-    )
-    return resp
+        'token': token,
+    }
+
+
+
+
+@router.post('/session')
+async def google_session(request: Request):
+    """Exchange Emergent OAuth session_id for Prize League session."""
+
+    try:
+        session_id = (
+            request.headers.get('X-Session-ID')
+            or request.headers.get('x-session-id')
+        )
+        if not session_id:
+            raise HTTPException(status_code=400, detail='Missing X-Session-ID header')
+        data = await exchange_emergent_session(session_id)
+        if not data:
+            raise HTTPException(status_code=401, detail='Invalid session_id')
+    
+        from deps import get_db
+        db = get_db()
+        email = data['email'].lower()
+        user = await db.users.find_one({'email': email}, {'_id': 0})
+        if not user:
+            public_id = await allocate_user_public_id(db)
+            user_obj = User(
+                email=email,
+                email_verified=True,
+                email_verified_at=datetime.now(timezone.utc),
+                name=data.get('name') or email,
+                public_id=public_id,
+                picture=data.get('picture'),
+                method='google',
+                role='user',
+            )
+            doc = user_obj.model_dump()
+            await db.users.insert_one(doc)
+            user = doc
+        else:
+            google_updates = {
+                'name': data.get('name') or user['name'],
+                'picture': data.get('picture') or user.get('picture'),
+            }
+    
+            # A successful Google OAuth exchange proves control of this
+            # Google account/email. Repair older Google users that were
+            # incorrectly stored as email_verified=False.
+            if user.get('method') == 'google':
+                google_updates['email_verified'] = True
+    
+                if not user.get('email_verified_at'):
+                    google_updates['email_verified_at'] = datetime.now(
+                        timezone.utc
+                    )
+    
+            await db.users.update_one(
+                {'user_id': user['user_id']},
+                {'$set': google_updates},
+            )
+    
+            # Keep the response object synchronized with Mongo.
+            user = {
+                **user,
+                **google_updates,
+            }
+    
+        session_token = data['session_token']
+        expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+        await db.user_sessions.update_one(
+            {'session_token': session_token},
+            {'$set': {
+                'user_id': user['user_id'],
+                'session_token': session_token,
+                'expires_at': expires_at,
+                'created_at': datetime.now(timezone.utc),
+            }},
+            upsert=True,
+        )
+    
+        resp = JSONResponse({
+            'user': _to_public(user),
+            'session_token': session_token,
+        })
+        resp.set_cookie(
+            key='session_token',
+            value=session_token,
+            max_age=7 * 24 * 60 * 60,
+            expires=expires_at,
+            path='/',
+            httponly=True,
+            secure=True,
+            samesite='none',
+        )
+        return resp
+
+    except HTTPException:
+        raise
+
+    except Exception as exc:
+        logger.exception(
+            "Google OAuth session exchange failed"
+        )
+
+        # Do not expose tokens, credentials, stack traces or raw provider data.
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Google sign-in failed inside Prize League: "
+                + exc.__class__.__name__
+                + ": "
+                + str(exc)[:180]
+            ),
+        )
 
 
 class GoogleFinalizeInput(BaseModel):
@@ -528,6 +782,7 @@ class GoogleFinalizeInput(BaseModel):
     accept_terms: bool
     dob: str = Field(..., description='YYYY-MM-DD')
     address: Optional[str] = None
+    referral_code: Optional[str] = None
 
 
 @router.post('/google/finalize')
@@ -552,19 +807,156 @@ async def finalize_google_signup(inp: GoogleFinalizeInput, request: Request):
     if other:
         raise HTTPException(status_code=400, detail='This phone is already linked to another account')
 
-    username = user.get('username') or await _generate_username(db, user['name'], inp.dob)
+    # A Google account is only considered a completed signup after this
+    # mandatory finalization step succeeds.
+    #
+    # This protects returning Google logins from being treated as new signups.
+    first_finalization = not bool(user.get('terms_accepted_at'))
+
+    username = (
+        user.get('username')
+        or await _generate_username(
+            db,
+            user['name'],
+            inp.dob,
+        )
+    )
+
+    now = datetime.now(timezone.utc)
+
+    updates = {
+        'phone': normalized_phone,
+        'phone_verified': True,
+        'phone_verified_at': now,
+        'dob': inp.dob,
+        'address': (inp.address or None),
+        'username': username,
+        'terms_accepted_at': now,
+    }
+
+    # Same signup-bonus eligibility as normal email registration.
+    if first_finalization:
+        updates['signup_bonus_offer_eligible'] = True
+
     await db.users.update_one(
         {'user_id': user['user_id']},
-        {'$set': {
-            'phone': normalized_phone,
-            'phone_verified': True,
-            'dob': inp.dob,
-            'address': (inp.address or None),
-            'username': username,
-            'terms_accepted_at': datetime.now(timezone.utc),
-        }},
+        {'$set': updates},
     )
-    fresh = await db.users.find_one({'user_id': user['user_id']}, {'_id': 0, 'password_hash': 0})
+
+    # -----------------------------------------------------
+    # Referral / influencer attribution
+    # -----------------------------------------------------
+    #
+    # Run acquisition attribution only on the user's first completed
+    # Google signup. A returning Google login must never create another
+    # referral or influencer attribution.
+    if first_finalization:
+        referral_code = (
+            inp.referral_code or ''
+        ).strip().upper()
+
+        if referral_code:
+            from services.reward_program import (
+                find_active_influencer_promo,
+                create_influencer_attribution,
+            )
+
+            influencer_promo = (
+                await find_active_influencer_promo(
+                    db,
+                    referral_code,
+                )
+            )
+
+            if influencer_promo:
+                # Service is already idempotent by user_id.
+                await create_influencer_attribution(
+                    db,
+                    user_id=user['user_id'],
+                    promo=influencer_promo,
+                )
+
+                await db.users.update_one(
+                    {'user_id': user['user_id']},
+                    {
+                        '$set': {
+                            'acquisition_type': 'influencer',
+                            'influencer_promo_id':
+                                influencer_promo['promo_id'],
+                            'influencer_promo_code':
+                                influencer_promo['code'],
+                        }
+                    },
+                )
+
+            else:
+                ref_user = await db.users.find_one(
+                    {
+                        'referral_code': referral_code,
+                        'user_id': {
+                            '$ne': user['user_id']
+                        },
+                    },
+                    {
+                        '_id': 0,
+                        'user_id': 1,
+                    },
+                )
+
+                if not ref_user:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            'Invalid referral or promo code. '
+                            'Check the code or leave it blank.'
+                        ),
+                    )
+
+                # Extra protection against duplicate referral records.
+                existing_referral = (
+                    await db.referrals.find_one(
+                        {
+                            'referred_user_id':
+                                user['user_id'],
+                        },
+                        {
+                            '_id': 1,
+                        },
+                    )
+                )
+
+                if not existing_referral:
+                    r = Referral(
+                        referrer_user_id=
+                            ref_user['user_id'],
+                        referred_user_id=
+                            user['user_id'],
+                        code=referral_code,
+                    )
+
+                    await db.referrals.insert_one(
+                        r.model_dump()
+                    )
+
+                await db.users.update_one(
+                    {'user_id': user['user_id']},
+                    {
+                        '$set': {
+                            'referred_by':
+                                ref_user['user_id'],
+                            'acquisition_type':
+                                'referral',
+                        }
+                    },
+                )
+
+    fresh = await db.users.find_one(
+        {'user_id': user['user_id']},
+        {
+            '_id': 0,
+            'password_hash': 0,
+        },
+    )
     return {
         'ok': True,
         'user': _to_public(fresh),
@@ -755,9 +1147,30 @@ async def me(request: Request):
 @router.post('/logout')
 async def logout(request: Request, response: Response):
     from deps import get_db
+
     db = get_db()
-    token = request.cookies.get('session_token')
-    if token:
-        await db.user_sessions.delete_one({'session_token': token})
-    response.delete_cookie('session_token', path='/')
+
+    # Google sessions are normally sent as Authorization: Bearer from
+    # localStorage. Keep cookie fallback for older/existing sessions.
+    auth_header = request.headers.get('Authorization') or ''
+    bearer_token = None
+
+    if auth_header.lower().startswith('bearer '):
+        bearer_token = auth_header.split(' ', 1)[1].strip()
+
+    cookie_token = request.cookies.get('session_token')
+
+    # Deleting a JWT from user_sessions is harmless (no matching document).
+    # For Google users this revokes the active Emergent session token.
+    for token in {bearer_token, cookie_token}:
+        if token:
+            await db.user_sessions.delete_one(
+                {'session_token': token}
+            )
+
+    response.delete_cookie(
+        'session_token',
+        path='/',
+    )
+
     return {'ok': True}

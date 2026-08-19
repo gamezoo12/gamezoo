@@ -1,0 +1,45 @@
+import { useState } from 'react';
+
+/**
+ * Homepage promotion image holder.
+ *
+ * Current source:
+ *   /promo-banner.jpg
+ *
+ * Recommended upload size:
+ *   1600 x 800px (2:1)
+ *
+ * Later this component can be connected to Admin → Homepage Promotions
+ * without changing the homepage layout again.
+ */
+export default function PromotionBanner() {
+  const [failed, setFailed] = useState(false);
+
+  return (
+    <section
+      className="w-full bg-white"
+      data-testid="homepage-promotion-banner"
+    >
+      <div className="max-w-7xl mx-auto px-4 lg:px-8 pt-4 md:pt-6">
+        <div className="relative w-full aspect-[2/1] overflow-hidden rounded-2xl md:rounded-3xl bg-[#0B0D1F] shadow-lg border border-slate-100">
+          {!failed && (
+            <img
+              src="/promo-banner.jpg"
+              alt="Prize League promotion"
+              className="block w-full h-full object-cover object-center"
+              loading="eager"
+              onError={() => setFailed(true)}
+            />
+          )}
+
+          {failed && (
+            <div
+              className="absolute inset-0 bg-gradient-to-br from-[#111329] via-[#171936] to-[#21164f]"
+              aria-hidden="true"
+            />
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}

@@ -11,7 +11,7 @@ export default function Stories() {
         <div className="mt-10 rounded-3xl border-2 border-dashed border-slate-200 py-20 text-center">
           <div className="w-16 h-16 rounded-2xl bg-slate-100 mx-auto flex items-center justify-center mb-4"><BookOpen className="w-8 h-8 text-slate-400" /></div>
           <h2 className="font-display text-2xl font-bold text-slate-900">Stories coming soon</h2>
-          <p className="text-slate-500 mt-2 max-w-md mx-auto">We’ll publish winner interviews and behind-the-scenes updates here right after our first draws.</p>
+          <p className="text-slate-500 mt-2 max-w-md mx-auto">We’ll publish winner interviews and behind-the-scenes updates here right after our first competition results.</p>
         </div>
       ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">

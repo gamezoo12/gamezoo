@@ -28,10 +28,10 @@ export default function Operations() {
     setDrawing(contestId);
     try {
       const r = await productionAPI.draw(contestId);
-      toast({ title: '🎉 Winner drawn', description: `${r.winner.user_name} • Ticket #${r.winner.ticket_number}` });
+      toast({ title: '🎉 Winner selected', description: `${r.winner.user_name} • Ticket #${r.winner.ticket_number}` });
       loadAll();
     } catch (e) {
-      toast({ title: 'Draw failed', description: e?.response?.data?.detail || 'Try again' });
+      toast({ title: 'Winner selection failed', description: e?.response?.data?.detail || 'Try again' });
     } finally { setDrawing(''); }
   };
 
@@ -65,11 +65,11 @@ export default function Operations() {
         ))}
       </div>
 
-      {/* Draw queue */}
+      {/* Results queue */}
       <div data-testid="upcoming-draws" className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-display font-bold text-white flex items-center gap-2">
-            <Zap className="w-5 h-5 text-amber-400" /> Draw queue
+            <Zap className="w-5 h-5 text-amber-400" /> Results queue
             <span className="text-xs font-normal text-slate-400">(auto-drawn every 60s when end-date passes)</span>
           </h3>
         </div>
@@ -77,7 +77,7 @@ export default function Operations() {
         {upcoming.overdue.length > 0 && (
           <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-200 text-sm flex items-center gap-2">
             <AlertTriangle className="w-4 h-4" />
-            <span><b>{upcoming.overdue.length}</b> contest{upcoming.overdue.length > 1 ? 's' : ''} overdue — scheduler will process on next tick, or draw now.</span>
+            <span><b>{upcoming.overdue.length}</b> contest{upcoming.overdue.length > 1 ? 's' : ''} overdue — scheduler will process on next tick, or select winner now.</span>
           </div>
         )}
 
@@ -106,7 +106,7 @@ export default function Operations() {
                     className="bg-emerald-600 hover:bg-emerald-700 text-white"
                   >
                     <Play className="w-3.5 h-3.5 mr-1" />
-                    {drawing === c.contest_id ? 'Drawing…' : 'Draw now'}
+                    {drawing === c.contest_id ? 'Drawing…' : 'Select Winner Now'}
                   </Button>
                 </div>
               );
@@ -124,7 +124,7 @@ export default function Operations() {
         {winners.length === 0 ? (
           <div className="py-12 text-center text-slate-400">
             <div className="w-14 h-14 rounded-2xl bg-slate-800 mx-auto flex items-center justify-center mb-3"><ClipboardList className="w-6 h-6" /></div>
-            <div className="text-sm">No winners yet. Draws will appear here after contests are drawn.</div>
+            <div className="text-sm">No winners yet. Draws will appear here after contest results are published.</div>
           </div>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">

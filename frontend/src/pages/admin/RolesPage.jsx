@@ -7,8 +7,8 @@ import { useToast } from '../../hooks/use-toast';
 const ROLES_INFO = [
   { key: 'super_admin', label: 'Super Admin', color: 'bg-rose-100 text-rose-700', desc: 'Full control including role changes, deleting users, changing settings, and the Emergency stop.' },
   { key: 'admin', label: 'Admin', color: 'bg-amber-100 text-amber-700', desc: 'Manage contests, users, KYC, orders, payments, winners. Cannot demote other admins.' },
-  { key: 'operator', label: 'Operator (Production)', color: 'bg-blue-100 text-blue-700', desc: 'Run live draws, manage prize inventory, review KYC. Cannot change site settings.' },
-  { key: 'support', label: 'Customer Support', color: 'bg-indigo-100 text-indigo-700', desc: 'Read-only across users/orders. Can approve/reject KYC. Cannot draw winners or change contests.' },
+  { key: 'operator', label: 'Operator (Production)', color: 'bg-blue-100 text-blue-700', desc: 'Run live results, manage prize inventory, review KYC. Cannot change site settings.' },
+  { key: 'support', label: 'Customer Support', color: 'bg-indigo-100 text-indigo-700', desc: 'Read-only across users/orders. Can approve/reject KYC. Cannot select winners or change contests.' },
   { key: 'user', label: 'Player (default)', color: 'bg-slate-100 text-slate-700', desc: 'Standard end-user – buys tickets, submits KYC, receives payouts.' },
 ];
 

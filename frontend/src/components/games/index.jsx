@@ -669,6 +669,7 @@ export function PatternRepeat({ onComplete }) {
 
 // ---------- Registry ----------
 import { GAMES_V2 } from './games_v2';
+import { GAME_MAP_V3 } from './v3';
 
 export const GAME_MAP = {
   memory_match: (config, onComplete) => <MemoryMatch config={config} onComplete={onComplete} />,
@@ -688,4 +689,5 @@ export const GAME_MAP = {
   color_match: (config, onComplete) => <ColorMatch config={config} onComplete={onComplete} />,
   pattern_repeat: (config, onComplete) => <PatternRepeat config={config} onComplete={onComplete} />,
   ...GAMES_V2,
+  ...GAME_MAP_V3,
 };

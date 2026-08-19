@@ -1,0 +1,112 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
+
+from fastapi import HTTPException
+
+
+DEFAULT_REWARD_SETTINGS = {
+    # Signup bonus
+    "signup_reward_tokens": 5.0,
+    "signup_qualifying_topup_gbp": 10.0,
+
+    # Personal referral bonus
+    "referral_reward_tokens": 5.0,
+    "referral_qualifying_topup_gbp": 10.0,
+    "referral_contest_entry_required": True,
+
+    # Influencer promo bonus
+    "influencer_reward_tokens": 2.0,
+    "influencer_qualifying_topup_gbp": 10.0,
+    "influencer_contest_entry_required": True,
+}
+
+
+async def get_reward_settings(db) -> dict:
+    """
+    Return current reward programme settings.
+
+    New settings keys always receive safe defaults so old databases remain
+    compatible without requiring a migration.
+    """
+    doc = await db.reward_settings.find_one(
+        {"_id": "app"},
+        {"_id": 0},
+    ) or {}
+
+    return {
+        **DEFAULT_REWARD_SETTINGS,
+        **doc,
+    }
+
+
+async def save_reward_settings(db, payload: dict) -> dict:
+    """
+    Admin-only caller can update future reward rules.
+
+    Already-issued wallet rewards are never recalculated.
+    """
+    allowed = set(DEFAULT_REWARD_SETTINGS)
+
+    updates = {
+        key: value
+        for key, value in (payload or {}).items()
+        if key in allowed
+    }
+
+    numeric_fields = {
+        "signup_reward_tokens": (0.0, 1000.0),
+        "signup_qualifying_topup_gbp": (0.0, 10000.0),
+
+        "referral_reward_tokens": (0.0, 1000.0),
+        "referral_qualifying_topup_gbp": (0.0, 10000.0),
+
+        "influencer_reward_tokens": (0.0, 1000.0),
+        "influencer_qualifying_topup_gbp": (0.0, 10000.0),
+    }
+
+    for field, (minimum, maximum) in numeric_fields.items():
+        if field not in updates:
+            continue
+
+        try:
+            value = round(float(updates[field]), 2)
+        except (TypeError, ValueError):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid value for {field}",
+            )
+
+        if value < minimum or value > maximum:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{field} is outside the allowed range",
+            )
+
+        updates[field] = value
+
+    boolean_fields = (
+        "referral_contest_entry_required",
+        "influencer_contest_entry_required",
+    )
+
+    for field in boolean_fields:
+        if field not in updates:
+            continue
+
+        if not isinstance(updates[field], bool):
+            raise HTTPException(
+                status_code=400,
+                detail=f"{field} must be true or false",
+            )
+
+    if updates:
+        updates["updated_at"] = datetime.now(timezone.utc)
+
+        await db.reward_settings.update_one(
+            {"_id": "app"},
+            {"$set": updates},
+            upsert=True,
+        )
+
+    return await get_reward_settings(db)

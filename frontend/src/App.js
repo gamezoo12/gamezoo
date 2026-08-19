@@ -3,6 +3,7 @@ import './App.css';
 import { Toaster } from './components/ui/toaster';
 import { AuthProvider } from './context/AuthContext';
 import TermsGate from './components/TermsGate';
+import RouteScrollManager from './components/RouteScrollManager';
 
 import PublicLayout from './components/layout/PublicLayout';
 import Home from './pages/Home';
@@ -145,6 +146,7 @@ function App() {
     <div className="App">
       <AuthProvider>
         <BrowserRouter>
+          <RouteScrollManager />
           <AppRouter />
           <TermsGate />
           <Toaster />

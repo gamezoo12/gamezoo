@@ -3,7 +3,7 @@ import { ShieldCheck, Trophy, HeartHandshake, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const NOTES = [
-  { Icon: ShieldCheck,    title: 'Fair & transparent', text: 'Every winner is verified per contest rules. Full audit trail on every draw.' },
+  { Icon: ShieldCheck,    title: 'Fair & transparent', text: 'Every winner is verified per contest rules. Full audit trail on every competition result.' },
   { Icon: Trophy,         title: 'Real prizes',        text: 'From cash to gadgets to travel — real prizes, delivered after verification.' },
   { Icon: HeartHandshake, title: 'Responsible play',   text: '18+ only. Set spend limits from your account. Free postal entry always available.' },
 ];

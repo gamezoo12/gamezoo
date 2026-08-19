@@ -3,7 +3,14 @@ import axios from 'axios';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
 
-export const api = axios.create({ baseURL: API, withCredentials: true });
+// Authentication is carried by Authorization: Bearer.
+// Do NOT enable cross-origin cookie credentials here: Emergent preview
+// may return Access-Control-Allow-Origin: *, which browsers reject when
+// credentials mode is "include".
+export const api = axios.create({
+  baseURL: API,
+  withCredentials: false,
+});
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('gz_token');
@@ -16,7 +23,12 @@ export const authAPI = {
   login: (data) => api.post('/auth/login', data).then(r => r.data),
   me: () => api.get('/auth/me').then(r => r.data),
   logout: () => api.post('/auth/logout').then(r => r.data),
-  googleSession: (sessionId) => api.post('/auth/session', {}, { headers: { 'X-Session-ID': sessionId } }).then(r => r.data),
+  googleDirect: (credential) =>
+    api.post(
+      '/auth/google',
+      { credential },
+      { withCredentials: false }
+    ).then(r => r.data),
   emailOtpSend: (email) =>
     api.post('/auth/otp/email/send', { email }).then(r => r.data),
   otpSend: (phone) => api.post('/auth/otp/send', { phone }).then(r => r.data),
@@ -195,6 +207,12 @@ export const referralAPI = {
 
 export const gamesAPI = {
   types: () => api.get('/games/types').then(r => r.data),
+  startSession: (ticket_id) =>
+    api.post('/games/session/start', { ticket_id }).then(r => r.data),
+
+  beginSession: (session_id) =>
+    api.post('/games/session/begin', { session_id }).then(r => r.data),
+
   submit: (data) => api.post('/games/submit', data).then(r => r.data),
   myAttempts: (ticket_id) => api.get(`/games/attempts/${ticket_id}`).then(r => r.data),
   leaderboard: (contest_id, limit = 25) => api.get(`/contests/${contest_id}/leaderboard`, { params: { limit } }).then(r => r.data),

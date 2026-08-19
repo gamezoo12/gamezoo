@@ -1,0 +1,244 @@
+import { useEffect, useMemo, useState } from 'react';
+import { Link, Navigate, useParams } from 'react-router-dom';
+import {
+  ArrowLeft,
+  Gamepad2,
+  RotateCcw,
+  Trophy,
+  ArrowRight,
+  ShieldCheck,
+} from 'lucide-react';
+
+import { api, gamesAPI } from '../lib/api';
+import { GAME_MAP } from '../components/games';
+import { Button } from '../components/ui/button';
+
+export default function GamePreview() {
+  const { gameId } = useParams();
+
+  const [settings, setSettings] = useState(null);
+  const [games, setGames] = useState([]);
+  const [contests, setContests] = useState([]);
+  const [result, setResult] = useState(null);
+  const [gameKey, setGameKey] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      api.get('/settings').then(r => r.data),
+      gamesAPI.types(),
+      api.get('/contests').then(r => r.data),
+    ])
+      .then(([publicSettings, gameResponse, contestResponse]) => {
+        setSettings(publicSettings || {});
+        setGames(gameResponse?.games || []);
+        setContests(Array.isArray(contestResponse) ? contestResponse : []);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const game = useMemo(
+    () => games.find(item => item.id === gameId),
+    [games, gameId]
+  );
+
+  const selected = Array.isArray(settings?.game_preview_games)
+    ? settings.game_preview_games.includes(gameId)
+    : false;
+
+  const renderGame = GAME_MAP[gameId];
+
+  const relatedContests = contests.filter(
+    contest =>
+      contest.status === 'live' &&
+      contest.game_type === gameId
+  );
+
+  if (loading) {
+    return (
+      <div className="max-w-5xl mx-auto px-4 py-16 text-center text-slate-500">
+        Loading game…
+      </div>
+    );
+  }
+
+  if (!settings?.game_preview_enabled) {
+    return <Navigate to="/" replace />;
+  }
+
+  if (!selected || !game || !renderGame) {
+    return <Navigate to="/games" replace />;
+  }
+
+  const playAgain = () => {
+    setResult(null);
+    setGameKey(value => value + 1);
+  };
+
+  return (
+    <div className="bg-slate-50 min-h-screen">
+      <div className="max-w-5xl mx-auto px-4 lg:px-8 py-8 md:py-12">
+        <Link
+          to="/games"
+          className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-900"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          All games
+        </Link>
+
+        <div className="mt-5 bg-gradient-to-br from-slate-950 via-indigo-950 to-fuchsia-950 rounded-3xl text-white p-6 md:p-8">
+          <div className="text-xs uppercase tracking-[0.2em] text-[#FFD54A] font-bold">
+            Free Practice Preview
+          </div>
+
+          <h1 className="font-display text-3xl md:text-4xl font-black mt-2">
+            {game.label}
+          </h1>
+
+          <p className="text-white/70 mt-3">
+            Practice this skill game before entering an official Prize League
+            contest.
+          </p>
+
+          <div className="mt-4 inline-flex items-center gap-2 text-xs bg-white/10 border border-white/10 rounded-full px-3 py-2">
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            No ticket · No wallet deduction · No official score
+          </div>
+        </div>
+
+        <div className="mt-6 bg-white rounded-2xl border border-slate-100 p-5 md:p-7">
+          {!result ? (
+            <div key={gameKey}>
+              {renderGame(
+                {
+                  practice_mode: true,
+                  public_preview: true,
+                },
+                setResult
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-6">
+              <Trophy className="w-14 h-14 text-amber-500 mx-auto" />
+
+              <div className="font-display text-3xl font-black text-slate-900 mt-4">
+                Practice complete
+              </div>
+
+              <div className="grid sm:grid-cols-3 gap-3 mt-6 max-w-2xl mx-auto">
+                <div className="rounded-xl bg-slate-50 p-4">
+                  <div className="text-xs uppercase text-slate-400">
+                    Time
+                  </div>
+                  <div className="font-bold mt-1">
+                    {(Number(result.duration_ms || 0) / 1000).toFixed(2)}s
+                  </div>
+                </div>
+
+                <div className="rounded-xl bg-slate-50 p-4">
+                  <div className="text-xs uppercase text-slate-400">
+                    Accuracy
+                  </div>
+                  <div className="font-bold mt-1">
+                    {(Number(result.accuracy || 0) * 100).toFixed(0)}%
+                  </div>
+                </div>
+
+                <div className="rounded-xl bg-slate-50 p-4">
+                  <div className="text-xs uppercase text-slate-400">
+                    Result
+                  </div>
+                  <div className="font-bold mt-1">
+                    {result.solved ? 'Completed' : 'Practice finished'}
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-sm text-slate-500 mt-5">
+                This practice result was not submitted and does not affect any
+                Prize League leaderboard.
+              </p>
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={playAgain}
+                className="mt-5"
+              >
+                <RotateCcw className="w-4 h-4 mr-2" />
+                Practice Again
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-7">
+          <div className="flex items-end justify-between gap-3 mb-4">
+            <div>
+              <div className="text-xs uppercase tracking-widest text-[#6C2BFF] font-bold">
+                Compete with this game
+              </div>
+              <h2 className="font-display text-2xl font-extrabold text-slate-900 mt-1">
+                Live skill contests
+              </h2>
+            </div>
+
+            <Link
+              to="/competitions"
+              className="text-sm text-[#6C2BFF] font-bold"
+            >
+              All contests →
+            </Link>
+          </div>
+
+          {relatedContests.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-slate-100 p-6 text-sm text-slate-500">
+              There are no live contests using this game right now. You can
+              still practice and check the contests page for new competitions.
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-2 gap-4">
+              {relatedContests.map(contest => (
+                <Link
+                  key={contest.contest_id}
+                  to={`/competition/${contest.slug}`}
+                  className="bg-white rounded-2xl border border-slate-100 p-4 flex gap-4 hover:shadow-lg transition"
+                >
+                  {contest.image && (
+                    <img
+                      src={contest.image}
+                      alt=""
+                      className="w-24 h-24 rounded-xl object-cover shrink-0"
+                    />
+                  )}
+
+                  <div className="min-w-0 flex-1">
+                    <div className="font-display font-extrabold text-slate-900 line-clamp-2">
+                      {contest.title}
+                    </div>
+
+                    <div className="text-sm text-slate-500 mt-1">
+                      Prize £{Number(contest.prize_amount || 0).toLocaleString()}
+                    </div>
+
+                    <div className="mt-3 inline-flex items-center gap-1 text-[#6C2BFF] font-bold text-sm">
+                      Compete Now
+                      <ArrowRight className="w-4 h-4" />
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-7 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+          <strong>Practice only:</strong> this page never submits to the official
+          game-score endpoint. Official attempts remain available only after
+          valid contest entry through the existing Prize League flow.
+        </div>
+      </div>
+    </div>
+  );
+}

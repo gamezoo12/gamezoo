@@ -46,16 +46,16 @@ export const NAV_LINKS = [
   { label: 'Contests', href: '/competitions' },
   { label: 'Leaderboard', href: '/leaderboard' },
   { label: 'Winners', href: '/winners' },
-  { label: 'Draw Results', href: '/draw-results' },
+  { label: 'Competition Results', href: '/draw-results' },
   { label: 'How it Works', href: '/#how-it-works' },
   { label: 'FAQs', href: '/faq' },
 ];
 
 export const CATEGORIES = [
   { slug: 'all', label: 'All Contests' },
-  { slug: 'jackpot', label: 'Jackpot' },
+  { slug: 'jackpot', label: 'Featured Prize' },
   { slug: 'instant-wins', label: 'Instant Wins' },
-  { slug: 'prize-draws', label: 'Prize Draws' },
+  { slug: 'prize-draws', label: 'Prize Competitions' },
   { slug: 'new-games', label: 'New Games' },
 ];
 

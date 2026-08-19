@@ -407,7 +407,7 @@ export default function MyAccount() {
                             </Button>
                           </Link>
                         ) : (
-                          <Link to={c.slug ? `/contests/${c.slug}` : '/contests'} className="flex-1">
+                          <Link to={c.slug ? `/competition/${c.slug}` : '/competitions'} className="flex-1">
                             <Button size="sm" variant="outline" className="w-full h-8" data-testid={`ticket-view-${t.ticket_id}`}>View contest</Button>
                           </Link>
                         )}
@@ -612,7 +612,7 @@ export default function MyAccount() {
               {[
                 { key: 'newsletter', label: 'Weekly newsletter', desc: 'Big prize drops + new games' },
                 { key: 'win_email', label: 'Win notifications', desc: 'Email me when I win a prize' },
-                { key: 'reminder_email', label: 'Draw reminders', desc: 'Notify me when a contest I entered is closing' },
+                { key: 'reminder_email', label: 'Competition reminders', desc: 'Notify me when a contest I entered is closing' },
               ].map(p => (
                 <label key={p.key} className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div>

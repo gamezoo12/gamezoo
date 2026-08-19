@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useLocation, Link } from 'react-router-dom';
 import { Clock, Coins } from 'lucide-react';
 import { countdown, percent, tokenCount } from '../lib/format';
 import { api } from '../lib/api';
@@ -8,6 +8,7 @@ import { useJoinedContestIds } from '../lib/joinedContests';
 import { resolveMediaUrl, useFallbackImage } from '../lib/media';
 
 export default function CompetitionCard({ c }) {
+  const location = useLocation();
   const [t, setT] = useState(countdown(c.endDate));
   const { user } = useAuth();
   const joined = useJoinedContestIds(user);
@@ -42,6 +43,12 @@ export default function CompetitionCard({ c }) {
   return (
     <Link
       to={`/competition/${c.slug}`}
+      state={{
+        from:
+          location.pathname +
+          location.search +
+          location.hash,
+      }}
       onClick={handleClick}
       className="group block"
       data-testid={`competition-card-${c.slug}`}

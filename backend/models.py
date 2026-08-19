@@ -175,6 +175,11 @@ class User(BaseModel):
     name: str
     username: Optional[str] = None  # auto-generated: firstname + DOB-day + NN
     picture: Optional[str] = None
+
+    # Stable Google account identifier from the verified Google ID token.
+    # Do not use email as the sole Google identity key.
+    google_sub: Optional[str] = None
+
     password_hash: Optional[str] = None  # only for email/password users
     method: Literal['email', 'google'] = 'email'
     role: Literal['user', 'admin', 'super_admin', 'operator', 'support'] = 'user'
