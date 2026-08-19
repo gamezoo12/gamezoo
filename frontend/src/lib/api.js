@@ -205,6 +205,14 @@ export const referralAPI = {
   complete: () => api.post('/referrals/complete').then(r => r.data),
 };
 
+export const worldAPI = {
+  state: () =>
+    api.get('/games/world/state').then(r => r.data),
+
+  level: (level) =>
+    api.get(`/games/world/level/${level}`).then(r => r.data),
+};
+
 export const gamesAPI = {
   types: () => api.get('/games/types').then(r => r.data),
   startSession: (ticket_id) =>

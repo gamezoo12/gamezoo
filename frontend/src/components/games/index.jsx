@@ -77,44 +77,152 @@ export function MemoryMatch({ onComplete }) {
 }
 
 // ---------- Number Sequence (tap 1→20 as fast as possible) ----------
-export function NumberSequence({ onComplete }) {
-  const nums = useMemo(() => shuffle(Array.from({ length: 20 }, (_, i) => i + 1)), []);
-  const [next, setNext] = useState(1);
-  const [misses, setMisses] = useState(0);
-  const [start] = useState(() => Date.now());
+export function NumberSequence({
+  config = {},
+  onComplete,
+}) {
+  const target = Math.max(
+    5,
+    Math.min(
+      100,
+      Number(config?.target_number || 20),
+    ),
+  );
 
-  const tap = (n) => {
-    if (n === next) {
-      if (n === 20) {
-        const duration_ms = Date.now() - start;
-        const accuracy = Math.max(0.1, 1 - misses * 0.05);
-        onComplete({ solved: true, accuracy, duration_ms });
-      }
-      setNext(next + 1);
-    } else {
-      setMisses(m => m + 1);
+  const [numbers] = useState(() =>
+    shuffle(
+      Array.from(
+        { length: target },
+        (_, index) => index + 1,
+      ),
+    ),
+  );
+
+  const [nextNumber, setNextNumber] =
+    useState(1);
+
+  const [mistakes, setMistakes] =
+    useState(0);
+
+  const [start] = useState(
+    Date.now(),
+  );
+
+  const tap = (number) => {
+    if (number !== nextNumber) {
+      setMistakes((value) => value + 1);
+      return;
     }
+
+    if (number >= target) {
+      const accuracy = Math.max(
+        0,
+        Math.min(
+          1,
+          target /
+            Math.max(
+              target,
+              target + mistakes,
+            ),
+        ),
+      );
+
+      onComplete({
+        solved: true,
+        accuracy,
+        duration_ms:
+          Date.now() - start,
+      });
+
+      return;
+    }
+
+    setNextNumber(
+      (value) => value + 1,
+    );
   };
 
+  const columns =
+    target <= 20
+      ? 5
+      : target <= 30
+        ? 6
+        : target <= 50
+          ? 7
+          : target <= 75
+            ? 9
+            : 10;
+
   return (
-    <div className="max-w-md mx-auto">
-      <div className="text-center text-slate-600 text-sm mb-3">Tap the numbers in order <b>1 → 20</b>. Next: <b className="text-orange-600">{next}</b> • Misses: <b>{misses}</b></div>
-      <div className="grid grid-cols-5 gap-2">
-        {nums.map((n) => (
-          <button
-            key={n}
-            onClick={() => tap(n)}
-            data-testid={`seq-num-${n}`}
-            disabled={n < next}
-            className={`aspect-square rounded-xl text-xl font-bold shadow-md ${n < next ? 'bg-emerald-100 text-emerald-500 opacity-40' : 'bg-gradient-to-br from-orange-500 to-fuchsia-600 text-white hover:scale-105 transition'}`}
-          >{n}</button>
-        ))}
+    <div
+      className="w-full h-full flex flex-col overflow-hidden"
+      data-testid="number-sequence-game"
+    >
+      <div className="flex-none text-center mb-2">
+        <div className="text-xs uppercase tracking-widest text-slate-400">
+          Tap in order
+        </div>
+
+        <div className="font-display font-black text-xl text-slate-900">
+          1 → {target}
+        </div>
+
+        <div className="text-xs text-slate-500 mt-1">
+          Next: {nextNumber}
+        </div>
+      </div>
+
+      <div
+        className="flex-1 min-h-0 grid gap-1.5"
+        style={{
+          gridTemplateColumns:
+            `repeat(${columns}, minmax(0, 1fr))`,
+        }}
+      >
+        {numbers.map((number) => {
+          const done =
+            number < nextNumber;
+
+          return (
+            <button
+              key={number}
+              type="button"
+              disabled={done}
+              onClick={() =>
+                tap(number)
+              }
+              className={[
+                'min-w-0 min-h-0 rounded-lg border font-black',
+                'flex items-center justify-center',
+                'select-none touch-manipulation',
+                'transition',
+                done
+                  ? 'bg-emerald-100 border-emerald-200 text-emerald-500 opacity-55'
+                  : 'bg-white border-slate-200 text-slate-900 active:scale-95',
+              ].join(' ')}
+              style={{
+                fontSize:
+                  target <= 30
+                    ? 'clamp(14px, 4vw, 22px)'
+                    : target <= 60
+                      ? 'clamp(12px, 3.2vw, 18px)'
+                      : 'clamp(10px, 2.7vw, 15px)',
+              }}
+              data-testid={`number-${number}`}
+            >
+              {number}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="flex-none text-center text-[10px] text-slate-400 mt-2">
+        Wrong taps: {mistakes}
       </div>
     </div>
   );
 }
 
-// ---------- Target Tap (tap the moving bullseye) ----------
 export function TargetTap({ onComplete }) {
   const TOTAL = 15;
   const [count, setCount] = useState(0);

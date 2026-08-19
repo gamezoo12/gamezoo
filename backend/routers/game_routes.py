@@ -2112,3 +2112,446 @@ async def my_attempts(ticket_id: str, request: Request):
         raise HTTPException(status_code=404, detail='Ticket not found')
     scores = await db.game_scores.find({'ticket_id': ticket_id}, {'_id': 0}).sort('created_at', 1).to_list(10)
     return {'attempts': scores}
+
+
+# ===========================================================================
+# PRIZE LEAGUE WORLD — SEASON 1
+# World progression is intentionally independent from paid contest tickets.
+# ===========================================================================
+
+WORLD_SEASON_ID = 'season-1'
+
+WORLD_LEVELS = {
+    1: {
+        'level': 1,
+        'arena': 1,
+        'name': 'Village Gate',
+        'game_type': 'number_sequence',
+        'game_config': {
+            'target_number': 20,
+        },
+        'time_limit_seconds': 25,
+        'initial_free_attempts': 3,
+        'refresh_attempts': 1,
+        'refresh_hours': 24,
+        'token_retry_enabled': True,
+    },
+    2: {
+        'level': 2,
+        'arena': 1,
+        'name': 'Market Square',
+        'game_type': 'number_sequence',
+        'game_config': {
+            'target_number': 25,
+        },
+        'time_limit_seconds': 27,
+        'initial_free_attempts': 3,
+        'refresh_attempts': 1,
+        'refresh_hours': 24,
+        'token_retry_enabled': True,
+    },
+    3: {
+        'level': 3,
+        'arena': 1,
+        'name': 'Royal Farm',
+        'game_type': 'number_sequence',
+        'game_config': {
+            'target_number': 30,
+        },
+        'time_limit_seconds': 30,
+        'initial_free_attempts': 3,
+        'refresh_attempts': 1,
+        'refresh_hours': 24,
+        'token_retry_enabled': True,
+    },
+    4: {
+        'level': 4,
+        'arena': 1,
+        'name': 'Riverside Trail',
+        'game_type': 'number_sequence',
+        'game_config': {
+            'target_number': 35,
+        },
+        'time_limit_seconds': 32,
+        'initial_free_attempts': 3,
+        'refresh_attempts': 1,
+        'refresh_hours': 24,
+        'token_retry_enabled': True,
+    },
+    5: {
+        'level': 5,
+        'arena': 1,
+        'name': "King's Bridge",
+        'game_type': 'number_sequence',
+        'game_config': {
+            'target_number': 40,
+        },
+        'time_limit_seconds': 35,
+        'initial_free_attempts': 3,
+        'refresh_attempts': 1,
+        'refresh_hours': 24,
+        'token_retry_enabled': True,
+    },
+    6: {
+        'level': 6,
+        'arena': 1,
+        'name': 'Whispering Woods',
+        'game_type': 'number_sequence',
+        'game_config': {
+            'target_number': 45,
+        },
+        'time_limit_seconds': 38,
+        'initial_free_attempts': 3,
+        'refresh_attempts': 1,
+        'refresh_hours': 24,
+        'token_retry_enabled': True,
+    },
+    7: {
+        'level': 7,
+        'arena': 1,
+        'name': 'Ancient Ruins',
+        'game_type': 'number_sequence',
+        'game_config': {
+            'target_number': 50,
+        },
+        'time_limit_seconds': 42,
+        'initial_free_attempts': 3,
+        'refresh_attempts': 1,
+        'refresh_hours': 24,
+        'token_retry_enabled': True,
+    },
+    8: {
+        'level': 8,
+        'arena': 1,
+        'name': 'Watchtower Pass',
+        'game_type': 'number_sequence',
+        'game_config': {
+            'target_number': 60,
+        },
+        'time_limit_seconds': 48,
+        'initial_free_attempts': 3,
+        'refresh_attempts': 1,
+        'refresh_hours': 24,
+        'token_retry_enabled': True,
+    },
+    9: {
+        'level': 9,
+        'arena': 1,
+        'name': 'Castle Crossing',
+        'game_type': 'number_sequence',
+        'game_config': {
+            'target_number': 75,
+        },
+        'time_limit_seconds': 55,
+        'initial_free_attempts': 3,
+        'refresh_attempts': 1,
+        'refresh_hours': 24,
+        'token_retry_enabled': True,
+    },
+    10: {
+        'level': 10,
+        'arena': 1,
+        'name': 'Royal Gate',
+        'game_type': 'number_sequence',
+        'game_config': {
+            'target_number': 90,
+        },
+        'time_limit_seconds': 65,
+        'initial_free_attempts': 3,
+        'refresh_attempts': 1,
+        'refresh_hours': 24,
+        'token_retry_enabled': True,
+    },
+}
+
+WORLD_CHAMPION_ARENAS = {
+    1: {
+        'arena': 1,
+        'name': 'Champion Arena I',
+        'game_type': 'number_sequence',
+        'game_config': {
+            'target_number': 100,
+        },
+        'time_limit_seconds': 75,
+        'initial_free_attempts': 3,
+        'refresh_attempts': 1,
+        'refresh_hours': 24,
+        'token_retry_enabled': True,
+        'prize_amount': 100,
+        'prize_currency': 'GBP',
+        'leaderboard_enabled': True,
+    },
+}
+
+
+async def _world_progress_for_user(db, user_id: str):
+    progress = await db.world_progress.find_one(
+        {
+            'user_id': user_id,
+            'season_id': WORLD_SEASON_ID,
+        },
+        {
+            '_id': 0,
+        },
+    )
+
+    if progress:
+        return progress
+
+    now_utc = datetime.now(timezone.utc)
+
+    progress = {
+        'user_id': user_id,
+        'season_id': WORLD_SEASON_ID,
+        'current_level': 1,
+        'highest_unlocked_level': 1,
+        'completed_levels': [],
+        'created_at': now_utc,
+        'updated_at': now_utc,
+    }
+
+    await db.world_progress.update_one(
+        {
+            'user_id': user_id,
+            'season_id': WORLD_SEASON_ID,
+        },
+        {
+            '$setOnInsert': progress,
+        },
+        upsert=True,
+    )
+
+    return await db.world_progress.find_one(
+        {
+            'user_id': user_id,
+            'season_id': WORLD_SEASON_ID,
+        },
+        {
+            '_id': 0,
+        },
+    )
+
+
+async def _world_level_attempt_status(
+    db,
+    user_id: str,
+    level: int,
+):
+    """
+    World rule:
+      * First access to a level: 3 free attempts.
+      * After those are consumed: 1 free attempt becomes available
+        after 24 hours for that same level.
+      * Tokens are NOT implemented here yet and never unlock levels.
+    """
+
+    attempts = await db.world_level_attempts.find(
+        {
+            'user_id': user_id,
+            'season_id': WORLD_SEASON_ID,
+            'level': level,
+        },
+        {
+            '_id': 0,
+            'created_at': 1,
+            'source': 1,
+            'result': 1,
+        },
+    ).sort(
+        'created_at',
+        1,
+    ).to_list(500)
+
+    free_attempts_used = sum(
+        1
+        for attempt in attempts
+        if attempt.get('source', 'free') == 'free'
+    )
+
+    now_utc = datetime.now(timezone.utc)
+
+    definition = WORLD_LEVELS.get(level) or {}
+
+    initial_free_attempts = int(
+        definition.get('initial_free_attempts', 3)
+    )
+
+    refresh_attempts = int(
+        definition.get('refresh_attempts', 1)
+    )
+
+    refresh_hours = int(
+        definition.get('refresh_hours', 24)
+    )
+
+    token_retry_enabled = bool(
+        definition.get('token_retry_enabled', False)
+    )
+
+    if free_attempts_used < initial_free_attempts:
+        return {
+            'initial_free_attempts': initial_free_attempts,
+            'free_attempts_used': free_attempts_used,
+            'free_attempts_available':
+                initial_free_attempts - free_attempts_used,
+            'next_free_attempt_at': None,
+            'token_retry_available': token_retry_enabled,
+        }
+
+    last_free = next(
+        (
+            attempt
+            for attempt in reversed(attempts)
+            if attempt.get('source', 'free') == 'free'
+        ),
+        None,
+    )
+
+    last_created = (
+        (last_free or {}).get('created_at')
+    )
+
+    if not last_created:
+        return {
+            'initial_free_attempts': 3,
+            'free_attempts_used': free_attempts_used,
+            'free_attempts_available': 0,
+            'next_free_attempt_at': None,
+            'token_retry_available': False,
+        }
+
+    if last_created.tzinfo is None:
+        last_created = last_created.replace(
+            tzinfo=timezone.utc
+        )
+
+    next_free = (
+        last_created +
+        timedelta(hours=refresh_hours)
+    )
+
+    available = (
+        refresh_attempts
+        if now_utc >= next_free
+        else 0
+    )
+
+    return {
+        'initial_free_attempts': initial_free_attempts,
+        'free_attempts_used': free_attempts_used,
+        'free_attempts_available': available,
+        'next_free_attempt_at': (
+            None
+            if available
+            else next_free
+        ),
+        'token_retry_available': token_retry_enabled,
+    }
+
+
+@router.get('/world/state')
+async def world_state(request: Request):
+    user = await get_current_user(request)
+    db = get_db()
+
+    progress = await _world_progress_for_user(
+        db,
+        user['user_id'],
+    )
+
+    current_level = int(
+        progress.get('current_level') or 1
+    )
+
+    attempt_status = (
+        await _world_level_attempt_status(
+            db,
+            user['user_id'],
+            current_level,
+        )
+    )
+
+    return {
+        'season_id': WORLD_SEASON_ID,
+        'current_level': current_level,
+        'highest_unlocked_level': int(
+            progress.get(
+                'highest_unlocked_level'
+            ) or 1
+        ),
+        'completed_levels': progress.get(
+            'completed_levels',
+            [],
+        ),
+        'level': WORLD_LEVELS.get(
+            current_level
+        ),
+        'attempts': attempt_status,
+    }
+
+
+@router.get('/world/level/{level}')
+async def world_level(
+    level: int,
+    request: Request,
+):
+    user = await get_current_user(request)
+    db = get_db()
+
+    definition = WORLD_LEVELS.get(level)
+
+    if not definition:
+        raise HTTPException(
+            status_code=404,
+            detail='World level not found',
+        )
+
+    progress = await _world_progress_for_user(
+        db,
+        user['user_id'],
+    )
+
+    highest_unlocked = int(
+        progress.get(
+            'highest_unlocked_level'
+        ) or 1
+    )
+
+    if level > highest_unlocked:
+        raise HTTPException(
+            status_code=403,
+            detail='Complete the previous level first',
+        )
+
+    attempts = (
+        await _world_level_attempt_status(
+            db,
+            user['user_id'],
+            level,
+        )
+    )
+
+    game_meta = next(
+        (
+            game
+            for game in GAME_TYPES
+            if game.get('id')
+            == definition['game_type']
+        ),
+        None,
+    )
+
+    return {
+        'season_id': WORLD_SEASON_ID,
+        'unlocked': True,
+        'completed': (
+            level
+            in progress.get(
+                'completed_levels',
+                [],
+            )
+        ),
+        'level': definition,
+        'game': game_meta,
+        'attempts': attempts,
+    }

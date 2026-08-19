@@ -8,89 +8,133 @@ import {
   Text,
 } from 'pixi.js';
 
-const WORLD_WIDTH = 1600;
-const WORLD_HEIGHT = 4200;
+const WORLD_WIDTH = 1024;
+const WORLD_HEIGHT = 1536;
 
-const MIN_ZOOM = 0.18;
-const MAX_ZOOM = 1.35;
+const HD_WORLD =
+  '/world-assets/royal-village/hd/royal-village-hd.png';
 
-const ASSET = (path) =>
-  `/world-assets/royal-village/${path}`;
 
-const ROYAL_ASSETS = {
-  grass: ASSET('terrain/grass.png'),
-  dirt: ASSET('terrain/dirt.png'),
-  stone: ASSET('terrain/stone.png'),
-  water1: ASSET('terrain/water-1.png'),
-  water2: ASSET('terrain/water-2.png'),
-  water3: ASSET('terrain/water-3.png'),
-  water4: ASSET('terrain/water-4.png'),
-  bridge: ASSET('terrain/bridge.png'),
-  gravelBrown: ASSET('terrain/gravel-brown.png'),
-  gravelGrey: ASSET('terrain/gravel-grey.png'),
-  mud: ASSET('terrain/mud.png'),
 
-  castleWall: ASSET('buildings/castle-wall.png'),
-  castleTop: ASSET('buildings/castle-top.png'),
-  castleRoof: ASSET('buildings/castle-roof.png'),
-  castleGate: ASSET('buildings/castle-gate.png'),
-  castleStairs: ASSET('buildings/castle-stairs.png'),
-  buildingStone: ASSET('buildings/building-stone.png'),
-  buildingFrame: ASSET('buildings/building-frame.png'),
-  roofRed: ASSET('buildings/roof-red.png'),
-  roofRedPoint: ASSET('buildings/roof-red-point.png'),
-  marketRed: ASSET('buildings/market-red.png'),
-  marketBlue: ASSET('buildings/market-blue.png'),
-  marketRoofRed: ASSET('buildings/market-roof-red.png'),
-  marketRoofBlue: ASSET('buildings/market-roof-blue.png'),
+const MIN_ZOOM = 0.32;
+const MAX_ZOOM = 2.2;
 
-  treeGreen: ASSET('nature/tree-green.png'),
-  treeOrange: ASSET('nature/tree-orange.png'),
-  treeRed: ASSET('nature/tree-red.png'),
-  bushSmall: ASSET('nature/bush-small.png'),
-  bushLarge: ASSET('nature/bush-large.png'),
+const CURRENT_WORLD_LEVEL = 1;
 
-  fence: ASSET('props/fence.png'),
-  fenceGate: ASSET('props/fence-gate.png'),
-  cart: ASSET('props/cart.png'),
-  cartHorse: ASSET('props/cart-horse.png'),
-  treasure: ASSET('props/treasure.png'),
-  box: ASSET('props/box.png'),
-  boxWide: ASSET('props/box-wide.png'),
-  ladderSmall: ASSET('props/ladder-small.png'),
+/*
+ * Live-avatar movement engine.
+ *
+ * The actual character artwork will be supplied as a separate
+ * transparent asset. We intentionally do NOT use the old Kenney
+ * character here.
+ */
+const LIVE_AVATAR_ENABLED = true;
 
-  man: ASSET('characters/man.png'),
-  woman: ASSET('characters/woman.png'),
-  horse: ASSET('characters/horse.png'),
-  wizard: ASSET('characters/wizard.png'),
-};
+/*
+ * Road waypoints for Royal Village.
+ *
+ * These are movement coordinates, separate from the level markers,
+ * so the avatar follows the road instead of moving in a straight
+ * line through scenery.
+ */
+const ROYAL_VILLAGE_ROUTE = [
+  { x: 510, y: 1405 },
 
-const LEVEL_POINTS = [
-  { level: 1, name: 'Village Gate', x: 760, y: 3650 },
-  { level: 2, name: 'Market Square', x: 585, y: 3350 },
-  { level: 3, name: 'Royal Farm', x: 850, y: 3090 },
-  { level: 4, name: 'Riverside Trail', x: 1040, y: 2810 },
-  { level: 5, name: "King's Bridge", x: 790, y: 2490 },
-  { level: 6, name: 'Whispering Woods', x: 570, y: 2170 },
-  { level: 7, name: 'Ancient Ruins', x: 820, y: 1870 },
-  { level: 8, name: 'Watchtower Pass', x: 1010, y: 1540 },
-  { level: 9, name: 'Castle Crossing', x: 770, y: 1210 },
-  { level: 10, name: 'Royal Gate', x: 650, y: 900 },
+  { x: 505, y: 1365 },
+  { x: 510, y: 1325 },
+  { x: 510, y: 1292 },
+
+  // Level 1 approach
+  { x: 510, y: 1215 },
+
+  { x: 485, y: 1195 },
+  { x: 460, y: 1140 },
+
+  // Level 2 approach
+  { x: 455, y: 1050 },
+
+  { x: 495, y: 1010 },
+  { x: 545, y: 980 },
+
+  // Level 3 approach
+  { x: 565, y: 925 },
+
+  { x: 585, y: 875 },
+
+  // Level 4 approach
+  { x: 585, y: 795 },
+
+  { x: 560, y: 755 },
+
+  // Level 5 approach
+  { x: 535, y: 675 },
+
+  { x: 500, y: 645 },
+
+  // Level 6 approach
+  { x: 455, y: 575 },
+
+  // Level 7 approach
+  { x: 445, y: 465 },
+
+  { x: 505, y: 440 },
+
+  // Level 8 approach
+  { x: 565, y: 375 },
+
+  { x: 550, y: 345 },
+
+  // Level 9 approach
+  { x: 525, y: 280 },
+
+  // Level 10 approach
+  { x: 510, y: 175 },
+
+  // Champion Arena approach
+  { x: 510, y: 125 },
 ];
 
-function textLabel(text, size = 24) {
+const LEVEL_ROUTE_INDEX = {
+  1: 4,
+  2: 7,
+  3: 9,
+  4: 11,
+  5: 13,
+  6: 15,
+  7: 16,
+  8: 18,
+  9: 20,
+  10: 21,
+};
+
+const DESTINATIONS = [
+  // Royal Village — progression follows the visible HD road.
+  // Keep nodes away from mobile viewport edges.
+  { level: 1, name: 'Village Gate', x: 510, y: 1270 },
+  { level: 2, name: 'Market Square', x: 455, y: 1080 },
+  { level: 3, name: 'Royal Farm', x: 565, y: 955 },
+  { level: 4, name: 'Riverside Trail', x: 585, y: 825 },
+  { level: 5, name: "King's Bridge", x: 535, y: 705 },
+  { level: 6, name: 'Whispering Woods', x: 455, y: 605 },
+  { level: 7, name: 'Ancient Ruins', x: 445, y: 495 },
+  { level: 8, name: 'Watchtower Pass', x: 565, y: 405 },
+  { level: 9, name: 'Castle Crossing', x: 525, y: 310 },
+  { level: 10, name: 'Royal Gate', x: 510, y: 205 },
+];
+
+function makeText(text, fontSize, fill = 0xffffff) {
   const label = new Text({
     text,
     style: {
       fontFamily: 'Georgia, Times New Roman, serif',
-      fontSize: size,
+      fontSize,
       fontWeight: '900',
-      fill: 0xffffff,
-      stroke: {
-        color: 0x2a1b12,
-        width: 5,
-      },
+      fill,
       align: 'center',
+      stroke: {
+        color: 0x1d120c,
+        width: 4,
+      },
     },
   });
 
@@ -98,44 +142,235 @@ function textLabel(text, size = 24) {
   return label;
 }
 
-function sprite(texture, x, y, scale = 1) {
-  const s = new Sprite(texture);
-  s.anchor.set(0.5);
-  s.x = x;
-  s.y = y;
-  s.scale.set(scale);
-  return s;
-}
-
-function createLevelMarker(level, name, x, y) {
+function createLevelMarker(destination) {
   const root = new Container();
 
-  root.x = x;
-  root.y = y;
+  root.x = destination.x;
+  root.y = destination.y;
 
-  // Keep labels toward the centre of the journey.
-  // Left-side destinations place their name to the right,
-  // right-side destinations place their name to the left.
-  let boardOffsetX = 0;
+  const isCurrent =
+    destination.level === CURRENT_WORLD_LEVEL;
 
-  if (x < 690) {
-    boardOffsetX = 105;
-  } else if (x > 910) {
-    boardOffsetX = -105;
-  }
+  const isCompleted =
+    destination.level < CURRENT_WORLD_LEVEL;
 
-  const shadow = new Graphics();
+  const isLocked =
+    destination.level > CURRENT_WORLD_LEVEL;
 
-  shadow.ellipse(
-    0,
-    13,
-    38,
-    15,
+  const glow = new Graphics();
+  glow.circle(0, 0, 31);
+  glow.fill({
+    color: 0xffcc51,
+    alpha: 0.28,
+  });
+
+  const outer = new Graphics();
+  outer.circle(0, 0, 25);
+  outer.fill(
+    isCompleted
+      ? 0x4f9b5f
+      : isCurrent
+        ? 0xe4b742
+        : 0x6e6255,
+  );
+  outer.stroke({
+    width: 3,
+    color: 0xffefa4,
+  });
+
+  const inner = new Graphics();
+  inner.circle(0, 0, 19);
+  inner.fill(
+    isCompleted
+      ? 0x18351f
+      : isCurrent
+        ? 0x2d1c13
+        : 0x2d2925,
   );
 
-  shadow.fill({
-    color: 0x000000,
-    alpha: 0.22,
+  const number = makeText(
+    isCompleted
+      ? '✓'
+      : isLocked
+        ? '🔒'
+        : String(destination.level),
+    isLocked ? 11 : 14,
+  );
+
+  const board = new Graphics();
+  board.roundRect(
+    -58,
+    31,
+    116,
+    29,
+    8,
+  );
+
+  board.fill({
+    color: 0x271810,
+    alpha: 0.92,
+  });
+
+  board.stroke({
+    width: 2,
+    color: 0xc49b42,
+  });
+
+  const name = makeText(
+    destination.name,
+    9,
+  );
+
+  name.y = 45;
+
+  root.addChild(
+    glow,
+    outer,
+    inner,
+    number,
+    board,
+    name,
+  );
+
+  if (isCurrent) {
+    const playGlow =
+      new Graphics();
+
+    playGlow.roundRect(
+      -54,
+      58,
+      108,
+      38,
+      14,
+    );
+
+    playGlow.fill({
+      color: 0xffd65c,
+      alpha: 0.24,
+    });
+
+    const playButton =
+      new Graphics();
+
+    playButton.roundRect(
+      -50,
+      60,
+      100,
+      34,
+      13,
+    );
+
+    playButton.fill({
+      color: 0xe9bd4d,
+      alpha: 0.98,
+    });
+
+    playButton.stroke({
+      width: 2,
+      color: 0xffefad,
+    });
+
+    const playText =
+      makeText(
+        '▶ PLAY',
+        12,
+        0x2d1c13,
+      );
+
+    playText.y = 77;
+
+    const playHit =
+      new Container();
+
+    playHit.addChild(
+      playGlow,
+      playButton,
+      playText,
+    );
+
+    playHit.eventMode = 'static';
+    playHit.cursor = 'pointer';
+
+    playHit.on(
+      'pointertap',
+      (event) => {
+        event.stopPropagation();
+
+        window.dispatchEvent(
+          new CustomEvent(
+            'pl-world-level-select',
+            {
+              detail: {
+                level: destination.level,
+                name: destination.name,
+              },
+            },
+          ),
+        );
+      },
+    );
+
+    root.addChild(playHit);
+
+    // PLAY becomes visible only when the avatar reaches
+    // the current destination.
+    playHit.visible = false;
+
+    root.__playGlow = playGlow;
+    root.__playHit = playHit;
+  }
+
+  root.__glow = glow;
+
+  root.eventMode =
+    isLocked
+      ? 'none'
+      : 'static';
+
+  root.cursor =
+    isLocked
+      ? 'default'
+      : 'pointer';
+
+  if (!isLocked) {
+    root.on(
+      'pointertap',
+      () => {
+        window.dispatchEvent(
+          new CustomEvent(
+            'pl-world-level-select',
+            {
+              detail: {
+                level: destination.level,
+                name: destination.name,
+              },
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  return root;
+}
+
+function createChampionArena() {
+  const root = new Container();
+
+  root.x = 510;
+  root.y = 110;
+
+  const halo = new Graphics();
+
+  halo.circle(
+    0,
+    0,
+    108,
+  );
+
+  halo.fill({
+    color: 0xffcf58,
+    alpha: 0.10,
   });
 
   const glow = new Graphics();
@@ -143,327 +378,212 @@ function createLevelMarker(level, name, x, y) {
   glow.circle(
     0,
     0,
-    38,
+    82,
   );
 
   glow.fill({
-    color: 0xe7bd55,
-    alpha: 0.14,
+    color: 0xffc83c,
+    alpha: 0.20,
   });
 
-  const outer = new Graphics();
-
-  outer.circle(
-    0,
-    0,
+  const crown = makeText(
+    '♛',
     31,
+    0xffdc6f,
   );
 
-  outer.fill(
-    0xe0bb58,
-  );
+  crown.y = -68;
 
-  outer.stroke({
-    width: 4,
-    color: 0xffe8a3,
-  });
+  const boardShadow =
+    new Graphics();
 
-  const inner = new Graphics();
-
-  inner.circle(
-    0,
-    0,
-    24,
-  );
-
-  inner.fill(
-    0x352219,
-  );
-
-  const number = textLabel(
-    String(level),
+  boardShadow.roundRect(
+    -155,
+    -44,
+    310,
+    94,
     17,
   );
 
-  number.y = -1;
+  boardShadow.fill({
+    color: 0x000000,
+    alpha: 0.32,
+  });
 
-  const board = new Graphics();
+  boardShadow.y = 7;
+
+  const board =
+    new Graphics();
 
   board.roundRect(
-    -74,
-    -19,
-    148,
-    38,
-    10,
+    -155,
+    -47,
+    310,
+    94,
+    17,
   );
 
   board.fill({
-    color: 0x302018,
-    alpha: 0.94,
+    color: 0x21120d,
+    alpha: 0.97,
   });
 
   board.stroke({
-    width: 2,
-    color: 0xc99c42,
+    width: 5,
+    color: 0xe5bc4e,
   });
 
-  board.x = boardOffsetX;
-  board.y = 58;
+  const innerBorder =
+    new Graphics();
 
-  const destination =
-    textLabel(
-      name,
-      11,
-    );
-
-  destination.x =
-    boardOffsetX;
-
-  destination.y = 58;
-
-  root.addChild(
-    shadow,
-    glow,
-    outer,
-    inner,
-    number,
-    board,
-    destination,
+  innerBorder.roundRect(
+    -145,
+    -37,
+    290,
+    74,
+    13,
   );
 
-  root.__levelNumber = level;
+  innerBorder.stroke({
+    width: 2,
+    color: 0xffe59a,
+    alpha: 0.68,
+  });
+
+  const title = makeText(
+    'CHAMPION ARENA I',
+    16,
+    0xffe294,
+  );
+
+  title.y = -23;
+
+  const prize = makeText(
+    '£100',
+    30,
+    0xffffff,
+  );
+
+  prize.y = 4;
+
+  const prizeLabel =
+    makeText(
+      'CHAMPION PRIZE',
+      10,
+      0xffdd79,
+    );
+
+  prizeLabel.y = 29;
+
+  const leftStar =
+    makeText(
+      '✦',
+      16,
+      0xffd65f,
+    );
+
+  leftStar.x = -122;
+  leftStar.y = 2;
+
+  const rightStar =
+    makeText(
+      '✦',
+      16,
+      0xffd65f,
+    );
+
+  rightStar.x = 122;
+  rightStar.y = 2;
+
+  root.addChild(
+    halo,
+    glow,
+    crown,
+    boardShadow,
+    board,
+    innerBorder,
+    title,
+    prize,
+    prizeLabel,
+    leftStar,
+    rightStar,
+  );
+
+  root.__halo = halo;
   root.__glow = glow;
+  root.__crown = crown;
+  root.__leftStar = leftStar;
+  root.__rightStar = rightStar;
 
   return root;
 }
 
-function createArena(textureMap) {
-  const arena = new Container();
+function createSeasonPrizeBanner() {
+  const root = new Container();
 
-  const base = new Graphics();
-  base.roundRect(-190, -80, 380, 145, 24);
-  base.fill({
-    color: 0x4b3426,
+  root.x = 510;
+  root.y = 1435;
+
+  const panel = new Graphics();
+
+  panel.roundRect(
+    -208,
+    -54,
+    416,
+    108,
+    18,
+  );
+
+  panel.fill({
+    color: 0x27170f,
     alpha: 0.95,
   });
 
-  const wallLeft = sprite(
-    textureMap.castleWall,
-    -115,
-    -70,
-    1.35,
-  );
-
-  const wallRight = sprite(
-    textureMap.castleWall,
-    115,
-    -70,
-    1.35,
-  );
-
-  const gate = sprite(
-    textureMap.castleGate,
-    0,
-    -55,
-    1.45,
-  );
-
-  const topLeft = sprite(
-    textureMap.castleTop,
-    -115,
-    -155,
-    1.35,
-  );
-
-  const topRight = sprite(
-    textureMap.castleTop,
-    115,
-    -155,
-    1.35,
-  );
-
-  const board = new Graphics();
-  board.roundRect(
-    -175,
-    -285,
-    350,
-    94,
-    20,
-  );
-  board.fill(0x2f2018);
-  board.stroke({
-    width: 6,
-    color: 0xd6ad45,
+  panel.stroke({
+    width: 4,
+    color: 0xd7a943,
   });
 
-  const title = textLabel(
-    'CHAMPION ARENA I',
-    22,
+  const title = makeText(
+    'PRIZE LEAGUE WORLD • SEASON 1',
+    12,
+    0xf6d77d,
   );
-  title.y = -255;
 
-  const prize = textLabel(
-    '£100 CHAMPION PRIZE',
-    30,
+  title.y = -31;
+
+  const amount = makeText(
+    'UP TO £127,500',
+    25,
   );
-  prize.y = -218;
 
-  arena.addChild(
-    base,
-    wallLeft,
-    wallRight,
-    gate,
-    topLeft,
-    topRight,
-    board,
+  amount.y = -1;
+
+  const subtitle = makeText(
+    'IN SEASON PRIZES',
+    13,
+    0xffe9af,
+  );
+
+  subtitle.y = 24;
+
+  const meta = makeText(
+    '500 LEVELS • 50 CHAMPION ARENAS',
+    9,
+    0xe9cf8a,
+  );
+
+  meta.y = 43;
+
+  root.addChild(
+    panel,
     title,
-    prize,
+    amount,
+    subtitle,
+    meta,
   );
 
-  arena.__board = board;
-  return arena;
-}
-
-function createVillageHouse(textureMap, x, y, scale = 1) {
-  const house = new Container();
-  house.x = x;
-  house.y = y;
-  house.scale.set(scale);
-
-  const shadow = new Graphics();
-  shadow.ellipse(0, 16, 56, 18);
-  shadow.fill({
-    color: 0x000000,
-    alpha: 0.17,
-  });
-
-  const stone = sprite(
-    textureMap.buildingStone,
-    0,
-    -28,
-    1,
-  );
-
-  const frame = sprite(
-    textureMap.buildingFrame,
-    0,
-    -76,
-    1,
-  );
-
-  const roof = sprite(
-    textureMap.roofRed,
-    0,
-    -126,
-    1,
-  );
-
-  house.addChild(
-    shadow,
-    stone,
-    frame,
-    roof,
-  );
-
-  return house;
-}
-
-function createPath() {
-  const path = new Graphics();
-
-  path.moveTo(
-    LEVEL_POINTS[0].x,
-    WORLD_HEIGHT,
-  );
-
-  LEVEL_POINTS.forEach(
-    (point, index) => {
-      const prev =
-        index === 0
-          ? {
-              x: LEVEL_POINTS[0].x,
-              y: WORLD_HEIGHT,
-            }
-          : LEVEL_POINTS[index - 1];
-
-      const midY =
-        (prev.y + point.y) / 2;
-
-      path.bezierCurveTo(
-        prev.x,
-        midY,
-        point.x,
-        midY,
-        point.x,
-        point.y,
-      );
-    },
-  );
-
-  path.bezierCurveTo(
-    650,
-    700,
-    800,
-    620,
-    800,
-    500,
-  );
-
-  path.stroke({
-    width: 88,
-    color: 0xa77c4e,
-  });
-
-  const centre = new Graphics();
-
-  centre.moveTo(
-    LEVEL_POINTS[0].x,
-    WORLD_HEIGHT,
-  );
-
-  LEVEL_POINTS.forEach(
-    (point, index) => {
-      const prev =
-        index === 0
-          ? {
-              x: LEVEL_POINTS[0].x,
-              y: WORLD_HEIGHT,
-            }
-          : LEVEL_POINTS[index - 1];
-
-      const midY =
-        (prev.y + point.y) / 2;
-
-      centre.bezierCurveTo(
-        prev.x,
-        midY,
-        point.x,
-        midY,
-        point.x,
-        point.y,
-      );
-    },
-  );
-
-  centre.bezierCurveTo(
-    650,
-    700,
-    800,
-    620,
-    800,
-    500,
-  );
-
-  centre.stroke({
-    width: 14,
-    color: 0xdabf87,
-    alpha: 0.7,
-  });
-
-  return {
-    path,
-    centre,
-  };
+  return root;
 }
 
 export default function WorldCanvas() {
@@ -472,39 +592,52 @@ export default function WorldCanvas() {
   useEffect(() => {
     const host = hostRef.current;
 
-    if (!host) return undefined;
+    if (!host) {
+      return undefined;
+    }
 
     let app = null;
     let initialized = false;
     let destroyed = false;
 
-    let camera = null;
-    let zoom = 0.62;
+    let world = null;
+
+    let arena = null;
+
+    let zoom = 1;
 
     let dragging = false;
     let dragStartX = 0;
     let dragStartY = 0;
-    let cameraStartX = 0;
-    let cameraStartY = 0;
+    let worldStartX = 0;
+    let worldStartY = 0;
 
     const activePointers = new Map();
 
     let pinchStartDistance = null;
     let pinchStartZoom = null;
 
-    const animatedWater = [];
-    const animatedTrees = [];
+    const markers = [];
 
-    let arena = null;
-    let player = null;
+    let liveAvatar = null;
 
-    let entranceAnimation = null;
-    let progressionAnimation = null;
-    let celebrationOverlay = null;
-    const levelMarkers = new Map();
+    let avatarRoutePosition = {
+      x: ROYAL_VILLAGE_ROUTE[0].x,
+      y: ROYAL_VILLAGE_ROUTE[0].y,
+    };
 
-    const clampCamera = () => {
-      if (!app || !camera) return;
+    let avatarRouteIndex = 0;
+
+    let avatarMoving = false;
+    let avatarArrived = false;
+
+    let currentMarker = null;
+
+    const AVATAR_SPEED = 165;
+    const arenaParticles = [];
+
+    const clampWorld = () => {
+      if (!app || !world) return;
 
       const width = app.renderer.width;
       const height = app.renderer.height;
@@ -515,30 +648,31 @@ export default function WorldCanvas() {
       const scaledHeight =
         WORLD_HEIGHT * zoom;
 
-      camera.x = Math.min(
-        80,
+      const margin = 70;
+
+      world.x = Math.min(
+        margin,
         Math.max(
-          width - scaledWidth - 80,
-          camera.x,
+          width - scaledWidth - margin,
+          world.x,
         ),
       );
 
-      camera.y = Math.min(
-        80,
+      world.y = Math.min(
+        margin,
         Math.max(
-          height - scaledHeight - 80,
-          camera.y,
+          height - scaledHeight - margin,
+          world.y,
         ),
       );
     };
 
-    const focusPoint = (
-      worldX,
-      worldY,
+    const setFocus = (
+      x,
+      y,
       targetZoom,
+      verticalPosition = 0.62,
     ) => {
-      if (!app || !camera) return;
-
       zoom = Math.max(
         MIN_ZOOM,
         Math.min(
@@ -547,60 +681,266 @@ export default function WorldCanvas() {
         ),
       );
 
-      camera.scale.set(zoom);
+      world.scale.set(zoom);
 
-      camera.x =
+      world.x =
         app.renderer.width / 2 -
-        worldX * zoom;
+        x * zoom;
 
-      camera.y =
-        app.renderer.height / 2 -
-        worldY * zoom;
+      world.y =
+        app.renderer.height *
+          verticalPosition -
+        y * zoom;
 
-      clampCamera();
+      clampWorld();
+    };
+
+    const revealCurrentPlay = () => {
+      if (
+        currentMarker?.__playHit
+      ) {
+        currentMarker.__playHit.visible =
+          true;
+      }
+    };
+
+    const hideCurrentPlay = () => {
+      if (
+        currentMarker?.__playHit
+      ) {
+        currentMarker.__playHit.visible =
+          false;
+      }
+    };
+
+    const focusOnAvatar = () => {
+      if (!app || !world) {
+        return;
+      }
+
+      const mobile =
+        app.renderer.width <=
+        760;
+
+      const desiredX =
+        app.renderer.width / 2;
+
+      const desiredY =
+        app.renderer.height *
+        (
+          mobile
+            ? 0.62
+            : 0.60
+        );
+
+      const targetX =
+        desiredX -
+        avatarRoutePosition.x *
+        zoom;
+
+      const targetY =
+        desiredY -
+        avatarRoutePosition.y *
+        zoom;
+
+      // Smooth camera following rather than snapping.
+      world.x +=
+        (
+          targetX -
+          world.x
+        ) * 0.075;
+
+      world.y +=
+        (
+          targetY -
+          world.y
+        ) * 0.075;
+
+      clampWorld();
+    };
+
+    const beginAvatarJourney = () => {
+      const destinationRouteIndex =
+        LEVEL_ROUTE_INDEX[
+          CURRENT_WORLD_LEVEL
+        ];
+
+      if (
+        destinationRouteIndex ===
+        undefined
+      ) {
+        revealCurrentPlay();
+        return;
+      }
+
+      avatarRouteIndex = 0;
+      avatarMoving = true;
+      avatarArrived = false;
+
+      hideCurrentPlay();
+
+      avatarRoutePosition = {
+        x: ROYAL_VILLAGE_ROUTE[0].x,
+        y: ROYAL_VILLAGE_ROUTE[0].y,
+      };
+
+      if (liveAvatar) {
+        liveAvatar.x =
+          avatarRoutePosition.x;
+
+        liveAvatar.y =
+          avatarRoutePosition.y;
+      }
+    };
+
+    const updateAvatarJourney = (
+      deltaSeconds,
+    ) => {
+      if (
+        !avatarMoving ||
+        avatarArrived
+      ) {
+        return;
+      }
+
+      const destinationRouteIndex =
+        LEVEL_ROUTE_INDEX[
+          CURRENT_WORLD_LEVEL
+        ];
+
+      if (
+        avatarRouteIndex >=
+        destinationRouteIndex
+      ) {
+        avatarMoving = false;
+        avatarArrived = true;
+
+        revealCurrentPlay();
+        return;
+      }
+
+      const nextWaypoint =
+        ROYAL_VILLAGE_ROUTE[
+          avatarRouteIndex + 1
+        ];
+
+      if (!nextWaypoint) {
+        avatarMoving = false;
+        avatarArrived = true;
+
+        revealCurrentPlay();
+        return;
+      }
+
+      const dx =
+        nextWaypoint.x -
+        avatarRoutePosition.x;
+
+      const dy =
+        nextWaypoint.y -
+        avatarRoutePosition.y;
+
+      const distance =
+        Math.hypot(
+          dx,
+          dy,
+        );
+
+      const movement =
+        AVATAR_SPEED *
+        deltaSeconds;
+
+      if (
+        distance <= movement ||
+        distance < 0.5
+      ) {
+        avatarRoutePosition = {
+          x: nextWaypoint.x,
+          y: nextWaypoint.y,
+        };
+
+        avatarRouteIndex += 1;
+      } else {
+        avatarRoutePosition = {
+          x:
+            avatarRoutePosition.x +
+            (
+              dx /
+              distance
+            ) *
+            movement,
+
+          y:
+            avatarRoutePosition.y +
+            (
+              dy /
+              distance
+            ) *
+            movement,
+        };
+      }
+
+      if (liveAvatar) {
+        liveAvatar.x =
+          avatarRoutePosition.x;
+
+        liveAvatar.y =
+          avatarRoutePosition.y;
+
+        const direction =
+          dx >= 0
+            ? 1
+            : -1;
+
+        liveAvatar.scale.x =
+          Math.abs(
+            liveAvatar.scale.x
+          ) * direction;
+      }
+
+      focusOnAvatar();
     };
 
     const focusStart = () => {
       const mobile =
         app.renderer.width <= 760;
 
-      focusPoint(
-        760,
-        3490,
-        mobile ? 0.98 : 0.68,
+      setFocus(
+        DESTINATIONS[0].x,
+        DESTINATIONS[0].y,
+        mobile ? 1.05 : 0.78,
+        mobile ? 0.64 : 0.66,
       );
     };
 
-    const fitChapter = () => {
-      if (!app || !camera) return;
-
+    const fitOverview = () => {
       zoom = Math.min(
         app.renderer.width /
           WORLD_WIDTH,
         app.renderer.height /
           WORLD_HEIGHT,
-      ) * 0.92;
+      ) * 0.96;
 
       zoom = Math.max(
         MIN_ZOOM,
         zoom,
       );
 
-      camera.scale.set(zoom);
+      world.scale.set(zoom);
 
-      camera.x =
+      world.x =
         (
           app.renderer.width -
           WORLD_WIDTH * zoom
         ) / 2;
 
-      camera.y =
+      world.y =
         (
           app.renderer.height -
           WORLD_HEIGHT * zoom
         ) / 2;
 
-      clampCamera();
+      clampWorld();
     };
 
     const applyZoom = (
@@ -608,7 +948,7 @@ export default function WorldCanvas() {
       pointerX,
       pointerY,
     ) => {
-      const oldZoom = zoom;
+      const previousZoom = zoom;
 
       zoom = Math.max(
         MIN_ZOOM,
@@ -618,25 +958,31 @@ export default function WorldCanvas() {
         ),
       );
 
-      const worldX =
-        (pointerX - camera.x) /
-        oldZoom;
+      const mapX =
+        (
+          pointerX -
+          world.x
+        ) /
+        previousZoom;
 
-      const worldY =
-        (pointerY - camera.y) /
-        oldZoom;
+      const mapY =
+        (
+          pointerY -
+          world.y
+        ) /
+        previousZoom;
 
-      camera.scale.set(zoom);
+      world.scale.set(zoom);
 
-      camera.x =
+      world.x =
         pointerX -
-        worldX * zoom;
+        mapX * zoom;
 
-      camera.y =
+      world.y =
         pointerY -
-        worldY * zoom;
+        mapY * zoom;
 
-      clampCamera();
+      clampWorld();
     };
 
     const start = async () => {
@@ -667,902 +1013,268 @@ export default function WorldCanvas() {
       app.canvas.className =
         'pl-world-canvas';
 
-      host.appendChild(app.canvas);
-
-      const textures = {};
-
-      await Promise.all(
-        Object.entries(
-          ROYAL_ASSETS,
-        ).map(
-          async ([key, url]) => {
-            textures[key] =
-              await Assets.load(url);
-          },
-        ),
+      host.appendChild(
+        app.canvas,
       );
+
+      const [
+        mapTexture,
+        
+      ] = await Promise.all([
+        Assets.load(HD_WORLD),
+        
+      ]);
 
       if (destroyed) return;
 
-      camera = new Container();
-      app.stage.addChild(camera);
+      world = new Container();
 
-      const background = new Graphics();
-      background.rect(
-        0,
-        0,
-        WORLD_WIDTH,
-        WORLD_HEIGHT,
-      );
-      background.fill(0x86b968);
+      app.stage.addChild(world);
 
-      camera.addChild(background);
+      const background =
+        new Sprite(mapTexture);
 
-      // Organic countryside base.
-      // Do NOT repeat tileGrass across the whole world:
-      // its visible tile edge created the striped prototype look.
-      const meadow = new Graphics();
+      background.anchor.set(0);
 
-      meadow.rect(
-        0,
-        0,
-        WORLD_WIDTH,
-        WORLD_HEIGHT,
-      );
+      background.width =
+        WORLD_WIDTH;
 
-      meadow.fill(0x70a957);
+      background.height =
+        WORLD_HEIGHT;
 
-      const meadowLight = new Graphics();
+      world.addChild(background);
 
-      meadowLight.ellipse(
-        430,
-        3450,
-        510,
-        650,
-      );
-
-      meadowLight.ellipse(
-        1110,
-        2900,
-        500,
-        720,
-      );
-
-      meadowLight.ellipse(
-        480,
-        1850,
-        480,
-        700,
-      );
-
-      meadowLight.ellipse(
-        1100,
-        1150,
-        450,
-        650,
-      );
-
-      meadowLight.fill({
-        color: 0x91c66c,
-        alpha: 0.36,
-      });
-
-      const meadowDark = new Graphics();
-
-      meadowDark.ellipse(
-        120,
-        2500,
-        420,
-        850,
-      );
-
-      meadowDark.ellipse(
-        1490,
-        1700,
-        430,
-        980,
-      );
-
-      meadowDark.fill({
-        color: 0x416f3e,
-        alpha: 0.26,
-      });
-
-      camera.addChild(
-        meadow,
-        meadowLight,
-        meadowDark,
-      );
-
-      // Irregular ground details break up large empty areas.
-      const groundDetails = [];
-
-      for (let i = 0; i < 34; i += 1) {
-        const texture =
-          i % 3 === 0
-            ? textures.gravelBrown
-            : i % 3 === 1
-              ? textures.gravelGrey
-              : textures.mud;
-
-        const x =
-          110 +
-          ((i * 337) % 1360);
-
-        const y =
-          520 +
-          ((i * 487) % 3300);
-
-        const detail = sprite(
-          texture,
-          x,
-          y,
-          0.42 + (i % 4) * 0.08,
-        );
-
-        detail.alpha =
-          0.16 + (i % 3) * 0.05;
-
-        detail.rotation =
-          (i % 5) * 0.35;
-
-        groundDetails.push(detail);
-      }
-
-      groundDetails.forEach(
-        (detail) =>
-          camera.addChild(detail),
-      );
-
-      const path = createPath();
-
-      camera.addChild(
-        path.path,
-        path.centre,
-      );
-
-      // River cutting across chapter
-      const riverY = 2630;
-
-      const riverBed = new Graphics();
-
-      riverBed.moveTo(
-        0,
-        riverY - 82,
-      );
-
-      riverBed.bezierCurveTo(
-        350,
-        riverY - 130,
-        650,
-        riverY - 55,
-        900,
-        riverY - 90,
-      );
-
-      riverBed.bezierCurveTo(
-        1150,
-        riverY - 125,
-        1350,
-        riverY - 45,
-        WORLD_WIDTH,
-        riverY - 88,
-      );
-
-      riverBed.lineTo(
-        WORLD_WIDTH,
-        riverY + 90,
-      );
-
-      riverBed.bezierCurveTo(
-        1250,
-        riverY + 135,
-        1000,
-        riverY + 65,
-        730,
-        riverY + 110,
-      );
-
-      riverBed.bezierCurveTo(
-        430,
-        riverY + 150,
-        220,
-        riverY + 70,
-        0,
-        riverY + 115,
-      );
-
-      riverBed.closePath();
-
-      riverBed.fill(0x3994b3);
-
-      camera.addChild(riverBed);
-
-      for (
-        let x = -30;
-        x <= WORLD_WIDTH + 60;
-        x += 120
-      ) {
-        const textureSequence = [
-          textures.water1,
-          textures.water2,
-          textures.water3,
-          textures.water4,
-        ];
-
-        const water = sprite(
-          textureSequence[
-            Math.floor(
-              x / 120,
-            ) % 4 < 0
-              ? 0
-              : Math.floor(
-                  x / 120,
-                ) % 4
-          ],
-          x,
-          riverY +
-            Math.sin(
-              x / 170,
-            ) *
-              24,
-          1.18,
-        );
-
-        animatedWater.push(
-          water,
-        );
-
-        camera.addChild(water);
-      }
-
-      // Bridge
-      for (
-        let i = -1;
-        i <= 1;
-        i += 1
-      ) {
-        const bridge = sprite(
-          textures.bridge,
-          790 + i * 105,
-          riverY - 5,
-          1.05,
-        );
-
-        bridge.rotation =
-          Math.PI / 2;
-
-        camera.addChild(
-          bridge,
-        );
-      }
-
-      // Village zone
-      [
-        [330, 3490, 1.05],
-        [1110, 3450, 1.0],
-        [330, 3200, 0.92],
-        [1130, 3060, 0.95],
-        [365, 2860, 0.9],
-      ].forEach(
-        ([x, y, scale]) => {
-          camera.addChild(
-            createVillageHouse(
-              textures,
-              x,
-              y,
-              scale,
-            ),
-          );
-        },
-      );
-
-      const market = sprite(
-        textures.marketRed,
-        1170,
-        3290,
-        1.1,
-      );
-      camera.addChild(market);
-
-      const cart = sprite(
-        textures.cartHorse,
-        420,
-        3680,
-        0.95,
-      );
-
-      camera.addChild(cart);
-
-      // Royal Village marketplace and roadside props.
-      [
-        [1040, 3550, textures.marketRed, 1.05],
-        [1180, 3390, textures.marketBlue, 0.95],
-      ].forEach(
-        ([x, y, texture, scale]) => {
-          camera.addChild(
-            sprite(
-              texture,
-              x,
-              y,
-              scale,
-            ),
-          );
-        },
-      );
-
-      [
-        [1010, 3630, textures.box, 0.55],
-        [1080, 3650, textures.boxWide, 0.55],
-        [370, 3370, textures.treasure, 0.55],
-        [1220, 3150, textures.box, 0.5],
-      ].forEach(
-        ([x, y, texture, scale]) => {
-          camera.addChild(
-            sprite(
-              texture,
-              x,
-              y,
-              scale,
-            ),
-          );
-        },
-      );
-
-      // Fences make the village feel inhabited rather than empty.
-      for (let i = 0; i < 7; i += 1) {
-        camera.addChild(
-          sprite(
-            textures.fence,
-            245 + i * 72,
-            3270,
-            0.72,
-          ),
-        );
-      }
-
-      for (let i = 0; i < 6; i += 1) {
-        camera.addChild(
-          sprite(
-            textures.fence,
-            1050 + i * 62,
-            2990,
-            0.66,
-          ),
-        );
-      }
-
-      // Forest and decorative areas
-      const treePositions = [];
-
-      for (
-        let i = 0;
-        i < 68;
-        i += 1
-      ) {
-        const side =
-          i % 2 === 0
-            ? 1
-            : -1;
-
-        const y =
-          750 +
-          ((i * 223) % 2700);
-
-        const pathX =
-          790 +
-          Math.sin(y / 320) *
-            230;
-
-        const x =
-          pathX +
-          side *
-            (
-              230 +
-              (i % 5) * 45
-            );
-
-        treePositions.push([
-          x,
-          y,
-          0.72 +
-            (i % 4) * 0.08,
-        ]);
-      }
-
-      treePositions.forEach(
-        ([x, y, scale], i) => {
-          const treeTexture =
-            i % 9 === 0
-              ? textures.treeOrange
-              : i % 13 === 0
-                ? textures.treeRed
-                : textures.treeGreen;
-
-          const tree = sprite(
-            treeTexture,
-            x,
-            y,
-            scale,
-          );
-
-          tree.__seed =
-            i * 0.41;
-
-          animatedTrees.push(
-            tree,
-          );
-
-          camera.addChild(tree);
-
-          if (i % 3 === 0) {
-            const bush = sprite(
-              i % 2 === 0
-                ? textures.bushLarge
-                : textures.bushSmall,
-              x + 42,
-              y + 38,
-              0.6,
-            );
-
-            camera.addChild(bush);
-          }
-        },
-      );
-
-      // Stone approach / ruins
-      [
-        [380, 1750],
-        [1180, 1710],
-        [430, 1430],
-        [1110, 1330],
-      ].forEach(
-        ([x, y]) => {
-          camera.addChild(
-            sprite(
-              textures.castleWall,
-              x,
-              y,
-              0.85,
-            ),
-          );
-        },
-      );
-
-      // Castle approach
-      for (
-        let i = 0;
-        i < 5;
-        i += 1
-      ) {
-        camera.addChild(
-          sprite(
-            textures.castleWall,
-            440 + i * 170,
-            620,
-            1.25,
-          ),
-        );
-      }
-
-      camera.addChild(
-        sprite(
-          textures.castleGate,
-          800,
-          600,
-          1.45,
-        ),
-      );
-
-      arena = createArena(
-        textures,
-      );
-
-      arena.x = 800;
-      arena.y = 360;
-
-      camera.addChild(arena);
-
-      LEVEL_POINTS.forEach(
-        (point) => {
+      DESTINATIONS.forEach(
+        (destination) => {
           const marker =
             createLevelMarker(
-              point.level,
-              point.name,
-              point.x,
-              point.y,
+              destination,
             );
 
-          levelMarkers.set(
-            point.level,
-            marker,
-          );
+          markers.push(marker);
 
-          camera.addChild(marker);
+          if (
+            destination.level ===
+            CURRENT_WORLD_LEVEL
+          ) {
+            currentMarker = marker;
+          }
+
+          world.addChild(marker);
         },
       );
 
-      // Decorative village NPCs.
-      const npcWoman = sprite(
-        textures.woman,
-        480,
-        3460,
-        0.78,
-      );
+      arena =
+        createChampionArena();
 
-      const npcWizard = sprite(
-        textures.wizard,
-        1160,
-        1910,
-        0.75,
-      );
+      world.addChild(arena);
 
-      const npcHorse = sprite(
-        textures.horse,
-        325,
-        3010,
-        0.75,
-      );
-
-      camera.addChild(
-        npcWoman,
-        npcWizard,
-        npcHorse,
-      );
-
-      // Player — visual only.
-      // No fake progression state is applied.
-      const entranceStart = {
-        x: 760,
-        y: 3950,
-      };
-
-      const entranceEnd = {
-        x: LEVEL_POINTS[0].x,
-        y: LEVEL_POINTS[0].y + 72,
-      };
-
-      player = sprite(
-        textures.man,
-        entranceStart.x,
-        entranceStart.y,
-        1.14,
-      );
-
-      camera.addChild(player);
-
-      entranceAnimation = {
-        delay: 35,
-        progress: 0,
-        duration: 145,
-        startX: entranceStart.x,
-        startY: entranceStart.y,
-        endX: entranceEnd.x,
-        endY: entranceEnd.y,
-      };
-
-      const startBoard =
+      /*
+       * Live avatar container.
+       *
+       * This container is ready for a premium transparent avatar
+       * asset. We deliberately leave it visually empty until that
+       * asset exists.
+       */
+      liveAvatar =
         new Container();
 
-      startBoard.x = 760;
-      startBoard.y = 3890;
+      liveAvatar.x =
+        avatarRoutePosition.x;
 
-      const board =
+      liveAvatar.y =
+        avatarRoutePosition.y;
+
+      liveAvatar.eventMode =
+        'none';
+
+      /*
+       * Temporary movement-test marker only.
+       * This is NOT the final avatar.
+       * It proves the route + camera + arrival logic.
+       */
+      const avatarShadow =
         new Graphics();
 
-      board.roundRect(
-        -115,
-        -34,
-        230,
-        68,
+      avatarShadow.ellipse(
+        0,
+        4,
         15,
+        6,
       );
 
-      board.fill({
-        color: 0x39261c,
-        alpha: 0.94,
+      avatarShadow.fill({
+        color: 0x000000,
+        alpha: 0.28,
       });
 
-      board.stroke({
-        width: 4,
-        color: 0xd6ad55,
-      });
+      const avatarBody =
+        new Graphics();
 
-      const line1 =
-        textLabel(
-          'ROYAL VILLAGE',
-          17,
-        );
-
-      line1.y = -10;
-
-      const line2 =
-        textLabel(
-          'LEVELS 1–10',
-          11,
-        );
-
-      line2.y = 14;
-
-      startBoard.addChild(
-        board,
-        line1,
-        line2,
+      avatarBody.circle(
+        0,
+        -18,
+        8,
       );
 
-      camera.addChild(
-        startBoard,
+      avatarBody.fill(
+        0xd9b26f,
       );
+
+      avatarBody.roundRect(
+        -7,
+        -10,
+        14,
+        24,
+        6,
+      );
+
+      avatarBody.fill(
+        0x224c78,
+      );
+
+      const avatarLegs =
+        new Graphics();
+
+      avatarLegs.rect(
+        -6,
+        12,
+        4,
+        14,
+      );
+
+      avatarLegs.rect(
+        2,
+        12,
+        4,
+        14,
+      );
+
+      avatarLegs.fill(
+        0x2c241d,
+      );
+
+      liveAvatar.addChild(
+        avatarShadow,
+        avatarLegs,
+        avatarBody,
+      );
+
+      liveAvatar.scale.set(
+        1.15,
+      );
+
+      world.addChild(
+        liveAvatar,
+      );
+
+      if (!LIVE_AVATAR_ENABLED) {
+        liveAvatar.visible = false;
+      }
+
+      // Decorative Champion Arena sparkles.
+      // These are promotional environmental effects only.
+      for (let i = 0; i < 14; i += 1) {
+        const sparkle =
+          new Graphics();
+
+        sparkle.circle(
+          0,
+          0,
+          2 + (i % 3),
+        );
+
+        sparkle.fill({
+          color:
+            i % 3 === 0
+              ? 0xffffff
+              : 0xffd45e,
+          alpha: 0.8,
+        });
+
+        sparkle.x =
+          510 +
+          Math.cos(
+            (Math.PI * 2 * i) /
+              14,
+          ) *
+            (
+              95 +
+              (i % 4) * 12
+            );
+
+        sparkle.y =
+          110 +
+          Math.sin(
+            (Math.PI * 2 * i) /
+              14,
+          ) *
+            (
+              65 +
+              (i % 3) * 10
+            );
+
+        sparkle.__seed =
+          i * 0.73;
+
+        sparkle.__baseX =
+          sparkle.x;
+
+        sparkle.__baseY =
+          sparkle.y;
+
+        arenaParticles.push(
+          sparkle,
+        );
+
+        world.addChild(
+          sparkle,
+        );
+      }
+
+      
 
       focusStart();
 
-      /*
-       * Production progression hook.
-       *
-       * IMPORTANT:
-       * This function does NOT determine whether a level was won.
-       * It only performs the visual transition AFTER the application
-       * receives a verified successful level result.
-       *
-       * Later the backend/game-result flow can dispatch:
-       *
-       * window.dispatchEvent(
-       *   new CustomEvent('pl-world-level-complete', {
-       *     detail: {
-       *       completedLevel: 1,
-       *       nextLevel: 2,
-       *       verified: true,
-       *     },
-       *   }),
-       * );
-       */
+      window.setTimeout(
+        () => {
+          beginAvatarJourney();
+        },
+        450,
+      );
 
-      const showCelebration = (
-        completedLevel,
-        nextLevel,
-      ) => {
-        if (celebrationOverlay) {
-          celebrationOverlay.destroy({
-            children: true,
-          });
-        }
+      const handleStart = () => {
+        focusStart();
+      };
 
-        celebrationOverlay =
-          new Container();
+      const handleOverview = () => {
+        fitOverview();
+      };
 
-        celebrationOverlay.x =
-          app.renderer.width / 2;
-
-        celebrationOverlay.y =
-          app.renderer.height * 0.34;
-
-        const panel =
-          new Graphics();
-
-        panel.roundRect(
-          -150,
-          -62,
-          300,
-          124,
-          22,
-        );
-
-        panel.fill({
-          color: 0x2f2018,
-          alpha: 0.97,
-        });
-
-        panel.stroke({
-          width: 5,
-          color: 0xe5bd57,
-        });
-
-        const title =
-          textLabel(
-            'CONGRATULATIONS!',
-            21,
-          );
-
-        title.y = -27;
-
-        const completed =
-          textLabel(
-            `LEVEL ${completedLevel} COMPLETE`,
-            14,
-          );
-
-        completed.y = 5;
-
-        const unlocked =
-          textLabel(
-            `LEVEL ${nextLevel} UNLOCKED`,
-            12,
-          );
-
-        unlocked.y = 32;
-
-        celebrationOverlay.addChild(
-          panel,
-          title,
-          completed,
-          unlocked,
-        );
-
-        app.stage.addChild(
-          celebrationOverlay,
+      const handleZoomIn = () => {
+        applyZoom(
+          zoom * 1.18,
+          app.renderer.width / 2,
+          app.renderer.height / 2,
         );
       };
 
-      const beginProgressionWalk = (
-        completedLevel,
-        nextLevel,
-      ) => {
-        const from =
-          LEVEL_POINTS.find(
-            (point) =>
-              point.level ===
-              completedLevel,
-          );
-
-        const to =
-          LEVEL_POINTS.find(
-            (point) =>
-              point.level ===
-              nextLevel,
-          );
-
-        if (
-          !from ||
-          !to ||
-          !player
-        ) {
-          return;
-        }
-
-        entranceAnimation = null;
-
-        player.x = from.x;
-        player.y = from.y + 72;
-
-        const nextMarker =
-          levelMarkers.get(
-            nextLevel,
-          );
-
-        if (nextMarker) {
-          nextMarker.scale.set(1);
-
-          nextMarker.alpha = 1;
-        }
-
-        showCelebration(
-          completedLevel,
-          nextLevel,
+      const handleZoomOut = () => {
+        applyZoom(
+          zoom * 0.84,
+          app.renderer.width / 2,
+          app.renderer.height / 2,
         );
-
-        progressionAnimation = {
-          phase: 'celebrate',
-          phaseTime: 0,
-
-          completedLevel,
-          nextLevel,
-
-          startX: from.x,
-          startY: from.y + 72,
-
-          endX: to.x,
-          endY: to.y + 72,
-
-          progress: 0,
-          duration: 175,
-        };
       };
-
-      const handleVerifiedLevelComplete =
-        (event) => {
-          const detail =
-            event?.detail || {};
-
-          // Never animate progression from an unverified client event.
-          if (
-            detail.verified !== true
-          ) {
-            if (
-              process.env.NODE_ENV !==
-              'production'
-            ) {
-              console.warn(
-                '[PrizeLeagueWorld] Ignored unverified progression event.',
-              );
-            }
-
-            return;
-          }
-
-          const completedLevel =
-            Number(
-              detail.completedLevel,
-            );
-
-          const nextLevel =
-            Number(
-              detail.nextLevel,
-            );
-
-          if (
-            !Number.isInteger(
-              completedLevel,
-            ) ||
-            !Number.isInteger(
-              nextLevel,
-            ) ||
-            nextLevel !==
-              completedLevel + 1 ||
-            completedLevel < 1 ||
-            nextLevel > 10
-          ) {
-            return;
-          }
-
-          beginProgressionWalk(
-            completedLevel,
-            nextLevel,
-          );
-        };
-
-      window.addEventListener(
-        'pl-world-level-complete',
-        handleVerifiedLevelComplete,
-      );
-
-      const resizeObserver =
-        new ResizeObserver(() => {
-          clampCamera();
-        });
-
-      resizeObserver.observe(
-        host,
-      );
-
-      app.__worldResizeObserver =
-        resizeObserver;
-
-      const handleOverview =
-        () => {
-          fitChapter();
-        };
-
-      const handleStart =
-        () => {
-          focusStart();
-        };
-
-      const handleZoomIn =
-        () => {
-          applyZoom(
-            zoom * 1.2,
-            app.renderer.width / 2,
-            app.renderer.height / 2,
-          );
-        };
-
-      const handleZoomOut =
-        () => {
-          applyZoom(
-            zoom * 0.84,
-            app.renderer.width / 2,
-            app.renderer.height / 2,
-          );
-        };
-
-      window.addEventListener(
-        'pl-world-overview',
-        handleOverview,
-      );
 
       window.addEventListener(
         'pl-world-start',
         handleStart,
+      );
+
+      window.addEventListener(
+        'pl-world-overview',
+        handleOverview,
       );
 
       window.addEventListener(
@@ -1575,33 +1287,27 @@ export default function WorldCanvas() {
         handleZoomOut,
       );
 
-      app.__worldNavigationCleanup =
-        () => {
-          window.removeEventListener(
-            'pl-world-overview',
-            handleOverview,
-          );
+      app.__worldCleanup = () => {
+        window.removeEventListener(
+          'pl-world-start',
+          handleStart,
+        );
 
-          window.removeEventListener(
-            'pl-world-start',
-            handleStart,
-          );
+        window.removeEventListener(
+          'pl-world-overview',
+          handleOverview,
+        );
 
-          window.removeEventListener(
-            'pl-world-zoom-in',
-            handleZoomIn,
-          );
+        window.removeEventListener(
+          'pl-world-zoom-in',
+          handleZoomIn,
+        );
 
-          window.removeEventListener(
-            'pl-world-zoom-out',
-            handleZoomOut,
-          );
-
-          window.removeEventListener(
-            'pl-world-level-complete',
-            handleVerifiedLevelComplete,
-          );
-        };
+        window.removeEventListener(
+          'pl-world-zoom-out',
+          handleZoomOut,
+        );
+      };
 
       app.canvas.addEventListener(
         'wheel',
@@ -1657,11 +1363,11 @@ export default function WorldCanvas() {
             dragStartY =
               event.clientY;
 
-            cameraStartX =
-              camera.x;
+            worldStartX =
+              world.x;
 
-            cameraStartY =
-              camera.y;
+            worldStartY =
+              world.y;
           }
 
           if (
@@ -1756,22 +1462,23 @@ export default function WorldCanvas() {
 
           if (
             !dragging ||
-            activePointers.size !== 1
+            activePointers.size !==
+              1
           ) {
             return;
           }
 
-          camera.x =
-            cameraStartX +
+          world.x =
+            worldStartX +
             event.clientX -
             dragStartX;
 
-          camera.y =
-            cameraStartY +
+          world.y =
+            worldStartY +
             event.clientY -
             dragStartY;
 
-          clampCamera();
+          clampWorld();
         },
       );
 
@@ -1782,40 +1489,10 @@ export default function WorldCanvas() {
           );
 
           if (
-            activePointers.size <
-            2
+            activePointers.size < 2
           ) {
-            pinchStartDistance =
-              null;
-
-            pinchStartZoom =
-              null;
-          }
-
-          if (
-            activePointers.size ===
-            1
-          ) {
-            const remaining =
-              Array.from(
-                activePointers.values(),
-              )[0];
-
-            dragging = true;
-
-            dragStartX =
-              remaining.x;
-
-            dragStartY =
-              remaining.y;
-
-            cameraStartX =
-              camera.x;
-
-            cameraStartY =
-              camera.y;
-
-            return;
+            pinchStartDistance = null;
+            pinchStartZoom = null;
           }
 
           dragging = false;
@@ -1839,336 +1516,137 @@ export default function WorldCanvas() {
             ticker.deltaTime *
             0.03;
 
-          animatedWater.forEach(
-            (water, index) => {
-              water.y +=
+          updateAvatarJourney(
+            Math.max(
+              0,
+              Number(
+                ticker.deltaMS ||
+                16.67
+              ) / 1000,
+            ),
+          );
+
+          markers.forEach(
+            (marker, index) => {
+              const pulse =
+                1 +
                 Math.sin(
                   elapsed * 2 +
                     index * 0.7,
                 ) *
-                0.05;
+                  0.025;
+
+              marker.__glow.scale.set(
+                pulse,
+              );
+
+              if (marker.__playGlow) {
+                const playPulse =
+                  1 +
+                  Math.sin(
+                    elapsed * 3,
+                  ) *
+                    0.05;
+
+                marker.__playGlow.scale.set(
+                  playPulse,
+                );
+              }
             },
           );
 
-          animatedTrees.forEach(
-            (tree) => {
-              tree.rotation =
+          if (
+            liveAvatar &&
+            avatarMoving
+          ) {
+            liveAvatar.rotation =
+              Math.sin(
+                elapsed * 8,
+              ) *
+                0.025;
+
+            liveAvatar.y =
+              avatarRoutePosition.y +
+              Math.abs(
                 Math.sin(
-                  elapsed * 1.5 +
-                    tree.__seed,
-                ) *
-                0.012;
-            },
-          );
+                  elapsed * 8,
+                ),
+              ) *
+                2.5;
+          } else if (liveAvatar) {
+            liveAvatar.rotation = 0;
+            liveAvatar.y =
+              avatarRoutePosition.y;
+          }
 
           if (arena) {
-            arena.__board.alpha =
-              0.92 +
+            const pulse =
+              1 +
               Math.sin(
                 elapsed * 2,
               ) *
-              0.06;
+                0.04;
+
+            const haloPulse =
+              1 +
+              Math.sin(
+                elapsed * 1.35,
+              ) *
+                0.07;
+
+            arena.__glow.scale.set(
+              pulse,
+            );
+
+            arena.__halo.scale.set(
+              haloPulse,
+            );
+
+            arena.__crown.y =
+              -68 +
+              Math.sin(
+                elapsed * 2.3,
+              ) *
+                2.5;
+
+            arena.__leftStar.rotation =
+              elapsed * 0.6;
+
+            arena.__rightStar.rotation =
+              -elapsed * 0.6;
           }
 
-          if (
-            player &&
-            progressionAnimation
-          ) {
-            progressionAnimation.phaseTime +=
-              ticker.deltaTime;
-
-            if (
-              progressionAnimation.phase ===
-              'celebrate'
-            ) {
-              if (
-                celebrationOverlay
-              ) {
-                const pulse =
-                  1 +
+          arenaParticles.forEach(
+            (particle) => {
+              particle.alpha =
+                0.35 +
+                (
                   Math.sin(
-                    elapsed * 5,
-                  ) *
-                    0.025;
+                    elapsed * 3 +
+                      particle.__seed,
+                  ) +
+                  1
+                ) *
+                  0.3;
 
-                celebrationOverlay.scale.set(
-                  pulse,
-                );
-              }
-
-              if (
-                progressionAnimation.phaseTime >
-                105
-              ) {
-                if (
-                  celebrationOverlay
-                ) {
-                  app.stage.removeChild(
-                    celebrationOverlay,
-                  );
-
-                  celebrationOverlay.destroy({
-                    children: true,
-                  });
-
-                  celebrationOverlay =
-                    null;
-                }
-
-                progressionAnimation.phase =
-                  'walk';
-
-                progressionAnimation.phaseTime =
-                  0;
-              }
-            } else if (
-              progressionAnimation.phase ===
-              'walk'
-            ) {
-              progressionAnimation.progress +=
-                ticker.deltaTime /
-                progressionAnimation.duration;
-
-              const t =
-                Math.min(
-                  1,
-                  progressionAnimation.progress,
-                );
-
-              const eased =
-                t < 0.5
-                  ? 2 * t * t
-                  : 1 -
-                    Math.pow(
-                      -2 * t + 2,
-                      2,
-                    ) / 2;
-
-              const curve =
+              particle.x =
+                particle.__baseX +
                 Math.sin(
-                  eased * Math.PI,
-                ) * 55;
-
-              const direction =
-                progressionAnimation.endX >=
-                progressionAnimation.startX
-                  ? 1
-                  : -1;
-
-              player.x =
-                progressionAnimation.startX +
-                (
-                  progressionAnimation.endX -
-                  progressionAnimation.startX
+                  elapsed * 1.8 +
+                    particle.__seed,
                 ) *
-                  eased +
-                curve * direction;
+                  4;
 
-              player.y =
-                progressionAnimation.startY +
-                (
-                  progressionAnimation.endY -
-                  progressionAnimation.startY
+              particle.y =
+                particle.__baseY +
+                Math.cos(
+                  elapsed * 1.6 +
+                    particle.__seed,
                 ) *
-                  eased;
+                  4;
+            },
+          );
 
-              player.rotation =
-                Math.sin(
-                  elapsed * 9,
-                ) *
-                  0.04;
-
-              const mobile =
-                app.renderer.width <=
-                760;
-
-              if (mobile) {
-                const desiredCameraX =
-                  app.renderer.width / 2 -
-                  player.x * zoom;
-
-                const desiredCameraY =
-                  app.renderer.height * 0.63 -
-                  player.y * zoom;
-
-                camera.x +=
-                  (
-                    desiredCameraX -
-                    camera.x
-                  ) *
-                    0.075;
-
-                camera.y +=
-                  (
-                    desiredCameraY -
-                    camera.y
-                  ) *
-                    0.075;
-
-                clampCamera();
-              }
-
-              if (t >= 1) {
-                player.rotation = 0;
-
-                player.x =
-                  progressionAnimation.endX;
-
-                player.y =
-                  progressionAnimation.endY;
-
-                progressionAnimation.phase =
-                  'arrive';
-
-                progressionAnimation.phaseTime =
-                  0;
-              }
-            } else if (
-              progressionAnimation.phase ===
-              'arrive'
-            ) {
-              const marker =
-                levelMarkers.get(
-                  progressionAnimation.nextLevel,
-                );
-
-              if (marker) {
-                const pulse =
-                  1 +
-                  Math.sin(
-                    elapsed * 5,
-                  ) *
-                    0.06;
-
-                marker.scale.set(
-                  pulse,
-                );
-              }
-
-              player.y =
-                progressionAnimation.endY +
-                Math.sin(
-                  elapsed * 2.7,
-                ) *
-                  2;
-
-              if (
-                progressionAnimation.phaseTime >
-                90
-              ) {
-                if (marker) {
-                  marker.scale.set(1);
-                }
-
-                progressionAnimation =
-                  null;
-              }
-            }
-          } else if (
-            player &&
-            entranceAnimation
-          ) {
-            if (
-              entranceAnimation.delay > 0
-            ) {
-              entranceAnimation.delay -=
-                ticker.deltaTime;
-            } else if (
-              entranceAnimation.progress < 1
-            ) {
-              entranceAnimation.progress +=
-                ticker.deltaTime /
-                entranceAnimation.duration;
-
-              entranceAnimation.progress =
-                Math.min(
-                  1,
-                  entranceAnimation.progress,
-                );
-
-              const t =
-                entranceAnimation.progress;
-
-              // Smooth ease-in/out.
-              const eased =
-                t < 0.5
-                  ? 2 * t * t
-                  : 1 -
-                    Math.pow(
-                      -2 * t + 2,
-                      2,
-                    ) / 2;
-
-              // Slight curved entrance rather than a straight slide.
-              const curve =
-                Math.sin(
-                  eased * Math.PI,
-                ) * 32;
-
-              player.x =
-                entranceAnimation.startX +
-                (
-                  entranceAnimation.endX -
-                  entranceAnimation.startX
-                ) *
-                eased +
-                curve;
-
-              player.y =
-                entranceAnimation.startY +
-                (
-                  entranceAnimation.endY -
-                  entranceAnimation.startY
-                ) *
-                eased;
-
-              // Simple walking bounce.
-              player.rotation =
-                Math.sin(
-                  elapsed * 8,
-                ) *
-                0.035;
-
-              const mobile =
-                app.renderer.width <= 760;
-
-              if (mobile) {
-                const desiredCameraX =
-                  app.renderer.width / 2 -
-                  player.x * zoom;
-
-                const desiredCameraY =
-                  app.renderer.height * 0.68 -
-                  player.y * zoom;
-
-                camera.x +=
-                  (
-                    desiredCameraX -
-                    camera.x
-                  ) *
-                  0.065;
-
-                camera.y +=
-                  (
-                    desiredCameraY -
-                    camera.y
-                  ) *
-                  0.065;
-
-                clampCamera();
-              }
-            } else {
-              // Idle after reaching Level 1.
-              player.rotation = 0;
-
-              player.y =
-                entranceAnimation.endY +
-                Math.sin(
-                  elapsed * 2.6,
-                ) *
-                2;
-            }
-          }
         },
       );
     };
@@ -2176,7 +1654,7 @@ export default function WorldCanvas() {
     start().catch(
       (error) => {
         console.error(
-          '[PrizeLeagueWorld] Royal Village failed:',
+          '[PrizeLeagueWorld] HD environment failed:',
           error,
         );
       },
@@ -2186,15 +1664,9 @@ export default function WorldCanvas() {
       destroyed = true;
 
       if (
-        app?.__worldResizeObserver
+        app?.__worldCleanup
       ) {
-        app.__worldResizeObserver.disconnect();
-      }
-
-      if (
-        app?.__worldNavigationCleanup
-      ) {
-        app.__worldNavigationCleanup();
+        app.__worldCleanup();
       }
 
       if (
@@ -2221,7 +1693,7 @@ export default function WorldCanvas() {
     <div
       ref={hostRef}
       className="pl-world-render-host"
-      aria-label="Prize League Royal Village Levels 1 to 10"
+      aria-label="Prize League HD Royal Village"
     />
   );
 }
