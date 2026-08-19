@@ -56,6 +56,7 @@ import TermsPage from './pages/legal/TermsPage';
 import PrivacyPage from './pages/legal/PrivacyPage';
 import WebsiteTermsPage from './pages/legal/WebsiteTermsPage';
 import MobileTermsPage from './pages/legal/MobileTermsPage';
+import PrizeLeagueWorld from './world/PrizeLeagueWorld';
 
 import ProductionLayout from './components/admin/ProductionLayout';
 import LiveDrawPage from './pages/production/LiveDraw';
@@ -100,6 +101,8 @@ function AppRouter() {
         <Route path="/website-terms" element={<WebsiteTermsPage />} />
         <Route path="/mobile-terms" element={<MobileTermsPage />} />
       </Route>
+
+      <Route path="/world" element={<PrizeLeagueWorld />} />
 
       <Route path="/admin/login" element={<AdminLogin />} />
 

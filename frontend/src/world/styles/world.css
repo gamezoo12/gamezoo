@@ -1,0 +1,527 @@
+.pl-world-page {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      circle at 50% 15%,
+      rgba(198, 239, 255, 0.95),
+      rgba(116, 198, 235, 0.75) 48%,
+      rgba(64, 139, 175, 0.95) 100%
+    );
+  color: #fff;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+.pl-world-render-host {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.pl-world-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.pl-world-vignette {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(3, 14, 31, 0.32) 0%,
+      transparent 22%,
+      transparent 67%,
+      rgba(3, 10, 23, 0.45) 100%
+    ),
+    linear-gradient(
+      90deg,
+      rgba(4, 12, 28, 0.18),
+      transparent 18%,
+      transparent 82%,
+      rgba(4, 12, 28, 0.18)
+    );
+}
+
+.pl-world-topbar {
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding:
+    max(18px, env(safe-area-inset-top))
+    clamp(14px, 3vw, 34px)
+    14px;
+}
+
+.pl-world-round-button,
+.pl-world-user-chip,
+.pl-world-brand,
+.pl-world-status-card,
+.pl-world-prize-card,
+.pl-world-bottom-panel {
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(11, 24, 47, 0.88),
+      rgba(19, 34, 63, 0.72)
+    );
+  box-shadow:
+    0 18px 50px rgba(7, 20, 42, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.pl-world-round-button {
+  pointer-events: auto;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  color: #fff;
+  cursor: pointer;
+}
+
+.pl-world-round-button:hover {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(19, 39, 72, 0.95),
+      rgba(24, 43, 77, 0.84)
+    );
+}
+
+.pl-world-brand {
+  justify-self: start;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 14px 9px 9px;
+  border-radius: 18px;
+}
+
+.pl-world-brand-mark {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  color: #1b2340;
+  background:
+    linear-gradient(
+      145deg,
+      #ffe993,
+      #f7bd31
+    );
+  box-shadow:
+    0 8px 20px rgba(255, 194, 45, 0.28);
+}
+
+.pl-world-brand-eyebrow,
+.pl-world-status-heading span,
+.pl-world-prize-card span,
+.pl-world-bottom-copy span,
+.pl-world-user-copy span {
+  display: block;
+  color: #ffd967;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.17em;
+}
+
+.pl-world-brand-title {
+  margin-top: 2px;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+.pl-world-user-chip {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 160px;
+  padding: 7px 11px 7px 7px;
+  border-radius: 18px;
+}
+
+.pl-world-user-avatar {
+  width: 37px;
+  height: 37px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 12px;
+  color: #19213a;
+  background:
+    linear-gradient(
+      145deg,
+      #fff2b4,
+      #ffc93f
+    );
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.pl-world-user-copy {
+  min-width: 0;
+}
+
+.pl-world-user-copy strong {
+  display: block;
+  max-width: 145px;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.pl-world-status-card {
+  pointer-events: none;
+  position: absolute;
+  top: 104px;
+  left: clamp(14px, 3vw, 34px);
+  width: min(310px, calc(100vw - 28px));
+  padding: 16px;
+  border-radius: 22px;
+}
+
+.pl-world-status-heading {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.pl-world-status-icon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  color: #15213c;
+  background: #f7ca49;
+}
+
+.pl-world-status-heading strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 16px;
+}
+
+.pl-world-status-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 13px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.pl-world-status-line svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: #ffd65a;
+}
+
+.pl-world-prize-card {
+  pointer-events: none;
+  position: absolute;
+  top: 104px;
+  right: clamp(14px, 3vw, 34px);
+  display: flex;
+  gap: 12px;
+  width: min(325px, calc(100vw - 28px));
+  padding: 15px;
+  border-radius: 22px;
+}
+
+.pl-world-prize-icon {
+  width: 45px;
+  height: 45px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 14px;
+  color: #17213d;
+  background:
+    linear-gradient(
+      145deg,
+      #fff0a2,
+      #f5b824
+    );
+}
+
+.pl-world-prize-card strong,
+.pl-world-prize-card small {
+  display: block;
+}
+
+.pl-world-prize-card strong {
+  margin-top: 3px;
+  font-size: 14px;
+}
+
+.pl-world-prize-card small {
+  margin-top: 5px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.pl-world-bottom-panel {
+  pointer-events: none;
+  position: absolute;
+  left: 50%;
+  bottom:
+    max(
+      20px,
+      calc(env(safe-area-inset-bottom) + 12px)
+    );
+  width: min(700px, calc(100vw - 28px));
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: 1fr minmax(210px, 0.8fr);
+  gap: 24px;
+  align-items: center;
+  padding: 15px 18px;
+  border-radius: 24px;
+}
+
+.pl-world-bottom-copy strong,
+.pl-world-bottom-copy small {
+  display: block;
+}
+
+.pl-world-bottom-copy strong {
+  margin-top: 3px;
+  font-size: 14px;
+}
+
+.pl-world-bottom-copy small {
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 11px;
+}
+
+.pl-world-progress-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 7px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.pl-world-progress-track {
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.pl-world-progress-preview {
+  height: 100%;
+  border-radius: inherit;
+  background:
+    linear-gradient(
+      90deg,
+      #ffe582,
+      #f6b625
+    );
+}
+
+.pl-world-environment-label {
+  position: absolute;
+  right: clamp(14px, 3vw, 34px);
+  bottom: 18px;
+  display: none;
+  align-items: center;
+  gap: 7px;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+
+.pl-world-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #66f7ab;
+  box-shadow: 0 0 12px rgba(102, 247, 171, 0.8);
+}
+
+.pl-world-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: #fff;
+  text-align: center;
+  background:
+    radial-gradient(
+      circle at center,
+      #274b83 0%,
+      #121f3c 48%,
+      #090f20 100%
+    );
+}
+
+.pl-world-loading-orb {
+  width: 70px;
+  height: 70px;
+  border: 5px solid rgba(255, 255, 255, 0.12);
+  border-top-color: #ffd75b;
+  border-radius: 50%;
+  animation: pl-world-spin 0.85s linear infinite;
+}
+
+.pl-world-loading-title {
+  margin-top: 22px;
+  font-size: clamp(22px, 5vw, 34px);
+  font-weight: 900;
+}
+
+.pl-world-loading-subtitle {
+  margin-top: 6px;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 13px;
+}
+
+@keyframes pl-world-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 760px) {
+  .pl-world-topbar {
+    grid-template-columns: auto 1fr auto;
+    gap: 8px;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .pl-world-brand {
+    padding-right: 10px;
+  }
+
+  .pl-world-brand-mark {
+    display: none;
+  }
+
+  .pl-world-brand-eyebrow {
+    font-size: 8px;
+  }
+
+  .pl-world-brand-title {
+    font-size: 13px;
+  }
+
+  .pl-world-user-chip {
+    min-width: 0;
+    padding-right: 7px;
+  }
+
+  .pl-world-user-copy {
+    display: none;
+  }
+
+  .pl-world-status-card {
+    top: 90px;
+    left: 10px;
+    width: 215px;
+    padding: 11px;
+    border-radius: 18px;
+  }
+
+  .pl-world-status-heading strong {
+    font-size: 13px;
+  }
+
+  .pl-world-status-line {
+    display: none;
+  }
+
+  .pl-world-prize-card {
+    top: 90px;
+    right: 10px;
+    width: auto;
+    max-width: 145px;
+    padding: 10px;
+    border-radius: 18px;
+  }
+
+  .pl-world-prize-icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .pl-world-prize-card span,
+  .pl-world-prize-card small {
+    display: none;
+  }
+
+  .pl-world-prize-card strong {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.3;
+  }
+
+  .pl-world-bottom-panel {
+    bottom:
+      max(
+        10px,
+        env(safe-area-inset-bottom)
+      );
+    grid-template-columns: 1fr;
+    gap: 9px;
+    padding: 12px 14px;
+    border-radius: 19px;
+  }
+
+  .pl-world-bottom-copy small {
+    display: none;
+  }
+
+  .pl-world-bottom-copy strong {
+    font-size: 12px;
+  }
+
+  .pl-world-progress-label {
+    margin-bottom: 5px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pl-world-loading-orb {
+    animation-duration: 1.8s;
+  }
+}
