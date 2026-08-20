@@ -43,6 +43,7 @@ import CompanySettingsAdmin from './pages/admin/CompanySettings';
 import PostalEntriesAdmin from './pages/admin/PostalEntriesAdmin';
 import UserDetailsPage from './pages/admin/UserDetailsPage';
 import ReferralsBonusesAdmin from './pages/admin/ReferralsBonusesAdmin';
+import FreeWorldAdmin from './pages/admin/FreeWorldAdmin';
 import LegalDocPage from './pages/legal/LegalDocPage';
 import PlayGame from './pages/PlayGame';
 import GameArena from './pages/GameArena';
@@ -55,6 +56,7 @@ import TermsPage from './pages/legal/TermsPage';
 import PrivacyPage from './pages/legal/PrivacyPage';
 import WebsiteTermsPage from './pages/legal/WebsiteTermsPage';
 import MobileTermsPage from './pages/legal/MobileTermsPage';
+import PrizeLeagueWorld from './world/PrizeLeagueWorld';
 
 import ProductionLayout from './components/admin/ProductionLayout';
 import LiveDrawPage from './pages/production/LiveDraw';
@@ -100,6 +102,8 @@ function AppRouter() {
         <Route path="/mobile-terms" element={<MobileTermsPage />} />
       </Route>
 
+      <Route path="/world" element={<PrizeLeagueWorld />} />
+
       <Route path="/admin/login" element={<AdminLogin />} />
 
       {/* Emergent Google OAuth redirects here with #session_id=… in the URL.
@@ -114,6 +118,7 @@ function AppRouter() {
         <Route path="kyc" element={<AdminKyc />} />
         <Route path="competitions" element={<AdminCompetitions />} />
         <Route path="games" element={<AdminGames />} />
+        <Route path="free-world" element={<FreeWorldAdmin />} />
         <Route path="wallets" element={<AdminWallets />} />
         <Route path="orders" element={<AdminOrders />} />
         <Route path="payments" element={<AdminPayments />} />

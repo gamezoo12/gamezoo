@@ -193,6 +193,192 @@ export const referralAPI = {
   complete: () => api.post('/referrals/complete').then(r => r.data),
 };
 
+export const worldContestAPI = {
+  championStatus: () =>
+    api.get(
+      '/world/champion/status',
+    ).then(r => r.data),
+
+  startChampionSession: () =>
+    api.post(
+      '/world/champion/session/start',
+      {},
+    ).then(r => r.data),
+
+  beginChampionSession: (session_id) =>
+    api.post(
+      '/world/champion/session/begin',
+      { session_id },
+    ).then(r => r.data),
+
+  submitChampionSession: ({
+    session_id,
+    duration_ms,
+    solved,
+    taps,
+  }) =>
+    api.post(
+      '/world/champion/session/submit',
+      {
+        session_id,
+        duration_ms,
+        solved,
+        taps,
+      },
+    ).then(r => r.data),
+
+  myChampionHistory: () =>
+    api.get(
+      '/world/champion/me',
+    ).then(r => r.data),
+
+  active: () =>
+    api.get('/world/active-contest').then(r => r.data),
+
+  me: () =>
+    api.get('/world/contest/me').then(r => r.data),
+
+  enter: () =>
+    api.post('/world/contest/enter').then(r => r.data),
+
+  leaderboard: (contestNumber, limit = 100) =>
+    api.get(
+      '/world/public/leaderboard',
+      {
+        params: {
+          ...(contestNumber
+            ? { contest_number: contestNumber }
+            : {}),
+          limit,
+        },
+      },
+    ).then(r => r.data),
+};
+
+export const worldAdminAPI = {
+  seed: () =>
+    api.post('/admin/world/seed').then(r => r.data),
+
+  contests: () =>
+    api.get('/admin/world/contests').then(r => r.data),
+
+  contest: (number) =>
+    api.get(`/admin/world/contests/${number}`).then(r => r.data),
+
+  updateContest: (number, data) =>
+    api.put(`/admin/world/contests/${number}`, data).then(r => r.data),
+
+  activate: (data) =>
+    api.post('/admin/world/activate', data).then(r => r.data),
+
+  deactivate: () =>
+    api.post('/admin/world/deactivate').then(r => r.data),
+
+  championPrizes: () =>
+    api.get('/admin/world/champion-prizes').then(r => r.data),
+
+  updateChampionPrize: (stage, data) =>
+    api.put(
+      `/admin/world/champion-prizes/${stage}`,
+      data,
+    ).then(r => r.data),
+
+  entries: ({
+    contest_number,
+    limit = 200,
+  } = {}) =>
+    api.get(
+      '/admin/world/entries',
+      {
+        params: {
+          ...(contest_number
+            ? {
+                contest_number,
+              }
+            : {}),
+          limit,
+        },
+      },
+    ).then(r => r.data),
+};
+
+export const worldAPI = {
+  state: () =>
+    api.get('/world/state').then(r => r.data),
+
+  level: (level) =>
+    api.get(`/world/level/${level}`).then(r => r.data),
+
+  access: () =>
+    api.get(
+      '/world/access',
+    ).then(r => r.data),
+
+  startSession: (level) =>
+    api.post(
+      '/world/session/start',
+      { level },
+    ).then(r => r.data),
+
+  beginSession: (session_id) =>
+    api.post(
+      '/world/session/begin',
+      { session_id },
+    ).then(r => r.data),
+
+  submitSession: ({
+    session_id,
+    duration_ms,
+    solved,
+    taps,
+  }) =>
+    api.post(
+      '/world/session/submit',
+      {
+        session_id,
+        duration_ms,
+        solved,
+        taps,
+      },
+    ).then(r => r.data),
+
+
+  attemptSummary: (level) =>
+    api.get(
+      `/world/attempts/${level}`,
+    ).then(r => r.data),
+
+  reserveTokenRetry: (level) =>
+    api.post(
+      '/world/token/retry/reserve',
+      { level },
+    ).then(r => r.data),
+
+  reserveTokenUnlock: (level) =>
+    api.post(
+      '/world/token/unlock/reserve',
+      { level },
+    ).then(r => r.data),
+
+  championLeaderboard: (contestNumber) =>
+    api.get(
+      '/world/public/champion/leaderboard',
+      {
+        params: contestNumber
+          ? {
+              contest_number:
+                contestNumber,
+            }
+          : {},
+      },
+    ).then(r => r.data),
+
+  continueAfterChampion: () =>
+    api.post(
+      '/world/champion/continue',
+    ).then(r => r.data),
+};
+
 export const gamesAPI = {
   types: () => api.get('/games/types').then(r => r.data),
   submit: (data) => api.post('/games/submit', data).then(r => r.data),

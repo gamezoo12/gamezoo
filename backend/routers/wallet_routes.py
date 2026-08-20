@@ -10,6 +10,9 @@ from fastapi import APIRouter, HTTPException, Request
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 from typing import Optional
+import hashlib
+
+from pymongo.errors import DuplicateKeyError
 
 from auth import get_current_user
 from deps import get_db
@@ -111,6 +114,235 @@ async def _apply_tx(db, user_id: str, kind: str, amount: float, note: str = '', 
     )
     await db.wallet_tx.insert_one(tx.model_dump())
     return {'balance': new_balance, 'tx': tx.model_dump()}
+
+
+async def _apply_tx_idempotent(
+    db,
+    user_id: str,
+    kind: str,
+    amount: float,
+    note: str = '',
+    ref_order_id: Optional[str] = None,
+) -> dict:
+    """
+    Idempotent wallet mutation for recoverable workflows.
+
+    Existing _apply_tx remains untouched.
+
+    The wallet document itself records the applied reference in the
+    SAME atomic update as the balance change. Therefore a retry after
+    a process/network failure cannot debit the same reference twice.
+
+    wallet_tx is then mirrored using a deterministic Mongo _id. If the
+    process stops between wallet mutation and history insertion, the
+    same request can safely repair the history record later.
+    """
+
+    if not ref_order_id:
+        raise ValueError(
+            "ref_order_id is required for idempotent wallet transactions"
+        )
+
+    await _get_or_create_wallet(
+        db,
+        user_id,
+    )
+
+    delta = round(
+        float(amount),
+        2,
+    )
+
+    now = datetime.now(
+        timezone.utc
+    )
+
+    raw_key = (
+        f"{user_id}|{kind}|{ref_order_id}"
+    )
+
+    digest = hashlib.sha256(
+        raw_key.encode("utf-8")
+    ).hexdigest()
+
+    marker = (
+        f"idem_{digest}"
+    )
+
+    inc = {
+        "balance":
+            delta,
+    }
+
+    if (
+        delta > 0
+        and kind == "topup"
+    ):
+        inc["lifetime_topup"] = (
+            round(delta, 2)
+        )
+
+    elif (
+        delta < 0
+        and kind == "spend"
+    ):
+        inc["lifetime_spend"] = (
+            round(
+                abs(delta),
+                2,
+            )
+        )
+
+    filt = {
+        "user_id":
+            user_id,
+
+        "applied_tx_refs": {
+            "$ne":
+                marker,
+        },
+    }
+
+    if delta < 0:
+        filt["balance"] = {
+            "$gte":
+                abs(delta),
+        }
+
+    updated = (
+        await db.wallets.find_one_and_update(
+            filt,
+            {
+                "$inc":
+                    inc,
+
+                "$addToSet": {
+                    "applied_tx_refs":
+                        marker,
+                },
+
+                "$set": {
+                    "updated_at":
+                        now,
+                },
+            },
+            return_document=True,
+            projection={
+                "_id": 0,
+                "balance": 1,
+                "applied_tx_refs": 1,
+            },
+        )
+    )
+
+    idempotent_replay = False
+
+    if updated:
+        new_balance = round(
+            float(
+                updated.get(
+                    "balance",
+                    0,
+                )
+            ),
+            2,
+        )
+
+    else:
+        current = await db.wallets.find_one(
+            {
+                "user_id":
+                    user_id,
+            },
+            {
+                "_id": 0,
+                "balance": 1,
+                "applied_tx_refs": 1,
+            },
+        )
+
+        refs = (
+            current.get(
+                "applied_tx_refs",
+                [],
+            )
+            if current
+            else []
+        )
+
+        if marker not in refs:
+            raise HTTPException(
+                status_code=400,
+                detail="Insufficient wallet balance",
+            )
+
+        # This exact transaction already changed the wallet.
+        idempotent_replay = True
+
+        new_balance = round(
+            float(
+                current.get(
+                    "balance",
+                    0,
+                )
+            ),
+            2,
+        )
+
+    deterministic_id = (
+        f"wallet_idem_{digest}"
+    )
+
+    tx = WalletTx(
+        user_id=user_id,
+        kind=kind,
+        amount=delta,
+        balance_after=new_balance,
+        note=note,
+        ref_order_id=ref_order_id,
+    )
+
+    tx_doc = tx.model_dump()
+
+    # Stable ids make the history mirror repairable/idempotent too.
+    tx_doc["_id"] = deterministic_id
+    tx_doc["tx_id"] = (
+        f"tx_{digest[:24]}"
+    )
+
+    try:
+        await db.wallet_tx.insert_one(
+            dict(tx_doc)
+        )
+
+    except DuplicateKeyError:
+        # History already exists. This is the expected replay case.
+        pass
+
+    clean_tx = {
+        key: value
+        for key, value
+        in tx_doc.items()
+        if key != "_id"
+    }
+
+    return {
+        "balance":
+            new_balance,
+
+        "tokens":
+            int(
+                round(
+                    new_balance
+                )
+            ),
+
+        "tx":
+            clean_tx,
+
+        "idempotent_replay":
+            idempotent_replay,
+    }
 
 
 # ---------- Player endpoints ----------

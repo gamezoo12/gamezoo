@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "character": "skaterMaleA",
+  "idle": {
+    "fps": 8,
+    "frames": 8
+  },
+  "run": {
+    "fps": 12,
+    "frames": 8
+  },
+  "source": "Kenney Animated Characters Protagonists",
+  "license": "CC0"
+}

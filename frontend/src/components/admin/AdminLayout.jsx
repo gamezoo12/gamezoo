@@ -13,6 +13,7 @@ const LINKS = [
  { to: '/admin/kyc', label: 'KYC', icon: Shield },
  { to: '/admin/competitions', label: 'Contests', icon: Package },
  { to: '/admin/games', label: 'Games', icon: Gamepad2 },
+ { to: '/admin/free-world', label: 'Free World', icon: Trophy },
  { to: '/admin/wallets', label: 'Wallets', icon: WalletIcon },
  { to: '/admin/orders', label: 'Orders', icon: ShoppingBag },
  { to: '/admin/payments', label: 'Payments', icon: CreditCard },
