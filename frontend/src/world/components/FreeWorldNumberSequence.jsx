@@ -799,11 +799,19 @@ export default function FreeWorldNumberSequence({
               type="button"
               className="pl-free-primary-button"
               onClick={() =>
-                setStage('demo')
+                level?.demo_enabled === false
+                  ? setStage(
+                      'demo-complete',
+                    )
+                  : setStage(
+                      'demo',
+                    )
               }
             >
               <Play size={18} />
-              START DEMO
+              {level?.demo_enabled === false
+                ? 'CONTINUE'
+                : 'START DEMO'}
             </button>
 
           </main>
@@ -885,17 +893,19 @@ export default function FreeWorldNumberSequence({
                 View instructions
               </button>
 
-              <button
-                type="button"
-                className="pl-free-skip-demo"
-                onClick={() =>
-                  setStage(
-                    'demo-complete',
-                  )
-                }
-              >
-                SKIP DEMO
-              </button>
+              {level?.demo_skippable !== false && (
+                <button
+                  type="button"
+                  className="pl-free-skip-demo"
+                  onClick={() =>
+                    setStage(
+                      'demo-complete',
+                    )
+                  }
+                >
+                  SKIP DEMO
+                </button>
+              )}
             </div>
 
           </main>
@@ -1241,6 +1251,38 @@ export default function FreeWorldNumberSequence({
                 <RefreshCw size={17} />
                 RETRY
               </button>
+            )}
+
+            {!result?.passed &&
+              Number(
+                attemptSummary
+                  ?.attempts
+                  ?.free_attempts_available
+                  || 0,
+              ) < 1 &&
+              attemptSummary
+                ?.attempts
+                ?.refresh_next_at && (
+              <div className="pl-free-token-option">
+                <strong>
+                  Next free attempt
+                </strong>
+
+                <span>
+                  Available 24 hours after
+                  your previous free attempt.
+                </span>
+
+                <small>
+                  {new Date(
+                    attemptSummary
+                      .attempts
+                      .refresh_next_at,
+                  ).toLocaleString(
+                    'en-GB',
+                  )}
+                </small>
+              </div>
             )}
 
             {!result?.passed &&

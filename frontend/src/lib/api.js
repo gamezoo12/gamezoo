@@ -295,13 +295,21 @@ export const worldAdminAPI = {
       data,
     ).then(r => r.data),
 
-  entries: (contestNumber) =>
+  entries: ({
+    contest_number,
+    limit = 200,
+  } = {}) =>
     api.get(
       '/admin/world/entries',
       {
-        params: contestNumber
-          ? { contest_number: contestNumber }
-          : {},
+        params: {
+          ...(contest_number
+            ? {
+                contest_number,
+              }
+            : {}),
+          limit,
+        },
       },
     ).then(r => r.data),
 };
@@ -312,6 +320,11 @@ export const worldAPI = {
 
   level: (level) =>
     api.get(`/world/level/${level}`).then(r => r.data),
+
+  access: () =>
+    api.get(
+      '/world/access',
+    ).then(r => r.data),
 
   startSession: (level) =>
     api.post(
@@ -390,4 +403,3 @@ export const gamesAPI = {
   myAttempts: (ticket_id) => api.get(`/games/attempts/${ticket_id}`).then(r => r.data),
   leaderboard: (contest_id, limit = 25) => api.get(`/contests/${contest_id}/leaderboard`, { params: { limit } }).then(r => r.data),
 };
-

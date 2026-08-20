@@ -44,6 +44,7 @@ import CompanySettingsAdmin from './pages/admin/CompanySettings';
 import PostalEntriesAdmin from './pages/admin/PostalEntriesAdmin';
 import UserDetailsPage from './pages/admin/UserDetailsPage';
 import ReferralsBonusesAdmin from './pages/admin/ReferralsBonusesAdmin';
+import FreeWorldAdmin from './pages/admin/FreeWorldAdmin';
 import LegalDocPage from './pages/legal/LegalDocPage';
 import PlayGame from './pages/PlayGame';
 import GameArena from './pages/GameArena';
@@ -118,6 +119,7 @@ function AppRouter() {
         <Route path="kyc" element={<AdminKyc />} />
         <Route path="competitions" element={<AdminCompetitions />} />
         <Route path="games" element={<AdminGames />} />
+        <Route path="free-world" element={<FreeWorldAdmin />} />
         <Route path="wallets" element={<AdminWallets />} />
         <Route path="orders" element={<AdminOrders />} />
         <Route path="payments" element={<AdminPayments />} />
