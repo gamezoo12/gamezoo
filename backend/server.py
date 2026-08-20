@@ -195,6 +195,12 @@ from routers.production_routes import production_router, notif_router
 from routers.wallet_routes import wallet_router, admin_wallet_router
 from routers.referral_routes import router as referral_router
 from routers.game_routes import router as game_router, public_router as game_public_router
+from routers.world_routes import (
+    router as world_router,
+    public_router as world_public_router,
+    admin_router as world_admin_router,
+    ensure_world_indexes,
+)
 from routers.payments_routes import payments_router
 from routers.uploads_routes import uploads_router
 from routers.winners_routes import winners_router
@@ -224,6 +230,9 @@ app.include_router(admin_wallet_router)
 app.include_router(referral_router)
 app.include_router(game_router)
 app.include_router(game_public_router)
+app.include_router(world_router)
+app.include_router(world_public_router)
+app.include_router(world_admin_router)
 app.include_router(payments_router)
 app.include_router(uploads_router)
 app.include_router(winners_router)
@@ -241,6 +250,17 @@ app.include_router(engines_public_router)
 app.include_router(user360_router)
 app.include_router(admin_referrals_router)
 app.include_router(influencer_promo_router)
+
+
+@app.on_event('startup')
+async def _ensure_world_engine_indexes():
+    try:
+        await ensure_world_indexes()
+    except Exception as e:
+        import logging
+        logging.warning(
+            f'[startup] world index setup failed: {e}'
+        )
 
 
 @app.on_event('startup')

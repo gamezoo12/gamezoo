@@ -34,6 +34,9 @@ import {
 import WorldCanvas
   from './components/WorldCanvas';
 
+import FreeWorldNumberSequence
+  from './components/FreeWorldNumberSequence';
+
 import './styles/world.css';
 
 function dispatchWorldEvent(name) {
@@ -63,6 +66,9 @@ export default function PrizeLeagueWorld() {
   const [levelError, setLevelError] =
     useState('');
 
+  const [gameFlowOpen, setGameFlowOpen] =
+    useState(false);
+
   useEffect(() => {
     const onLevelSelect = async (event) => {
       const level =
@@ -81,6 +87,7 @@ export default function PrizeLeagueWorld() {
 
       setLevelData(null);
       setLevelError('');
+      setGameFlowOpen(false);
       setLevelBusy(true);
 
       try {
@@ -399,8 +406,9 @@ export default function PrizeLeagueWorld() {
                       </span>
 
                       <strong>
-                        {levelData.game?.label ||
-                          levelData.level?.game_type}
+                        {levelData.level?.game_id === 'number_sequence'
+                          ? 'Number Sequence'
+                          : levelData.level?.game_id}
                       </strong>
                     </div>
 
@@ -431,21 +439,21 @@ export default function PrizeLeagueWorld() {
                         </span>
 
                         <strong>
-                          {levelData.attempts
+                          {levelData.level?.attempts
                             ?.free_attempts_available ??
                             0}
                         </strong>
                       </div>
                     </div>
 
-                    {levelData.attempts
+                    {levelData.level?.attempts
                       ?.next_free_attempt_at && (
                       <div className="pl-world-level-refresh">
                         Next free attempt:
                         {' '}
                         {new Date(
-                          levelData.attempts
-                            .next_free_attempt_at,
+                          levelData.level?.attempts
+                            ?.next_free_attempt_at,
                         ).toLocaleString()}
                       </div>
                     )}
@@ -460,14 +468,23 @@ export default function PrizeLeagueWorld() {
                     <button
                       type="button"
                       className="pl-world-level-play"
-                      disabled
+                      disabled={
+                        Number(
+                          levelData.level?.attempts
+                            ?.free_attempts_available || 0,
+                        ) < 1
+                      }
+                      onClick={() =>
+                        setGameFlowOpen(true)
+                      }
                     >
                       PLAY
                     </button>
 
                     <div className="pl-world-level-play-note">
-                      Official World gameplay authorization
-                      is the next backend step.
+                      Instructions and demo appear before
+                      the official attempt. Demo play never
+                      consumes an attempt.
                     </div>
                   </>
                 )}
@@ -475,6 +492,38 @@ export default function PrizeLeagueWorld() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {gameFlowOpen &&
+        selectedLevel &&
+        levelData && (
+          <FreeWorldNumberSequence
+            selectedLevel={selectedLevel}
+            levelData={levelData}
+            onClose={() =>
+              setGameFlowOpen(false)
+            }
+            onFinished={async () => {
+              try {
+                const refreshed =
+                  await worldAPI.level(
+                    selectedLevel.level,
+                  );
+
+                setLevelData(
+                  refreshed,
+                );
+              } catch (error) {
+                // Map refresh is best-effort.
+              }
+
+              window.dispatchEvent(
+                new CustomEvent(
+                  'pl-world-progress-refresh',
+                ),
+              );
+            }}
+          />
+        )}
 
     </div>
   );
