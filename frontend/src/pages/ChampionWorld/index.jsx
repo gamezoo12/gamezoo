@@ -12,6 +12,7 @@
  */
 import { Suspense, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
+import * as THREE from 'three';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, User, UserRound, Sparkles, ChevronRight, Hand, Trophy, Frown, Play, PersonStanding, Zap } from 'lucide-react';
 import Scene from './Scene';
@@ -33,9 +34,17 @@ export default function ChampionWorld() {
         <Canvas
           dpr={[1, 2]}
           shadows
-          gl={{ antialias: true, alpha: false }}
+          gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
           camera={{ position: [10, 8, -8], fov: 50, near: 0.1, far: 500 }}
-          onCreated={({ gl }) => { gl.setClearColor('#7ba8d6'); }}
+          onCreated={({ gl }) => {
+            gl.setClearColor('#7ba8d6');
+            // Premium PBR presentation without touching model materials:
+            // ACES-Filmic tone mapping + sRGB output gives skin/hair a
+            // natural response under our directional sun.
+            gl.toneMapping = THREE.ACESFilmicToneMapping;
+            gl.toneMappingExposure = 1.05;
+            gl.outputColorSpace = THREE.SRGBColorSpace;
+          }}
         >
           <Scene gender={gender} championRef={championRef} />
         </Canvas>

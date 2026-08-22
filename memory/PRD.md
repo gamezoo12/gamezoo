@@ -12,6 +12,35 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - **Referral programme** — invite friends, both get free ticket (or £5 wallet credit fallback)
 - **Live winners ticker + leaderboard per contest**
 
+## 2026-08-22 · Iteration 47 — Real Meshy GLB champion + biome extras (Phase A.1)
+
+Integrated the user-uploaded Meshy AI rigged Champion GLBs into the world engine without any redesign of the character (materials/face/hair/proportions preserved).
+
+**Files created**:
+- `pages/ChampionWorld/avatars.js` — `AVATARS = { male, female }` registry pointing at the customer-artifact URLs for model + merged-animations GLBs. Female currently reuses the same GLB (user has only uploaded one hero so far) — updating that entry is a one-line swap when the female-specific model arrives. Also exports `ACTION_CLIP_HINTS` — substring hints per action key (`idle`, `walk`, `run`, `wave`, `victory`, `championship-victory`, `defeat`) so we tolerate whatever clip names Meshy exports.
+- `pages/ChampionWorld/GLTFChampion.jsx` — real GLB champion. Loads both GLBs via `useGLTF`, clones the scene per-instance with `SkeletonUtils` from `three-stdlib`, merges base + external animation clips, drives them via `useAnimations` with 0.25s crossfades. Enforces `castShadow/receiveShadow` and sets `envMapIntensity = 0.9` on materials WITHOUT overriding colours. Same imperative API as the placeholder (`setAction`/`walkTo`/`runTo`/`getT`/`getWorldPos`), so `Scene.jsx` swapped it in with a one-line change.
+- `pages/ChampionWorld/BiomeExtras.jsx` — a stone `EntryGate` with heraldic banners at the road origin + 4 clusters of ~24 pink cherry blossom trees (matched to the reference image) using instanced meshes with gentle sway.
+
+**Files modified**:
+- `pages/ChampionWorld/Scene.jsx` — replaced the placeholder `<Champion />` with `<Suspense fallback={null}><GLTFChampion .../></Suspense>` so the world keeps rendering while the character streams in. Added `<BiomeExtras />`.
+- `pages/ChampionWorld/index.jsx` — Canvas `onCreated` now sets `ACESFilmicToneMapping`, exposure 1.05, `SRGBColorSpace` output for a premium PBR response on the GLB skin/hair.
+
+**Preservation contract (per user directive)**:
+- No face/body redesign, no material colour overrides.
+- Only presentation flags mutated: shadow casting, envMap intensity, DoubleSide on hair meshes (fixes back-of-head culling).
+- Whole-model uniform `scale` + `groundOffset` in `avatars.js` — never non-uniform.
+- Feet stay on the road via per-frame `PATH_CURVE.getPointAt(t)` sampling.
+
+**Verified live**: character loads on `/champion-world`, walks from Lv 5 → Lv 6 when HUD `Walk to next` is pressed, animations transition smoothly, camera follows.
+
+**⚠️ Preview-only issue (not a code bug)**: the preview environment's CSP includes `connect-src 'self' http://127.0.0.1...` with no `blob:`. GLTFLoader creates `blob:` URLs for embedded textures, so the character renders as a white silhouette in preview. On production (`prizeleague.co.uk`) the CSP needs:
+```
+connect-src 'self' https: blob: data:;
+img-src 'self' https: blob: data:;
+```
+Once that lands (server-side, not a code change), the Meshy character will render with full colour on the same URLs. Model+animation code is complete and correct.
+
+
 ## 2026-08-22 · Iteration 46 — Champion World (3D) Phase A prototype
 
 Isolated 3D preview at `/champion-world`, lazy-loaded so the main bundle is unaffected. Renders a stylized fantasy Wonderland with a champion controller, spline path, 10 level nodes, Castle 1, castle 2 lock, and a prize reveal modal. Nothing wired to backend / production data.

@@ -2,7 +2,7 @@
  * Scene — root of the R3F canvas. Assembles all pieces of Championship 1
  * and stages Championship 2 fog behind Castle 1.
  */
-import { useRef } from 'react';
+import { useRef, Suspense } from 'react';
 import Sky from './Sky';
 import Terrain from './Terrain';
 import Path from './Path';
@@ -11,8 +11,9 @@ import Vegetation from './Vegetation';
 import Village from './Village';
 import Castle from './Castle';
 import LevelNodes from './LevelNodes';
-import Champion from './Champion';
+import GLTFChampion from './GLTFChampion';
 import Particles from './Particles';
+import BiomeExtras from './BiomeExtras';
 import CameraRig from './CameraRig';
 
 export default function Scene({ gender, championRef, onWorldReady }) {
@@ -66,8 +67,14 @@ export default function Scene({ gender, championRef, onWorldReady }) {
       </group>
 
       <Particles />
+      <BiomeExtras />
 
-      <Champion ref={ref} gender={gender} initialT={0.30 /* level 4 */} />
+      {/* Real Meshy GLB champion — wrapped in Suspense because useGLTF()
+          suspends until the model + animations are ready. The rest of the
+          world keeps rendering behind the loader. */}
+      <Suspense fallback={null}>
+        <GLTFChampion ref={ref} gender={gender} initialT={0.30} />
+      </Suspense>
       <CameraRig target={ref} />
 
       {/* Notify parent once first frame renders */}
