@@ -12,6 +12,25 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - **Referral programme** — invite friends, both get free ticket (or £5 wallet credit fallback)
 - **Live winners ticker + leaderboard per contest**
 
+## 2026-08-22 · Iteration 45 — Post-auth "Choose your experience" gateway + /world placeholder
+
+Adds a premium **Entry Choice** screen between auth-success and the app, per the "Prize League — Post Signup / Login Entry Choice" spec. Zero touches to wallet / payments / contests / auth.
+
+**Files created:**
+- `pages/EntryChoice.jsx` — dark hero + two large premium cards. Paid card = gold trophy + PREMIUM badge + `Coins/Trophy/Gem` mini-features + gold CTA → `/`. Free card = emerald castle + ADVENTURE badge + inline SVG fantasy preview (mountains + castle silhouette + winding gold path + level dots) + `Wand2/Castle/Compass` mini-features + emerald CTA → `/world`. Fires `entry_choice_viewed`, `paid_contests_selected`, `free_contests_selected` as `window.CustomEvent`s. Writes `pl_preferred_contest_mode_v1` to localStorage on selection (schema only — not read on subsequent logins per spec; ready for future opt-in auto-routing). Waits for `AuthContext.loading` to settle before any UX bounce.
+- `pages/FreeWorld.jsx` — polished "coming soon" landing at `/world` with 3D world value-prop tiles + Back-to-selection + Go-to-paid CTAs. Placeholder until the 3D world engine is built.
+
+**Files modified (surgical redirects only):**
+- `App.js` — added routes `/choose-experience` → `EntryChoice`, `/world` → `FreeWorld`.
+- `pages/Login.jsx` — 3 auth-success redirects (password login, Google callback, phone login) all changed from `nav('/')` → `nav('/choose-experience', { replace: true })`.
+- `components/auth/SignupWizard.jsx` — default `safeNext` fallback changed from `/` → `/choose-experience`. Explicit `?next=/xyz` still honoured (deep-links preserved).
+- `components/layout/Header.jsx` — added "Switch experience" item to the profile dropdown (`dropdown-switch-experience` testid) + a full-width "Switch experience" tile in the mobile drawer (`mobile-switch-experience-link` testid). Users can't get trapped in either mode.
+
+**No modifications to:** authentication logic, wallet, tokens, payments, checkout, tickets, skill games, scoring, leaderboards, referrals, KYC, support, notifications, admin functionality, backend, or production data.
+
+Data-testids: `entry-choice-page`, `entry-choice-badge`, `entry-choice-paid-card`, `entry-choice-paid-cta`, `entry-choice-free-card`, `entry-choice-free-cta`, `free-world-page`, `free-world-back`, `free-world-goto-paid`, `dropdown-switch-experience`, `mobile-switch-experience-link`.
+
+
 ## 2026-08-05 · Iteration 44 — Leaderboard readability + explicit attempts UI on every game
 
 **Leaderboard "You" hero readability fix** — The gold gradient overlaid on gold-tinted text made the score hard to read. Rebuilt with:

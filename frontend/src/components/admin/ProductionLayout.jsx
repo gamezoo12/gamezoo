@@ -7,7 +7,7 @@ import MeeraChat from '../MeeraChat';
 
 const LINKS = [
  { to: '/production', label: 'Operations', icon: Wrench, end: true },
- { to: '/production/live-draw', label: 'Live Draw', icon: Radio },
+ { to: '/production/live-draw', label: 'Live Results', icon: Radio },
  { to: '/production/inventory', label: 'Prize Inventory', icon: Boxes },
  { to: '/production/winners', label: 'Winners feed', icon: Trophy },
  { to: '/production/kyc', label: 'KYC review', icon: Shield },

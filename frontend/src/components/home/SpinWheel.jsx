@@ -27,7 +27,7 @@ export default function SpinWheel() {
         <div>
           <div className="inline-block px-3 py-1 rounded-full bg-white/15 text-white text-xs font-semibold backdrop-blur mb-4">FOR NEW PLAYERS ONLY</div>
           <h2 className="font-display text-4xl md:text-5xl font-extrabold leading-tight">Sign Up & Get <span className="text-amber-300">10 Free Spins!</span></h2>
-          <p className="mt-4 text-white/85 text-lg max-w-xl">Our famous colour wheel draw is now online too! Sign up for a chance to win tax free cash, site credit, prizes and more.</p>
+          <p className="mt-4 text-white/85 text-lg max-w-xl">Our famous colour wheel draw is now online too! Sign up for the opportunity to win tax free cash, site credit, prizes and more.</p>
           <div className="mt-6 flex gap-3">
             <Button size="lg" onClick={spin} disabled={spinning} className="bg-amber-400 hover:bg-amber-500 text-slate-900 font-bold shadow-lg">
               {spinning ? 'Spinning…' : 'Try a Spin'}

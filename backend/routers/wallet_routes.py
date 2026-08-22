@@ -77,7 +77,7 @@ async def _apply_tx(db, user_id: str, kind: str, amount: float, note: str = '', 
     # Build atomic mutation. Lifetime counters must also change in-doc so no
     # separate read+set exists in this function.
     inc = {'balance': delta}
-    if delta > 0 and kind in ('topup', 'referral_bonus'):
+    if delta > 0 and kind == 'topup':
         inc['lifetime_topup'] = round(delta, 2)
     elif delta < 0 and kind == 'spend':
         inc['lifetime_spend'] = round(abs(delta), 2)

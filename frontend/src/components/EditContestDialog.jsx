@@ -3,8 +3,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Button } from './ui/button';
-import { adminAPI, uploadsAPI, api, API } from '../lib/api';
+import { adminAPI, uploadsAPI, gamesAPI, api, API } from '../lib/api';
 import {
+  ContestImageFocalPicker,
   RandomDrawPanel,
   InstantWinComposer,
 } from './ContestEngineControls';
@@ -12,9 +13,9 @@ import { useToast } from '../hooks/use-toast';
 import { Upload, X, Loader2 } from 'lucide-react';
 
 const CATS = [
-  { value: 'prize-draws', label: 'Prize Draws' },
+  { value: 'prize-draws', label: 'Prize Competitions' },
   { value: 'instant-wins', label: 'Instant Wins' },
-  { value: 'jackpot', label: 'Jackpot' },
+  { value: 'jackpot', label: 'Featured Prize' },
   { value: 'new-games', label: 'New Game' },
 ];
 
@@ -72,46 +73,71 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
   };
   const [form, setForm] = useState(() => (isCreate ? emptyForm : (contest || {})));
   const [busy, setBusy] = useState(false);
-  const [uploading, setUploading] = useState({ image: false, preview_image: false });
-  const [uploadErr, setUploadErr] = useState({ image: '', preview_image: '' });
-  const fileRefs = { image: useRef(null), preview_image: useRef(null) };
+  const [uploading, setUploading] = useState(false);
+  const [uploadErr, setUploadErr] = useState('');
+  const [availableGames, setAvailableGames] = useState([]);
+  const [gamesLoading, setGamesLoading] = useState(false);
+  const fileInputRef = useRef(null);
 
-  /**
-   * Upload a single image into either `image` (1:1 tile) or `preview_image`
-   * (2:1 banner) slot. Kept intentionally simple: we call the existing
-   * `contestImage` upload endpoint (which handles resizing) and store the
-   * resulting `card` URL into whichever field we're targeting.
-   */
-  const uploadTo = (field) => async (e) => {
-    setUploadErr(u => ({ ...u, [field]: '' }));
+  const onPickFile = () => fileInputRef.current?.click();
+
+  const onFileChange = async (e) => {
+    setUploadErr('');
     const file = e.target.files?.[0];
     e.target.value = ''; // allow re-picking same file
     if (!file) return;
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      setUploadErr(u => ({ ...u, [field]: 'Only JPG, PNG or WEBP files are allowed.' })); return;
+    const okTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!okTypes.includes(file.type)) {
+      setUploadErr('Only JPG, PNG or WEBP files are allowed.');
+      return;
     }
     if (file.size > 8 * 1024 * 1024) {
-      setUploadErr(u => ({ ...u, [field]: 'File is too large. Maximum 8 MB.' })); return;
+      setUploadErr('File is too large. Maximum 8 MB.');
+      return;
     }
-    setUploading(u => ({ ...u, [field]: true }));
+    setUploading(true);
     try {
       const data = await uploadsAPI.contestImage(file, { focal_x: 0.5, focal_y: 0.5, alt: form.title || '' });
-      const url = data?.sizes?.card || data?.recommended_image_url || data?.sizes?.mobile;
-      if (!url) throw new Error('Upload succeeded but no URL returned');
-      upd(field, url);
-      toast({ title: field === 'image' ? 'Contest image uploaded' : 'Preview image uploaded' });
+      upd('image', data?.sizes?.card || data?.recommended_image_url);
+
+      toast({ title: 'Image processed', description: `Generated ${Object.keys(data?.sizes || {}).length} responsive variants.` });
     } catch (err) {
-      setUploadErr(u => ({ ...u, [field]: err?.response?.data?.detail || err.message || 'Upload failed' }));
+      setUploadErr(err?.response?.data?.detail || err.message || 'Upload failed');
     } finally {
-      setUploading(u => ({ ...u, [field]: false }));
+      setUploading(false);
     }
   };
 
-  const removeImage = (field) => () => { upd(field, ''); setUploadErr(u => ({ ...u, [field]: '' })); };
+  const removeImage = () => { upd('image', ''); setUploadErr(''); };
 
   useEffect(() => {
     if (open) setForm(isCreate ? emptyForm : (contest || {}));
   }, [contest, open, isCreate]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!open) return;
+
+    let active = true;
+    setGamesLoading(true);
+
+    gamesAPI.types()
+      .then((response) => {
+        if (!active) return;
+        const list = Array.isArray(response?.games) ? response.games : [];
+        setAvailableGames(list);
+      })
+      .catch(() => {
+        if (!active) return;
+        setAvailableGames([]);
+      })
+      .finally(() => {
+        if (active) setGamesLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [open]);
 
   if (!isCreate && !contest) return null;
 
@@ -125,7 +151,6 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
         subtitle: form.subtitle,
         category: form.category,
         image: form.image,
-        preview_image: form.preview_image || null,
         price: parseFloat(form.price) || 1,
         tickets_total: parseInt(form.tickets_total, 10) || 100,
         prize_amount: parseFloat(form.prize_amount) || 100,
@@ -136,6 +161,37 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
         skill_question_type: form.skill_question_type || 'addition',
         skill_question_difficulty: form.skill_question_difficulty || 'easy',
         game_type: form.game_type || null,
+
+        // Official skill-game configuration
+        entry_mode: form.entry_mode || 'skill_game',
+        attempts_per_ticket: Math.max(
+          1,
+          Math.min(
+            10,
+            parseInt(
+              form.attempts_per_ticket ?? form.max_attempts ?? 3,
+              10
+            ) || 1
+          )
+        ),
+        max_attempts: Math.max(
+          1,
+          Math.min(
+            10,
+            parseInt(
+              form.attempts_per_ticket ?? form.max_attempts ?? 3,
+              10
+            ) || 1
+          )
+        ),
+        leaderboard_visibility:
+          form.leaderboard_visibility || 'live',
+        winner_selection_method:
+          form.winner_selection_method || 'random_draw',
+        game_config:
+          form.game_config && typeof form.game_config === 'object'
+            ? form.game_config
+            : {},
 
         // Extended editable fields (Phase-1 launch spec)
         short_description: form.short_description || null,
@@ -160,7 +216,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
         terms_acknowledgement: form.terms_acknowledgement || null,
         country_restrictions: form.country_restrictions || null,
         age_restriction: form.age_restriction || '18+',
-        mobile_image: null,  // deprecated field — kept nulled so old DB rows are cleared on save
+
         seo_title: form.seo_title || null,
         seo_description: form.seo_description || null,
         publication_status: form.publication_status || 'published',
@@ -184,26 +240,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
   };
 
   const skill = form.skill_question || { q: '', options: ['', '', '', ''], answer: '', type: 'trivia' }; // eslint-disable-line no-unused-vars
-
-  /**
-   * Convert an ISO datetime string (UTC) into the `YYYY-MM-DDTHH:MM` format
-   * expected by <input type="datetime-local"> — expressed in the ADMIN'S
-   * LOCAL timezone. Round-tripping via `.toISOString().slice(0,16)` was
-   * incorrectly shifting values by the browser TZ offset every save.
-   */
-  const toLocalDatetimeInput = (iso) => {
-    if (!iso) return '';
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return '';
-    const off = d.getTimezoneOffset() * 60000;
-    return new Date(d.getTime() - off).toISOString().slice(0, 16);
-  };
-  /** Inverse — parse the local-time string back into an ISO string in UTC. */
-  const fromLocalDatetimeInput = (v) => (v ? new Date(v).toISOString() : null);
-
-  const endDateStr = toLocalDatetimeInput(form.end_date);
-  const startDateStr = toLocalDatetimeInput(form.open_date);
-  const drawDateStr = toLocalDatetimeInput(form.draw_date);
+  const endDateStr = form.end_date ? new Date(form.end_date).toISOString().slice(0, 16) : '';
 
   return (
     <Dialog open={open} onOpenChange={o => !o && onClose?.()}>
@@ -239,27 +276,9 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
               </select>
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <Label>Start date &amp; time</Label>
-              <Input
-                type="datetime-local"
-                value={startDateStr}
-                onChange={e => upd('open_date', fromLocalDatetimeInput(e.target.value))}
-                data-testid="contest-start-date"
-              />
-              <div className="text-[11px] text-slate-500 mt-1">Contest opens for entries. Leave blank to open immediately.</div>
-            </div>
-            <div>
-              <Label>End date &amp; time</Label>
-              <Input
-                type="datetime-local"
-                value={endDateStr}
-                onChange={e => upd('end_date', fromLocalDatetimeInput(e.target.value))}
-                data-testid="contest-end-date"
-              />
-              <div className="text-[11px] text-slate-500 mt-1">Last moment users can enter. Winner is drawn shortly after.</div>
-            </div>
+          <div>
+            <Label>End date/time</Label>
+            <Input type="datetime-local" value={endDateStr} onChange={e => upd('end_date', e.target.value ? new Date(e.target.value).toISOString() : null)} />
           </div>
 
           {/* Entry Mode + attempts + leaderboard visibility */}
@@ -273,7 +292,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
               >
                 <option value="skill_game">Skill Game</option>
-                <option value="random_tickets">Random Ticket Numbers</option>
+                <option value="random_tickets">Allocated Entry Numbers</option>
               </select>
               <div className="text-xs text-slate-500 mt-1">Determines the public flow after payment.</div>
             </div>
@@ -287,12 +306,15 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                   upd('attempts_per_ticket', v);
                   upd('max_attempts', v);  // keep legacy field in sync
                 }}
-                disabled={(form.entry_mode || 'skill_game') !== 'skill_game'}
+                disabled={
+                  (form.entry_mode || 'skill_game') !== 'skill_game' &&
+                  (form.engine_type || 'leaderboard') !== 'leaderboard'
+                }
                 data-testid="contest-attempts-per-ticket"
               />
               <div className="text-xs text-slate-500 mt-1">
-                Total attempts a user gets = <b>tickets bought × attempts per ticket</b>. Default 3.
-                Example: 10 tickets × 3 = 30 total attempts pooled.
+                Each purchased ticket is an independent game entry with <b>this many attempts</b>.
+                Example: 1 attempt per ticket means every ticket can be played once.
               </div>
             </div>
             <div>
@@ -317,7 +339,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                 disabled={(form.entry_mode || 'skill_game') === 'skill_game'}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
               >
-                <option value="random_draw">Random draw (default)</option>
+                <option value="random_draw">Automated winner selection</option>
                 <option value="manual">Manual (requires reason)</option>
               </select>
               <div className="text-xs text-slate-500 mt-1">Only for random-ticket contests. Skill contests auto-rank by score.</div>
@@ -326,124 +348,128 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
 
           <div className="grid grid-cols-1 gap-2 border-t border-slate-100 pt-4">
             <Label>Skill game (played after ticket purchase)</Label>
-            <p className="text-xs text-slate-500 -mt-1 mb-1">Optional. If none, winner is picked by admin/random draw.</p>
+            <p className="text-xs text-slate-500 -mt-1 mb-1">Optional. If none, winner is picked by admin/automated winner selection.</p>
             <select
               value={form.game_type || ''}
               onChange={e => upd('game_type', e.target.value || null)}
               data-testid="contest-game-select"
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
             >
-              <option value="">— None (winner picked manually) —</option>
-              <optgroup label="Puzzles">
-                <option value="jigsaw_3x3">Image Jigsaw (3×3)</option>
-                <option value="jigsaw_4x4">Image Jigsaw (4×4)</option>
-                <option value="slider_puzzle">15-Slider Puzzle</option>
-                <option value="odd_one_out">Odd One Out</option>
-              </optgroup>
-              <optgroup label="Memory">
-                <option value="memory_match">Memory Match (pairs)</option>
-                <option value="simon_says">Simon Says (sequence)</option>
-                <option value="pattern_repeat">Pattern Repeat</option>
-              </optgroup>
-              <optgroup label="Reaction">
-                <option value="number_sequence">Number Sequence 1→20</option>
-                <option value="target_tap">Target Tap</option>
-                <option value="reaction_time">Reaction Time</option>
-                <option value="whack_a_mole">Whack-a-Mole</option>
-                <option value="color_match">Color Match (Stroop)</option>
-                <option value="math_sprint">Math Sprint</option>
-              </optgroup>
-              <optgroup label="Trivia &amp; Word">
-                <option value="emoji_riddle">Emoji Riddle</option>
-                <option value="word_unscramble">Word Unscramble</option>
-                <option value="trivia_quiz">Trivia Quiz</option>
-              </optgroup>
+              <option value="">
+                — None (winner picked manually) —
+              </option>
+
+              {gamesLoading && (
+                <option disabled>Loading games…</option>
+              )}
+
+              {!gamesLoading &&
+                Object.entries(
+                  availableGames.reduce((groups, game) => {
+                    const category = game.category || 'other';
+                    if (!groups[category]) groups[category] = [];
+                    groups[category].push(game);
+                    return groups;
+                  }, {})
+                )
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .map(([category, categoryGames]) => (
+                    <optgroup
+                      key={category}
+                      label={
+                        category.charAt(0).toUpperCase() +
+                        category.slice(1)
+                      }
+                    >
+                      {categoryGames
+                        .slice()
+                        .sort((a, b) =>
+                          String(a.label || a.id).localeCompare(
+                            String(b.label || b.id)
+                          )
+                        )
+                        .map((game) => (
+                          <option key={game.id} value={game.id}>
+                            {game.label || game.id}
+                          </option>
+                        ))}
+                    </optgroup>
+                  ))}
             </select>
           </div>
 
-          <div className="border-t border-slate-100 pt-4">
-            <Label className="text-base font-semibold">Contest images</Label>
-            <p className="text-xs text-slate-500 mt-1 mb-3">
-              Upload exactly two images. Both are used automatically wherever the
-              contest is displayed — the square on tiles/thumbnails, the wide banner
-              on the detail-page hero.
-              <br/>
-              <b>Recommended sizes:</b> Contest image <b>1200×1200 px (1:1)</b> · Preview banner <b>1600×800 px (2:1)</b>. JPG / PNG / WEBP · up to 8 MB each.
-            </p>
+          <div>
+            <Label>Competition Image</Label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,image/webp"
+              className="hidden"
+              onChange={onFileChange}
+              data-testid="contest-image-input"
+            />
 
-            <input ref={fileRefs.image} type="file" accept="image/jpeg,image/jpg,image/png,image/webp"
-              className="hidden" onChange={uploadTo('image')} data-testid="contest-image-input" />
-            <input ref={fileRefs.preview_image} type="file" accept="image/jpeg,image/jpg,image/png,image/webp"
-              className="hidden" onChange={uploadTo('preview_image')} data-testid="contest-preview-image-input" />
-
-            <div className="grid md:grid-cols-2 gap-4">
-              {/* SQUARE — Contest image (1:1) */}
-              <div className="rounded-xl border-2 border-dashed border-slate-200 p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-xs font-bold uppercase tracking-widest text-slate-700">Contest image · 1:1</div>
-                  <div className="text-[10px] text-slate-400">1200×1200 · tiles &amp; thumbnails</div>
+            {/* Preview card */}
+            <div className="mt-1 rounded-xl border-2 border-dashed border-slate-200 p-4 flex items-center gap-4">
+              {form.image ? (
+                <div className="relative w-28 h-28 shrink-0">
+                  <img src={form.image} alt="Competition preview" className="w-full h-full object-cover rounded-lg border" data-testid="contest-image-preview" />
+                  <button
+                    type="button"
+                    onClick={removeImage}
+                    disabled={uploading}
+                    data-testid="contest-image-remove"
+                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-rose-500 text-white flex items-center justify-center shadow hover:bg-rose-600 disabled:opacity-50"
+                    aria-label="Remove image"
+                  ><X className="w-3.5 h-3.5" /></button>
                 </div>
-                {form.image ? (
-                  <div className="relative w-full aspect-square rounded-lg overflow-hidden bg-slate-50 border">
-                    <img src={form.image} alt="Contest 1:1" className="w-full h-full object-cover" data-testid="contest-image-preview" />
-                    <button type="button" onClick={removeImage('image')} disabled={uploading.image}
-                      data-testid="contest-image-remove"
-                      className="absolute top-2 right-2 w-7 h-7 rounded-full bg-rose-500 text-white flex items-center justify-center shadow hover:bg-rose-600 disabled:opacity-50"
-                      aria-label="Remove contest image"
-                    ><X className="w-3.5 h-3.5" /></button>
-                  </div>
-                ) : (
-                  <div className="w-full aspect-square rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-300 text-xs">Empty · 1:1</div>
-                )}
-                <Button type="button" onClick={() => fileRefs.image.current?.click()} disabled={uploading.image}
+              ) : (
+                <div className="w-28 h-28 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-300 text-xs shrink-0">No image</div>
+              )}
+
+              <div className="flex-1 min-w-0">
+                <Button
+                  type="button"
+                  onClick={onPickFile}
+                  disabled={uploading}
                   data-testid="contest-image-upload-btn"
-                  className="w-full mt-3 bg-slate-900 hover:bg-slate-800 text-white"
+                  className="bg-slate-900 hover:bg-slate-800 text-white"
                 >
-                  {uploading.image
-                    ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading…</>
-                    : <><Upload className="w-4 h-4 mr-2" /> {form.image ? 'Replace 1:1 image' : 'Upload 1:1 image'}</>}
+                  {uploading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading…</> : <><Upload className="w-4 h-4 mr-2" /> {form.image ? 'Replace image' : 'Upload image'}</>}
                 </Button>
-                <div className="text-[11px] text-slate-500 mt-2">
-                  <b>1200 × 1200 px</b> recommended · square crop · min 800×800 · JPG / PNG / WEBP · up to 8 MB.
-                </div>
-                {uploadErr.image && <div className="text-xs text-rose-600 mt-1" data-testid="contest-image-error">{uploadErr.image}</div>}
-              </div>
-
-              {/* WIDE — Preview banner (2:1) */}
-              <div className="rounded-xl border-2 border-dashed border-slate-200 p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-xs font-bold uppercase tracking-widest text-slate-700">Preview banner · 2:1</div>
-                  <div className="text-[10px] text-slate-400">1600×800 · detail-page hero</div>
-                </div>
-                {form.preview_image ? (
-                  <div className="relative w-full aspect-[2/1] rounded-lg overflow-hidden bg-slate-50 border">
-                    <img src={form.preview_image} alt="Contest 2:1 preview" className="w-full h-full object-cover" data-testid="contest-preview-image-preview" />
-                    <button type="button" onClick={removeImage('preview_image')} disabled={uploading.preview_image}
-                      data-testid="contest-preview-image-remove"
-                      className="absolute top-2 right-2 w-7 h-7 rounded-full bg-rose-500 text-white flex items-center justify-center shadow hover:bg-rose-600 disabled:opacity-50"
-                      aria-label="Remove preview image"
-                    ><X className="w-3.5 h-3.5" /></button>
-                  </div>
-                ) : (
-                  <div className="w-full aspect-[2/1] rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-300 text-xs">Empty · 2:1</div>
-                )}
-                <Button type="button" onClick={() => fileRefs.preview_image.current?.click()} disabled={uploading.preview_image}
-                  data-testid="contest-preview-image-upload-btn"
-                  className="w-full mt-3 bg-slate-900 hover:bg-slate-800 text-white"
-                >
-                  {uploading.preview_image
-                    ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading…</>
-                    : <><Upload className="w-4 h-4 mr-2" /> {form.preview_image ? 'Replace 2:1 image' : 'Upload 2:1 image'}</>}
-                </Button>
-                <div className="text-[11px] text-slate-500 mt-2">
-                  <b>1600 × 800 px</b> recommended · wide 2:1 crop · min 1200×600 · JPG / PNG / WEBP · up to 8 MB. Falls back to the 1:1 image if left empty.
-                </div>
-                {uploadErr.preview_image && <div className="text-xs text-rose-600 mt-1" data-testid="contest-preview-image-error">{uploadErr.preview_image}</div>}
+                <div className="text-xs text-slate-500 mt-2">JPG, PNG, or WEBP · up to 8 MB · used across all contest listings automatically.</div>
+                {uploadErr && <div className="text-xs text-rose-600 mt-1" data-testid="contest-image-error">{uploadErr}</div>}
               </div>
             </div>
+
+            {/* Advanced: paste an external URL (kept for backwards compat) */}
+            <details className="mt-3">
+              <summary className="text-xs text-slate-500 cursor-pointer hover:text-slate-700">Advanced — paste an external image URL instead</summary>
+              <Input value={form.image || ''} onChange={e => upd('image', e.target.value)} placeholder="https://…" className="mt-2" />
+              <div className="mt-2">
+                <div className="text-xs text-slate-500 mb-1">Or pick from the gallery:</div>
+                <div className="flex gap-2 flex-wrap">
+                  {[
+                    'https://images.pexels.com/photos/928187/pexels-photo-928187.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+                    'https://images.pexels.com/photos/15633962/pexels-photo-15633962.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+                    'https://images.pexels.com/photos/19240616/pexels-photo-19240616.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+                    'https://images.pexels.com/photos/9462148/pexels-photo-9462148.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+                    'https://images.pexels.com/photos/973406/pexels-photo-973406.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+                    'https://images.pexels.com/photos/27064826/pexels-photo-27064826.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+                  ].map(url => (
+                    <button
+                      key={url}
+                      type="button"
+                      onClick={() => upd('image', url)}
+                      className={`w-14 h-14 rounded-lg overflow-hidden border-2 ${form.image === url ? 'border-[#6C2BFF]' : 'border-transparent hover:border-slate-300'}`}
+                    ><img src={url} alt="" className="w-full h-full object-cover" /></button>
+                  ))}
+                </div>
+              </div>
+            </details>
           </div>
           <div className="flex flex-wrap items-center gap-4">
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!form.jackpot} onChange={e => upd('jackpot', e.target.checked)} /> Jackpot</label>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!form.jackpot} onChange={e => upd('jackpot', e.target.checked)} /> Featured Prize</label>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!form.featured} onChange={e => upd('featured', e.target.checked)} /> Featured</label>
             {isCreate && (
               <div className="flex items-center gap-2 text-sm ml-auto">
@@ -532,14 +558,12 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                 <Input type="number" value={form.num_prizes || 1} onChange={e => upd('num_prizes', e.target.value)} />
               </div>
               <div>
-                <Label>Draw / result date</Label>
-                <Input
-                  type="datetime-local"
-                  value={drawDateStr}
-                  onChange={e => upd('draw_date', fromLocalDatetimeInput(e.target.value))}
-                  data-testid="contest-draw-date"
-                />
-                <div className="text-[11px] text-slate-500 mt-1">Optional. When the winner is publicly announced (usually shortly after End date).</div>
+                <Label>Open date</Label>
+                <Input type="datetime-local" value={form.open_date ? new Date(form.open_date).toISOString().slice(0, 16) : ''} onChange={e => upd('open_date', e.target.value ? new Date(e.target.value).toISOString() : null)} />
+              </div>
+              <div>
+                <Label>Result date</Label>
+                <Input type="datetime-local" value={form.draw_date ? new Date(form.draw_date).toISOString().slice(0, 16) : ''} onChange={e => upd('draw_date', e.target.value ? new Date(e.target.value).toISOString() : null)} />
               </div>
               <div className="md:col-span-2">
                 <Label>Prize details</Label>
@@ -564,7 +588,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                 <Label>Contest engine</Label>
                 <select value={form.engine_type || 'leaderboard'} onChange={e => upd('engine_type', e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" data-testid="fld-engine-type">
                   <option value="leaderboard">Skill Leaderboard (Engine 1) — active</option>
-                  <option value="random_draw">Random draw (Engine 2) — requires legal flag</option>
+                  <option value="random_draw">Automated winner selection (Engine 2) — requires legal flag</option>
                   <option value="instant_win">Instant win (Engine 3) — requires legal flag</option>
                 </select>
               </div>
@@ -590,11 +614,27 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
             </div>
           </details>
 
-          {/* ---- Engine 2: Random Draw controls ---- */}
+          {/* ---- Focal-point image uploader ---- */}
+          <details className="pt-3 border-t border-slate-100" data-testid="focal-picker-section">
+            <summary className="cursor-pointer text-base font-semibold text-[#6C2BFF] py-2 select-none">
+              Image upload with focal-point picker (recommended)
+            </summary>
+            <div className="mt-3">
+              <ContestImageFocalPicker
+                initialImage={form.image}
+                onUploaded={(r) => {
+                  if (r?.sizes?.card) upd('image', r.sizes.card);
+
+                }}
+              />
+            </div>
+          </details>
+
+          {/* ---- Engine 2: Winner Selection Controls ---- */}
           {!isCreate && form.engine_type === 'random_draw' && (
-            <details className="pt-3 border-t border-slate-100" data-testid="random-draw-section">
+            <details className="pt-3 border-t border-slate-100" data-testid="automated selection-section">
               <summary className="cursor-pointer text-base font-semibold text-[#6C2BFF] py-2 select-none">
-                Random Draw controls (Engine 2)
+                Winner Selection Controls (Engine 2)
               </summary>
               <div className="mt-3"><RandomDrawPanel contestId={contest.contest_id} /></div>
             </details>
@@ -615,10 +655,10 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button
             onClick={save}
-            disabled={busy || uploading.image || uploading.preview_image}
+            disabled={busy || uploading}
             data-testid="contest-save-btn"
             className="bg-[#6C2BFF] hover:bg-[#4A15D9]"
-          >{busy ? 'Saving…' : (uploading.image || uploading.preview_image) ? 'Uploading image…' : (isCreate ? 'Create contest' : 'Save changes')}</Button>
+          >{busy ? 'Saving…' : uploading ? 'Uploading image…' : (isCreate ? 'Create contest' : 'Save changes')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

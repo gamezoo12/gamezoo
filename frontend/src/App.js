@@ -3,6 +3,7 @@ import './App.css';
 import { Toaster } from './components/ui/toaster';
 import { AuthProvider } from './context/AuthContext';
 import TermsGate from './components/TermsGate';
+import RouteScrollManager from './components/RouteScrollManager';
 
 import PublicLayout from './components/layout/PublicLayout';
 import Home from './pages/Home';
@@ -42,10 +43,15 @@ import AdminLegalDocs from './pages/admin/LegalDocsAdmin';
 import CompanySettingsAdmin from './pages/admin/CompanySettings';
 import PostalEntriesAdmin from './pages/admin/PostalEntriesAdmin';
 import UserDetailsPage from './pages/admin/UserDetailsPage';
+import ReferralsBonusesAdmin from './pages/admin/ReferralsBonusesAdmin';
 import LegalDocPage from './pages/legal/LegalDocPage';
 import PlayGame from './pages/PlayGame';
+import GameArena from './pages/GameArena';
+import GamePreview from './pages/GamePreview';
 import ContestLeaderboard from './pages/ContestLeaderboard';
-import LeaderboardIndex from './pages/GlobalLeaderboard';
+import LeaderboardIndex from './pages/LeaderboardIndex';
+import EntryChoice from './pages/EntryChoice';
+import FreeWorld from './pages/FreeWorld';
 import HowItWorksPage from './pages/HowItWorks';
 import ReferPage from './pages/ReferPage';
 import TermsPage from './pages/legal/TermsPage';
@@ -85,7 +91,11 @@ function AppRouter() {
         <Route path="/free-entry" element={<FreeEntry />} />
         <Route path="/verify" element={<VerifyFeed />} />
         <Route path="/play/:contestId/:ticketId" element={<PlayGame />} />
+        <Route path="/games" element={<GameArena />} />
+        <Route path="/games/:gameId" element={<GamePreview />} />
         <Route path="/leaderboard" element={<LeaderboardIndex />} />
+        <Route path="/choose-experience" element={<EntryChoice />} />
+        <Route path="/world" element={<FreeWorld />} />
         <Route path="/leaderboard/:contestId" element={<ContestLeaderboard />} />
         <Route path="/how-it-works" element={<HowItWorksPage />} />
         <Route path="/refer" element={<ReferPage />} />
@@ -105,6 +115,7 @@ function AppRouter() {
       <Route path="/admin" element={<AdminLayout />}>
         <Route index element={<AdminDashboard />} />
         <Route path="users" element={<AdminUsers />} />
+        <Route path="referrals" element={<ReferralsBonusesAdmin />} />
         <Route path="kyc" element={<AdminKyc />} />
         <Route path="competitions" element={<AdminCompetitions />} />
         <Route path="games" element={<AdminGames />} />
@@ -139,6 +150,7 @@ function App() {
     <div className="App">
       <AuthProvider>
         <BrowserRouter>
+          <RouteScrollManager />
           <AppRouter />
           <TermsGate />
           <Toaster />

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Gamepad2, ChevronLeft, ChevronRight, ShieldCheck } from 'lucide-react';
+import { resolveMediaUrl, useFallbackImage } from '../../lib/media';
 
 /**
  * Prize League premium hero.
@@ -66,7 +67,7 @@ export default function HeroBanner({ contests = [] }) {
             Play. Compete. Win Amazing Prizes.
           </p>
           <p className="mt-4 text-white/75 text-base md:text-lg max-w-xl">
-            Join exciting skill-based contests, challenge yourself and stand a chance to win amazing prizes.
+            Join exciting skill-based contests, challenge yourself and have the opportunity to win amazing prizes.
           </p>
 
           <div className="mt-6 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-white/80 text-xs">
@@ -108,17 +109,14 @@ export default function HeroBanner({ contests = [] }) {
 
               <div className="relative pl-glass rounded-3xl overflow-hidden shadow-2xl">
                 <div className="relative aspect-[16/10]">
-                  <picture key={current.id || current.contest_id || i}>
-                    {current.mobile_image && (
-                      <source media="(max-width: 640px)" srcSet={current.mobile_image} />
-                    )}
-                    <img
-                      src={current.preview_image || current.image}
-                      alt={current.title}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                  </picture>
+                  <img
+                    key={current.id || current.contest_id || i}
+                    src={resolveMediaUrl(current.image)}
+                    alt={current.title}
+                    onError={useFallbackImage}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0B0D1F] via-[#0B0D1F]/40 to-transparent" />
 
                   <span className="absolute top-4 left-4 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-500 text-white text-[11px] font-bold uppercase tracking-widest">
@@ -129,9 +127,10 @@ export default function HeroBanner({ contests = [] }) {
                     <div className="text-white font-display text-2xl md:text-3xl font-extrabold mb-2 drop-shadow">{current.title}</div>
                     <div className="flex items-center justify-between gap-3 flex-wrap">
                       <div className="text-white/85 text-sm">
-                        <span className="font-bold text-[#FFD54A]">{Math.round(current.price ?? 0)} 🪙</span> Entry
+                        <span className="font-bold text-[#FFD54A]">{Math.round(current.price ?? 0)} 🪙</span> Entry ·
+                        {' '}<span className="text-white/70">{(current.tickets_sold || 0).toLocaleString()} entries</span>
                       </div>
-                      <Link to={`/competition/${current.slug || current.contest_id}`}>
+                      <Link to={current.slug ? `/competition/${current.slug}` : '/competitions'}>
                         <button className="pl-btn-purple px-4 py-2 rounded-full text-sm font-bold" data-testid="hero-view-contest">View Contest</button>
                       </Link>
                     </div>

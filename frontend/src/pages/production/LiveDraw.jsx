@@ -39,9 +39,9 @@ export default function LiveDraw() {
       setWinner(r.winner);
       setTicket(String(r.winner.ticket_number));
       setLive(false);
-      toast({ title: 'Winner drawn!', description: `${r.winner.user_name} – Ticket #${r.winner.ticket_number}` });
+      toast({ title: 'Winner selected!', description: `${r.winner.user_name} – Ticket #${r.winner.ticket_number}` });
     } catch (e) {
-      toast({ title: 'Draw failed', description: e?.response?.data?.detail || 'Sell tickets first before drawing.' });
+      toast({ title: 'Winner selection failed', description: e?.response?.data?.detail || 'Sell tickets first before drawing.' });
     }
   };
 
@@ -79,7 +79,7 @@ export default function LiveDraw() {
           <Button onClick={() => setLive(!live)} disabled={!!winner} className={`flex-1 h-12 ${live ? 'bg-slate-700 hover:bg-slate-600' : 'bg-rose-600 hover:bg-rose-700'}`}>
             {live ? 'Stop roll' : 'Start roll animation'}
           </Button>
-          <Button onClick={drawNow} disabled={!!winner || contest.status !== 'live'} className="h-12 bg-emerald-600 hover:bg-emerald-700"><Play className="w-4 h-4 mr-2" /> Draw winner (final)</Button>
+          <Button onClick={drawNow} disabled={!!winner || contest.status !== 'live'} className="h-12 bg-emerald-600 hover:bg-emerald-700"><Play className="w-4 h-4 mr-2" /> Select Winner (final)</Button>
         </div>
       </div>
 
@@ -93,7 +93,7 @@ export default function LiveDraw() {
         </div>
         {winner && (
           <div className="mt-4 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 text-sm">
-            <div className="font-semibold">🏆 Winner drawn</div>
+            <div className="font-semibold">🏆 Winner selected</div>
             <div>{winner.user_name}</div>
             <div className="text-xs">Ticket #{winner.ticket_number} • {new Date(winner.drawn_at).toLocaleString('en-GB')}</div>
           </div>

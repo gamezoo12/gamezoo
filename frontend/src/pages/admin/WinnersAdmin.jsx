@@ -23,7 +23,7 @@ export default function WinnersAdmin() {
       {winners.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-100 py-16 text-center">
           <div className="w-14 h-14 rounded-2xl bg-slate-100 mx-auto flex items-center justify-center mb-3"><Trophy className="w-6 h-6 text-slate-400" /></div>
-          <div className="text-slate-500 text-sm">No winners yet. Head to <span className="font-semibold">Contests</span> and press “Draw winner” after a contest closes.</div>
+          <div className="text-slate-500 text-sm">No winners yet. Head to <span className="font-semibold">Contests</span> and press “Select Winner” after a contest closes.</div>
         </div>
       ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">

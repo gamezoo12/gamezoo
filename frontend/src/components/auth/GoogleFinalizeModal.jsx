@@ -72,13 +72,20 @@ export default function GoogleFinalizeModal({ open, onComplete }) {
     if (!data.accept_terms) return toast({ title: 'Please accept the Terms & Privacy Policy' });
     setBusy(true);
     try {
+      const savedReferralCode = String(
+        localStorage.getItem('pl_referral_code') || ''
+      ).trim().toUpperCase();
+
       const r = await api.post('/auth/google/finalize', {
         phone: data.normalizedPhone || data.phone,
         otp_code: data.code,
         accept_terms: true,
         dob: data.dob,
         address: data.address || null,
+        referral_code: savedReferralCode || null,
       }).then(x => x.data);
+
+      localStorage.removeItem('pl_referral_code');
       toast({ title: 'You&apos;re all set 🎉', description: `Welcome, ${r?.user?.name?.split(' ')[0] || 'friend'}!` });
       onComplete?.(r?.user);
     } catch (err) {

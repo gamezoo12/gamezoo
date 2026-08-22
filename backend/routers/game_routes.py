@@ -1,9 +1,9 @@
 """Skill-based games: play after ticket purchase, score by speed+accuracy, per-contest leaderboard."""
 from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, Any
 import secrets
 
 from auth import get_current_user
@@ -46,7 +46,42 @@ GAME_TYPES = [
     {'id': 'anagram_finder',     'label': 'Anagram Finder (find 4+ words)', 'category': 'word',     'target_time_s': 90,  'max_attempts': 3},
     {'id': 'maze_solver',        'label': 'Maze Solver (7×7 randomized)',   'category': 'spatial',  'target_time_s': 60,  'max_attempts': 3},
     {'id': 'spot_pattern',       'label': 'Spot the Pattern (Raven-style)', 'category': 'reasoning','target_time_s': 45,  'max_attempts': 3},
+
+    # ----- V3 Batch 1: procedurally generated skill games -----
+    {'id': 'rapid_equation',    'label': 'Rapid Equation',        'category': 'math',      'target_time_s': 55, 'max_attempts': 3},
+    {'id': 'missing_operator',  'label': 'Missing Operator',      'category': 'math',      'target_time_s': 50, 'max_attempts': 3},
+    {'id': 'number_grid_hunt',  'label': 'Number Grid Hunt',      'category': 'reaction',  'target_time_s': 45, 'max_attempts': 3},
+    {'id': 'equation_balance',  'label': 'Equation Balance',      'category': 'math',      'target_time_s': 55, 'max_attempts': 3},
+    {'id': 'memory_grid',       'label': 'Memory Grid',           'category': 'memory',    'target_time_s': 40, 'max_attempts': 3},
+    {'id': 'direction_rush',    'label': 'Direction Rush',        'category': 'reaction',  'target_time_s': 40, 'max_attempts': 3},
+    {'id': 'shape_sequence',    'label': 'Shape Sequence',        'category': 'reasoning', 'target_time_s': 55, 'max_attempts': 3},
+    {'id': 'quick_compare',     'label': 'Quick Compare',         'category': 'math',      'target_time_s': 45, 'max_attempts': 3},
+    {'id': 'logic_code_breaker','label': 'Logic Code Breaker',    'category': 'logic',     'target_time_s': 120,'max_attempts': 3},
+    {'id': 'moving_target_pro', 'label': 'Moving Target Pro',     'category': 'reaction',  'target_time_s': 35, 'max_attempts': 3},
 ]
+
+
+
+V3_GAME_IDS = {
+    'rapid_equation',
+    'missing_operator',
+    'number_grid_hunt',
+    'equation_balance',
+    'memory_grid',
+    'direction_rush',
+    'shape_sequence',
+    'quick_compare',
+    'logic_code_breaker',
+    'moving_target_pro',
+}
+
+
+class StartGameSessionInput(BaseModel):
+    ticket_id: str = Field(..., min_length=1)
+
+
+class BeginGameSessionInput(BaseModel):
+    session_id: str = Field(..., min_length=1)
 
 
 class SubmitScoreInput(BaseModel):
@@ -55,6 +90,1283 @@ class SubmitScoreInput(BaseModel):
     accuracy: float = Field(..., ge=0.0, le=1.0)
     solved: bool = True
     challenge_token: Optional[str] = None
+    session_id: Optional[str] = None
+    evidence: Optional[dict[str, Any]] = None
+
+
+
+# ---------------------------------------------------------------------------
+# V3 deterministic challenge reproduction
+# ---------------------------------------------------------------------------
+
+def _fnv1a_32(value: str) -> int:
+    h = 2166136261
+
+    for ch in str(value or ''):
+        h ^= ord(ch)
+        h = (h * 16777619) & 0xFFFFFFFF
+
+    return h
+
+
+class _Mulberry32:
+    def __init__(self, seed: int):
+        self.state = seed & 0xFFFFFFFF
+
+    def random(self) -> float:
+        self.state = (self.state + 0x6D2B79F5) & 0xFFFFFFFF
+
+        t = self.state
+
+        t = (
+            ((t ^ (t >> 15)) * (t | 1))
+            & 0xFFFFFFFF
+        )
+
+        t ^= (
+            t +
+            (
+                ((t ^ (t >> 7)) * (t | 61))
+                & 0xFFFFFFFF
+            )
+        ) & 0xFFFFFFFF
+
+        t &= 0xFFFFFFFF
+
+        return (
+            ((t ^ (t >> 14)) & 0xFFFFFFFF)
+            / 4294967296.0
+        )
+
+
+def _v3_rng(
+    seed: str,
+    namespace: str,
+    attempt_number: int,
+    difficulty: str,
+) -> _Mulberry32:
+    combined = '|'.join([
+        str(seed or ''),
+        str(namespace or ''),
+        str(attempt_number or ''),
+        str(difficulty or 'medium'),
+    ])
+
+    return _Mulberry32(
+        _fnv1a_32(combined)
+    )
+
+
+def _rng_int(rng: _Mulberry32, minimum: int, maximum: int) -> int:
+    return int(
+        rng.random() * (maximum - minimum + 1)
+    ) + minimum
+
+
+def _rng_item(rng: _Mulberry32, items):
+    return items[
+        _rng_int(rng, 0, len(items) - 1)
+    ]
+
+
+def _rng_shuffle(rng: _Mulberry32, items):
+    values = list(items)
+
+    for i in range(len(values) - 1, 0, -1):
+        j = int(rng.random() * (i + 1))
+        values[i], values[j] = values[j], values[i]
+
+    return values
+
+
+def _difficulty_profile(game_type: str, difficulty: str) -> dict:
+    difficulty = (
+        difficulty
+        if difficulty in {'easy', 'medium', 'hard', 'expert'}
+        else 'medium'
+    )
+
+    profiles = {
+        'rapid_equation': {
+            'easy': {'total': 8, 'max': 15, 'division': False},
+            'medium': {'total': 10, 'max': 30, 'division': False},
+            'hard': {'total': 12, 'max': 60, 'division': True},
+            'expert': {'total': 15, 'max': 120, 'division': True},
+        },
+
+        'missing_operator': {
+            'easy': {'total': 6, 'max': 15, 'division': False},
+            'medium': {'total': 8, 'max': 30, 'division': False},
+            'hard': {'total': 10, 'max': 60, 'division': True},
+            'expert': {'total': 12, 'max': 100, 'division': True},
+        },
+
+        'equation_balance': {
+            'easy': {'total': 6, 'max': 12},
+            'medium': {'total': 8, 'max': 25},
+            'hard': {'total': 10, 'max': 50},
+            'expert': {'total': 12, 'max': 100},
+        },
+
+        'quick_compare': {
+            'easy': {'total': 8, 'max': 15},
+            'medium': {'total': 12, 'max': 30},
+            'hard': {'total': 16, 'max': 60},
+            'expert': {'total': 20, 'max': 120},
+        },
+    }
+
+    return profiles[game_type][difficulty]
+
+
+def _make_arithmetic_question(max_number: int, allow_division: bool, rng):
+    operators = (
+        ['+', '-', '×', '÷']
+        if allow_division
+        else ['+', '-', '×']
+    )
+
+    op = _rng_item(rng, operators)
+
+    a = _rng_int(rng, 2, max_number)
+    b = _rng_int(rng, 2, max_number)
+
+    if op == '+':
+        answer = a + b
+
+    elif op == '-':
+        if b > a:
+            a, b = b, a
+
+        answer = a - b
+
+    elif op == '×':
+        import math
+
+        limit = max(
+            5,
+            int(math.floor(
+                math.sqrt(max_number * 2)
+            )),
+        )
+
+        a = _rng_int(rng, 2, limit)
+        b = _rng_int(rng, 2, limit)
+        answer = a * b
+
+    else:
+        b = _rng_int(
+            rng,
+            2,
+            max(
+                3,
+                int(max_number // 4),
+            ),
+        )
+
+        answer = _rng_int(
+            rng,
+            2,
+            max(
+                4,
+                int(max_number // 3),
+            ),
+        )
+
+        a = b * answer
+
+    return {
+        'answer': answer,
+    }
+
+
+def _make_operator_question(max_number: int, include_division: bool, rng):
+    operators = (
+        ['+', '-', '×', '÷']
+        if include_division
+        else ['+', '-', '×']
+    )
+
+    operator = _rng_item(rng, operators)
+
+    a = _rng_int(rng, 2, max_number)
+    b = _rng_int(rng, 2, max_number)
+
+    if operator == '+':
+        answer = a + b
+
+    elif operator == '-':
+        if b > a:
+            a, b = b, a
+
+        answer = a - b
+
+    elif operator == '×':
+        a = _rng_int(
+            rng,
+            2,
+            max(4, max_number // 3),
+        )
+
+        b = _rng_int(
+            rng,
+            2,
+            max(4, max_number // 3),
+        )
+
+        answer = a * b
+
+    else:
+        b = _rng_int(rng, 2, 10)
+
+        answer = _rng_int(
+            rng,
+            2,
+            max(3, max_number // 3),
+        )
+
+        a = b * answer
+
+    # JS consumes RNG here when shuffling visible options.
+    _rng_shuffle(rng, operators)
+
+    return {
+        'answer': answer,
+        'operator': operator,
+    }
+
+
+def _make_balance_question(max_number: int, rng):
+    a = _rng_int(rng, 2, max_number)
+    b = _rng_int(rng, 2, max_number)
+    c = _rng_int(rng, 2, max_number)
+
+    target = a + b + c
+    answer = target - a - b
+
+    distractors = {answer}
+
+    while len(distractors) < 4:
+        distractors.add(
+            max(
+                1,
+                answer + _rng_int(rng, -8, 8),
+            )
+        )
+
+    # JS consumes RNG by shuffling answer options.
+    _rng_shuffle(rng, list(distractors))
+
+    return {
+        'answer': answer,
+    }
+
+
+def _make_expression(max_number: int, rng):
+    a = _rng_int(rng, 1, max_number)
+    b = _rng_int(rng, 1, max_number)
+
+    op = _rng_item(
+        rng,
+        ['+', '-', '×'],
+    )
+
+    if op == '+':
+        return {
+            'value': a + b,
+        }
+
+    if op == '-':
+        high = max(a, b)
+        low = min(a, b)
+
+        return {
+            'value': high - low,
+        }
+
+    x = _rng_int(
+        rng,
+        2,
+        max(3, max_number // 4),
+    )
+
+    y = _rng_int(
+        rng,
+        2,
+        max(3, max_number // 4),
+    )
+
+    return {
+        'value': x * y,
+    }
+
+
+def _make_comparison(max_number: int, rng):
+    left = _make_expression(max_number, rng)
+    right = _make_expression(max_number, rng)
+
+    guard = 0
+
+    while left['value'] == right['value'] and guard < 10:
+        right = _make_expression(max_number, rng)
+        guard += 1
+
+    if left['value'] == right['value']:
+        answer = '='
+    elif left['value'] > right['value']:
+        answer = '>'
+    else:
+        answer = '<'
+
+    return {
+        'answer': answer,
+    }
+
+
+
+# ---------------------------------------------------------------------------
+# V3 Batch B1 deterministic challenge reproduction
+# ---------------------------------------------------------------------------
+
+def _batch_b1_profile(game_type: str, difficulty: str) -> dict:
+    difficulty = (
+        difficulty
+        if difficulty in {'easy', 'medium', 'hard', 'expert'}
+        else 'medium'
+    )
+
+    profiles = {
+        'number_grid_hunt': {
+            'easy': {'size': 4, 'total': 8},
+            'medium': {'size': 5, 'total': 12},
+            'hard': {'size': 6, 'total': 16},
+            'expert': {'size': 7, 'total': 20},
+        },
+
+        'memory_grid': {
+            'easy': {'size': 4, 'active': 4},
+            'medium': {'size': 4, 'active': 6},
+            'hard': {'size': 5, 'active': 8},
+            'expert': {'size': 6, 'active': 11},
+        },
+
+        'direction_rush': {
+            'easy': {'total': 8, 'opposite': False},
+            'medium': {'total': 10, 'opposite': True},
+            'hard': {'total': 14, 'opposite': True},
+            'expert': {'total': 18, 'opposite': True},
+        },
+
+        'shape_sequence': {
+            'easy': {'total': 6},
+            'medium': {'total': 8},
+            'hard': {'total': 10},
+            'expert': {'total': 12},
+        },
+
+        'logic_code_breaker': {
+            'easy': {'length': 3, 'maxGuesses': 9},
+            'medium': {'length': 3, 'maxGuesses': 7},
+            'hard': {'length': 4, 'maxGuesses': 8},
+            'expert': {'length': 4, 'maxGuesses': 6},
+        },
+    }
+
+    return profiles[game_type][difficulty]
+
+
+def _make_number_grid(seed_rng, profile: dict):
+    maximum = int(profile['size']) ** 2
+
+    # IMPORTANT:
+    # Frontend consumes RNG once for the visible number-grid shuffle
+    # before generating the target sequence.
+    numbers = _rng_shuffle(
+        seed_rng,
+        list(range(1, maximum + 1)),
+    )
+
+    targets = _rng_shuffle(
+        seed_rng,
+        list(range(1, maximum + 1)),
+    )[:int(profile['total'])]
+
+    return {
+        'numbers': numbers,
+        'targets': targets,
+    }
+
+
+def _make_memory_grid(seed_rng, profile: dict):
+    total_cells = int(profile['size']) ** 2
+
+    targets = _rng_shuffle(
+        seed_rng,
+        list(range(total_cells)),
+    )[:int(profile['active'])]
+
+    return {
+        'targets': targets,
+        'total_cells': total_cells,
+    }
+
+
+_DIRECTIONS_B1 = [
+    {'id': 'up', 'opposite': 'down'},
+    {'id': 'down', 'opposite': 'up'},
+    {'id': 'left', 'opposite': 'right'},
+    {'id': 'right', 'opposite': 'left'},
+]
+
+
+def _make_direction_round(hard_mode: bool, rng):
+    shown = _rng_item(rng, _DIRECTIONS_B1)
+
+    # JS uses:
+    #   hardMode && rng() < 0.55
+    #
+    # Therefore EASY must not consume this RNG value.
+    opposite = (
+        rng.random() < 0.55
+        if hard_mode
+        else False
+    )
+
+    return {
+        'answer': (
+            shown['opposite']
+            if opposite
+            else shown['id']
+        ),
+    }
+
+
+_SHAPES_B1 = ['●', '■', '▲', '◆', '★', '⬟']
+
+
+def _unique_preserve_order(values):
+    output = []
+    seen = set()
+
+    for value in values:
+        if value in seen:
+            continue
+
+        seen.add(value)
+        output.append(value)
+
+    return output
+
+
+def _make_shape_sequence(difficulty: str, rng):
+    a = _rng_item(rng, _SHAPES_B1)
+
+    b = _rng_item(rng, _SHAPES_B1)
+
+    while b == a:
+        b = _rng_item(rng, _SHAPES_B1)
+
+    if difficulty == 'easy':
+        answer = b
+
+    elif difficulty == 'medium':
+        answer = a
+
+    else:
+        c = _rng_item(rng, _SHAPES_B1)
+
+        while c == a or c == b:
+            c = _rng_item(rng, _SHAPES_B1)
+
+        answer = c
+
+    # The browser also generates + shuffles the visible answer options.
+    # We must consume those RNG values to keep the next round aligned.
+    inner = _rng_shuffle(rng, _SHAPES_B1)
+
+    options = _unique_preserve_order(
+        [answer] + inner
+    )[:4]
+
+    _rng_shuffle(rng, options)
+
+    return {
+        'answer': answer,
+    }
+
+
+def _create_code(length: int, rng):
+    digits = _rng_shuffle(
+        rng,
+        [str(i) for i in range(10)],
+    )
+
+    return ''.join(
+        digits[:int(length)]
+    )
+
+
+def _evaluate_code(secret: str, guess: str):
+    exact = 0
+    misplaced = 0
+
+    secret_used = [False] * len(secret)
+    guess_used = [False] * len(secret)
+
+    for i in range(len(secret)):
+        if secret[i] == guess[i]:
+            exact += 1
+            secret_used[i] = True
+            guess_used[i] = True
+
+    for i in range(len(guess)):
+        if guess_used[i]:
+            continue
+
+        for j in range(len(secret)):
+            if secret_used[j]:
+                continue
+
+            if guess[i] == secret[j]:
+                misplaced += 1
+                secret_used[j] = True
+                break
+
+    return {
+        'exact': exact,
+        'misplaced': misplaced,
+    }
+
+
+def _validate_v3_batch_b1(
+    game_type: str,
+    session: dict,
+    evidence: dict | None,
+):
+    supported = {
+        'number_grid_hunt',
+        'memory_grid',
+        'direction_rush',
+        'shape_sequence',
+        'logic_code_breaker',
+    }
+
+    if game_type not in supported:
+        return None
+
+    if not evidence or not isinstance(evidence, dict):
+        raise HTTPException(
+            status_code=400,
+            detail='Game evidence is required',
+        )
+
+    difficulty = str(
+        session.get('difficulty') or 'medium'
+    ).lower()
+
+    if difficulty not in {
+        'easy',
+        'medium',
+        'hard',
+        'expert',
+    }:
+        difficulty = 'medium'
+
+    profile = _batch_b1_profile(
+        game_type,
+        difficulty,
+    )
+
+    rng = _v3_rng(
+        session['seed'],
+        game_type,
+        int(session['attempt_number']),
+        difficulty,
+    )
+
+    # -------------------------------------------------------
+    # NUMBER GRID HUNT
+    # -------------------------------------------------------
+    if game_type == 'number_grid_hunt':
+        taps = evidence.get('taps')
+
+        if not isinstance(taps, list):
+            raise HTTPException(
+                status_code=400,
+                detail='Number Grid evidence is invalid',
+            )
+
+        generated = _make_number_grid(
+            rng,
+            profile,
+        )
+
+        targets = generated['targets']
+
+        target_index = 0
+        mistakes = 0
+
+        for raw_tap in taps:
+            if target_index >= len(targets):
+                raise HTTPException(
+                    status_code=400,
+                    detail='Number Grid evidence contains actions after completion',
+                )
+
+            try:
+                tap = int(raw_tap)
+            except (TypeError, ValueError):
+                raise HTTPException(
+                    status_code=400,
+                    detail='Number Grid evidence contains an invalid tap',
+                )
+
+            if tap == targets[target_index]:
+                target_index += 1
+            else:
+                mistakes += 1
+
+        if target_index != len(targets):
+            raise HTTPException(
+                status_code=400,
+                detail='Number Grid evidence does not complete the challenge',
+            )
+
+        penalty = (
+            0.035
+            if difficulty == 'expert'
+            else 0.05
+        )
+
+        accuracy = max(
+            0.0,
+            min(
+                1.0,
+                1.0 - mistakes * penalty,
+            ),
+        )
+
+        return {
+            'solved': True,
+            'accuracy': accuracy,
+            'mistakes': mistakes,
+            'total': len(targets),
+        }
+
+    # -------------------------------------------------------
+    # MEMORY GRID
+    # -------------------------------------------------------
+    if game_type == 'memory_grid':
+        selections = evidence.get('selections')
+
+        if not isinstance(selections, list):
+            raise HTTPException(
+                status_code=400,
+                detail='Memory Grid evidence is invalid',
+            )
+
+        generated = _make_memory_grid(
+            rng,
+            profile,
+        )
+
+        target_set = set(
+            generated['targets']
+        )
+
+        total_cells = int(
+            generated['total_cells']
+        )
+
+        seen = set()
+        selected = []
+
+        for raw_value in selections:
+            try:
+                value = int(raw_value)
+            except (TypeError, ValueError):
+                raise HTTPException(
+                    status_code=400,
+                    detail='Memory Grid evidence contains an invalid cell',
+                )
+
+            if value < 0 or value >= total_cells:
+                raise HTTPException(
+                    status_code=400,
+                    detail='Memory Grid evidence contains an out-of-range cell',
+                )
+
+            # Frontend prevents selecting the same cell twice.
+            if value in seen:
+                raise HTTPException(
+                    status_code=400,
+                    detail='Memory Grid evidence contains a duplicate selection',
+                )
+
+            seen.add(value)
+            selected.append(value)
+
+        if not target_set.issubset(seen):
+            raise HTTPException(
+                status_code=400,
+                detail='Memory Grid evidence does not complete the challenge',
+            )
+
+        # Frontend completes immediately when the final required target
+        # is selected. Therefore all targets must NOT already have been
+        # present before the last recorded selection.
+        if selected:
+            before_last = set(
+                selected[:-1]
+            )
+
+            if target_set.issubset(before_last):
+                raise HTTPException(
+                    status_code=400,
+                    detail='Memory Grid evidence contains actions after completion',
+                )
+
+        errors = sum(
+            1
+            for value in selected
+            if value not in target_set
+        )
+
+        accuracy = max(
+            0.0,
+            min(
+                1.0,
+                1.0 - errors * 0.1,
+            ),
+        )
+
+        return {
+            'solved': True,
+            'accuracy': accuracy,
+            'errors': errors,
+            'active': len(target_set),
+        }
+
+    # -------------------------------------------------------
+    # DIRECTION RUSH
+    # -------------------------------------------------------
+    if game_type == 'direction_rush':
+        answers = evidence.get('answers')
+
+        if not isinstance(answers, list):
+            raise HTTPException(
+                status_code=400,
+                detail='Direction Rush evidence is invalid',
+            )
+
+        total = int(profile['total'])
+
+        if len(answers) != total:
+            raise HTTPException(
+                status_code=400,
+                detail=f'Expected {total} Direction Rush answers',
+            )
+
+        correct = 0
+
+        for submitted in answers:
+            round_data = _make_direction_round(
+                bool(profile['opposite']),
+                rng,
+            )
+
+            if str(submitted) == round_data['answer']:
+                correct += 1
+
+        accuracy = (
+            correct / total
+            if total
+            else 0.0
+        )
+
+        return {
+            'solved': True,
+            'accuracy': accuracy,
+            'correct': correct,
+            'total': total,
+        }
+
+    # -------------------------------------------------------
+    # SHAPE SEQUENCE
+    # -------------------------------------------------------
+    if game_type == 'shape_sequence':
+        answers = evidence.get('answers')
+
+        if not isinstance(answers, list):
+            raise HTTPException(
+                status_code=400,
+                detail='Shape Sequence evidence is invalid',
+            )
+
+        total = int(profile['total'])
+
+        if len(answers) != total:
+            raise HTTPException(
+                status_code=400,
+                detail=f'Expected {total} Shape Sequence answers',
+            )
+
+        correct = 0
+
+        for submitted in answers:
+            question = _make_shape_sequence(
+                difficulty,
+                rng,
+            )
+
+            if str(submitted) == question['answer']:
+                correct += 1
+
+        accuracy = (
+            correct / total
+            if total
+            else 0.0
+        )
+
+        return {
+            'solved': True,
+            'accuracy': accuracy,
+            'correct': correct,
+            'total': total,
+        }
+
+    # -------------------------------------------------------
+    # LOGIC CODE BREAKER
+    # -------------------------------------------------------
+    guesses = evidence.get('guesses')
+
+    if not isinstance(guesses, list):
+        raise HTTPException(
+            status_code=400,
+            detail='Code Breaker evidence is invalid',
+        )
+
+    length = int(profile['length'])
+    max_guesses = int(
+        profile['maxGuesses']
+    )
+
+    if (
+        not guesses
+        or len(guesses) > max_guesses
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail='Code Breaker guess count is invalid',
+        )
+
+    secret = _create_code(
+        length,
+        rng,
+    )
+
+    best_exact = 0
+    solved_at = None
+
+    for index, raw_guess in enumerate(guesses):
+        guess = str(raw_guess)
+
+        if (
+            len(guess) != length
+            or not guess.isdigit()
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail='Code Breaker evidence contains an invalid guess',
+            )
+
+        result = _evaluate_code(
+            secret,
+            guess,
+        )
+
+        best_exact = max(
+            best_exact,
+            int(result['exact']),
+        )
+
+        if result['exact'] == length:
+            solved_at = index
+
+            # Frontend ends immediately when solved.
+            if index != len(guesses) - 1:
+                raise HTTPException(
+                    status_code=400,
+                    detail='Code Breaker evidence contains guesses after completion',
+                )
+
+            break
+
+    if solved_at is not None:
+        penalty = (
+            0.1
+            if difficulty == 'expert'
+            else 0.08
+        )
+
+        accuracy = max(
+            0.0,
+            min(
+                1.0,
+                1.0 - solved_at * penalty,
+            ),
+        )
+
+        return {
+            'solved': True,
+            'accuracy': accuracy,
+            'guesses': len(guesses),
+            'best_exact': best_exact,
+        }
+
+    # Frontend only ends unsolved once max guesses are exhausted.
+    if len(guesses) != max_guesses:
+        raise HTTPException(
+            status_code=400,
+            detail='Code Breaker evidence ended before the challenge completed',
+        )
+
+    accuracy = max(
+        0.0,
+        min(
+            1.0,
+            best_exact / length,
+        ),
+    )
+
+    return {
+        'solved': False,
+        'accuracy': accuracy,
+        'guesses': len(guesses),
+        'best_exact': best_exact,
+    }
+
+
+
+# ---------------------------------------------------------------------------
+# Moving Target Pro deterministic verification
+# ---------------------------------------------------------------------------
+
+def _moving_target_profile(difficulty: str) -> dict:
+    difficulty = (
+        difficulty
+        if difficulty in {
+            'easy',
+            'medium',
+            'hard',
+            'expert',
+        }
+        else 'medium'
+    )
+
+    return {
+        'easy': {
+            'hits': 10,
+            'diameter_pct': 13.0,
+        },
+        'medium': {
+            'hits': 15,
+            'diameter_pct': 11.0,
+        },
+        'hard': {
+            'hits': 18,
+            'diameter_pct': 9.0,
+        },
+        'expert': {
+            'hits': 22,
+            'diameter_pct': 7.0,
+        },
+    }[difficulty]
+
+
+def _make_moving_target_position(rng):
+    return {
+        'x': _rng_int(rng, 8, 88),
+        'y': _rng_int(rng, 8, 88),
+    }
+
+
+def _validate_v3_moving_target(
+    session: dict,
+    evidence: dict | None,
+):
+    if not evidence or not isinstance(evidence, dict):
+        raise HTTPException(
+            status_code=400,
+            detail='Moving Target evidence is required',
+        )
+
+    clicks = evidence.get('clicks')
+
+    if not isinstance(clicks, list):
+        raise HTTPException(
+            status_code=400,
+            detail='Moving Target click evidence is invalid',
+        )
+
+    # Prevent intentionally huge evidence payloads.
+    if not clicks or len(clicks) > 500:
+        raise HTTPException(
+            status_code=400,
+            detail='Moving Target click count is invalid',
+        )
+
+    difficulty = str(
+        session.get('difficulty') or 'medium'
+    ).lower()
+
+    profile = _moving_target_profile(
+        difficulty,
+    )
+
+    required_hits = int(
+        profile['hits']
+    )
+
+    radius = (
+        float(profile['diameter_pct']) /
+        2.0
+    )
+
+    rng = _v3_rng(
+        session['seed'],
+        'moving_target_pro',
+        int(session['attempt_number']),
+        difficulty,
+    )
+
+    target = _make_moving_target_position(
+        rng
+    )
+
+    hits = 0
+    misses = 0
+    previous_t = -1
+
+    for raw_click in clicks:
+        if hits >= required_hits:
+            raise HTTPException(
+                status_code=400,
+                detail='Moving Target evidence contains clicks after completion',
+            )
+
+        if not isinstance(raw_click, dict):
+            raise HTTPException(
+                status_code=400,
+                detail='Moving Target click evidence is malformed',
+            )
+
+        try:
+            x = float(raw_click.get('x'))
+            y = float(raw_click.get('y'))
+            t_ms = int(raw_click.get('t_ms', 0))
+        except (TypeError, ValueError):
+            raise HTTPException(
+                status_code=400,
+                detail='Moving Target click evidence contains invalid values',
+            )
+
+        if (
+            x < 0.0
+            or x > 100.0
+            or y < 0.0
+            or y > 100.0
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail='Moving Target click coordinates are out of range',
+            )
+
+        if t_ms < 0:
+            raise HTTPException(
+                status_code=400,
+                detail='Moving Target click timing is invalid',
+            )
+
+        # Client timestamps are NOT used for official speed scoring here,
+        # but they must at least represent a possible ordered event stream.
+        if t_ms < previous_t:
+            raise HTTPException(
+                status_code=400,
+                detail='Moving Target click timing is not ordered',
+            )
+
+        previous_t = t_ms
+
+        dx = x - float(target['x'])
+        dy = y - float(target['y'])
+
+        is_hit = (
+            dx * dx + dy * dy
+            <= radius * radius
+        )
+
+        if is_hit:
+            hits += 1
+
+            if hits < required_hits:
+                target = _make_moving_target_position(
+                    rng
+                )
+
+        else:
+            misses += 1
+
+    if hits != required_hits:
+        raise HTTPException(
+            status_code=400,
+            detail='Moving Target evidence does not complete the challenge',
+        )
+
+    accuracy = (
+        hits /
+        max(
+            hits,
+            hits + misses,
+        )
+    )
+
+    return {
+        'solved': True,
+        'accuracy': max(
+            0.0,
+            min(1.0, accuracy),
+        ),
+        'hits': hits,
+        'misses': misses,
+        'clicks': len(clicks),
+    }
+
+
+def _validate_v3_batch_a(
+    game_type: str,
+    session: dict,
+    evidence: dict | None,
+):
+    if game_type not in {
+        'rapid_equation',
+        'missing_operator',
+        'equation_balance',
+        'quick_compare',
+    }:
+        return None
+
+    if not evidence or not isinstance(evidence, dict):
+        raise HTTPException(
+            status_code=400,
+            detail='Game evidence is required',
+        )
+
+    answers = evidence.get('answers')
+
+    if not isinstance(answers, list):
+        raise HTTPException(
+            status_code=400,
+            detail='Game evidence answers are invalid',
+        )
+
+    difficulty = str(
+        session.get('difficulty') or 'medium'
+    ).lower()
+
+    profile = _difficulty_profile(
+        game_type,
+        difficulty,
+    )
+
+    total = int(profile['total'])
+
+    if len(answers) != total:
+        raise HTTPException(
+            status_code=400,
+            detail=f'Expected {total} game answers',
+        )
+
+    rng = _v3_rng(
+        session['seed'],
+        game_type,
+        int(session['attempt_number']),
+        difficulty,
+    )
+
+    correct = 0
+
+    for submitted in answers:
+        if game_type == 'rapid_equation':
+            question = _make_arithmetic_question(
+                int(profile['max']),
+                bool(profile['division']),
+                rng,
+            )
+
+            try:
+                good = (
+                    float(submitted)
+                    == float(question['answer'])
+                )
+            except (TypeError, ValueError):
+                good = False
+
+        elif game_type == 'missing_operator':
+            question = _make_operator_question(
+                int(profile['max']),
+                bool(profile['division']),
+                rng,
+            )
+
+            good = (
+                str(submitted)
+                == str(question['operator'])
+            )
+
+        elif game_type == 'equation_balance':
+            question = _make_balance_question(
+                int(profile['max']),
+                rng,
+            )
+
+            try:
+                good = (
+                    float(submitted)
+                    == float(question['answer'])
+                )
+            except (TypeError, ValueError):
+                good = False
+
+        else:
+            question = _make_comparison(
+                int(profile['max']),
+                rng,
+            )
+
+            good = (
+                str(submitted)
+                == str(question['answer'])
+            )
+
+        if good:
+            correct += 1
+
+    accuracy = (
+        correct / total
+        if total > 0
+        else 0.0
+    )
+
+    return {
+        'solved': True,
+        'accuracy': max(
+            0.0,
+            min(1.0, accuracy),
+        ),
+        'correct': correct,
+        'total': total,
+    }
 
 
 def _calc_points(
@@ -96,9 +1408,344 @@ def _calc_points(
     )
 
 
+
+def _v3_validator_self_test():
+    # Fixed fixtures generated from deterministic seeds.
+    fixtures = [
+        ('rapid_equation', 'abc123', 1, 'medium'),
+        ('missing_operator', 'abc123', 1, 'medium'),
+        ('equation_balance', 'abc123', 1, 'medium'),
+        ('quick_compare', 'abc123', 1, 'medium'),
+    ]
+
+    for game_type, seed, attempt_number, difficulty in fixtures:
+        profile = _difficulty_profile(
+            game_type,
+            difficulty,
+        )
+
+        rng = _v3_rng(
+            seed,
+            game_type,
+            attempt_number,
+            difficulty,
+        )
+
+        generated = []
+
+        for _ in range(profile['total']):
+            if game_type == 'rapid_equation':
+                q = _make_arithmetic_question(
+                    profile['max'],
+                    profile['division'],
+                    rng,
+                )
+                generated.append(q['answer'])
+
+            elif game_type == 'missing_operator':
+                q = _make_operator_question(
+                    profile['max'],
+                    profile['division'],
+                    rng,
+                )
+                generated.append(q['operator'])
+
+            elif game_type == 'equation_balance':
+                q = _make_balance_question(
+                    profile['max'],
+                    rng,
+                )
+                generated.append(q['answer'])
+
+            else:
+                q = _make_comparison(
+                    profile['max'],
+                    rng,
+                )
+                generated.append(q['answer'])
+
+        session = {
+            'seed': seed,
+            'attempt_number': attempt_number,
+            'difficulty': difficulty,
+        }
+
+        result = _validate_v3_batch_a(
+            game_type,
+            session,
+            {'answers': generated},
+        )
+
+        assert result is not None
+        assert result['correct'] == profile['total']
+        assert result['accuracy'] == 1.0
+
+    return True
+
+
 @router.get('/types')
 async def list_types():
     return {'games': GAME_TYPES}
+
+
+
+@router.post('/session/start')
+async def start_game_session(inp: StartGameSessionInput, request: Request):
+    """
+    Create or return the active server-authorized session for the next
+    V3 attempt on a ticket.
+
+    Creating a session DOES NOT consume the attempt. The attempt is still
+    consumed only when /games/submit successfully records a GameScore.
+    """
+    user = await get_current_user(request)
+    db = get_db()
+
+    ticket = await db.tickets.find_one(
+        {
+            'ticket_id': inp.ticket_id,
+            'user_id': user['user_id'],
+        },
+        {'_id': 0},
+    )
+
+    if not ticket:
+        raise HTTPException(status_code=404, detail='Ticket not found')
+
+    contest = await db.contests.find_one(
+        {'contest_id': ticket['contest_id']},
+        {'_id': 0},
+    )
+
+    if not contest:
+        raise HTTPException(status_code=404, detail='Contest not found')
+
+    game_type = contest.get('game_type')
+
+    if game_type not in V3_GAME_IDS:
+        raise HTTPException(
+            status_code=400,
+            detail='Server game sessions are currently enabled for V3 games only',
+        )
+
+    # Reject sessions after contest close.
+    end_raw = contest.get('end_date')
+    if end_raw:
+        try:
+            end_dt = datetime.fromisoformat(
+                str(end_raw).replace('Z', '+00:00')
+            )
+
+            if end_dt.tzinfo is None:
+                end_dt = end_dt.replace(tzinfo=timezone.utc)
+
+            if datetime.now(timezone.utc) > end_dt:
+                raise HTTPException(
+                    status_code=400,
+                    detail='Contest has closed',
+                )
+        except HTTPException:
+            raise
+        except (ValueError, TypeError):
+            pass
+
+    meta = next(
+        (g for g in GAME_TYPES if g['id'] == game_type),
+        None,
+    )
+
+    apt = int(
+        contest.get('attempts_per_ticket')
+        or contest.get('max_attempts')
+        or (meta or {}).get('max_attempts', 3)
+    )
+    apt = max(1, min(apt, 10))
+
+    prior_ticket = await db.game_scores.count_documents({
+        'ticket_id': inp.ticket_id,
+        'contest_id': contest['contest_id'],
+        'user_id': user['user_id'],
+    })
+
+    if prior_ticket >= apt:
+        raise HTTPException(
+            status_code=400,
+            detail=f'No attempts left for this ticket ({apt} allowed per ticket)',
+        )
+
+    attempt_number = prior_ticket + 1
+    now_utc = datetime.now(timezone.utc)
+
+    # Only one active server session may exist for this ticket/attempt.
+    existing = await db.game_sessions.find_one(
+        {
+            'user_id': user['user_id'],
+            'ticket_id': inp.ticket_id,
+            'contest_id': contest['contest_id'],
+            'game_type': game_type,
+            'attempt_number': attempt_number,
+            'used': False,
+            'expires_at': {'$gt': now_utc},
+        },
+        {'_id': 0},
+    )
+
+    if existing:
+        return {
+            'ok': True,
+            'session_id': existing['session_id'],
+            'seed': existing['seed'],
+            'difficulty': existing.get('difficulty', 'medium'),
+            'attempt_number': attempt_number,
+            'attempts_per_ticket': apt,
+            'expires_at': existing['expires_at'],
+        }
+
+    game_config = contest.get('game_config') or {}
+
+    difficulty = str(
+        game_config.get('difficulty') or 'medium'
+    ).lower()
+
+    if difficulty not in {'easy', 'medium', 'hard', 'expert'}:
+        difficulty = 'medium'
+
+    session_id = secrets.token_urlsafe(32)
+
+    # Seed is intentionally generated by the backend.
+    # The next patch will make V3 game generation deterministic from this seed.
+    seed = secrets.token_hex(16)
+
+    expires_at = now_utc + timedelta(minutes=20)
+
+    doc = {
+        'session_id': session_id,
+        'user_id': user['user_id'],
+        'ticket_id': inp.ticket_id,
+        'contest_id': contest['contest_id'],
+        'game_type': game_type,
+        'attempt_number': attempt_number,
+        'seed': seed,
+        'difficulty': difficulty,
+        'created_at': now_utc,
+        # Session creation and official gameplay start are intentionally
+        # separate. official_started_at is set only by /session/begin.
+        'started_at': now_utc,
+        'official_started_at': None,
+        'expires_at': expires_at,
+        'used': False,
+    }
+
+    await db.game_sessions.insert_one(doc)
+
+    return {
+        'ok': True,
+        'session_id': session_id,
+        'seed': seed,
+        'difficulty': difficulty,
+        'attempt_number': attempt_number,
+        'attempts_per_ticket': apt,
+        'expires_at': expires_at,
+    }
+
+
+
+@router.post('/session/begin')
+async def begin_game_session(
+    inp: BeginGameSessionInput,
+    request: Request,
+):
+    """
+    Mark the exact server-side beginning of a V3 official attempt.
+
+    Calling this endpoint repeatedly does NOT reset the clock.
+    The first successful begin timestamp remains authoritative.
+    """
+    user = await get_current_user(request)
+    db = get_db()
+
+    now_utc = datetime.now(timezone.utc)
+
+    session = await db.game_sessions.find_one(
+        {
+            'session_id': inp.session_id,
+            'user_id': user['user_id'],
+            'used': False,
+            'expires_at': {'$gt': now_utc},
+        },
+        {'_id': 0},
+    )
+
+    if not session:
+        raise HTTPException(
+            status_code=400,
+            detail='Official game session is invalid or expired',
+        )
+
+    if session.get('game_type') not in V3_GAME_IDS:
+        raise HTTPException(
+            status_code=400,
+            detail='Server timing is available for V3 games only',
+        )
+
+    # Never allow refresh/retry to reset an already-running official timer.
+    official_started_at = session.get(
+        'official_started_at'
+    )
+
+    if official_started_at is None:
+        await db.game_sessions.update_one(
+            {
+                'session_id': inp.session_id,
+                'user_id': user['user_id'],
+                'used': False,
+                '$or': [
+                    {
+                        'official_started_at': {
+                            '$exists': False,
+                        }
+                    },
+                    {
+                        'official_started_at': None,
+                    },
+                ],
+            },
+            {
+                '$set': {
+                    'official_started_at': now_utc,
+                }
+            },
+        )
+
+        refreshed = await db.game_sessions.find_one(
+            {
+                'session_id': inp.session_id,
+                'user_id': user['user_id'],
+            },
+            {
+                '_id': 0,
+                'official_started_at': 1,
+            },
+        )
+
+        official_started_at = (
+            refreshed or {}
+        ).get(
+            'official_started_at'
+        )
+
+    if official_started_at is None:
+        raise HTTPException(
+            status_code=400,
+            detail='Official game timer could not be started',
+        )
+
+    return {
+        'ok': True,
+        'session_id': inp.session_id,
+        'official_started_at': official_started_at,
+        'timing_source': 'server',
+    }
 
 
 @router.post('/submit')
@@ -119,10 +1766,10 @@ async def submit_score(inp: SubmitScoreInput, request: Request):
     apt = int(contest.get('attempts_per_ticket') or contest.get('max_attempts') or (meta or {}).get('max_attempts', 3))
     apt = max(1, min(apt, 10))
 
-    # Count tickets this user owns for THIS contest — total attempts pool.
-    tickets_owned = await db.tickets.count_documents({'user_id': user['user_id'], 'contest_id': contest['contest_id']})
-    tickets_owned = max(1, tickets_owned)
-    total_allowed = apt * tickets_owned
+    # Attempts are enforced independently PER TICKET.
+    # Buying additional tickets creates additional independent game entries;
+    # it must never increase the attempt allowance of an existing ticket.
+    total_allowed = apt
 
     # Turnstile challenge — required only when a site key is configured (prod).
     # Test envs (no key) skip this check so pytest suites keep working.
@@ -145,13 +1792,216 @@ async def submit_score(inp: SubmitScoreInput, request: Request):
         except (ValueError, TypeError):
             pass
 
-    # Pool of attempts across ALL of the user's tickets for this contest.
-    prior_total = await db.game_scores.count_documents({'user_id': user['user_id'], 'contest_id': contest['contest_id']})
-    prior_ticket = await db.game_scores.count_documents({'ticket_id': inp.ticket_id})
-    if prior_total >= total_allowed:
-        raise HTTPException(status_code=400, detail=f'No attempts left ({total_allowed} used across your {tickets_owned} ticket{"" if tickets_owned == 1 else "s"})')
+    # Enforce the configured attempt allowance against THIS ticket only.
+    prior_ticket = await db.game_scores.count_documents({
+        'ticket_id': inp.ticket_id,
+        'contest_id': contest['contest_id'],
+        'user_id': user['user_id'],
+    })
+    if prior_ticket >= total_allowed:
+        raise HTTPException(
+            status_code=400,
+            detail=f'No attempts left for this ticket ({total_allowed} allowed per ticket)',
+        )
 
-    pts = _calc_points(game_type, inp.duration_ms, inp.accuracy, inp.solved)
+    # V3 official games require a server-issued, unused session tied to the
+    # authenticated user, exact ticket, contest, game and next attempt.
+    #
+    # Existing V1/V2 games intentionally keep their existing submission path.
+    claimed_session = None
+
+    if game_type in V3_GAME_IDS:
+        if not inp.session_id:
+            raise HTTPException(
+                status_code=400,
+                detail='Official game session is required',
+            )
+
+        now_utc = datetime.now(timezone.utc)
+
+        session_filter = {
+            'session_id': inp.session_id,
+            'user_id': user['user_id'],
+            'ticket_id': inp.ticket_id,
+            'contest_id': contest['contest_id'],
+            'game_type': game_type,
+            'attempt_number': prior_ticket + 1,
+            'used': False,
+            'expires_at': {'$gt': now_utc},
+        }
+
+        # Atomically claim the session so two simultaneous submissions cannot
+        # create two scores from one official attempt.
+        claimed_session = await db.game_sessions.find_one_and_update(
+            session_filter,
+            {
+                '$set': {
+                    'used': True,
+                    'used_at': now_utc,
+                }
+            },
+            return_document=True,
+        )
+
+        if not claimed_session:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    'Official game session is invalid, expired, already used, '
+                    'or does not match this ticket attempt'
+                ),
+            )
+
+    # Server-authoritative V3 timing.
+    #
+    # Existing V1/V2 games preserve their legacy browser duration path.
+    # For every V3 official game, speed scoring ignores inp.duration_ms
+    # and uses the backend session clock.
+    server_duration_ms = int(inp.duration_ms)
+
+    if game_type in V3_GAME_IDS:
+        if not claimed_session:
+            raise HTTPException(
+                status_code=400,
+                detail='Official game session validation failed',
+            )
+
+        official_started_at = claimed_session.get(
+            'official_started_at'
+        )
+
+        if not official_started_at:
+            raise HTTPException(
+                status_code=400,
+                detail='Official game timer was not started',
+            )
+
+        finished_at = datetime.now(timezone.utc)
+
+        try:
+            elapsed_ms = int(
+                (
+                    finished_at -
+                    official_started_at
+                ).total_seconds()
+                * 1000
+            )
+        except Exception:
+            raise HTTPException(
+                status_code=400,
+                detail='Official game timing is invalid',
+            )
+
+        if elapsed_ms < 100:
+            raise HTTPException(
+                status_code=400,
+                detail='Official game completed too quickly to validate',
+            )
+
+        # Session expiry already gives a hard outer bound, but retain a
+        # defensive scoring bound as well.
+        if elapsed_ms > 1200000:
+            raise HTTPException(
+                status_code=400,
+                detail='Official game session exceeded the maximum duration',
+            )
+
+        server_duration_ms = elapsed_ms
+
+    # Server-authoritative result values.
+    #
+    # For hardened V3 Batch-A games, browser-provided accuracy/solved values
+    # are ignored. The backend regenerates the exact challenge from the
+    # server-issued session seed and validates the submitted answer evidence.
+    server_accuracy = float(inp.accuracy)
+    server_solved = bool(inp.solved)
+
+    if not claimed_session and game_type in V3_GAME_IDS:
+        raise HTTPException(
+            status_code=400,
+            detail='Official game session validation failed',
+        )
+
+    if game_type in {
+        'rapid_equation',
+        'missing_operator',
+        'equation_balance',
+        'quick_compare',
+    }:
+        validated = _validate_v3_batch_a(
+            game_type,
+            claimed_session,
+            inp.evidence,
+        )
+
+        if not validated:
+            raise HTTPException(
+                status_code=400,
+                detail='Official game evidence could not be validated',
+            )
+
+        server_accuracy = float(
+            validated['accuracy']
+        )
+
+        server_solved = bool(
+            validated['solved']
+        )
+
+    elif game_type in {
+        'number_grid_hunt',
+        'memory_grid',
+        'direction_rush',
+        'shape_sequence',
+        'logic_code_breaker',
+    }:
+        validated = _validate_v3_batch_b1(
+            game_type,
+            claimed_session,
+            inp.evidence,
+        )
+
+        if not validated:
+            raise HTTPException(
+                status_code=400,
+                detail='Official game evidence could not be validated',
+            )
+
+        server_accuracy = float(
+            validated['accuracy']
+        )
+
+        server_solved = bool(
+            validated['solved']
+        )
+
+    elif game_type == 'moving_target_pro':
+        validated = _validate_v3_moving_target(
+            claimed_session,
+            inp.evidence,
+        )
+
+        if not validated:
+            raise HTTPException(
+                status_code=400,
+                detail='Official Moving Target evidence could not be validated',
+            )
+
+        server_accuracy = float(
+            validated['accuracy']
+        )
+
+        server_solved = bool(
+            validated['solved']
+        )
+
+    pts = _calc_points(
+        game_type,
+        server_duration_ms,
+        server_accuracy,
+        server_solved,
+    )
+
     score = GameScore(
         contest_id=contest['contest_id'],
         ticket_id=inp.ticket_id,
@@ -159,13 +2009,61 @@ async def submit_score(inp: SubmitScoreInput, request: Request):
         user_name=user.get('name', 'Anonymous'),
         game_type=game_type,
         points=pts,
-        duration_ms=inp.duration_ms,
-        accuracy=inp.accuracy,
+        duration_ms=server_duration_ms,
+        accuracy=server_accuracy,
         attempts_used=prior_ticket + 1,
     )
-    await db.game_scores.insert_one(score.model_dump())
-    attempts_left = total_allowed - (prior_total + 1)
-    return {'ok': True, 'points': pts, 'attempts_left': attempts_left, 'total_allowed': total_allowed, 'tickets': tickets_owned, 'score': score.model_dump()}
+    try:
+        await db.game_scores.insert_one(score.model_dump())
+    except Exception:
+        # If score persistence fails after the atomic session claim, restore
+        # that V3 session so the legitimate user is not charged an attempt.
+        if claimed_session:
+            await db.game_sessions.update_one(
+                {
+                    'session_id': inp.session_id,
+                    'user_id': user['user_id'],
+                    'used': True,
+                },
+                {
+                    '$set': {'used': False},
+                    '$unset': {'used_at': ''},
+                },
+            )
+        raise
+
+    attempts_left = max(0, total_allowed - (prior_ticket + 1))
+    return {
+        'ok': True,
+        'points': pts,
+        'attempts_left': attempts_left,
+        'total_allowed': total_allowed,
+        'attempts_per_ticket': apt,
+        'ticket_id': inp.ticket_id,
+        'timing_source': (
+            'server'
+            if game_type in V3_GAME_IDS
+            else 'client'
+        ),
+        'server_duration_ms': (
+            server_duration_ms
+            if game_type in V3_GAME_IDS
+            else None
+        ),
+        'server_validated': game_type in {
+            'rapid_equation',
+            'missing_operator',
+            'equation_balance',
+            'quick_compare',
+            'number_grid_hunt',
+            'memory_grid',
+            'direction_rush',
+            'shape_sequence',
+            'logic_code_breaker',
+            'moving_target_pro',
+        },
+        'score': score.model_dump(),
+    }
 
 
 @public_router.get('/leaderboard/global')

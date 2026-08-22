@@ -226,21 +226,6 @@ async def _credit_wallet_once(db, tx: dict) -> Optional[dict]:
         amount_gbp,
         note=f"Bought {tokens} tokens (£{amount_gbp:.2f}) — session {tx['session_id'][:14]}…",
     )
-    # Bonus tokens: 10+ tokens top-up unlocks a 5-token bonus that expires in 30 days.
-    # We record the grant AND immediately credit the wallet so the user sees it live.
-    try:
-        from bonus import maybe_grant_bonus, BONUS_AMOUNT
-        grant = await maybe_grant_bonus(db, tx["user_id"], tokens, ref_session_id=tx["session_id"])
-        if grant:
-            await _apply_tx(
-                db, tx["user_id"], 'referral_bonus',
-                float(BONUS_AMOUNT),
-                note=f"Bonus: +{BONUS_AMOUNT} tokens (expires {grant['expires_at'].strftime('%d %b %Y')})",
-                ref_order_id=grant['grant_id'],
-            )
-    except Exception:
-        import logging as _lg
-        _lg.exception('[bonus] grant failed for user=%s tokens=%s', tx['user_id'], tokens)
     # In-app notification
     from notifications import notify
     tx_receipt = None
@@ -255,6 +240,28 @@ async def _credit_wallet_once(db, tx: dict) -> Optional[dict]:
         body=f'You now have tokens ready to enter contests. Purchase total £{amount_gbp:.2f}.',
         ref_tx_id=tx_receipt,
     )
+
+    # Bonus qualification is based ONLY on this verified Stripe payment.
+    # A normal £5 top-up remains valid but does not qualify.
+    try:
+        from routers.referral_routes import record_verified_topup
+
+        await record_verified_topup(
+            db,
+            tx["user_id"],
+            amount_gbp,
+            tx.get("session_id"),
+        )
+    except Exception:
+        # Never fail or reverse a valid Stripe wallet credit because the
+        # promotional reward subsystem had a temporary problem.
+        import logging
+        logging.exception(
+            'Bonus qualification failed after verified top-up user=%s session=%s',
+            tx.get("user_id"),
+            tx.get("session_id"),
+        )
+
     return r
 
 
@@ -373,29 +380,3 @@ async def get_stripe_mode(request: Request):
         info["stripe_api_reachable"] = False
         info["stripe_api_error"] = str(e)[:200]
     return info
-
-
-@payments_router.get('/admin/bonus/stats')
-async def admin_bonus_stats(request: Request):
-    """Aggregate bonus-tokens metrics for the admin dashboard.
-    Returns active vs expired vs redeemed totals + config snapshot."""
-    from auth import require_admin
-    from bonus import get_bonus_stats
-    await require_admin(request)
-    db = get_db()
-    return await get_bonus_stats(db)
-
-
-@payments_router.get('/promo/topup-bonus')
-async def public_bonus_promo():
-    """Public read-only promo config for the site-wide banner.
-    Zero PII, no auth — safe to expose on the homepage."""
-    from bonus import BONUS_MIN_TOPUP, BONUS_AMOUNT, BONUS_EXPIRY_DAYS
-    return {
-        'active': True,
-        'min_topup_tokens': BONUS_MIN_TOPUP,
-        'bonus_amount_tokens': BONUS_AMOUNT,
-        'expiry_days': BONUS_EXPIRY_DAYS,
-        'headline': f'Top up {BONUS_MIN_TOPUP}+ tokens, get {BONUS_AMOUNT} FREE',
-        'sub': f'Bonus tokens expire {BONUS_EXPIRY_DAYS} days after purchase.',
-    }

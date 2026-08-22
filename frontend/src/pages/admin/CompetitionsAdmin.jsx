@@ -44,7 +44,7 @@ export default function CompetitionsAdmin() {
     } catch (e) { toast({ title: 'Bulk hold failed', description: e?.response?.data?.detail }); }
   };
   const remove = async (id) => { if (!window.confirm('Delete contest? Tickets will be deleted too.')) return; try { await adminAPI.deleteContest(id); toast({ title: 'Deleted' }); load(); } catch (e) { toast({ title: 'Failed', description: e?.response?.data?.detail }); } };
-  const draw = async (id) => { try { const r = await adminAPI.draw(id); toast({ title: 'Winner drawn!', description: `${r.winner.user_name} – Ticket #${r.winner.ticket_number}` }); load(); } catch (e) { toast({ title: 'Draw failed', description: e?.response?.data?.detail }); } };
+  const draw = async (id) => { try { const r = await adminAPI.draw(id); toast({ title: 'Winner selected!', description: `${r.winner.user_name} – Ticket #${r.winner.ticket_number}` }); load(); } catch (e) { toast({ title: 'Winner selection failed', description: e?.response?.data?.detail }); } };
 
   const filtered = contests.filter(c => tab === 'all' || c.status === tab);
   const colors = { live: 'bg-emerald-100 text-emerald-700', draft: 'bg-slate-200 text-slate-700', drawn: 'bg-amber-100 text-amber-700', archived: 'bg-slate-100 text-slate-500' };

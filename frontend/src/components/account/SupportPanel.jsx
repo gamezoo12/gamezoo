@@ -10,7 +10,7 @@ import { useToast } from '../../hooks/use-toast';
 const CATEGORIES = [
   { id: 'account',  label: 'Account issue' },
   { id: 'payment',  label: 'Payment / Wallet' },
-  { id: 'ticket',   label: 'Ticket / Draw' },
+  { id: 'ticket',   label: 'Entry / Result' },
   { id: 'game',     label: 'Game / Score' },
   { id: 'kyc',      label: 'KYC / Verification' },
   { id: 'other',    label: 'Other' },

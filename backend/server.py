@@ -205,6 +205,8 @@ from routers.legal_routes import public_router as legal_public_router, admin_rou
 from routers.company_routes import public_router as company_public_router, admin_router as company_admin_router, contest_router as leaderboard_router
 from routers.engines_routes import router as engines_router, public_router as engines_public_router
 from routers.user360_routes import router as user360_router
+from routers.admin_referrals_routes import router as admin_referrals_router
+from routers.influencer_promo_routes import router as influencer_promo_router
 
 app.include_router(auth_router)
 app.include_router(contest_router)
@@ -237,6 +239,8 @@ app.include_router(leaderboard_router)
 app.include_router(engines_router)
 app.include_router(engines_public_router)
 app.include_router(user360_router)
+app.include_router(admin_referrals_router)
+app.include_router(influencer_promo_router)
 
 
 @app.on_event('startup')
@@ -255,7 +259,17 @@ app.mount("/api/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads"
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origin_regex=r'https?://(localhost(:\d+)?|127\.0\.0\.1(:\d+)?|.*\.preview\.emergentagent\.com|prizeleague\.co\.uk|.*\.prizeleague\.co\.uk|.*\.emergent\.host)',
+    allow_origin_regex=(
+        r'https?://('
+        r'localhost(:\d+)?|'
+        r'127\.0\.0\.1(:\d+)?|'
+        r'.*\.preview\.emergentagent\.com|'
+        r'.*\.preview\.static\.emergentagent\.com|'
+        r'prizeleague\.co\.uk|'
+        r'.*\.prizeleague\.co\.uk|'
+        r'.*\.emergent\.host'
+        r')'
+    ),
     allow_methods=['*'],
     allow_headers=['*'],
 )
@@ -304,6 +318,17 @@ async def _ensure_core_indexes():
     # not prevent the others from being created.
     _idx_specs = [
         ('users',                 [('email', 1)],         {'unique': True}),
+        (
+            'users',
+            [('google_sub', 1)],
+            {
+                'unique': True,
+                'partialFilterExpression': {
+                    'google_sub': {'$type': 'string'}
+                },
+                'name': 'ux_users_google_sub_str',
+            },
+        ),
         ('users',                 [('public_id', 1)],     {'unique': True, 'partialFilterExpression': {'public_id': {'$type': 'string'}}, 'name': 'ux_users_public_id_str'}),
         ('users',                 [('user_id', 1)],       {'unique': True}),
         ('contests',              [('slug', 1)],          {'unique': True, 'sparse': True}),

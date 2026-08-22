@@ -374,7 +374,8 @@ async def contest_leaderboard(
         },
         {
             '$group': {
-                '_id': '$user_id',
+                '_id': '$ticket_id',
+                'ticket_id': {'$first': '$ticket_id'},
                 'user_id': {'$first': '$user_id'},
                 'user_name': {'$first': '$user_name'},
                 'points': {'$first': '$points'},
@@ -413,11 +414,31 @@ async def contest_leaderboard(
         ):
             users[user['user_id']] = user
 
+    # Resolve public ticket numbers for each independent leaderboard entry.
+    leaderboard_ticket_ids = [
+        row.get('ticket_id')
+        for row in ranked_rows
+        if row.get('ticket_id')
+    ]
+    ticket_numbers = {}
+
+    if leaderboard_ticket_ids:
+        async for ticket in db.tickets.find(
+            {'ticket_id': {'$in': leaderboard_ticket_ids}},
+            {
+                '_id': 0,
+                'ticket_id': 1,
+                'ticket_number': 1,
+            },
+        ):
+            ticket_numbers[ticket['ticket_id']] = ticket.get('ticket_number')
+
     for index, row in enumerate(ranked_rows, start=1):
         user = users.get(row['user_id'], {})
 
         row.pop('_id', None)
         row['rank'] = index
+        row['ticket_number'] = ticket_numbers.get(row.get('ticket_id'))
         row['public_id'] = user.get('public_id')
         row['username'] = user.get('username')
         row['user_name'] = (

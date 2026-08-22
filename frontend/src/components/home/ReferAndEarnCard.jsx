@@ -19,7 +19,9 @@ export default function ReferAndEarnCard() {
     referralAPI.me().then(r => setRef(r)).catch(() => {});
   }, [user]);
 
-  const link = ref?.code ? `${window.location.origin}/?ref=${ref.code}` : '';
+  const link = ref?.code
+    ? `${window.location.origin}/login?tab=signup&ref=${encodeURIComponent(ref.code)}`
+    : '';
 
   const copyLink = async () => {
     try {
@@ -67,8 +69,9 @@ export default function ReferAndEarnCard() {
                 Invite your friends and <span className="pl-gold-text">earn exciting rewards</span>
               </h2>
               <p className="mt-3 text-white/70 max-w-lg">
-                Share your unique code. When a friend signs up and enters their first contest,
-                you both get a bonus ticket (or 5 tokens credited).
+                Share your unique code. When your friend signs up with your code,
+                tops up £10 or more in one verified payment and enters at least one contest,
+                you receive 5 referral reward tokens.
               </p>
 
               {user ? (

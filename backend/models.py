@@ -28,7 +28,6 @@ class Contest(BaseModel):
     prize_amount: float = 100.0
     end_date: datetime
     image: str
-    preview_image: Optional[str] = None  # 2:1 banner used on contest detail hero
     jackpot: bool = False
     featured: bool = False
     skill_question: SkillQuestion
@@ -36,7 +35,7 @@ class Contest(BaseModel):
     game_type: Optional[str] = None  # e.g. 'jigsaw_3x3', 'memory_match', 'number_sequence', ...
     game_config: dict = Field(default_factory=dict)  # per-game options (image url, difficulty, time limit)
     max_attempts: int = 3  # legacy alias for attempts_per_ticket — kept for back-compat
-    attempts_per_ticket: int = 3  # Total attempts = tickets_bought * attempts_per_ticket (1..10)
+    attempts_per_ticket: int = 3  # Independent attempt allowance for each purchased ticket (1..10)
     status: str = 'live'  # live | drawn | archived
 
     # ----- Extended admin-editable fields (added for Phase-1 launch spec) -----
@@ -89,7 +88,7 @@ class Wallet(BaseModel):
 class WalletTx(BaseModel):
     tx_id: str = Field(default_factory=lambda: new_id('tx'))
     user_id: str
-    kind: Literal['topup', 'spend', 'refund', 'admin_adjust', 'referral_bonus']
+    kind: Literal['topup', 'spend', 'refund', 'admin_adjust', 'referral_bonus', 'signup_bonus', 'influencer_bonus']
     amount: float  # positive for credits, negative for debits
     balance_after: float
     note: str = ''
@@ -99,11 +98,36 @@ class WalletTx(BaseModel):
 
 class Referral(BaseModel):
     referral_id: str = Field(default_factory=lambda: new_id('ref'))
-    referrer_user_id: str  # who invited
-    referred_user_id: str  # who was invited
+    referrer_user_id: str
+    referred_user_id: str
     code: str
+
+    # pending until both referral requirements are satisfied
     status: Literal['pending', 'completed'] = 'pending'
+
+    # New token referral programme
+    program_version: str = 'tokens_v2'
+
+    # Condition 1: one verified Stripe top-up of £10+
+    topup_qualified: bool = False
+    topup_qualified_at: Optional[datetime] = None
+    topup_amount_gbp: Optional[float] = None
+    topup_session_id: Optional[str] = None
+
+    # Condition 2: successfully enter at least one contest
+    contest_entered: bool = False
+    contest_entered_at: Optional[datetime] = None
+    first_contest_order_id: Optional[str] = None
+
+    # Reward is issued to referrer exactly once
+    reward_granted: bool = False
+    reward_tokens: float = 0.0
+    reward_tx_id: Optional[str] = None
+    completed_at: Optional[datetime] = None
+
+    # Legacy field retained only so old Mongo records remain compatible
     reward_ticket_id: Optional[str] = None
+
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -134,7 +158,6 @@ class ContestPublic(BaseModel):
     prize_amount: float
     end_date: datetime
     image: str
-    preview_image: Optional[str] = None
     jackpot: bool
     featured: bool
     status: str
@@ -147,17 +170,35 @@ class User(BaseModel):
     user_id: str = Field(default_factory=lambda: new_id('user'))
     public_id: Optional[str] = None  # sequential PLxxxxx — assigned atomically at register
     email: EmailStr
+    email_verified: bool = False
+    email_verified_at: Optional[datetime] = None
     name: str
     username: Optional[str] = None  # auto-generated: firstname + DOB-day + NN
     picture: Optional[str] = None
+
+    # Stable Google account identifier from the verified Google ID token.
+    # Do not use email as the sole Google identity key.
+    google_sub: Optional[str] = None
+
     password_hash: Optional[str] = None  # only for email/password users
     method: Literal['email', 'google'] = 'email'
     role: Literal['user', 'admin', 'super_admin', 'operator', 'support'] = 'user'
     must_change_password: bool = False  # forced on Super Admin first login
     referral_code: str = Field(default_factory=lambda: uuid.uuid4().hex[:8].upper())
     referred_by: Optional[str] = None  # user_id of referrer
+
+    # Signup bonus programme.
+    # Defaults False so accounts created before this feature are not
+    # automatically enrolled retroactively.
+    signup_bonus_offer_eligible: bool = False
+    signup_bonus_granted: bool = False
+    signup_bonus_granted_at: Optional[datetime] = None
+    signup_bonus_tokens: float = 0.0
+    signup_bonus_tx_id: Optional[str] = None
+    signup_bonus_topup_session_id: Optional[str] = None
     phone: Optional[str] = None  # E.164 format, e.g. +447xxxxxxxxx
     phone_verified: bool = False
+    phone_verified_at: Optional[datetime] = None
     dob: Optional[str] = None  # ISO date YYYY-MM-DD
     address: Optional[str] = None
     terms_accepted_at: Optional[datetime] = None
@@ -168,6 +209,8 @@ class UserPublic(BaseModel):
     user_id: str
     public_id: Optional[str] = None
     email: str
+    email_verified: bool = False
+    email_verified_at: Optional[datetime] = None
     name: str
     username: Optional[str] = None
     picture: Optional[str] = None
@@ -175,6 +218,7 @@ class UserPublic(BaseModel):
     method: str
     phone: Optional[str] = None
     phone_verified: bool = False
+    phone_verified_at: Optional[datetime] = None
     dob: Optional[str] = None
     address: Optional[str] = None
     terms_accepted_at: Optional[datetime] = None
@@ -185,11 +229,12 @@ class RegisterInput(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8, description="Minimum 8 characters")
     name: str = Field(..., min_length=1)
-    # Phone verification is OPTIONAL at signup (feb 2026). Users can bind and
-    # verify a phone later via /api/auth/otp/verify-bind. If phone is
-    # provided, an OTP code MUST accompany it (see the register handler).
-    phone: Optional[str] = Field(default=None, max_length=32)
-    otp_code: Optional[str] = Field(default=None, max_length=10)
+    # Both email and phone verification are mandatory for email/password
+    # registration. The backend independently checks both Twilio Verify codes
+    # before creating the account.
+    email_otp_code: str = Field(..., min_length=4, max_length=10)
+    phone: str = Field(..., min_length=6, max_length=32)
+    otp_code: str = Field(..., min_length=4, max_length=10)
     accept_terms: bool = Field(..., description="Must be true")
     dob: str = Field(..., description="YYYY-MM-DD, 18+ enforced server-side")
     address: Optional[str] = None

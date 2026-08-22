@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
@@ -81,9 +81,26 @@ function PhoneLoginForm({ onLoggedIn }) {
 export default function Login() {
  const [mode, setMode] = useState('login');
  const [busy, setBusy] = useState(false);
+
+ useEffect(() => {
+   const params = new URLSearchParams(window.location.search);
+   const requestedTab = params.get('tab');
+   const referralCode = String(params.get('ref') || '').trim().toUpperCase();
+
+   if (requestedTab === 'signup' || referralCode) {
+     setMode('register');
+   }
+
+   if (referralCode) {
+     localStorage.setItem('pl_referral_code', referralCode);
+   }
+ }, []);
  const nav = useNavigate();
  const { toast } = useToast();
  const { login, setGoogleUser } = useAuth();
+
+ const googleButtonRef = useRef(null);
+ const googleInitializedRef = useRef(false);
 
  const emailSubmit = async (e) => {
  e.preventDefault();
@@ -92,7 +109,7 @@ export default function Login() {
  try {
  await login({ email: fd.get('email'), password: fd.get('password') });
  toast({ title: 'Welcome back!' });
- nav('/');
+ nav('/choose-experience', { replace: true });
  } catch (err) {
  const raw = err?.response?.data?.detail;
  const detail = Array.isArray(raw) ? raw.map(e => e.msg).join('. ') : (raw || 'Please check your details and try again.');
@@ -100,19 +117,179 @@ export default function Login() {
  } finally { setBusy(false); }
  };
 
- const google = () => {
- // Use a DEDICATED /auth-callback route (not /my-account) so the redirect
- // is predictable across preview / production / custom domains and so the
- // Google OAuth handler sees a clean URL to hydrate the session token from.
- const redirectUrl = window.location.origin + '/auth-callback';
- window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
- };
+ const handleGoogleCredential = useCallback(async (response) => {
+   try {
+     setBusy(true);
+
+     const credential = response?.credential;
+
+     if (!credential) {
+       throw new Error(
+         'Google did not return a valid credential.'
+       );
+     }
+
+     const r = await authAPI.googleDirect(
+       credential
+     );
+
+     if (r?.token) {
+       localStorage.setItem(
+         'gz_token',
+         r.token
+       );
+     }
+
+     if (r?.user) {
+       setGoogleUser(r.user);
+     }
+
+     if (r?.needs_finalize) {
+       const referralCode =
+         localStorage.getItem(
+           'pl_referral_code'
+         );
+
+       sessionStorage.setItem(
+         'pl_google_needs_finalize',
+         '1'
+       );
+
+       if (referralCode) {
+         sessionStorage.setItem(
+           'pl_google_referral_code',
+           referralCode
+         );
+       }
+
+       nav('/auth-callback', {
+         replace: true,
+         state: {
+           directGoogle: true,
+         },
+       });
+
+       return;
+     }
+
+     toast({
+       title: `Welcome back, ${r?.user?.name || 'friend'} 👋`,
+     });
+
+     nav('/choose-experience', {
+       replace: true,
+     });
+   } catch (err) {
+     const raw =
+       err?.response?.data?.detail;
+
+     const detail =
+       typeof raw === 'string'
+         ? raw
+         : raw?.message ||
+           raw?.msg ||
+           err?.message ||
+           'Google sign-in failed. Please try again.';
+
+     toast({
+       title: 'Google sign-in failed',
+       description: detail,
+     });
+   } finally {
+     setBusy(false);
+   }
+ }, [nav, setGoogleUser, toast]);
+
+ useEffect(() => {
+   const clientId =
+     process.env.REACT_APP_GOOGLE_CLIENT_ID;
+
+   if (!clientId) {
+     return undefined;
+   }
+
+   let attempts = 0;
+
+   const renderGoogleButton = () => {
+     attempts += 1;
+
+     if (
+       googleInitializedRef.current ||
+       !googleButtonRef.current
+     ) {
+       return;
+     }
+
+     if (!window.google?.accounts?.id) {
+       if (attempts >= 50) {
+         console.error(
+           '[google-auth] Google Identity Services failed to load'
+         );
+       }
+
+       return;
+     }
+
+     window.google.accounts.id.initialize({
+       client_id: clientId,
+       callback: handleGoogleCredential,
+
+       // Use the normal Sign in with Google button.
+       // Do not invoke One Tap/FedCM prompt().
+       auto_select: false,
+       cancel_on_tap_outside: true,
+     });
+
+     googleButtonRef.current.innerHTML = '';
+
+     window.google.accounts.id.renderButton(
+       googleButtonRef.current,
+       {
+         type: 'standard',
+         theme: 'outline',
+         size: 'large',
+         text: 'continue_with',
+         shape: 'rectangular',
+         logo_alignment: 'left',
+         width: 420,
+       }
+     );
+
+     googleInitializedRef.current = true;
+   };
+
+   renderGoogleButton();
+
+   const interval = window.setInterval(
+     renderGoogleButton,
+     200
+   );
+
+   const timeout = window.setTimeout(
+     () => {
+       window.clearInterval(interval);
+     },
+     10000
+   );
+
+   return () => {
+     window.clearInterval(interval);
+     window.clearTimeout(timeout);
+   };
+ }, [
+   nav,
+   setGoogleUser,
+   toast,
+   handleGoogleCredential,
+ ]);
+
+
 
  const onPhoneLoggedIn = (r) => {
  if (r?.token) localStorage.setItem('gz_token', r.token);
  if (r?.user) setGoogleUser(r.user);
  toast({ title: `Welcome back, ${r?.user?.name || 'friend'} 👋` });
- nav('/');
+ nav('/choose-experience', { replace: true });
  };
 
  return (
@@ -169,9 +346,15 @@ export default function Login() {
  {mode === 'login' ? 'Great to see you again.' : 'Create your account with mandatory mobile verification.'}
  </p>
 
- <Button onClick={google} variant="outline" className="w-full h-11 gap-2 border-slate-200 hover:bg-slate-50 hover:border-[#6C2BFF]/40 font-semibold" data-testid="google-signin">
- <GoogleIcon /> Continue with Google
- </Button>
+ <div
+   className="w-full min-h-[44px] flex justify-center"
+   data-testid="google-signin"
+ >
+   <div
+     ref={googleButtonRef}
+     className="w-full flex justify-center"
+   />
+ </div>
 
  <div className="flex items-center gap-2 my-4">
  <div className="flex-1 h-px bg-slate-100" />

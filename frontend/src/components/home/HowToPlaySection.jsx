@@ -36,7 +36,7 @@ const STEPS = [
   {
     n: 4,
     title: 'Winner announced live',
-    text: 'Live draws on our Production channel. Cash paid in 24 hours, prizes shipped free.',
+    text: 'Live results on our Production channel. Cash paid in 24 hours, prizes shipped free.',
     img: 'https://images.pexels.com/photos/7414284/pexels-photo-7414284.jpeg?auto=compress&cs=tinysrgb&h=600&w=600',
     alt: 'Happy adult celebrating a win on their phone with confetti',
   },

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { GAME_MAP } from '../components/games';
+import { isV3Game } from '../components/games/v3';
 import { gamesAPI, contestsAPI } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../hooks/use-toast';
@@ -39,6 +40,8 @@ export default function PlayGame() {
   const [lastScore, setLastScore] = useState(null);
   const [gameKey, setGameKey] = useState(0);
   const [challengeToken, setChallengeToken] = useState(null);
+  const [gameSession, setGameSession] = useState(null);
+  const [sessionBusy, setSessionBusy] = useState(false);
 
   // intro | demo | ready | countdown | playing | result
   const [phase, setPhase] = useState('intro');
@@ -128,12 +131,17 @@ export default function PlayGame() {
         duration_ms: durationMs,
         accuracy: Number(result.accuracy || 0),
         solved: Boolean(result.solved),
+        evidence: result.evidence || undefined,
         challenge_token: challengeToken,
+        session_id: isV3Game(contest?.game_type)
+          ? gameSession?.session_id
+          : undefined,
       });
 
       setLastScore(response);
       setElapsedMs(durationMs);
       setChallengeToken(null);
+      setGameSession(null);
       setPhase('result');
 
       await loadAttempts();
@@ -170,40 +178,114 @@ export default function PlayGame() {
     setDemoCompleted(true);
   };
 
-  const startCountdown = () => {
+  const startCountdown = async () => {
     if (!challengeToken) {
       toast({
         title: 'Verification required',
-        description: 'Complete the verification before starting an official attempt.',
+        description:
+          'Complete the verification before starting an official attempt.',
       });
       return;
     }
 
-    setCountdown(3);
-    setPhase('countdown');
+    if (sessionBusy) return;
 
-    let current = 3;
+    try {
+      if (isV3Game(contest?.game_type)) {
+        setSessionBusy(true);
 
-    const interval = window.setInterval(() => {
-      current -= 1;
+        const session = await gamesAPI.startSession(ticketId);
 
-      if (current <= 0) {
-        window.clearInterval(interval);
-        setCountdown(0);
+        if (!session?.session_id || !session?.seed) {
+          throw new Error('Official game session could not be created.');
+        }
 
-        window.setTimeout(() => {
-          setGameKey((value) => value + 1);
-          setPhase('playing');
-        }, 500);
+        setGameSession(session);
       } else {
-        setCountdown(current);
+        // Existing V1/V2 games continue without a V3 session.
+        setGameSession(null);
       }
-    }, 1000);
+
+      setCountdown(3);
+      setPhase('countdown');
+
+      let current = 3;
+
+      const interval = window.setInterval(() => {
+        current -= 1;
+
+        if (current <= 0) {
+          window.clearInterval(interval);
+          setCountdown(0);
+
+          window.setTimeout(async () => {
+            try {
+              if (isV3Game(contest?.game_type)) {
+                if (!session?.session_id) {
+                  throw new Error(
+                    'Official game session is missing.'
+                  );
+                }
+
+                await gamesAPI.beginSession(
+                  session.session_id
+                );
+              }
+
+              setGameKey((value) => value + 1);
+              setPhase('playing');
+            } catch (error) {
+              const rawDetail =
+                error?.response?.data?.detail;
+
+              const detail =
+                typeof rawDetail === 'string'
+                  ? rawDetail
+                  : rawDetail?.message ||
+                    rawDetail?.msg ||
+                    error?.message ||
+                    'The official game timer could not be started.';
+
+              setGameSession(null);
+              setChallengeToken(null);
+              setPhase('ready');
+
+              toast({
+                title: 'Unable to start official attempt',
+                description: detail,
+              });
+            }
+          }, 500);
+        } else {
+          setCountdown(current);
+        }
+      }, 1000);
+    } catch (error) {
+      const rawDetail = error?.response?.data?.detail;
+
+      const detail =
+        typeof rawDetail === 'string'
+          ? rawDetail
+          : rawDetail?.message ||
+            rawDetail?.msg ||
+            error?.message ||
+            'The official game session could not be started.';
+
+      setGameSession(null);
+
+      toast({
+        title: 'Unable to start official attempt',
+        description: detail,
+      });
+    } finally {
+      setSessionBusy(false);
+    }
   };
 
   const playAgain = () => {
     setLastScore(null);
     setChallengeToken(null);
+    setGameSession(null);
     setElapsedMs(0);
     setPhase('ready');
   };
@@ -305,36 +387,12 @@ export default function PlayGame() {
             {contest.title}
           </h1>
 
-          {/* Prominent attempts + best-score pills — used and left at a glance */}
-          <div className="mt-3 flex flex-wrap items-center gap-2" data-testid="playgame-attempts-block">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 text-white text-xs font-extrabold border border-white/10">
-              Ticket #{ticketId.slice(-6)}
-            </span>
-            <span
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/40 text-white text-xs font-extrabold border border-white/10"
-              data-testid="playgame-attempts-used"
-              title="Attempts used"
-            >
-              Used <b className="text-[#FFD54A] tabular-nums">{attempts.length}</b>
-            </span>
-            <span
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-extrabold ${
-                attemptsLeft > 0
-                  ? 'bg-emerald-500 text-white shadow-[0_0_18px_-4px_#10b98188]'
-                  : 'bg-rose-500 text-white'
-              }`}
-              data-testid="playgame-attempts-left"
-              title="Attempts remaining"
-            >
-              Left <b className="tabular-nums">{attemptsLeft}</b> / {totalAllowed}
-            </span>
-            <span
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FFD54A] text-slate-900 text-xs font-extrabold"
-              data-testid="playgame-best-score"
-              title="Your best score"
-            >
-              Best <b className="tabular-nums">{bestScore.toFixed(2)}</b> / 100
-            </span>
+          <div className="mt-2 text-white/80 text-sm">
+            Ticket #{ticketId.slice(-6)} · Attempts left:{' '}
+            <b>
+              {attemptsLeft}/{totalAllowed}
+            </b>{' '}
+            · Best: <b>{bestScore.toFixed(2)}</b> / 100
           </div>
         </div>
       </div>
@@ -521,11 +579,13 @@ export default function PlayGame() {
 
             <Button
               className="h-12 pl-btn-gold text-slate-900 font-extrabold"
-              disabled={!challengeToken}
+              disabled={!challengeToken || sessionBusy}
               onClick={startCountdown}
               data-testid="start-official-attempt"
             >
-              Start Official Attempt
+              {sessionBusy
+                ? 'Preparing Secure Attempt…'
+                : 'Start Official Attempt'}
             </Button>
           </div>
         </div>
@@ -583,7 +643,23 @@ export default function PlayGame() {
           </div>
 
           <div className="p-6" key={`official-${gameKey}`}>
-            {renderGame(contest.game_config || {}, submitOfficialResult)}
+            {renderGame(
+              isV3Game(gameType)
+                ? {
+                    ...(contest.game_config || {}),
+                    difficulty:
+                      gameSession?.difficulty ||
+                      contest?.game_config?.difficulty ||
+                      'medium',
+                    __sessionSeed: gameSession?.seed || null,
+                    __sessionId: gameSession?.session_id || null,
+                    __attemptNumber:
+                      gameSession?.attempt_number || null,
+                    __official: true,
+                  }
+                : (contest.game_config || {}),
+              submitOfficialResult
+            )}
           </div>
         </div>
       )}
