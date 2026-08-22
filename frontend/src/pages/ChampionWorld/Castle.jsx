@@ -49,7 +49,7 @@ function Banner({ position, rotation, color = '#6C2BFF' }) {
   );
 }
 
-function Tower({ position, height = 3, color = '#c8bfae' }) {
+function Tower({ position, height = 3, color = '#d4c9a8' }) {
   return (
     <group position={position}>
       <mesh position={[0, height / 2, 0]} castShadow>
@@ -66,13 +66,13 @@ function Tower({ position, height = 3, color = '#c8bfae' }) {
           </mesh>
         );
       })}
-      {/* spire */}
-      <mesh position={[0, height + 0.7, 0]} castShadow>
-        <coneGeometry args={[0.55, 1.2, 10]} />
-        <meshStandardMaterial color="#8f2b5c" roughness={0.7} />
+      {/* royal-blue steep spire (reference image) */}
+      <mesh position={[0, height + 0.9, 0]} castShadow>
+        <coneGeometry args={[0.6, 1.8, 10]} />
+        <meshStandardMaterial color="#3457a6" roughness={0.6} />
       </mesh>
       {/* flag on spire */}
-      <Banner position={[0.3, height + 0.9, 0]} rotation={[0, 0, 0]} />
+      <Banner position={[0.3, height + 1.1, 0]} rotation={[0, 0, 0]} color="#294b8f" />
     </group>
   );
 }
@@ -86,8 +86,11 @@ export default function Castle({ position = [44, 3.2, 6], variant = 'gold' }) {
     }
   });
 
-  const wallColor = '#c8bfae';
+  // Royal-blue palette from the reference image
+  const wallColor = '#d4c9a8';         // warm cream stone
+  const roofColor = '#3457a6';         // royal-blue slate spires
   const gateColor = variant === 'gold' ? '#3a1f0f' : '#221513';
+  const lionBannerBlue = '#294b8f';
 
   return (
     <group position={position}>
@@ -134,12 +137,12 @@ export default function Castle({ position = [44, 3.2, 6], variant = 'gold' }) {
           </mesh>
         );
       })}
-      {/* keep spire */}
-      <mesh position={[0, 4.5, 0]} castShadow>
-        <coneGeometry args={[1.0, 1.6, 4]} />
-        <meshStandardMaterial color="#8f2b5c" roughness={0.7} />
+      {/* keep spire (royal blue, tall) */}
+      <mesh position={[0, 4.9, 0]} castShadow>
+        <coneGeometry args={[1.0, 2.4, 4]} />
+        <meshStandardMaterial color="#3457a6" roughness={0.6} />
       </mesh>
-      <Banner position={[0.55, 4.9, 0]} rotation={[0, 0, 0]} color="#FFD54A" />
+      <Banner position={[0.55, 5.5, 0]} rotation={[0, 0, 0]} color="#FFD54A" />
 
       {/* corner towers */}
       <Tower position={[-2.6, 0, 2.6]} height={3.2} />
@@ -161,9 +164,25 @@ export default function Castle({ position = [44, 3.2, 6], variant = 'gold' }) {
         <meshStandardMaterial color="#FFD54A" emissive="#FF9A3C" emissiveIntensity={0.9} />
       </mesh>
 
+      {/* Twin heraldic lion banners flanking the gate — the reference's
+          signature blue drapes with a gold lion emblem. */}
+      {[-0.9, 0.9].map((x, i) => (
+        <group key={i} position={[x, 1.5, -2.62]}>
+          <mesh castShadow>
+            <planeGeometry args={[0.6, 1.7]} />
+            <meshStandardMaterial color={lionBannerBlue} roughness={0.7} side={THREE.DoubleSide} />
+          </mesh>
+          {/* gold lion silhouette approximated with two triangles */}
+          <mesh position={[0, 0.05, 0.01]}>
+            <planeGeometry args={[0.28, 0.4]} />
+            <meshStandardMaterial color="#FFD54A" emissive="#FF9A3C" emissiveIntensity={0.4} />
+          </mesh>
+        </group>
+      ))}
+
       {/* Side wall banners */}
-      <Banner position={[-2.4, 1.6, 0]} rotation={[0, Math.PI / 2, 0]} color="#6C2BFF" />
-      <Banner position={[2.4, 1.6, 0]} rotation={[0, -Math.PI / 2, 0]} color="#6C2BFF" />
+      <Banner position={[-2.4, 1.6, 0]} rotation={[0, Math.PI / 2, 0]} color={lionBannerBlue} />
+      <Banner position={[2.4, 1.6, 0]} rotation={[0, -Math.PI / 2, 0]} color={lionBannerBlue} />
     </group>
   );
 }

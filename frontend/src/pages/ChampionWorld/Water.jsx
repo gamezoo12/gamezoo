@@ -63,8 +63,8 @@ export default function Water() {
     vertexShader: vs, fragmentShader: riverFs, transparent: true,
     uniforms: {
       uTime: { value: 0 },
-      uShallow: { value: new THREE.Color('#8fd8ff') },
-      uDeep:    { value: new THREE.Color('#1b5aa3') },
+      uShallow: { value: new THREE.Color('#8ffae2') },
+      uDeep:    { value: new THREE.Color('#0f9b8a') },
     },
   }), []);
   const fallMat = useMemo(() => new THREE.ShaderMaterial({

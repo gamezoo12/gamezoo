@@ -12,6 +12,25 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - **Referral programme** — invite friends, both get free ticket (or £5 wallet credit fallback)
 - **Live winners ticker + leaderboard per contest**
 
+## 2026-08-22 · Iteration 48 — Reference-image world pass
+
+Pushed the world visibly closer to the user's aerial concept art in one pass. All work in `pages/ChampionWorld/`.
+
+**Castle**: repalleted to the reference's royal-blue slate spires (`#3457a6`) with cream-stone (`#d4c9a8`) walls and matching heraldic banners. Twin gold-lion drapes now flank the castle gate; keep spire is doubled in height for silhouette gravitas.
+
+**Entry gate** (`BiomeExtras.jsx`): royal-blue caps + a central gold-rimmed lion shield + hanging royal-blue drapes with gold lion emblem.
+
+**New biome props** (all in `BiomeExtras.jsx`):
+- `WheatFarm` — 60-tile yellow rapeseed/wheat plot on brown soil with 22 wooden fence posts + a dedicated `FarmWindmill` with blue conical roof.
+- `CircusTents` — 4-tent striped cluster (red + royal-blue candy stripes, gold pennants) next to the village.
+- `FountainPlaza` — cream-stone plaza disc with a raised basin, glowing turquoise water, central rising jet column.
+- `DistantCrystalCastle` — emerald/crystal keep with 4 crystal-shard spires on a distant peak, animated point-light aura pulses at ~1.2 Hz — the "magical mountain" behind the world.
+
+**Water** (`Water.jsx`): retinted river/lake shader from ocean blue to the reference's glowing turquoise (`#8ffae2` shallow → `#0f9b8a` deep).
+
+Verified live: `/champion-world` now shows royal-blue castle w/ blue spires, turquoise glowing river/lake, circus tents, cherry blossoms, windmill, level nodes, and the Meshy Champion on the sandstone road. Distant emerald castle visible on the mountain (still-limited-textures caveat until CSP is broadened).
+
+
 ## 2026-08-22 · Iteration 47 — Real Meshy GLB champion + biome extras (Phase A.1)
 
 Integrated the user-uploaded Meshy AI rigged Champion GLBs into the world engine without any redesign of the character (materials/face/hair/proportions preserved).
