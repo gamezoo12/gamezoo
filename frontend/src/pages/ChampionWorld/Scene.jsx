@@ -1,0 +1,84 @@
+/**
+ * Scene — root of the R3F canvas. Assembles all pieces of Championship 1
+ * and stages Championship 2 fog behind Castle 1.
+ */
+import { useRef } from 'react';
+import Sky from './Sky';
+import Terrain from './Terrain';
+import Path from './Path';
+import Water from './Water';
+import Vegetation from './Vegetation';
+import Village from './Village';
+import Castle from './Castle';
+import LevelNodes from './LevelNodes';
+import Champion from './Champion';
+import Particles from './Particles';
+import CameraRig from './CameraRig';
+
+export default function Scene({ gender, championRef, onWorldReady }) {
+  const _localRef = useRef();
+  const ref = championRef || _localRef;
+
+  return (
+    <>
+      <Sky />
+
+      {/* Warm golden-hour sun + soft fill */}
+      <directionalLight
+        position={[30, 30, 10]}
+        intensity={2.4}
+        color="#fff2c8"
+        castShadow
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
+        shadow-camera-left={-40}
+        shadow-camera-right={40}
+        shadow-camera-top={40}
+        shadow-camera-bottom={-40}
+      />
+      <hemisphereLight args={['#b7cfff', '#4b3a2b', 0.7]} />
+      <ambientLight intensity={0.15} />
+
+      {/* Distant mystery fog for Championship 2 tease */}
+      <fog attach="fog" args={['#a8b8d8', 30, 90]} />
+
+      <Terrain />
+      <Vegetation />
+      <Water />
+      <Village />
+      <Path />
+      <LevelNodes />
+
+      {/* Championship 1 Castle at t=0.65 */}
+      <Castle position={[44, 3.2, 6]} variant="gold" />
+
+      {/* Championship 2 — locked, further away, half-shrouded */}
+      <group position={[56, 2.4, 16]} scale={0.85}>
+        <mesh position={[0, 1.2, 0]}>
+          <boxGeometry args={[3, 2.4, 3]} />
+          <meshStandardMaterial color="#8f8898" roughness={0.9} />
+        </mesh>
+        {/* barrier fog */}
+        <mesh position={[0, 0.6, -1.5]}>
+          <planeGeometry args={[4, 3]} />
+          <meshBasicMaterial color="#c8c4dc" transparent opacity={0.6} />
+        </mesh>
+      </group>
+
+      <Particles />
+
+      <Champion ref={ref} gender={gender} initialT={0.30 /* level 4 */} />
+      <CameraRig target={ref} />
+
+      {/* Notify parent once first frame renders */}
+      <FrameOnce onReady={onWorldReady} />
+    </>
+  );
+}
+
+function FrameOnce({ onReady }) {
+  const done = useRef(false);
+  // A tiny inline invalidation just fires the ready callback on mount
+  if (!done.current && onReady) { done.current = true; setTimeout(onReady, 60); }
+  return null;
+}

@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
 import './App.css';
 import { Toaster } from './components/ui/toaster';
 import { AuthProvider } from './context/AuthContext';
@@ -52,6 +53,13 @@ import ContestLeaderboard from './pages/ContestLeaderboard';
 import LeaderboardIndex from './pages/LeaderboardIndex';
 import EntryChoice from './pages/EntryChoice';
 import FreeWorld from './pages/FreeWorld';
+
+/**
+ * Champion World (3D) — LAZY-LOADED to keep the main bundle unaffected.
+ * three / @react-three/fiber / @react-three/drei are ~500 KB gzipped and
+ * MUST NOT ship on any other route. Chunk name kept explicit for observability.
+ */
+const ChampionWorld = lazy(() => import(/* webpackChunkName: "champion-world" */ './pages/ChampionWorld'));
 import HowItWorksPage from './pages/HowItWorks';
 import ReferPage from './pages/ReferPage';
 import TermsPage from './pages/legal/TermsPage';
@@ -96,6 +104,14 @@ function AppRouter() {
         <Route path="/leaderboard" element={<LeaderboardIndex />} />
         <Route path="/choose-experience" element={<EntryChoice />} />
         <Route path="/world" element={<FreeWorld />} />
+        <Route
+          path="/champion-world"
+          element={
+            <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#0B0D1F] text-white/70 text-sm tracking-wider" data-testid="cw-route-loader">Loading Wonderland…</div>}>
+              <ChampionWorld />
+            </Suspense>
+          }
+        />
         <Route path="/leaderboard/:contestId" element={<ContestLeaderboard />} />
         <Route path="/how-it-works" element={<HowItWorksPage />} />
         <Route path="/refer" element={<ReferPage />} />

@@ -12,6 +12,46 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - **Referral programme** — invite friends, both get free ticket (or £5 wallet credit fallback)
 - **Live winners ticker + leaderboard per contest**
 
+## 2026-08-22 · Iteration 46 — Champion World (3D) Phase A prototype
+
+Isolated 3D preview at `/champion-world`, lazy-loaded so the main bundle is unaffected. Renders a stylized fantasy Wonderland with a champion controller, spline path, 10 level nodes, Castle 1, castle 2 lock, and a prize reveal modal. Nothing wired to backend / production data.
+
+**Dependencies added** (lazy-chunked): `three@0.163.0`, `@react-three/fiber@9.0.0`, `@react-three/drei@9.117.0`.
+
+**Files created** (`frontend/src/pages/ChampionWorld/`):
+- `index.jsx` — entry with Avatar Selector (male/female) + Canvas + top-bar + bottom HUD (Idle/Walk-to-next/Run-to-castle/Wave/Victory/Championship!/Defeat) + Prize Reveal modal.
+- `Scene.jsx` — R3F scene assembly.
+- `worldConfig.js` — `PATH_CURVE` (CatmullRomCurve3), `LEVELS[]` (10, states demo), `CASTLE_1` / `CASTLE_2` metadata, `VILLAGE_HOUSES`, `CAMERA_PRESETS` per breakpoint.
+- `Sky.jsx` — drei Sky + drifting cheap cloud puffs.
+- `Terrain.jsx` — procedural rolling hills (value-noise displaced plane, per-vertex colour blend meadow→forest→rock→sand). Exports `sampleElevation(x,z)` used by other props.
+- `Path.jsx` — flat sandstone road ribbon along the spline + emissive gold trim.
+- `Water.jsx` — animated GPU shaders: river (depth-tinted with wave crests), lake, waterfall (vertical streak drift + mist disc).
+- `Vegetation.jsx` — instanced trees (spruce + oak variants), rocks, grass tufts, deterministic-seed positions, subtle wind sway.
+- `Village.jsx` — procedural houses w/ glowing warm windows + chimney, rotating windmill, stone arch bridge, tilted ruin/watchtower.
+- `Castle.jsx` — procedural castle with plateau, 4 corner towers + crenellations + spires, central keep, warm pulsing gate light, gold championship-emblem ring, animated sway banners (custom vertex shader).
+- `LevelNodes.jsx` — runtime nodes with state colours (`locked`/`current`/`available`/`completed`), billboarded number plaque, current-node pulse + point light.
+- `Champion.jsx` — placeholder stylized humanoid built from primitives (torso, cape, tunic, hair, ponytail for female, eyes, forehead gem, arms, legs, boots) with an imperative animation state machine — `setAction('idle'|'walk'|'run'|'arrive'|'wave'|'victory'|'defeat'|'championship-victory')`, `walkTo(t)`, `runTo(t)`. Spline-anchored — position + heading + slope come from `PATH_CURVE.getPointAt/getTangentAt`. State names map 1:1 to Mixamo clip names so a real GLB can be dropped in via `useGLTF() + useAnimations()` in one file change.
+- `CameraRig.jsx` — smooth third-person follow with look-ahead offset; mobile / tablet / desktop `distance/height/fov` presets picked from `window.innerWidth`.
+- `Particles.jsx` — fireflies (gold points) + butterflies (pink points) with sinusoidal motion.
+
+**Files modified**:
+- `App.js` — added `lazy(() => import('./pages/ChampionWorld'))` with `Suspense` fallback + route `/champion-world`. Not linked from public nav.
+
+**Route**: `/champion-world` (isolated preview). `/world` still shows the "coming soon" placeholder from iteration 45 — untouched, per spec.
+
+**Verified live** at 1440px: renders green hills, sandstone winding road with gold trim, Lv 5/6/7 level nodes with Lv 5 pulsing gold as `current`, stone arch bridge, castle w/ towers/spires/banners, red-roofed village houses, rotating windmill, animated shader lake, fireflies drifting, champion visible on path facing along heading. HUD test buttons wired and prize-reveal modal opens on "Championship!".
+
+**Explicit Phase B (NOT in this iteration)**:
+- Real premium male/female GLB heroes (Mixamo / Ready Player Me / commissioned) — placeholder rig is intentional so the world direction can be judged first; final swap = one file, no engine changes.
+- Full 30+ animation library (this ships idle / walk / run / arrive / wave / victory / championship-victory / defeat).
+- Chunk streaming across all 500 levels — architecture is set (deterministic-seed vegetation, instanced meshes, LOD-ready) but active streaming is deferred.
+- Draco / KTX2 compression pipeline — kicks in once real GLBs land.
+- Championship 2 biome contents beyond the mystery-fog tease.
+- Backend / admin unlock hooks — the `unlockMode/isUnlocked/prizeStatus` fields exist in `worldConfig` ready to be wired to `/api/champion-world/…` when spec'd.
+
+**Zero touches** to authentication, wallets, tokens, payments, checkout, tickets, skill games, scoring, leaderboards, referrals, KYC, admin, or backend.
+
+
 ## 2026-08-22 · Iteration 45 — Post-auth "Choose your experience" gateway + /world placeholder
 
 Adds a premium **Entry Choice** screen between auth-success and the app, per the "Prize League — Post Signup / Login Entry Choice" spec. Zero touches to wallet / payments / contests / auth.
