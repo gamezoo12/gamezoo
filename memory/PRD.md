@@ -12,6 +12,29 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - **Referral programme** — invite friends, both get free ticket (or £5 wallet credit fallback)
 - **Live winners ticker + leaderboard per contest**
 
+## 2026-08-22 · Iteration 49 — Registry-driven Meshy environment asset kit
+
+Per user directive: stop iterating primitives, prepare a registry-driven asset system so 15 Meshy AI environment GLBs can be dropped in without touching engine code. Pilot batch of 5 chosen first (castle / entryGate / house_A / bridge / cherryTree) to lock the visual style before generating the rest.
+
+**Files created**:
+- `pages/ChampionWorld/envAssets.js` — asset registry (`ENV_ASSETS`), anchor positions (`ENV_ANCHORS`), instance-set positions (`ENV_INSTANCES`). Ships with 15 slots all set to `null`. Adding a Meshy GLB is one line: paste the URL into the entry.
+- `pages/ChampionWorld/EnvGLB.jsx` — generic loader that consumes the registry. Two modes: single-anchor (`<EnvGLB slot="castle"/>`) and instanced (`<EnvGLB slot="cherryTree" instanced/>`). Uses `SkeletonUtils.clone` per instance, preserves materials verbatim (only enables shadows + sets `envMapIntensity=0.85`). Returns null when URL is null so placeholders keep the world alive.
+
+**Files modified**:
+- `pages/ChampionWorld/Scene.jsx` — added `<EnvGLB>` calls for all 15 slots + `preloadEnvAssets()` at module scope so Meshy GLBs preload as soon as URLs arrive.
+
+**Pilot Meshy prompts provided to user** (all sharing one master-style suffix so the castle, house, gate, bridge, tree look like the same Wonderland):
+1. Championship Castle 1 — royal-blue spires + gold-lion banner
+2. Royal Entry Gate — twin pillars + gold-rimmed lion shield + royal-blue drapes
+3. Village House A (tavern variant) — timber-frame + red pitched roof + warm windows
+4. Stone Arch Bridge — cream sandstone + mossy edges + entry lanterns
+5. Cherry Blossom Tree — gnarled trunk + wide pink canopy
+
+**Engine unchanged**: spline path, avatar controller, animation state machine, camera rig, level nodes, water shaders, particles, chunk-streaming architecture — all preserved. Only the visible props swap in.
+
+**Zero touches** to auth, wallet, checkout, tickets, contests, leaderboards, admin, or backend.
+
+
 ## 2026-08-22 · Iteration 48 — Reference-image world pass
 
 Pushed the world visibly closer to the user's aerial concept art in one pass. All work in `pages/ChampionWorld/`.

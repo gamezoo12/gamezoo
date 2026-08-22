@@ -14,7 +14,11 @@ import LevelNodes from './LevelNodes';
 import GLTFChampion from './GLTFChampion';
 import Particles from './Particles';
 import BiomeExtras from './BiomeExtras';
+import EnvGLB, { preloadEnvAssets } from './EnvGLB';
 import CameraRig from './CameraRig';
+
+// Preload any Meshy GLBs that have URLs in the registry
+preloadEnvAssets();
 
 export default function Scene({ gender, championRef, onWorldReady }) {
   const _localRef = useRef();
@@ -68,6 +72,29 @@ export default function Scene({ gender, championRef, onWorldReady }) {
 
       <Particles />
       <BiomeExtras />
+
+      {/*
+        MESHY ENVIRONMENT SLOTS.
+        Each <EnvGLB slot="..."/> renders NOTHING until its URL lands in
+        `envAssets.js` — placeholders above keep the world alive during
+        asset generation. Order below matches user's pilot list:
+        castle → gate → house → bridge → cherryTree.
+      */}
+      <EnvGLB slot="castle" />
+      <EnvGLB slot="entryGate" />
+      <EnvGLB slot="house_A" instanced />
+      <EnvGLB slot="house_B" instanced />
+      <EnvGLB slot="house_C" instanced />
+      <EnvGLB slot="bridge" />
+      <EnvGLB slot="windmill" />
+      <EnvGLB slot="marketTent" instanced />
+      <EnvGLB slot="waterfall" />
+      <EnvGLB slot="cherryTree" instanced />
+      <EnvGLB slot="spruceTree" instanced />
+      <EnvGLB slot="ruinArch" />
+      <EnvGLB slot="watchtower" />
+      <EnvGLB slot="fountain" />
+      <EnvGLB slot="rocks" instanced />
 
       {/* Real Meshy GLB champion — wrapped in Suspense because useGLTF()
           suspends until the model + animations are ready. The rest of the
