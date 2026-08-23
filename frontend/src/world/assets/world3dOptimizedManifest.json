@@ -1,5 +1,5 @@
 {
-  "totalOptimizedAssets": 111,
+  "totalOptimizedAssets": 112,
   "categories": {
     "unclassified": [
       {
@@ -918,10 +918,21 @@
         "path": "/world-assets/3d-optimized/gate/royal-ruins-gateway.glb",
         "enabled": true
       }
+    ],
+    "castle": [
+      {
+        "id": "prizeleague_championship_castle",
+        "name": "Prize League Championship Castle",
+        "category": "castle",
+        "tier": "hero",
+        "path": "/world-assets/3d-optimized/castle/prizeleague-championship-castle.glb",
+        "enabled": true
+      }
     ]
   },
   "notes": {
-    "championshipCastleAvailable": false,
-    "championshipCastleReason": "Original championship-castle.glb failed GLB validation and must be re-exported from Meshy."
+    "championshipCastleAvailable": true,
+    "championshipCastleAsset": "prizeleague_championship_castle",
+    "championshipCastleRole": "Major Championship landmark / pass-through progression gate"
   }
 }
