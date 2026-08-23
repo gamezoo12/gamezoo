@@ -100,3 +100,8 @@ frontend/node_modules/.cache/default-development/0.pack
 .env
 .env.*
 *.env
+/frontend/public/world-assets/3d/
+/frontend/src/world/assets/world3dAssetInventory.json
+/frontend/src/world/assets/world3dAssetManifest.json
+/frontend/src/world/assets/world3dAssetRegistry.js
+/frontend/src/world/assets/world3dAssetSummary.json
