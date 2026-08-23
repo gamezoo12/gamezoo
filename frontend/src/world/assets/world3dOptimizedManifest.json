@@ -3,13 +3,11 @@
   "categories": {
     "unclassified": [
       {
-        "id": "meshy_ai_model",
-        "name": "Meshy_AI_model",
+        "id": "hay_bale",
+        "name": "hay-bale",
         "category": "unclassified",
         "tier": "medium",
-        "path": "/world-assets/3d-optimized/unclassified/01a02d00-e591-74f6-afa7-06aeb8d29a02/Meshy_AI_model.glb",
-        "originalBytes": 123671324,
-        "optimizedBytes": 3493240,
+        "path": "/world-assets/3d-optimized/unclassified/hay-bale.glb",
         "enabled": true
       },
       {
@@ -18,8 +16,6 @@
         "category": "unclassified",
         "tier": "medium",
         "path": "/world-assets/3d-optimized/unclassified/Meshy_AI_A_single_standalone_m_0823050508_texture.glb",
-        "originalBytes": 125699412,
-        "optimizedBytes": 5621544,
         "enabled": true
       },
       {
@@ -28,8 +24,6 @@
         "category": "unclassified",
         "tier": "medium",
         "path": "/world-assets/3d-optimized/unclassified/Meshy_AI_A_single_standalone_m_0823050520_texture.glb",
-        "originalBytes": 124285472,
-        "optimizedBytes": 4391056,
         "enabled": true
       },
       {
@@ -38,8 +32,6 @@
         "category": "unclassified",
         "tier": "medium",
         "path": "/world-assets/3d-optimized/unclassified/Meshy_AI_A_single_standalone_m_0823050533_texture.glb",
-        "originalBytes": 122902040,
-        "optimizedBytes": 2356968,
         "enabled": true
       },
       {
@@ -48,8 +40,6 @@
         "category": "unclassified",
         "tier": "medium",
         "path": "/world-assets/3d-optimized/unclassified/Meshy_AI_A_single_standalone_m_0823050543_texture.glb",
-        "originalBytes": 124555696,
-        "optimizedBytes": 4096468,
         "enabled": true
       },
       {
@@ -58,8 +48,6 @@
         "category": "unclassified",
         "tier": "medium",
         "path": "/world-assets/3d-optimized/unclassified/Meshy_AI_A_single_standalone_m_0823050557_texture.glb",
-        "originalBytes": 130835108,
-        "optimizedBytes": 5266764,
         "enabled": true
       },
       {
@@ -68,8 +56,14 @@
         "category": "unclassified",
         "tier": "medium",
         "path": "/world-assets/3d-optimized/unclassified/Meshy_AI_A_single_standalone_m_0823050612_texture.glb",
-        "originalBytes": 123069504,
-        "optimizedBytes": 3899260,
+        "enabled": true
+      },
+      {
+        "id": "meshy_ai_model",
+        "name": "Meshy_AI_model",
+        "category": "unclassified",
+        "tier": "medium",
+        "path": "/world-assets/3d-optimized/unclassified/01a02d00-e591-74f6-afa7-06aeb8d29a02/Meshy_AI_model.glb",
         "enabled": true
       },
       {
@@ -78,8 +72,6 @@
         "category": "unclassified",
         "tier": "medium",
         "path": "/world-assets/3d-optimized/unclassified/Meshy_AI_assets_20260823_050645/01a02cff-137a-7520-8e7c-1087d456cef1/Meshy_AI_model.glb",
-        "originalBytes": 123358416,
-        "optimizedBytes": 3239644,
         "enabled": true
       },
       {
@@ -88,8 +80,6 @@
         "category": "unclassified",
         "tier": "medium",
         "path": "/world-assets/3d-optimized/unclassified/Meshy_AI_assets_20260823_050645/01a02cff-48e6-7496-be61-8de30044cc14/Meshy_AI_model.glb",
-        "originalBytes": 119885520,
-        "optimizedBytes": 3235976,
         "enabled": true
       },
       {
@@ -98,8 +88,6 @@
         "category": "unclassified",
         "tier": "medium",
         "path": "/world-assets/3d-optimized/unclassified/Meshy_AI_assets_20260823_050645/01a02cff-d47c-74c3-a8c9-e219c38b2f74/Meshy_AI_model.glb",
-        "originalBytes": 151123308,
-        "optimizedBytes": 9352944,
         "enabled": true
       },
       {
@@ -108,8 +96,6 @@
         "category": "unclassified",
         "tier": "medium",
         "path": "/world-assets/3d-optimized/unclassified/Meshy_AI_assets_20260823_050645/01a02cff-fd14-72ad-8a83-942dc55cd636/Meshy_AI_model.glb",
-        "originalBytes": 124741672,
-        "optimizedBytes": 3817352,
         "enabled": true
       },
       {
@@ -118,8 +104,6 @@
         "category": "unclassified",
         "tier": "medium",
         "path": "/world-assets/3d-optimized/unclassified/Meshy_AI_assets_20260823_050645/01a02d00-2b01-7669-b1e2-8f67d4f8c410/Meshy_AI_model.glb",
-        "originalBytes": 124587276,
-        "optimizedBytes": 3366768,
         "enabled": true
       },
       {
@@ -128,8 +112,6 @@
         "category": "unclassified",
         "tier": "medium",
         "path": "/world-assets/3d-optimized/unclassified/Meshy_AI_assets_20260823_050645/01a02d00-532e-74ec-aa3c-25bbd0b0f578/Meshy_AI_model.glb",
-        "originalBytes": 126447308,
-        "optimizedBytes": 4231168,
         "enabled": true
       },
       {
@@ -138,8 +120,6 @@
         "category": "unclassified",
         "tier": "medium",
         "path": "/world-assets/3d-optimized/unclassified/Meshy_AI_assets_20260823_050645/01a02d00-7cff-757a-b2f2-85e828de1e48/Meshy_AI_model.glb",
-        "originalBytes": 125449072,
-        "optimizedBytes": 3788072,
         "enabled": true
       },
       {
@@ -148,38 +128,6 @@
         "category": "unclassified",
         "tier": "medium",
         "path": "/world-assets/3d-optimized/unclassified/Meshy_AI_assets_20260823_050645/01a02d01-0e47-72c5-a42e-73c50a779c32/Meshy_AI_model.glb",
-        "originalBytes": 123368064,
-        "optimizedBytes": 5141868,
-        "enabled": true
-      },
-      {
-        "id": "meshy_ai_glowing_plant_a_0823020950_image_to_3d_texture",
-        "name": "Meshy_AI_glowing_plant_a_0823020950_image-to-3d-texture",
-        "category": "unclassified",
-        "tier": "medium",
-        "path": "/world-assets/3d-optimized/unclassified/Meshy_AI_glowing_plant_a_0823020950_image-to-3d-texture.glb",
-        "originalBytes": 82687836,
-        "optimizedBytes": 3976020,
-        "enabled": true
-      },
-      {
-        "id": "meshy_ai_glowing_plant_b_0823021001_image_to_3d_texture",
-        "name": "Meshy_AI_glowing_plant_b_0823021001_image-to-3d-texture",
-        "category": "unclassified",
-        "tier": "medium",
-        "path": "/world-assets/3d-optimized/unclassified/Meshy_AI_glowing_plant_b_0823021001_image-to-3d-texture.glb",
-        "originalBytes": 88822984,
-        "optimizedBytes": 2954452,
-        "enabled": true
-      },
-      {
-        "id": "meshy_ai_model_copy",
-        "name": "Meshy_AI_model_copy",
-        "category": "unclassified",
-        "tier": "medium",
-        "path": "/world-assets/3d-optimized/unclassified/Meshy_AI_model_copy.glb",
-        "originalBytes": 126774420,
-        "optimizedBytes": 5112348,
         "enabled": true
       },
       {
@@ -188,8 +136,14 @@
         "category": "unclassified",
         "tier": "medium",
         "path": "/world-assets/3d-optimized/unclassified/Meshy_AI_model.glb",
-        "originalBytes": 125821536,
-        "optimizedBytes": 4947332,
+        "enabled": true
+      },
+      {
+        "id": "meshy_ai_model_copy",
+        "name": "Meshy_AI_model_copy",
+        "category": "unclassified",
+        "tier": "medium",
+        "path": "/world-assets/3d-optimized/unclassified/Meshy_AI_model_copy.glb",
         "enabled": true
       },
       {
@@ -198,18 +152,6 @@
         "category": "unclassified",
         "tier": "medium",
         "path": "/world-assets/3d-optimized/unclassified/Meshy_AI_mystical_level_pedest_0823035058_image-to-3d-texture.glb",
-        "originalBytes": 97841988,
-        "optimizedBytes": 4342328,
-        "enabled": true
-      },
-      {
-        "id": "hay_bale",
-        "name": "hay-bale",
-        "category": "unclassified",
-        "tier": "medium",
-        "path": "/world-assets/3d-optimized/unclassified/hay-bale.glb",
-        "originalBytes": 108034228,
-        "optimizedBytes": 5891976,
         "enabled": true
       }
     ],
@@ -220,8 +162,6 @@
         "category": "vegetation",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/vegetation/Meshy_AI_bush_shrub_c_0823021348_image-to-3d-texture.glb",
-        "originalBytes": 124972376,
-        "optimizedBytes": 11831144,
         "enabled": true
       },
       {
@@ -230,8 +170,6 @@
         "category": "vegetation",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/vegetation/Meshy_AI_fern_a_0823021125_image-to-3d-texture.glb",
-        "originalBytes": 77739784,
-        "optimizedBytes": 2047212,
         "enabled": true
       },
       {
@@ -240,8 +178,6 @@
         "category": "vegetation",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/vegetation/Meshy_AI_fern_b_0823021023_image-to-3d-texture.glb",
-        "originalBytes": 89199596,
-        "optimizedBytes": 2223640,
         "enabled": true
       },
       {
@@ -250,8 +186,6 @@
         "category": "vegetation",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/vegetation/Meshy_AI_flower_cluster_a_0823021337_image-to-3d-texture.glb",
-        "originalBytes": 121467044,
-        "optimizedBytes": 13892516,
         "enabled": true
       },
       {
@@ -260,8 +194,6 @@
         "category": "vegetation",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/vegetation/Meshy_AI_flower_cluster_b_0823021113_image-to-3d-texture.glb",
-        "originalBytes": 86978008,
-        "optimizedBytes": 2334472,
         "enabled": true
       },
       {
@@ -270,8 +202,6 @@
         "category": "vegetation",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/vegetation/Meshy_AI_flower_cluster_c_0823021011_image-to-3d-texture.glb",
-        "originalBytes": 84815788,
-        "optimizedBytes": 2366204,
         "enabled": true
       },
       {
@@ -280,8 +210,22 @@
         "category": "vegetation",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/vegetation/Meshy_AI_flower_meadow_cluster_0823035413_image-to-3d-texture.glb",
-        "originalBytes": 152103516,
-        "optimizedBytes": 13570068,
+        "enabled": true
+      },
+      {
+        "id": "meshy_ai_glowing_plant_a_0823020950_image_to_3d_texture",
+        "name": "Meshy_AI_glowing_plant_a_0823020950_image-to-3d-texture",
+        "category": "vegetation",
+        "tier": "medium",
+        "path": "/world-assets/3d-optimized/unclassified/Meshy_AI_glowing_plant_a_0823020950_image-to-3d-texture.glb",
+        "enabled": true
+      },
+      {
+        "id": "meshy_ai_glowing_plant_b_0823021001_image_to_3d_texture",
+        "name": "Meshy_AI_glowing_plant_b_0823021001_image-to-3d-texture",
+        "category": "vegetation",
+        "tier": "medium",
+        "path": "/world-assets/3d-optimized/unclassified/Meshy_AI_glowing_plant_b_0823021001_image-to-3d-texture.glb",
         "enabled": true
       },
       {
@@ -290,8 +234,6 @@
         "category": "vegetation",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/vegetation/Meshy_AI_grass_cluster_a_0823021137_image-to-3d-texture.glb",
-        "originalBytes": 80836248,
-        "optimizedBytes": 2391092,
         "enabled": true
       },
       {
@@ -300,8 +242,6 @@
         "category": "vegetation",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/vegetation/Meshy_AI_grass_cluster_b_0823021400_image-to-3d-texture.glb",
-        "originalBytes": 132029056,
-        "optimizedBytes": 15746064,
         "enabled": true
       },
       {
@@ -310,8 +250,6 @@
         "category": "vegetation",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/vegetation/Meshy_AI_grass_cluster_c_0823021033_image-to-3d-texture.glb",
-        "originalBytes": 87718568,
-        "optimizedBytes": 1892340,
         "enabled": true
       },
       {
@@ -320,8 +258,6 @@
         "category": "vegetation",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/vegetation/Meshy_AI_mushroom_cluster_a_0823021104_image-to-3d-texture.glb",
-        "originalBytes": 86698936,
-        "optimizedBytes": 2273172,
         "enabled": true
       },
       {
@@ -330,8 +266,6 @@
         "category": "vegetation",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/vegetation/Meshy_AI_mushroom_cluster_b_0823021044_image-to-3d-texture.glb",
-        "originalBytes": 89267560,
-        "optimizedBytes": 2233612,
         "enabled": true
       },
       {
@@ -340,8 +274,6 @@
         "category": "vegetation",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/vegetation/Meshy_AI_vine_cluster_a_0823020940_image-to-3d-texture.glb",
-        "originalBytes": 86719472,
-        "optimizedBytes": 2558548,
         "enabled": true
       },
       {
@@ -350,50 +282,64 @@
         "category": "vegetation",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/vegetation/Meshy_AI_vine_cluster_b_0823021053_image-to-3d-texture.glb",
-        "originalBytes": 90817300,
-        "optimizedBytes": 2560560,
         "enabled": true
       }
     ],
-    "gate": [
+    "nature": [
+      {
+        "id": "magical_crystal_lamp",
+        "name": "magical-crystal-lamp",
+        "category": "nature",
+        "tier": "medium",
+        "path": "/world-assets/3d-optimized/nature/magical-crystal-lamp.glb",
+        "enabled": true
+      },
       {
         "id": "meshy_ai_cave_entrance_0823030744_image_to_3d_texture",
         "name": "Meshy_AI_cave_entrance_0823030744_image-to-3d-texture",
-        "category": "gate",
+        "category": "nature",
         "tier": "light",
         "path": "/world-assets/3d-optimized/gate/Meshy_AI_cave_entrance_0823030744_image-to-3d-texture.glb",
-        "originalBytes": 86793916,
-        "optimizedBytes": 4674708,
         "enabled": true
       },
       {
-        "id": "meshy_ai_kingdom_entrance_gate_0822231433_image_to_3d_texture",
-        "name": "Meshy_AI_kingdom_entrance_gate_0822231433_image-to-3d-texture",
-        "category": "gate",
-        "tier": "light",
-        "path": "/world-assets/3d-optimized/gate/Meshy_AI_kingdom_entrance_gate_0822231433_image-to-3d-texture.glb",
-        "originalBytes": 90816792,
-        "optimizedBytes": 5172064,
+        "id": "meshy_ai_enchanted_cave_entran_0823035120_image_to_3d_texture",
+        "name": "Meshy_AI_enchanted_cave_entran_0823035120_image-to-3d-texture",
+        "category": "nature",
+        "tier": "medium",
+        "path": "/world-assets/3d-optimized/nature/Meshy_AI_enchanted_cave_entran_0823035120_image-to-3d-texture.glb",
         "enabled": true
       },
       {
-        "id": "kingdom_entrance_gate",
-        "name": "kingdom-entrance-gate",
-        "category": "gate",
-        "tier": "light",
-        "path": "/world-assets/3d-optimized/gate/kingdom-entrance-gate.glb",
-        "originalBytes": 90816792,
-        "optimizedBytes": 5172064,
+        "id": "meshy_ai_enchanted_pond_landma_0823035029_image_to_3d_texture",
+        "name": "Meshy_AI_enchanted_pond_landma_0823035029_image-to-3d-texture",
+        "category": "nature",
+        "tier": "medium",
+        "path": "/world-assets/3d-optimized/nature/Meshy_AI_enchanted_pond_landma_0823035029_image-to-3d-texture.glb",
         "enabled": true
       },
       {
-        "id": "royal_ruins_gateway",
-        "name": "royal-ruins-gateway",
-        "category": "gate",
-        "tier": "light",
-        "path": "/world-assets/3d-optimized/gate/royal-ruins-gateway.glb",
-        "originalBytes": 92473208,
-        "optimizedBytes": 8786836,
+        "id": "meshy_ai_magical_crystal_forma_0823035403_image_to_3d_texture",
+        "name": "Meshy_AI_magical_crystal_forma_0823035403_image-to-3d-texture",
+        "category": "nature",
+        "tier": "medium",
+        "path": "/world-assets/3d-optimized/nature/Meshy_AI_magical_crystal_forma_0823035403_image-to-3d-texture.glb",
+        "enabled": true
+      },
+      {
+        "id": "meshy_ai_riverbank_curved_0823035038_image_to_3d_texture",
+        "name": "Meshy_AI_riverbank_curved_0823035038_image-to-3d-texture",
+        "category": "nature",
+        "tier": "medium",
+        "path": "/world-assets/3d-optimized/nature/Meshy_AI_riverbank_curved_0823035038_image-to-3d-texture.glb",
+        "enabled": true
+      },
+      {
+        "id": "meshy_ai_riverbank_straight_0823035011_image_to_3d_texture",
+        "name": "Meshy_AI_riverbank_straight_0823035011_image-to-3d-texture",
+        "category": "nature",
+        "tier": "medium",
+        "path": "/world-assets/3d-optimized/nature/Meshy_AI_riverbank_straight_0823035011_image-to-3d-texture.glb",
         "enabled": true
       }
     ],
@@ -404,8 +350,6 @@
         "category": "rock",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/rock/Meshy_AI_cliff_corner_0823030649_image-to-3d-texture.glb",
-        "originalBytes": 100934568,
-        "optimizedBytes": 2231456,
         "enabled": true
       },
       {
@@ -414,8 +358,6 @@
         "category": "rock",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/rock/Meshy_AI_cliff_curved_a_0823030540_image-to-3d-texture.glb",
-        "originalBytes": 100626716,
-        "optimizedBytes": 1921316,
         "enabled": true
       },
       {
@@ -424,8 +366,6 @@
         "category": "rock",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/rock/Meshy_AI_cliff_curved_b_0823030531_image-to-3d-texture.glb",
-        "originalBytes": 104044756,
-        "optimizedBytes": 2745540,
         "enabled": true
       },
       {
@@ -434,8 +374,6 @@
         "category": "rock",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/rock/Meshy_AI_cliff_vertical_a_0823030705_image-to-3d-texture.glb",
-        "originalBytes": 103931164,
-        "optimizedBytes": 1872660,
         "enabled": true
       },
       {
@@ -444,8 +382,6 @@
         "category": "rock",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/rock/Meshy_AI_cliff_vertical_b_0823030724_image-to-3d-texture.glb",
-        "originalBytes": 102042948,
-        "optimizedBytes": 2083604,
         "enabled": true
       },
       {
@@ -454,8 +390,6 @@
         "category": "rock",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/rock/Meshy_AI_crystal_rock_formatio_0823030640_image-to-3d-texture.glb",
-        "originalBytes": 98830924,
-        "optimizedBytes": 2641640,
         "enabled": true
       },
       {
@@ -464,8 +398,6 @@
         "category": "rock",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/rock/Meshy_AI_fantasy_stone_circle_0823035110_image-to-3d-texture.glb",
-        "originalBytes": 106948876,
-        "optimizedBytes": 2848856,
         "enabled": true
       },
       {
@@ -474,8 +406,6 @@
         "category": "rock",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/rock/Meshy_AI_large_hero_boulder_a_0823024930_image-to-3d-texture.glb",
-        "originalBytes": 105746604,
-        "optimizedBytes": 2490224,
         "enabled": true
       },
       {
@@ -484,8 +414,6 @@
         "category": "rock",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/rock/Meshy_AI_large_hero_boulder_b_0823024910_image-to-3d-texture.glb",
-        "originalBytes": 106815224,
-        "optimizedBytes": 2244504,
         "enabled": true
       },
       {
@@ -494,8 +422,6 @@
         "category": "rock",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/rock/Meshy_AI_medium_boulder_a_0823024725_image-to-3d-texture.glb",
-        "originalBytes": 106017228,
-        "optimizedBytes": 1741152,
         "enabled": true
       },
       {
@@ -504,8 +430,6 @@
         "category": "rock",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/rock/Meshy_AI_medium_boulder_b_0823024939_image-to-3d-texture.glb",
-        "originalBytes": 102686064,
-        "optimizedBytes": 1730552,
         "enabled": true
       },
       {
@@ -514,8 +438,6 @@
         "category": "rock",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/rock/Meshy_AI_medium_boulder_c_0823024834_image-to-3d-texture.glb",
-        "originalBytes": 102125732,
-        "optimizedBytes": 1502640,
         "enabled": true
       },
       {
@@ -524,8 +446,6 @@
         "category": "rock",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/rock/Meshy_AI_moss_rock_a_0823030614_image-to-3d-texture.glb",
-        "originalBytes": 104518376,
-        "optimizedBytes": 2291868,
         "enabled": true
       },
       {
@@ -534,8 +454,6 @@
         "category": "rock",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/rock/Meshy_AI_moss_rock_b_0823030714_image-to-3d-texture.glb",
-        "originalBytes": 98832672,
-        "optimizedBytes": 2138164,
         "enabled": true
       },
       {
@@ -544,18 +462,6 @@
         "category": "rock",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/rock/Meshy_AI_riverbank_rocky_0823035019_image-to-3d-texture.glb",
-        "originalBytes": 102842160,
-        "optimizedBytes": 2187908,
-        "enabled": true
-      },
-      {
-        "id": "meshy_ai_road_straight_stone_0823031805_image_to_3d_texture",
-        "name": "Meshy_AI_road_straight_stone_0823031805_image-to-3d-texture",
-        "category": "rock",
-        "tier": "mobile",
-        "path": "/world-assets/3d-optimized/rock/Meshy_AI_road_straight_stone_0823031805_image-to-3d-texture.glb",
-        "originalBytes": 101593036,
-        "optimizedBytes": 2081356,
         "enabled": true
       },
       {
@@ -564,8 +470,6 @@
         "category": "rock",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/rock/Meshy_AI_rocky_ledge_0823030557_image-to-3d-texture.glb",
-        "originalBytes": 98054652,
-        "optimizedBytes": 2678924,
         "enabled": true
       },
       {
@@ -574,8 +478,6 @@
         "category": "rock",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/rock/Meshy_AI_rocky_riverbank_0823030605_image-to-3d-texture.glb",
-        "originalBytes": 97501968,
-        "optimizedBytes": 2459724,
         "enabled": true
       },
       {
@@ -584,8 +486,6 @@
         "category": "rock",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/rock/Meshy_AI_small_rock_a_0823024857_image-to-3d-texture.glb",
-        "originalBytes": 102468384,
-        "optimizedBytes": 1668176,
         "enabled": true
       },
       {
@@ -594,8 +494,6 @@
         "category": "rock",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/rock/Meshy_AI_small_rock_b_0823024920_image-to-3d-texture.glb",
-        "originalBytes": 96534212,
-        "optimizedBytes": 1358820,
         "enabled": true
       },
       {
@@ -604,8 +502,6 @@
         "category": "rock",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/rock/Meshy_AI_small_rock_c_0823024845_image-to-3d-texture.glb",
-        "originalBytes": 100817884,
-        "optimizedBytes": 2301552,
         "enabled": true
       },
       {
@@ -614,18 +510,6 @@
         "category": "rock",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/rock/Meshy_AI_stone_staircase_0823030631_image-to-3d-texture.glb",
-        "originalBytes": 102663388,
-        "optimizedBytes": 1660272,
-        "enabled": true
-      },
-      {
-        "id": "royal_stone_fence",
-        "name": "royal-stone-fence",
-        "category": "rock",
-        "tier": "mobile",
-        "path": "/world-assets/3d-optimized/rock/royal-stone-fence.glb",
-        "originalBytes": 101630684,
-        "optimizedBytes": 1728340,
         "enabled": true
       },
       {
@@ -634,70 +518,6 @@
         "category": "rock",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/rock/stone-boundary-pillar.glb",
-        "originalBytes": 97291948,
-        "optimizedBytes": 1157216,
-        "enabled": true
-      }
-    ],
-    "nature": [
-      {
-        "id": "meshy_ai_enchanted_cave_entran_0823035120_image_to_3d_texture",
-        "name": "Meshy_AI_enchanted_cave_entran_0823035120_image-to-3d-texture",
-        "category": "nature",
-        "tier": "medium",
-        "path": "/world-assets/3d-optimized/nature/Meshy_AI_enchanted_cave_entran_0823035120_image-to-3d-texture.glb",
-        "originalBytes": 99992220,
-        "optimizedBytes": 4556728,
-        "enabled": true
-      },
-      {
-        "id": "meshy_ai_enchanted_pond_landma_0823035029_image_to_3d_texture",
-        "name": "Meshy_AI_enchanted_pond_landma_0823035029_image-to-3d-texture",
-        "category": "nature",
-        "tier": "medium",
-        "path": "/world-assets/3d-optimized/nature/Meshy_AI_enchanted_pond_landma_0823035029_image-to-3d-texture.glb",
-        "originalBytes": 102544908,
-        "optimizedBytes": 4954844,
-        "enabled": true
-      },
-      {
-        "id": "meshy_ai_magical_crystal_forma_0823035403_image_to_3d_texture",
-        "name": "Meshy_AI_magical_crystal_forma_0823035403_image-to-3d-texture",
-        "category": "nature",
-        "tier": "medium",
-        "path": "/world-assets/3d-optimized/nature/Meshy_AI_magical_crystal_forma_0823035403_image-to-3d-texture.glb",
-        "originalBytes": 103810816,
-        "optimizedBytes": 4962592,
-        "enabled": true
-      },
-      {
-        "id": "meshy_ai_riverbank_curved_0823035038_image_to_3d_texture",
-        "name": "Meshy_AI_riverbank_curved_0823035038_image-to-3d-texture",
-        "category": "nature",
-        "tier": "medium",
-        "path": "/world-assets/3d-optimized/nature/Meshy_AI_riverbank_curved_0823035038_image-to-3d-texture.glb",
-        "originalBytes": 104345020,
-        "optimizedBytes": 4735776,
-        "enabled": true
-      },
-      {
-        "id": "meshy_ai_riverbank_straight_0823035011_image_to_3d_texture",
-        "name": "Meshy_AI_riverbank_straight_0823035011_image-to-3d-texture",
-        "category": "nature",
-        "tier": "medium",
-        "path": "/world-assets/3d-optimized/nature/Meshy_AI_riverbank_straight_0823035011_image-to-3d-texture.glb",
-        "originalBytes": 104711664,
-        "optimizedBytes": 4287924,
-        "enabled": true
-      },
-      {
-        "id": "magical_crystal_lamp",
-        "name": "magical-crystal-lamp",
-        "category": "nature",
-        "tier": "medium",
-        "path": "/world-assets/3d-optimized/nature/magical-crystal-lamp.glb",
-        "originalBytes": 99505968,
-        "optimizedBytes": 3348984,
         "enabled": true
       }
     ],
@@ -708,8 +528,6 @@
         "category": "tree",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/tree/Meshy_AI_giant_ancient_tree_0823035337_image-to-3d-texture.glb",
-        "originalBytes": 111153288,
-        "optimizedBytes": 3318624,
         "enabled": true
       },
       {
@@ -718,8 +536,6 @@
         "category": "tree",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/tree/Meshy_AI_tree_arch_walkthrough_0823035351_image-to-3d-texture.glb",
-        "originalBytes": 156907536,
-        "optimizedBytes": 10811780,
         "enabled": true
       },
       {
@@ -728,8 +544,6 @@
         "category": "tree",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/tree/Meshy_AI_tree_broadleaf_a_0823015449_image-to-3d-texture.glb",
-        "originalBytes": 142225860,
-        "optimizedBytes": 17998812,
         "enabled": true
       },
       {
@@ -738,8 +552,6 @@
         "category": "tree",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/tree/Meshy_AI_tree_broadleaf_b_0823015514_image-to-3d-texture.glb",
-        "originalBytes": 114270188,
-        "optimizedBytes": 11436552,
         "enabled": true
       },
       {
@@ -748,8 +560,6 @@
         "category": "tree",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/tree/Meshy_AI_tree_cherry_blossom_0823014438_image-to-3d-texture.glb",
-        "originalBytes": 124448876,
-        "optimizedBytes": 10888132,
         "enabled": true
       },
       {
@@ -758,8 +568,6 @@
         "category": "tree",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/tree/Meshy_AI_tree_small_flowering_0823015503_image-to-3d-texture.glb",
-        "originalBytes": 130641504,
-        "optimizedBytes": 12485420,
         "enabled": true
       },
       {
@@ -768,28 +576,6 @@
         "category": "tree",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/tree/Meshy_AI_tree_spruce_b_0823014458_image-to-3d-texture.glb",
-        "originalBytes": 94326908,
-        "optimizedBytes": 2687188,
-        "enabled": true
-      },
-      {
-        "id": "royal_street_lantern_a",
-        "name": "royal-street-lantern-a",
-        "category": "tree",
-        "tier": "mobile",
-        "path": "/world-assets/3d-optimized/tree/royal-street-lantern-a.glb",
-        "originalBytes": 65146764,
-        "optimizedBytes": 1038996,
-        "enabled": true
-      },
-      {
-        "id": "royal_street_lantern_b",
-        "name": "royal-street-lantern-b",
-        "category": "tree",
-        "tier": "mobile",
-        "path": "/world-assets/3d-optimized/tree/royal-street-lantern-b.glb",
-        "originalBytes": 75848204,
-        "optimizedBytes": 1284916,
         "enabled": true
       }
     ],
@@ -800,42 +586,50 @@
         "category": "bridge",
         "tier": "medium",
         "path": "/world-assets/3d-optimized/bridge/Meshy_AI_kingdom_bridge_0823002326_image-to-3d-texture.glb",
-        "originalBytes": 89339636,
-        "optimizedBytes": 2466832,
-        "enabled": true
-      },
-      {
-        "id": "meshy_ai_road_bridge_approach_0823031848_image_to_3d_texture",
-        "name": "Meshy_AI_road_bridge_approach_0823031848_image-to-3d-texture",
-        "category": "bridge",
-        "tier": "medium",
-        "path": "/world-assets/3d-optimized/bridge/Meshy_AI_road_bridge_approach_0823031848_image-to-3d-texture.glb",
-        "originalBytes": 103358156,
-        "optimizedBytes": 2235352,
         "enabled": true
       }
     ],
-    "castle": [
+    "gate": [
       {
-        "id": "meshy_ai_road_castle_approach_0823031817_image_to_3d_texture",
-        "name": "Meshy_AI_road_castle_approach_0823031817_image-to-3d-texture",
-        "category": "castle",
+        "id": "kingdom_entrance_gate",
+        "name": "kingdom-entrance-gate",
+        "category": "gate",
         "tier": "light",
-        "path": "/world-assets/3d-optimized/castle/Meshy_AI_road_castle_approach_0823031817_image-to-3d-texture.glb",
-        "originalBytes": 91326236,
-        "optimizedBytes": 1339740,
+        "path": "/world-assets/3d-optimized/gate/kingdom-entrance-gate.glb",
+        "enabled": true
+      },
+      {
+        "id": "meshy_ai_kingdom_entrance_gate_0822231433_image_to_3d_texture",
+        "name": "Meshy_AI_kingdom_entrance_gate_0822231433_image-to-3d-texture",
+        "category": "gate",
+        "tier": "light",
+        "path": "/world-assets/3d-optimized/gate/Meshy_AI_kingdom_entrance_gate_0822231433_image-to-3d-texture.glb",
         "enabled": true
       }
     ],
     "road": [
+      {
+        "id": "meshy_ai_road_bridge_approach_0823031848_image_to_3d_texture",
+        "name": "Meshy_AI_road_bridge_approach_0823031848_image-to-3d-texture",
+        "category": "road",
+        "tier": "medium",
+        "path": "/world-assets/3d-optimized/bridge/Meshy_AI_road_bridge_approach_0823031848_image-to-3d-texture.glb",
+        "enabled": true
+      },
+      {
+        "id": "meshy_ai_road_castle_approach_0823031817_image_to_3d_texture",
+        "name": "Meshy_AI_road_castle_approach_0823031817_image-to-3d-texture",
+        "category": "road",
+        "tier": "light",
+        "path": "/world-assets/3d-optimized/castle/Meshy_AI_road_castle_approach_0823031817_image-to-3d-texture.glb",
+        "enabled": true
+      },
       {
         "id": "meshy_ai_road_curve_left_gentl_0823031738_image_to_3d_texture",
         "name": "Meshy_AI_road_curve_left_gentl_0823031738_image-to-3d-texture",
         "category": "road",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/road/Meshy_AI_road_curve_left_gentl_0823031738_image-to-3d-texture.glb",
-        "originalBytes": 104887992,
-        "optimizedBytes": 2381640,
         "enabled": true
       },
       {
@@ -844,8 +638,6 @@
         "category": "road",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/road/Meshy_AI_road_curve_left_stron_0823032013_image-to-3d-texture.glb",
-        "originalBytes": 105399636,
-        "optimizedBytes": 2341812,
         "enabled": true
       },
       {
@@ -854,8 +646,6 @@
         "category": "road",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/road/Meshy_AI_road_curve_right_gent_0823031748_image-to-3d-texture.glb",
-        "originalBytes": 105909336,
-        "optimizedBytes": 2542788,
         "enabled": true
       },
       {
@@ -864,8 +654,6 @@
         "category": "road",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/road/Meshy_AI_road_curve_right_stro_0823032022_image-to-3d-texture.glb",
-        "originalBytes": 103265512,
-        "optimizedBytes": 2257784,
         "enabled": true
       },
       {
@@ -874,8 +662,14 @@
         "category": "road",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/road/Meshy_AI_road_downhill_0823031756_image-to-3d-texture.glb",
-        "originalBytes": 79785488,
-        "optimizedBytes": 1460936,
+        "enabled": true
+      },
+      {
+        "id": "meshy_ai_road_garden_pathway_0823031900_image_to_3d_texture",
+        "name": "Meshy_AI_road_garden_pathway_0823031900_image-to-3d-texture",
+        "category": "road",
+        "tier": "medium",
+        "path": "/world-assets/3d-optimized/garden/Meshy_AI_road_garden_pathway_0823031900_image-to-3d-texture.glb",
         "enabled": true
       },
       {
@@ -884,8 +678,6 @@
         "category": "road",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/road/Meshy_AI_road_s_curve_0823031837_image-to-3d-texture.glb",
-        "originalBytes": 91309080,
-        "optimizedBytes": 1950576,
         "enabled": true
       },
       {
@@ -894,8 +686,14 @@
         "category": "road",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/road/Meshy_AI_road_straight_dirt_0823031956_image-to-3d-texture.glb",
-        "originalBytes": 98662712,
-        "optimizedBytes": 2226132,
+        "enabled": true
+      },
+      {
+        "id": "meshy_ai_road_straight_stone_0823031805_image_to_3d_texture",
+        "name": "Meshy_AI_road_straight_stone_0823031805_image-to-3d-texture",
+        "category": "road",
+        "tier": "mobile",
+        "path": "/world-assets/3d-optimized/rock/Meshy_AI_road_straight_stone_0823031805_image-to-3d-texture.glb",
         "enabled": true
       },
       {
@@ -904,8 +702,6 @@
         "category": "road",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/road/Meshy_AI_road_three_way_juncti_0823031938_image-to-3d-texture.glb",
-        "originalBytes": 106190272,
-        "optimizedBytes": 2284592,
         "enabled": true
       },
       {
@@ -914,8 +710,14 @@
         "category": "road",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/road/Meshy_AI_road_uphill_0823031947_image-to-3d-texture.glb",
-        "originalBytes": 105636964,
-        "optimizedBytes": 1940996,
+        "enabled": true
+      },
+      {
+        "id": "meshy_ai_road_village_0823031928_image_to_3d_texture",
+        "name": "Meshy_AI_road_village_0823031928_image-to-3d-texture",
+        "category": "road",
+        "tier": "medium",
+        "path": "/world-assets/3d-optimized/house/Meshy_AI_road_village_0823031928_image-to-3d-texture.glb",
         "enabled": true
       },
       {
@@ -924,8 +726,6 @@
         "category": "road",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/road/Meshy_AI_road_wide_avenue_0823031728_image-to-3d-texture.glb",
-        "originalBytes": 106426332,
-        "optimizedBytes": 2182300,
         "enabled": true
       },
       {
@@ -934,62 +734,6 @@
         "category": "road",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/road/Meshy_AI_road_woodland_trail_0823031917_image-to-3d-texture.glb",
-        "originalBytes": 100236060,
-        "optimizedBytes": 2350580,
-        "enabled": true
-      }
-    ],
-    "garden": [
-      {
-        "id": "meshy_ai_road_garden_pathway_0823031900_image_to_3d_texture",
-        "name": "Meshy_AI_road_garden_pathway_0823031900_image-to-3d-texture",
-        "category": "garden",
-        "tier": "medium",
-        "path": "/world-assets/3d-optimized/garden/Meshy_AI_road_garden_pathway_0823031900_image-to-3d-texture.glb",
-        "originalBytes": 102774508,
-        "optimizedBytes": 5078912,
-        "enabled": true
-      },
-      {
-        "id": "royal_fountain_garden",
-        "name": "royal-fountain-garden",
-        "category": "garden",
-        "tier": "medium",
-        "path": "/world-assets/3d-optimized/garden/royal-fountain-garden.glb",
-        "originalBytes": 90004208,
-        "optimizedBytes": 4577500,
-        "enabled": true
-      }
-    ],
-    "house": [
-      {
-        "id": "meshy_ai_road_village_0823031928_image_to_3d_texture",
-        "name": "Meshy_AI_road_village_0823031928_image-to-3d-texture",
-        "category": "house",
-        "tier": "medium",
-        "path": "/world-assets/3d-optimized/house/Meshy_AI_road_village_0823031928_image-to-3d-texture.glb",
-        "originalBytes": 103392452,
-        "optimizedBytes": 3716968,
-        "enabled": true
-      },
-      {
-        "id": "meshy_ai_village_house_0822232640_image_to_3d_texture",
-        "name": "Meshy_AI_village_house_0822232640_image-to-3d-texture",
-        "category": "house",
-        "tier": "medium",
-        "path": "/world-assets/3d-optimized/house/Meshy_AI_village_house_0822232640_image-to-3d-texture.glb",
-        "originalBytes": 108651408,
-        "optimizedBytes": 7677672,
-        "enabled": true
-      },
-      {
-        "id": "village_cottage",
-        "name": "village-cottage",
-        "category": "house",
-        "tier": "medium",
-        "path": "/world-assets/3d-optimized/house/village-cottage.glb",
-        "originalBytes": 90078488,
-        "optimizedBytes": 5285908,
         "enabled": true
       }
     ],
@@ -1000,8 +744,6 @@
         "category": "watchtower",
         "tier": "medium",
         "path": "/world-assets/3d-optimized/watchtower/Meshy_AI_royal_watchtower_0823004805_image-to-3d-texture.glb",
-        "originalBytes": 84674880,
-        "optimizedBytes": 3996156,
         "enabled": true
       }
     ],
@@ -1012,8 +754,24 @@
         "category": "windmill",
         "tier": "medium",
         "path": "/world-assets/3d-optimized/windmill/Meshy_AI_royal_windmill_farm_0823012359_image-to-3d-texture.glb",
-        "originalBytes": 88883296,
-        "optimizedBytes": 5174164,
+        "enabled": true
+      }
+    ],
+    "house": [
+      {
+        "id": "meshy_ai_village_house_0822232640_image_to_3d_texture",
+        "name": "Meshy_AI_village_house_0822232640_image-to-3d-texture",
+        "category": "house",
+        "tier": "medium",
+        "path": "/world-assets/3d-optimized/house/Meshy_AI_village_house_0822232640_image-to-3d-texture.glb",
+        "enabled": true
+      },
+      {
+        "id": "village_cottage",
+        "name": "village-cottage",
+        "category": "house",
+        "tier": "medium",
+        "path": "/world-assets/3d-optimized/house/village-cottage.glb",
         "enabled": true
       }
     ],
@@ -1024,8 +782,6 @@
         "category": "waterfall",
         "tier": "light",
         "path": "/world-assets/3d-optimized/waterfall/Meshy_AI_waterfall_cliff_0823003638_image-to-3d-texture.glb",
-        "originalBytes": 91344708,
-        "optimizedBytes": 10457824,
         "enabled": true
       },
       {
@@ -1034,8 +790,6 @@
         "category": "waterfall",
         "tier": "light",
         "path": "/world-assets/3d-optimized/waterfall/Meshy_AI_waterfall_source_rock_0823035047_image-to-3d-texture.glb",
-        "originalBytes": 102478052,
-        "optimizedBytes": 5258988,
         "enabled": true
       }
     ],
@@ -1046,8 +800,30 @@
         "category": "prop",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/prop/hanging-fantasy-lantern.glb",
-        "originalBytes": 96357300,
-        "optimizedBytes": 2022460,
+        "enabled": true
+      },
+      {
+        "id": "royal_stone_fence",
+        "name": "royal-stone-fence",
+        "category": "prop",
+        "tier": "mobile",
+        "path": "/world-assets/3d-optimized/rock/royal-stone-fence.glb",
+        "enabled": true
+      },
+      {
+        "id": "royal_street_lantern_a",
+        "name": "royal-street-lantern-a",
+        "category": "prop",
+        "tier": "mobile",
+        "path": "/world-assets/3d-optimized/tree/royal-street-lantern-a.glb",
+        "enabled": true
+      },
+      {
+        "id": "royal_street_lantern_b",
+        "name": "royal-street-lantern-b",
+        "category": "prop",
+        "tier": "mobile",
+        "path": "/world-assets/3d-optimized/tree/royal-street-lantern-b.glb",
         "enabled": true
       },
       {
@@ -1056,8 +832,6 @@
         "category": "prop",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/prop/stacked-barrels.glb",
-        "originalBytes": 110457472,
-        "optimizedBytes": 3361632,
         "enabled": true
       },
       {
@@ -1066,8 +840,6 @@
         "category": "prop",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/prop/stacked-crates.glb",
-        "originalBytes": 99817500,
-        "optimizedBytes": 2531980,
         "enabled": true
       },
       {
@@ -1076,8 +848,6 @@
         "category": "prop",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/prop/wooden-barrel.glb",
-        "originalBytes": 96933356,
-        "optimizedBytes": 1680132,
         "enabled": true
       },
       {
@@ -1086,8 +856,6 @@
         "category": "prop",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/prop/wooden-bench-a.glb",
-        "originalBytes": 99865416,
-        "optimizedBytes": 1326700,
         "enabled": true
       },
       {
@@ -1096,18 +864,6 @@
         "category": "prop",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/prop/wooden-bench-b.glb",
-        "originalBytes": 93020104,
-        "optimizedBytes": 1077628,
-        "enabled": true
-      },
-      {
-        "id": "wooden_crate_2",
-        "name": "wooden-crate-2",
-        "category": "prop",
-        "tier": "mobile",
-        "path": "/world-assets/3d-optimized/prop/wooden-crate-2.glb",
-        "originalBytes": 103092096,
-        "optimizedBytes": 1820340,
         "enabled": true
       },
       {
@@ -1116,8 +872,14 @@
         "category": "prop",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/prop/wooden-crate.glb",
-        "originalBytes": 99671988,
-        "optimizedBytes": 2150520,
+        "enabled": true
+      },
+      {
+        "id": "wooden_crate_2",
+        "name": "wooden-crate-2",
+        "category": "prop",
+        "tier": "mobile",
+        "path": "/world-assets/3d-optimized/prop/wooden-crate-2.glb",
         "enabled": true
       },
       {
@@ -1126,8 +888,6 @@
         "category": "prop",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/prop/wooden-fence-a.glb",
-        "originalBytes": 99517592,
-        "optimizedBytes": 1607896,
         "enabled": true
       },
       {
@@ -1136,12 +896,32 @@
         "category": "prop",
         "tier": "mobile",
         "path": "/world-assets/3d-optimized/prop/wooden-fence-b.glb",
-        "originalBytes": 101278960,
-        "optimizedBytes": 1479920,
+        "enabled": true
+      }
+    ],
+    "garden": [
+      {
+        "id": "royal_fountain_garden",
+        "name": "royal-fountain-garden",
+        "category": "garden",
+        "tier": "medium",
+        "path": "/world-assets/3d-optimized/garden/royal-fountain-garden.glb",
+        "enabled": true
+      }
+    ],
+    "ruins": [
+      {
+        "id": "royal_ruins_gateway",
+        "name": "royal-ruins-gateway",
+        "category": "ruins",
+        "tier": "light",
+        "path": "/world-assets/3d-optimized/gate/royal-ruins-gateway.glb",
         "enabled": true
       }
     ]
   },
-  "invalidOriginalCount": 15,
-  "failedCount": 0
+  "notes": {
+    "championshipCastleAvailable": false,
+    "championshipCastleReason": "Original championship-castle.glb failed GLB validation and must be re-exported from Meshy."
+  }
 }
