@@ -11,13 +11,13 @@ export default function Sky() {
     <>
       <DreiSky
         distance={450000}
-        sunPosition={[80, 40, -30]}
-        inclination={0.48}
-        azimuth={0.25}
+        sunPosition={[60, 25, -15]}
+        inclination={0.52}
+        azimuth={0.22}
         mieCoefficient={0.005}
-        mieDirectionalG={0.85}
-        rayleigh={2}
-        turbidity={5}
+        mieDirectionalG={0.87}
+        rayleigh={1.5}
+        turbidity={4.2}
       />
       <DriftingClouds />
     </>

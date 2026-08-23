@@ -221,14 +221,14 @@ export default function PlayGame() {
           window.setTimeout(async () => {
             try {
               if (isV3Game(contest?.game_type)) {
-                if (!session?.session_id) {
+                if (!gameSession?.session_id) {
                   throw new Error(
                     'Official game session is missing.'
                   );
                 }
 
                 await gamesAPI.beginSession(
-                  session.session_id
+                  gameSession.session_id
                 );
               }
 

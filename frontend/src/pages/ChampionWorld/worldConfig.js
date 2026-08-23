@@ -40,18 +40,21 @@ export const PATH_CURVE = new THREE.CatmullRomCurve3(
 );
 
 // 10 Level nodes distributed along Championship 1 range.
+// Level 1 → t=0.030 sits at world entry. Level 2 → t=0.140 places it far
+// enough down the winding road that the mobile camera clearly reads BOTH.
 export const LEVELS = Array.from({ length: 10 }, (_, i) => ({
   id: `L${i + 1}`,
   number: i + 1,
-  // Levels 1..10 sit on t=0.03..0.60 evenly, leaving space for castle at 0.65
-  t: 0.03 + (i * (0.60 - 0.03)) / 9,
+  t: 0.03 + i * ((0.60 - 0.03) / 9),
   status:
-    i < 3 ? 'completed'
-    : i === 3 ? 'current'
-    : i < 6 ? 'available'
+    i === 0 ? 'current'
+    : i === 1 ? 'available'
     : 'locked',
-  attemptsRemaining: i < 3 ? 0 : 3,
+  attemptsRemaining: 3,
 }));
+// Nudge Level 2 slightly further so it reads as a clear "next stop" on
+// the winding road ahead of Level 1, but still comfortably in mobile view.
+if (LEVELS[1]) LEVELS[1].t = 0.11;
 
 // Castle checkpoint 1
 export const CASTLE_1 = {
@@ -97,9 +100,13 @@ export const FOREST_SEEDS = [
   ...Array.from({ length: 30 }, (_, i) => ({ zone: 'C', i })),  // mountain slope
 ];
 
-// Camera framing per breakpoint. Bigger `distance` = more scenery visible.
+// Cinematic elevated 3rd-person adventure camera.
+// Champion targets 12–18% of viewport height → so camera is closer than
+// a strategic-overhead rig but higher than an over-shoulder rig. The
+// composition ALWAYS shows: champion foreground → Level 1 → winding road
+// → Level 2 midground → future world → mountains / castle horizon.
 export const CAMERA_PRESETS = {
-  mobile:  { distance: 7.5, height: 4.0, fov: 55 },
-  tablet:  { distance: 9.5, height: 4.5, fov: 50 },
-  desktop: { distance: 12.0, height: 5.5, fov: 45 },
+  mobile:  { distance: 6.5,  height: 4.8, fov: 60, lookAhead: 5.5, pitchDown: 2.6 },
+  tablet:  { distance: 9.5,  height: 6.5, fov: 54, lookAhead: 7.0, pitchDown: 3.0 },
+  desktop: { distance: 13.0, height: 8.0, fov: 48, lookAhead: 8.5, pitchDown: 3.6 },
 };

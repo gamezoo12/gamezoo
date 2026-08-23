@@ -54,15 +54,15 @@ export default function Path() {
       {/* Gold glowing trim underneath */}
       <mesh geometry={trimGeom}>
         <meshStandardMaterial
-          color="#FFD54A"
-          emissive="#FF9A3C"
-          emissiveIntensity={0.4}
-          roughness={0.55}
+          color="#e8b566"
+          emissive="#c78a2a"
+          emissiveIntensity={0.25}
+          roughness={0.6}
         />
       </mesh>
-      {/* Sandstone road */}
+      {/* Warm stone road */}
       <mesh geometry={roadGeom} receiveShadow>
-        <meshStandardMaterial color="#c9a06a" roughness={0.85} metalness={0} />
+        <meshStandardMaterial color="#b39169" roughness={0.9} metalness={0} />
       </mesh>
     </group>
   );

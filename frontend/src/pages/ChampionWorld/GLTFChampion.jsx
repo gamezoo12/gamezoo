@@ -112,6 +112,10 @@ const GLTFChampion = forwardRef(function GLTFChampion({ gender = 'male', initial
     runTo:  (t) => { st.current.targetT = clamp01(t); setActionKey('run'); },
     getT: () => st.current.t,
     getWorldPos: () => group.current?.position.clone(),
+    getForwardTangent: () => {
+      const tan = PATH_CURVE.getTangentAt(clamp01(st.current.t));
+      return new THREE.Vector3(tan.x, 0, tan.z).normalize();
+    },
   }), []);
 
   useFrame((_, dt) => {

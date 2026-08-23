@@ -1,48 +1,77 @@
 /**
  * Champion World — entry page.
  *
- * Route: /champion-world (isolated preview, NOT wired to production /world).
- *
  * UX:
- *   1. Landing → avatar selector (male / female)
+ *   1. Landing → avatar selector (male / female).
  *   2. On confirm, mount the R3F Canvas with the chosen gender.
- *   3. Bottom-HUD gives the reviewer buttons to test the animation state
- *      machine + walk-to-next-level so the world can be judged without
- *      any backend hookup.
+ *   3. World HUD is intentionally minimal:
+ *        top-left  → Exit + gender chip
+ *        top-right → current Level chip
+ *        bottom    → context-aware CTA (Play Level N) when the champion
+ *                    stands on an available/current level.
+ *   4. The full "developer" HUD (Idle / Walk / Run / Wave / Victory /
+ *      Championship! / Defeat) is hidden by default and only shown when
+ *      the URL contains ?worldDebug=1.
  */
-import { Suspense, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, User, UserRound, Sparkles, ChevronRight, Hand, Trophy, Frown, Play, PersonStanding, Zap } from 'lucide-react';
+import { ArrowLeft, User, UserRound, Sparkles, ChevronRight, Hand, Trophy, Frown, Play, PersonStanding, Zap, Flag } from 'lucide-react';
 import Scene from './Scene';
 import { LEVELS, CASTLE_1 } from './worldConfig';
+import { getPerfPolicy } from './perfPolicy';
+
+const isDebug = () =>
+  typeof window !== 'undefined' &&
+  new URLSearchParams(window.location.search).get('worldDebug') === '1';
 
 export default function ChampionWorld() {
   const [phase, setPhase] = useState('select'); // 'select' | 'world'
   const [gender, setGender] = useState(null);
   const [showPrize, setShowPrize] = useState(false);
   const championRef = useRef();
+  const policy = getPerfPolicy();
+  const debug = useMemo(isDebug, []);
+
+  // Which Level is the champion currently on/near? Poll cheaply — 4Hz.
+  const [currentLevel, setCurrentLevel] = useState(LEVELS[0]);
+  useEffect(() => {
+    if (phase !== 'world') return;
+    const id = setInterval(() => {
+      const c = championRef.current;
+      if (!c) return;
+      const t = c.getT?.() ?? 0;
+      // Pick the closest level whose t is <= champion t + 0.01, else first level.
+      let best = LEVELS[0], bestDelta = 1;
+      for (const l of LEVELS) {
+        const d = Math.abs(l.t - t);
+        if (d < bestDelta) { bestDelta = d; best = l; }
+      }
+      setCurrentLevel(best);
+    }, 250);
+    return () => clearInterval(id);
+  }, [phase]);
 
   if (phase === 'select') {
     return <AvatarSelector onPick={(g) => { setGender(g); setPhase('world'); }} />;
   }
 
+  const canPlayCurrent =
+    currentLevel && (currentLevel.status === 'current' || currentLevel.status === 'available');
+
   return (
     <div className="relative w-full" style={{ height: 'calc(100vh - 4rem)' }} data-testid="champion-world-canvas-wrap">
       <Suspense fallback={<Loader />}>
         <Canvas
-          dpr={[1, 2]}
-          shadows
+          dpr={policy.dpr}
+          shadows={policy.shadows}
           gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
-          camera={{ position: [10, 8, -8], fov: 50, near: 0.1, far: 500 }}
+          camera={{ position: [10, 8, -8], fov: 55, near: 0.1, far: 500 }}
           onCreated={({ gl }) => {
             gl.setClearColor('#7ba8d6');
-            // Premium PBR presentation without touching model materials:
-            // ACES-Filmic tone mapping + sRGB output gives skin/hair a
-            // natural response under our directional sun.
             gl.toneMapping = THREE.ACESFilmicToneMapping;
-            gl.toneMappingExposure = 1.05;
+            gl.toneMappingExposure = policy.toneMappingExposure;
             gl.outputColorSpace = THREE.SRGBColorSpace;
           }}
         >
@@ -54,26 +83,71 @@ export default function ChampionWorld() {
       <div className="absolute top-4 left-4 flex items-center gap-2" data-testid="cw-top-bar">
         <Link
           to="/choose-experience"
-          className="inline-flex items-center gap-1.5 rounded-full bg-black/60 backdrop-blur border border-white/20 text-white text-xs font-bold px-3 py-2 hover:bg-black/80"
+          className="inline-flex items-center gap-1.5 rounded-full bg-black/55 backdrop-blur border border-white/20 text-white text-xs font-bold px-3 py-2 hover:bg-black/75"
+          data-testid="cw-exit-btn"
         >
           <ArrowLeft className="w-3.5 h-3.5" /> Exit
         </Link>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-black/60 backdrop-blur border border-white/20 text-white text-xs font-bold px-3 py-2 capitalize">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-black/55 backdrop-blur border border-white/20 text-white text-xs font-bold px-3 py-2 capitalize">
           {gender === 'female' ? <UserRound className="w-3.5 h-3.5 text-emerald-300" /> : <User className="w-3.5 h-3.5 text-[#FFD54A]" />}
-          {gender} Champion
+          {gender}
         </span>
       </div>
 
-      {/* Bottom HUD — animation state controls + walk-to-next-level */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex flex-wrap items-center justify-center gap-1.5 md:gap-2 max-w-[95%] px-3 py-2 rounded-2xl bg-black/60 backdrop-blur border border-white/15" data-testid="cw-hud">
-        <HudButton icon={PersonStanding} label="Idle" onClick={() => championRef.current?.setAction('idle')} testid="hud-idle" />
-        <HudButton icon={Play} label="Walk to next" onClick={() => walkToNext(championRef)} testid="hud-walk" />
-        <HudButton icon={Zap} label="Run to castle" onClick={() => championRef.current?.runTo(CASTLE_1.t)} testid="hud-run" />
-        <HudButton icon={Hand} label="Wave" onClick={() => championRef.current?.setAction('wave')} testid="hud-wave" />
-        <HudButton icon={Trophy} label="Victory" onClick={() => championRef.current?.setAction('victory')} testid="hud-victory" gold />
-        <HudButton icon={Sparkles} label="Championship!" onClick={() => { championRef.current?.setAction('championship-victory'); setShowPrize(true); }} testid="hud-champ-victory" gold />
-        <HudButton icon={Frown} label="Defeat" onClick={() => championRef.current?.setAction('defeat')} testid="hud-defeat" />
+      {/* Top-right: current level chip */}
+      <div className="absolute top-4 right-4" data-testid="cw-level-chip">
+        <div
+          className="inline-flex items-center gap-2 rounded-full bg-black/55 backdrop-blur border border-white/20 text-white px-3 py-2"
+          style={{
+            boxShadow:
+              currentLevel?.status === 'current'
+                ? '0 0 24px -6px #FFD54A'
+                : 'none',
+          }}
+        >
+          <Flag className={`w-3.5 h-3.5 ${currentLevel?.status === 'current' ? 'text-[#FFD54A]' : 'text-white/70'}`} />
+          <div className="leading-tight">
+            <div className="text-[9px] uppercase tracking-widest text-white/60 font-bold">
+              Championship 1
+            </div>
+            <div className="text-xs font-black">
+              Level {currentLevel?.number ?? 1}
+              <span className="ml-1 text-[10px] font-bold text-white/60">
+                • {currentLevel?.status ?? 'available'}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
+
+      {/* Bottom: Play CTA when on a playable level */}
+      {!debug && canPlayCurrent && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2" data-testid="cw-play-cta-wrap">
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 rounded-full bg-[#FFD54A] hover:brightness-110 text-slate-900 font-black text-sm px-6 py-3 shadow-[0_10px_36px_-10px_#FFD54A]"
+            style={{ letterSpacing: '0.04em' }}
+            onClick={() => setShowPrize(true)}
+            data-testid="cw-play-cta"
+          >
+            <Play className="w-4 h-4" /> PLAY LEVEL {currentLevel?.number}
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Developer HUD — only under ?worldDebug=1 */}
+      {debug && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex flex-wrap items-center justify-center gap-1.5 md:gap-2 max-w-[95%] px-3 py-2 rounded-2xl bg-black/60 backdrop-blur border border-white/15" data-testid="cw-hud">
+          <HudButton icon={PersonStanding} label="Idle" onClick={() => championRef.current?.setAction('idle')} testid="hud-idle" />
+          <HudButton icon={Play} label="Walk to next" onClick={() => walkToNext(championRef)} testid="hud-walk" />
+          <HudButton icon={Zap} label="Run to castle" onClick={() => championRef.current?.runTo(CASTLE_1.t)} testid="hud-run" />
+          <HudButton icon={Hand} label="Wave" onClick={() => championRef.current?.setAction('wave')} testid="hud-wave" />
+          <HudButton icon={Trophy} label="Victory" onClick={() => championRef.current?.setAction('victory')} testid="hud-victory" gold />
+          <HudButton icon={Sparkles} label="Championship!" onClick={() => { championRef.current?.setAction('championship-victory'); setShowPrize(true); }} testid="hud-champ-victory" gold />
+          <HudButton icon={Frown} label="Defeat" onClick={() => championRef.current?.setAction('defeat')} testid="hud-defeat" />
+        </div>
+      )}
 
       {/* Prize reveal panel */}
       {showPrize && <PrizeReveal onClose={() => setShowPrize(false)} />}
@@ -260,9 +334,28 @@ function ChampionPortraitSVG({ capeFill, tunic, hair, isFemale }) {
 }
 
 function Loader() {
+  // Sky-tone background (matches the R3F clear colour) so the switch from
+  // loader → world is seamless, never a black/white flash.
   return (
-    <div className="absolute inset-0 flex items-center justify-center bg-black" data-testid="cw-loader">
-      <div className="text-white/80 text-sm font-bold tracking-wider">Loading Wonderland…</div>
+    <div
+      className="absolute inset-0 flex items-center justify-center"
+      style={{
+        background:
+          'radial-gradient(ellipse at 50% 30%, #b6d3f2 0%, #7ba8d6 40%, #4a76ac 100%)',
+      }}
+      data-testid="cw-loader"
+    >
+      <div className="text-center">
+        <div className="text-white/90 text-xs font-bold tracking-[0.4em] mb-3">
+          PRIZE LEAGUE
+        </div>
+        <div className="text-white text-lg font-black tracking-wide drop-shadow">
+          Entering Wonderland…
+        </div>
+        <div className="mt-4 mx-auto h-1 w-32 rounded-full bg-white/25 overflow-hidden">
+          <div className="h-full w-1/3 bg-white/90 animate-pulse rounded-full" />
+        </div>
+      </div>
     </div>
   );
 }
