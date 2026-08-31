@@ -1,0 +1,1774 @@
+.fwv3-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+
+  overflow-y: auto;
+
+  padding:
+    max(14px, env(safe-area-inset-top))
+    10px
+    max(90px, env(safe-area-inset-bottom));
+
+  background:
+    rgba(2, 7, 18, 0.86);
+
+  backdrop-filter:
+    blur(8px);
+
+  -webkit-backdrop-filter:
+    blur(8px);
+
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+
+  color:
+    #071226;
+}
+
+
+.fwv3-card {
+  position: relative;
+
+  width:
+    min(
+      calc(100vw - 20px),
+      980px
+    );
+
+  margin:
+    0 auto;
+
+  padding:
+    24px 26px;
+
+  border:
+    1px solid #d8deea;
+
+  border-radius:
+    24px;
+
+  background:
+    #ffffff;
+
+  box-shadow:
+    0 28px 80px
+    rgba(
+      0,
+      0,
+      0,
+      0.40
+    );
+}
+
+
+.fwv3-close {
+  position: absolute;
+
+  top: 14px;
+  right: 14px;
+
+  z-index: 5;
+
+  width: 50px;
+  height: 50px;
+
+  display: grid;
+  place-items: center;
+
+  padding: 0;
+
+  border:
+    1px solid #cfd6e4;
+
+  border-radius:
+    14px;
+
+  background:
+    #ffffff;
+
+  color:
+    #071226;
+
+  cursor:
+    pointer;
+}
+
+
+.fwv3-entry-header {
+  text-align:
+    center;
+
+  margin-bottom:
+    20px;
+
+  padding:
+    5px 60px 0;
+}
+
+
+.fwv3-entry-header h1 {
+  margin: 0;
+
+  color:
+    #071226;
+
+  font-size:
+    clamp(
+      38px,
+      6vw,
+      66px
+    );
+
+  font-weight:
+    950;
+
+  line-height:
+    0.96;
+
+  letter-spacing:
+    -0.045em;
+}
+
+
+.fwv3-entry-header strong {
+  display:
+    block;
+
+  margin-top:
+    10px;
+
+  color:
+    #6724c7;
+
+  font-size:
+    clamp(
+      20px,
+      3vw,
+      30px
+    );
+
+  font-weight:
+    950;
+}
+
+
+.fwv3-game-banner {
+  min-height:
+    142px;
+
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  gap:
+    30px;
+
+  padding:
+    18px;
+
+  border:
+    1px solid #d8c8fa;
+
+  border-radius:
+    18px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #ffffff 0%,
+      #fbf8ff 100%
+    );
+}
+
+
+.fwv3-number-icon {
+  display:
+    grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      42px
+    );
+
+  gap:
+    3px;
+}
+
+
+.fwv3-number-icon span {
+  height:
+    42px;
+
+  display:
+    grid;
+
+  place-items:
+    center;
+
+  border:
+    2px solid #6724c7;
+
+  border-radius:
+    8px;
+
+  color:
+    #6724c7;
+
+  background:
+    #ffffff;
+
+  font-size:
+    28px;
+
+  font-weight:
+    950;
+}
+
+
+.fwv3-game-banner-copy > span {
+  color:
+    #6724c7;
+
+  font-size:
+    15px;
+
+  font-weight:
+    950;
+
+  letter-spacing:
+    0.03em;
+}
+
+
+.fwv3-game-banner-copy h2 {
+  margin:
+    6px 0 0;
+
+  color:
+    #071226;
+
+  font-size:
+    clamp(
+      28px,
+      5vw,
+      48px
+    );
+
+  font-weight:
+    950;
+
+  line-height:
+    1;
+
+  letter-spacing:
+    -0.035em;
+}
+
+
+.fwv3-stat-grid {
+  display:
+    grid;
+
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(
+        0,
+        1fr
+      )
+    );
+
+  gap:
+    18px;
+
+  margin:
+    18px 0;
+}
+
+
+.fwv3-stat-grid article {
+  min-height:
+    156px;
+
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  gap:
+    18px;
+
+  padding:
+    16px;
+
+  border:
+    1px solid #d9dfeb;
+
+  border-radius:
+    18px;
+
+  background:
+    #ffffff;
+
+  text-align:
+    center;
+}
+
+
+.fwv3-stat-grid article > svg {
+  flex:
+    0 0 auto;
+
+  width:
+    48px;
+
+  height:
+    48px;
+
+  color:
+    #6724c7;
+
+  stroke-width:
+    2.6;
+}
+
+
+.fwv3-stat-grid article > div {
+  display:
+    grid;
+
+  justify-items:
+    center;
+}
+
+
+.fwv3-stat-grid span {
+  color:
+    #6724c7;
+
+  font-size:
+    13px;
+
+  font-weight:
+    950;
+}
+
+
+.fwv3-stat-grid strong {
+  color:
+    #071226;
+
+  font-size:
+    42px;
+
+  font-weight:
+    950;
+
+  line-height:
+    1;
+}
+
+
+.fwv3-stat-grid small {
+  margin-top:
+    5px;
+
+  color:
+    #071226;
+
+  font-size:
+    16px;
+
+  font-weight:
+    900;
+}
+
+
+.fwv3-bars {
+  color:
+    #6724c7;
+
+  font-size:
+    42px;
+
+  font-weight:
+    950;
+
+  line-height:
+    1;
+}
+
+
+.fwv3-info-box {
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  gap:
+    18px;
+
+  padding:
+    18px 28px;
+
+  border:
+    1px solid #d8c8fa;
+
+  border-radius:
+    18px;
+
+  background:
+    #fbf9ff;
+}
+
+
+.fwv3-info-box svg {
+  flex:
+    0 0 auto;
+
+  width:
+    42px;
+
+  height:
+    42px;
+
+  color:
+    #6724c7;
+}
+
+
+.fwv3-info-box p {
+  margin: 0;
+
+  color:
+    #071226;
+
+  font-size:
+    18px;
+
+  font-weight:
+    750;
+
+  line-height:
+    1.45;
+}
+
+
+.fwv3-entry-actions {
+  display:
+    grid;
+
+  grid-template-columns:
+    1fr 1.35fr;
+
+  gap:
+    18px;
+
+  margin-top:
+    18px;
+}
+
+
+.fwv3-button {
+  min-height:
+    72px;
+
+  display:
+    inline-flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  gap:
+    9px;
+
+  padding:
+    12px 18px;
+
+  border-radius:
+    16px;
+
+  font-family:
+    inherit;
+
+  font-size:
+    clamp(
+      18px,
+      3vw,
+      28px
+    );
+
+  font-weight:
+    950;
+
+  line-height:
+    1;
+
+  cursor:
+    pointer;
+
+  touch-action:
+    manipulation;
+
+  -webkit-tap-highlight-color:
+    transparent;
+}
+
+
+.fwv3-button:disabled {
+  opacity:
+    0.45;
+
+  cursor:
+    not-allowed;
+}
+
+
+.fwv3-button-primary {
+  border:
+    2px solid #6420c8;
+
+  background:
+    linear-gradient(
+      135deg,
+      #7b2be2 0%,
+      #5620bd 100%
+    );
+
+  color:
+    #ffffff;
+
+  box-shadow:
+    0 10px 24px
+    rgba(
+      100,
+      32,
+      200,
+      0.22
+    );
+}
+
+
+.fwv3-button-outline {
+  border:
+    2px solid #6420c8;
+
+  background:
+    #ffffff;
+
+  color:
+    #6420c8;
+}
+
+
+.fwv3-practice-note {
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  gap:
+    9px;
+
+  margin-top:
+    14px;
+
+  color:
+    #071226;
+
+  font-size:
+    16px;
+
+  font-weight:
+    750;
+}
+
+
+.fwv3-practice-note svg {
+  color:
+    #6724c7;
+}
+
+
+/*
+ * ============================================================
+ * DEMO / OFFICIAL GAME
+ * ONLY THIS SCREEN IS STATIC.
+ * ============================================================
+ */
+
+.fwv3-play-overlay {
+  align-items:
+    flex-start;
+}
+
+
+.fwv3-play-card {
+  width:
+    min(
+      calc(100vw - 14px),
+      430px
+    );
+
+  min-height:
+    0;
+
+  padding:
+    14px 12px 16px;
+
+  border-radius:
+    18px;
+
+  overflow:
+    hidden;
+
+  contain:
+    layout paint;
+
+  transform:
+    translateZ(0);
+}
+
+
+.fwv3-mode-label {
+  display:
+    block;
+
+  color:
+    #6724c7;
+
+  text-align:
+    center;
+
+  font-size:
+    14px;
+
+  font-weight:
+    950;
+
+  letter-spacing:
+    0.04em;
+}
+
+
+.fwv3-timer {
+  height:
+    86px;
+
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  gap:
+    10px;
+
+  color:
+    #6724c7;
+
+  font-variant-numeric:
+    tabular-nums;
+
+  font-feature-settings:
+    "tnum";
+}
+
+
+.fwv3-timer svg {
+  flex:
+    0 0 auto;
+
+  width:
+    34px;
+
+  height:
+    34px;
+
+  stroke-width:
+    2.8;
+}
+
+
+.fwv3-timer strong {
+  width:
+    275px;
+
+  color:
+    #6724c7;
+
+  font-size:
+    47px;
+
+  font-weight:
+    950;
+
+  line-height:
+    1;
+
+  letter-spacing:
+    -0.04em;
+
+  text-align:
+    left;
+}
+
+
+.fwv3-timer-caption {
+  color:
+    #6724c7;
+
+  text-align:
+    center;
+
+  font-size:
+    12px;
+
+  font-weight:
+    900;
+
+  letter-spacing:
+    0.02em;
+}
+
+
+.fwv3-progress {
+  display:
+    grid;
+
+  grid-template-columns:
+    1fr 1fr;
+
+  margin:
+    12px -12px 8px;
+
+  border-top:
+    1px solid #eceaf3;
+
+  border-bottom:
+    1px solid #eceaf3;
+
+  background:
+    #ffffff;
+}
+
+
+.fwv3-progress > div {
+  padding:
+    10px;
+
+  text-align:
+    center;
+}
+
+
+.fwv3-progress > div + div {
+  border-left:
+    1px solid #eceaf3;
+}
+
+
+.fwv3-progress span {
+  display:
+    block;
+
+  color:
+    #6724c7;
+
+  font-size:
+    10px;
+
+  font-weight:
+    950;
+}
+
+
+.fwv3-progress strong {
+  display:
+    block;
+
+  margin-top:
+    3px;
+
+  color:
+    #071226;
+
+  font-size:
+    25px;
+
+  font-weight:
+    950;
+
+  line-height:
+    1;
+}
+
+
+.fwv3-grid {
+  display:
+    grid;
+
+  gap:
+    6px;
+
+  padding:
+    7px;
+
+  border:
+    1px solid #e2e4eb;
+
+  border-radius:
+    12px;
+
+  background:
+    #f3f3f7;
+
+  contain:
+    layout paint;
+
+  transform:
+    translateZ(0);
+}
+
+
+.fwv3-grid button {
+  min-width:
+    0;
+
+  aspect-ratio:
+    1.08;
+
+  padding:
+    0;
+
+  border:
+    1px solid #d5d8e2;
+
+  border-radius:
+    9px;
+
+  background:
+    #ffffff;
+
+  color:
+    #070c18;
+
+  font-family:
+    inherit;
+
+  font-size:
+    22px;
+
+  font-weight:
+    950;
+
+  line-height:
+    1;
+
+  cursor:
+    pointer;
+
+  touch-action:
+    manipulation;
+
+  -webkit-tap-highlight-color:
+    transparent;
+
+  transition:
+    background-color 70ms linear,
+    border-color 70ms linear,
+    color 70ms linear;
+}
+
+
+.fwv3-grid button:active {
+  transform:
+    none;
+}
+
+
+.fwv3-grid button.is-done {
+  border-color:
+    #b7e4c5;
+
+  background:
+    #eaf9ef;
+
+  color:
+    #16813b;
+}
+
+
+.fwv3-grid button:disabled {
+  opacity:
+    1;
+}
+
+
+.fwv3-play-actions {
+  display:
+    grid;
+
+  grid-template-columns:
+    1fr 1fr;
+
+  gap:
+    10px;
+
+  margin-top:
+    14px;
+}
+
+
+.fwv3-play-card .fwv3-button {
+  min-height:
+    56px;
+
+  padding:
+    8px 10px;
+
+  border-radius:
+    10px;
+
+  font-size:
+    17px;
+}
+
+
+.fwv3-exit-game {
+  width:
+    100%;
+
+  min-height:
+    56px;
+
+  margin-top:
+    14px;
+
+  border:
+    2px solid #ef2929;
+
+  border-radius:
+    10px;
+
+  background:
+    #ffffff;
+
+  color:
+    #df1717;
+
+  font-family:
+    inherit;
+
+  font-size:
+    17px;
+
+  font-weight:
+    950;
+
+  cursor:
+    pointer;
+}
+
+
+/*
+ * ============================================================
+ * READY / COUNTDOWN / RESULT
+ * ============================================================
+ */
+
+.fwv3-ready-card,
+.fwv3-countdown-card,
+.fwv3-result-card {
+  width:
+    min(
+      calc(100vw - 20px),
+      440px
+    );
+
+  text-align:
+    center;
+}
+
+
+.fwv3-ready-icon {
+  width:
+    58px;
+
+  height:
+    58px;
+
+  margin:
+    14px auto 10px;
+
+  color:
+    #6724c7;
+}
+
+
+.fwv3-ready-card h2,
+.fwv3-result-card h2 {
+  margin:
+    12px 0 8px;
+
+  color:
+    #071226;
+
+  font-size:
+    32px;
+
+  font-weight:
+    950;
+
+  letter-spacing:
+    -0.03em;
+}
+
+
+.fwv3-ready-card p,
+.fwv3-result-message {
+  color:
+    #39465a;
+
+  font-size:
+    15px;
+
+  font-weight:
+    650;
+
+  line-height:
+    1.5;
+}
+
+
+.fwv3-ready-attempts {
+  margin:
+    18px 0;
+
+  padding:
+    16px;
+
+  border:
+    1px solid #ded8ed;
+
+  border-radius:
+    14px;
+
+  background:
+    #fbf9ff;
+}
+
+
+.fwv3-ready-attempts span {
+  display:
+    block;
+
+  color:
+    #6724c7;
+
+  font-size:
+    11px;
+
+  font-weight:
+    950;
+}
+
+
+.fwv3-ready-attempts strong {
+  display:
+    block;
+
+  margin-top:
+    4px;
+
+  color:
+    #071226;
+
+  font-size:
+    38px;
+
+  font-weight:
+    950;
+}
+
+
+.fwv3-countdown-number {
+  display:
+    block;
+
+  margin:
+    20px 0;
+
+  color:
+    #6724c7;
+
+  font-size:
+    90px;
+
+  font-weight:
+    950;
+
+  line-height:
+    1;
+}
+
+
+.fwv3-countdown-card p {
+  color:
+    #39465a;
+
+  font-weight:
+    700;
+}
+
+
+.fwv3-countdown-card .fwv3-button {
+  width:
+    100%;
+
+  min-height:
+    54px;
+
+  margin-top:
+    12px;
+
+  font-size:
+    17px;
+}
+
+
+.fwv3-result-state {
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  gap:
+    10px;
+
+  margin-top:
+    28px;
+}
+
+
+.fwv3-result-state svg {
+  width:
+    52px;
+
+  height:
+    52px;
+}
+
+
+.fwv3-result-state.success {
+  color:
+    #078336;
+}
+
+
+.fwv3-result-state.failed {
+  color:
+    #a13c14;
+}
+
+
+.fwv3-result-state h2 {
+  margin: 0;
+}
+
+
+.fwv3-result-grid {
+  display:
+    grid;
+
+  grid-template-columns:
+    1fr 1fr;
+
+  margin:
+    20px 0;
+
+  border:
+    1px solid #e0ddec;
+
+  border-radius:
+    14px;
+
+  overflow:
+    hidden;
+
+  background:
+    #ffffff;
+}
+
+
+.fwv3-result-grid > div {
+  padding:
+    14px 8px;
+}
+
+
+.fwv3-result-grid > div:nth-child(2) {
+  border-left:
+    1px solid #e0ddec;
+}
+
+
+.fwv3-result-grid .wide {
+  grid-column:
+    1 / -1;
+
+  border-top:
+    1px solid #e0ddec;
+}
+
+
+.fwv3-result-grid span {
+  display:
+    block;
+
+  color:
+    #6724c7;
+
+  font-size:
+    10px;
+
+  font-weight:
+    950;
+}
+
+
+.fwv3-result-grid strong {
+  display:
+    block;
+
+  margin-top:
+    4px;
+
+  color:
+    #071226;
+
+  font-size:
+    22px;
+
+  font-weight:
+    950;
+
+  font-variant-numeric:
+    tabular-nums;
+}
+
+
+.fwv3-full {
+  width:
+    100%;
+
+  min-height:
+    54px;
+
+  margin-top:
+    10px;
+
+  font-size:
+    17px;
+}
+
+
+.fwv3-refresh-note {
+  display:
+    grid;
+
+  gap:
+    4px;
+
+  margin-top:
+    12px;
+
+  padding:
+    12px;
+
+  border:
+    1px solid #ded8ed;
+
+  border-radius:
+    12px;
+
+  background:
+    #fbf9ff;
+}
+
+
+.fwv3-refresh-note strong {
+  color:
+    #6724c7;
+
+  font-size:
+    11px;
+
+  font-weight:
+    950;
+}
+
+
+.fwv3-refresh-note span {
+  color:
+    #071226;
+
+  font-size:
+    13px;
+
+  font-weight:
+    750;
+}
+
+
+.fwv3-error {
+  margin-top:
+    12px;
+
+  padding:
+    10px 12px;
+
+  border:
+    1px solid #fecaca;
+
+  border-radius:
+    10px;
+
+  background:
+    #fff1f2;
+
+  color:
+    #b91c1c;
+
+  font-size:
+    13px;
+
+  font-weight:
+    800;
+}
+
+
+/*
+ * ============================================================
+ * TABLET / MOBILE
+ * ============================================================
+ */
+
+@media (
+  max-width: 700px
+) {
+
+  .fwv3-overlay {
+    padding:
+      8px
+      6px
+      86px;
+  }
+
+
+  .fwv3-card {
+    padding:
+      18px 12px;
+
+    border-radius:
+      18px;
+  }
+
+
+  .fwv3-close {
+    top:
+      10px;
+
+    right:
+      10px;
+
+    width:
+      42px;
+
+    height:
+      42px;
+
+    border-radius:
+      11px;
+  }
+
+
+  .fwv3-entry-header {
+    padding:
+      5px 44px 0;
+
+    margin-bottom:
+      14px;
+  }
+
+
+  .fwv3-entry-header h1 {
+    font-size:
+      38px;
+  }
+
+
+  .fwv3-entry-header strong {
+    font-size:
+      20px;
+  }
+
+
+  .fwv3-game-banner {
+    min-height:
+      100px;
+
+    gap:
+      12px;
+
+    padding:
+      12px;
+  }
+
+
+  .fwv3-number-icon {
+    grid-template-columns:
+      repeat(
+        2,
+        30px
+      );
+  }
+
+
+  .fwv3-number-icon span {
+    height:
+      30px;
+
+    font-size:
+      19px;
+
+    border-radius:
+      6px;
+  }
+
+
+  .fwv3-game-banner-copy > span {
+    font-size:
+      11px;
+  }
+
+
+  .fwv3-game-banner-copy h2 {
+    font-size:
+      25px;
+  }
+
+
+  .fwv3-stat-grid {
+    gap:
+      7px;
+
+    margin:
+      10px 0;
+  }
+
+
+  .fwv3-stat-grid article {
+    min-height:
+      112px;
+
+    display:
+      grid;
+
+    gap:
+      5px;
+
+    padding:
+      8px 3px;
+  }
+
+
+  .fwv3-stat-grid article > svg {
+    width:
+      28px;
+
+    height:
+      28px;
+
+    margin:
+      auto;
+  }
+
+
+  .fwv3-bars {
+    font-size:
+      26px;
+  }
+
+
+  .fwv3-stat-grid span {
+    font-size:
+      9px;
+  }
+
+
+  .fwv3-stat-grid strong {
+    font-size:
+      27px;
+  }
+
+
+  .fwv3-stat-grid small {
+    font-size:
+      10px;
+  }
+
+
+  .fwv3-info-box {
+    gap:
+      10px;
+
+    padding:
+      12px;
+  }
+
+
+  .fwv3-info-box svg {
+    width:
+      30px;
+
+    height:
+      30px;
+  }
+
+
+  .fwv3-info-box p {
+    font-size:
+      13px;
+
+    font-weight:
+      750;
+  }
+
+
+  .fwv3-entry-actions {
+    gap:
+      8px;
+
+    margin-top:
+      10px;
+  }
+
+
+  .fwv3-button {
+    min-height:
+      54px;
+
+    padding:
+      8px;
+
+    border-radius:
+      12px;
+
+    font-size:
+      16px;
+  }
+
+
+  .fwv3-practice-note {
+    font-size:
+      12px;
+  }
+
+
+  .fwv3-play-card {
+    width:
+      min(
+        calc(100vw - 10px),
+        400px
+      );
+
+    padding:
+      12px 9px 14px;
+  }
+
+
+  .fwv3-timer {
+    height:
+      70px;
+
+    gap:
+      7px;
+  }
+
+
+  .fwv3-timer svg {
+    width:
+      27px;
+
+    height:
+      27px;
+  }
+
+
+  .fwv3-timer strong {
+    width:
+      225px;
+
+    font-size:
+      39px;
+  }
+
+
+  .fwv3-progress {
+    margin:
+      10px -9px 7px;
+  }
+
+
+  .fwv3-progress strong {
+    font-size:
+      23px;
+  }
+
+
+  .fwv3-grid {
+    gap:
+      5px;
+
+    padding:
+      6px;
+  }
+
+
+  .fwv3-grid button {
+    font-size:
+      20px;
+
+    border-radius:
+      7px;
+  }
+
+
+  .fwv3-play-actions {
+    margin-top:
+      10px;
+  }
+
+}
+
+
+@media (
+  max-width: 380px
+) {
+
+  .fwv3-entry-header h1 {
+    font-size:
+      34px;
+  }
+
+
+  .fwv3-game-banner-copy h2 {
+    font-size:
+      21px;
+  }
+
+
+  .fwv3-stat-grid strong {
+    font-size:
+      24px;
+  }
+
+
+  .fwv3-timer strong {
+    width:
+      205px;
+
+    font-size:
+      35px;
+  }
+
+
+  .fwv3-grid button {
+    font-size:
+      18px;
+  }
+
+}
+/* ==========================================================
+   V3 START / SCORE FLOW
+   ========================================================== */
+
+.fwv3-ready-stats {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 10px;
+  margin: 18px 0;
+}
+
+.fwv3-ready-stats > div {
+  min-height: 82px;
+  display: grid;
+  place-content: center;
+  padding: 12px;
+  border: 1px solid #ded8ed;
+  border-radius: 14px;
+  background: #fbf9ff;
+}
+
+.fwv3-ready-stats span {
+  display: block;
+  color: #6724c7;
+  font-size: 10px;
+  font-weight: 950;
+}
+
+.fwv3-ready-stats strong {
+  display: block;
+  margin-top: 4px;
+  color: #071226;
+  font-size: 21px;
+  font-weight: 950;
+  font-variant-numeric: tabular-nums;
+}
+
+.fwv3-exit-game:disabled {
+  opacity: 0.5;
+}
+
+@media (max-width: 380px) {
+  .fwv3-ready-stats strong {
+    font-size: 18px;
+  }
+}

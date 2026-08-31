@@ -34,7 +34,7 @@ export default function AuthCallback() {
         if (needsPhone || needsTerms) {
           setNeedsFinalize(true);
         } else {
-          nav('/', { replace: true });
+          nav('/choose-world', { replace: true });
         }
       } catch {
         nav('/login', { replace: true });
@@ -44,7 +44,7 @@ export default function AuthCallback() {
 
   const onFinalized = async () => {
     await refresh?.();
-    nav('/', { replace: true });
+    nav('/choose-world', { replace: true });
   };
 
   return (

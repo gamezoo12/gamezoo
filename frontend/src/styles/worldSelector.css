@@ -1,0 +1,127 @@
+.world-selector-page {
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  background: #020611;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  overflow-x: hidden;
+}
+
+.world-selector-artwork {
+  position: relative;
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  line-height: 0;
+}
+
+.world-selector-artwork picture {
+  display: block;
+  width: 100%;
+}
+
+.world-selector-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.world-selector-hit {
+  position: absolute;
+  z-index: 10;
+  display: block;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 18px;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  touch-action: manipulation;
+}
+
+.world-selector-hit:focus-visible {
+  outline: 4px solid #ffffff;
+  outline-offset: 4px;
+}
+
+.world-selector-hit:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/*
+ * DESKTOP
+ * Artwork contains Paid and Free cards side-by-side.
+ * Make almost the complete card clickable.
+ */
+@media (min-width: 1200px) {
+  .world-selector-paid {
+    left: 2%;
+    top: 18%;
+    width: 46%;
+    height: 67%;
+  }
+
+  .world-selector-free {
+    left: 51%;
+    top: 18%;
+    width: 46%;
+    height: 67%;
+  }
+}
+
+/*
+ * TABLET
+ * Artwork is vertical.
+ * Paid card first, Free World second.
+ */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .world-selector-artwork {
+    max-width: 1024px;
+  }
+
+  .world-selector-paid {
+    left: 5%;
+    top: 13%;
+    width: 90%;
+    height: 35%;
+  }
+
+  .world-selector-free {
+    left: 5%;
+    top: 51%;
+    width: 90%;
+    height: 35%;
+  }
+}
+
+/*
+ * MOBILE
+ * Artwork is vertical.
+ * Large touch targets for both cards.
+ */
+@media (max-width: 767px) {
+  .world-selector-artwork {
+    max-width: 520px;
+  }
+
+  .world-selector-paid {
+    left: 4%;
+    top: 12%;
+    width: 92%;
+    height: 36%;
+  }
+
+  .world-selector-free {
+    left: 4%;
+    top: 49%;
+    width: 92%;
+    height: 39%;
+  }
+}

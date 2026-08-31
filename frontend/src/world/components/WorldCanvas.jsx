@@ -1,1699 +1,2241 @@
-import { useEffect, useRef } from 'react';
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+
 import {
-  Application,
-  Assets,
-  Container,
-  Graphics,
-  Sprite,
-  Text,
-} from 'pixi.js';
+  useLocation,
+  useNavigate,
+} from 'react-router-dom';
 
-const WORLD_WIDTH = 1024;
-const WORLD_HEIGHT = 1536;
+import {
+  SEASON_1_CHAMPIONSHIPS,
+} from '../data/season1';
 
-const HD_WORLD =
-  '/world-assets/royal-village/hd/royal-village-hd.png';
+import {
+  worldAPI,
+} from '../../lib/api';
 
+import FreeWorldLeaderboard from './FreeWorldLeaderboard';
 
+import '../styles/world2d.css';
 
-const MIN_ZOOM = 0.32;
-const MAX_ZOOM = 2.2;
-
-const CURRENT_WORLD_LEVEL = 1;
+const CHAMPIONSHIP_HEIGHT = 3500;
 
 /*
- * Live-avatar movement engine.
+ * 10 normal levels + 1 Special Slot.
  *
- * The actual character artwork will be supplied as a separate
- * transparent asset. We intentionally do NOT use the old Kenney
- * character here.
+ * Level 1 is lowest.
+ * Level 10 is near the top.
+ * Special Slot gets a deliberately larger
+ * gap after Level 10.
  */
-const LIVE_AVATAR_ENABLED = true;
-
-/*
- * Road waypoints for Royal Village.
- *
- * These are movement coordinates, separate from the level markers,
- * so the avatar follows the road instead of moving in a straight
- * line through scenery.
- */
-const ROYAL_VILLAGE_ROUTE = [
-  { x: 510, y: 1405 },
-
-  { x: 505, y: 1365 },
-  { x: 510, y: 1325 },
-  { x: 510, y: 1292 },
-
-  // Level 1 approach
-  { x: 510, y: 1215 },
-
-  { x: 485, y: 1195 },
-  { x: 460, y: 1140 },
-
-  // Level 2 approach
-  { x: 455, y: 1050 },
-
-  { x: 495, y: 1010 },
-  { x: 545, y: 980 },
-
-  // Level 3 approach
-  { x: 565, y: 925 },
-
-  { x: 585, y: 875 },
-
-  // Level 4 approach
-  { x: 585, y: 795 },
-
-  { x: 560, y: 755 },
-
-  // Level 5 approach
-  { x: 535, y: 675 },
-
-  { x: 500, y: 645 },
-
-  // Level 6 approach
-  { x: 455, y: 575 },
-
-  // Level 7 approach
-  { x: 445, y: 465 },
-
-  { x: 505, y: 440 },
-
-  // Level 8 approach
-  { x: 565, y: 375 },
-
-  { x: 550, y: 345 },
-
-  // Level 9 approach
-  { x: 525, y: 280 },
-
-  // Level 10 approach
-  { x: 510, y: 175 },
-
-  // Champion Arena approach
-  { x: 510, y: 125 },
+const CHAMPION_LEVEL_PREFIXES = [
+  'Emerald',
+  'River',
+  'Golden',
+  'Highland',
+  'Royal',
+  'Crystal',
+  'Mystic',
+  'Thunder',
+  'Celestial',
+  'Legend',
 ];
 
-const LEVEL_ROUTE_INDEX = {
-  1: 4,
-  2: 7,
-  3: 9,
-  4: 11,
-  5: 13,
-  6: 15,
-  7: 16,
-  8: 18,
-  9: 20,
-  10: 21,
-};
-
-const DESTINATIONS = [
-  // Royal Village — progression follows the visible HD road.
-  // Keep nodes away from mobile viewport edges.
-  { level: 1, name: 'Village Gate', x: 510, y: 1270 },
-  { level: 2, name: 'Market Square', x: 455, y: 1080 },
-  { level: 3, name: 'Royal Farm', x: 565, y: 955 },
-  { level: 4, name: 'Riverside Trail', x: 585, y: 825 },
-  { level: 5, name: "King's Bridge", x: 535, y: 705 },
-  { level: 6, name: 'Whispering Woods', x: 455, y: 605 },
-  { level: 7, name: 'Ancient Ruins', x: 445, y: 495 },
-  { level: 8, name: 'Watchtower Pass', x: 565, y: 405 },
-  { level: 9, name: 'Castle Crossing', x: 525, y: 310 },
-  { level: 10, name: 'Royal Gate', x: 510, y: 205 },
+const CHAMPION_LEVEL_TITLES = [
+  'Arena',
+  'Crown',
+  'Trial',
+  'Summit',
+  'Temple',
+  'Colosseum',
+  'Citadel',
+  'Sanctum',
+  'Throne',
+  'Finale',
 ];
 
-function makeText(text, fontSize, fill = 0xffffff) {
-  const label = new Text({
-    text,
-    style: {
-      fontFamily: 'Georgia, Times New Roman, serif',
-      fontSize,
-      fontWeight: '900',
-      fill,
-      align: 'center',
-      stroke: {
-        color: 0x1d120c,
-        width: 4,
-      },
-    },
-  });
 
-  label.anchor.set(0.5);
-  return label;
+function formatWorldCountdown(
+  targetMs,
+  nowMs,
+) {
+  const diff =
+    Math.max(
+      0,
+      Number(targetMs) -
+        Number(nowMs),
+    );
+
+  const totalSeconds =
+    Math.floor(
+      diff / 1000,
+    );
+
+  const days =
+    Math.floor(
+      totalSeconds / 86400,
+    );
+
+  const hours =
+    Math.floor(
+      (totalSeconds % 86400) /
+        3600,
+    );
+
+  const minutes =
+    Math.floor(
+      (totalSeconds % 3600) /
+        60,
+    );
+
+  const seconds =
+    totalSeconds % 60;
+
+  const hh =
+    String(hours).padStart(
+      2,
+      '0',
+    );
+
+  const mm =
+    String(minutes).padStart(
+      2,
+      '0',
+    );
+
+  const ss =
+    String(seconds).padStart(
+      2,
+      '0',
+    );
+
+  if (days > 0) {
+    return `${days}d ${hh}:${mm}:${ss}`;
+  }
+
+  return `${hh}:${mm}:${ss}`;
 }
 
-function createLevelMarker(destination) {
-  const root = new Container();
 
-  root.x = destination.x;
-  root.y = destination.y;
+function worldUnlockTimeForLevel(
+  backendState,
+  localLevel,
+) {
 
-  const isCurrent =
-    destination.level === CURRENT_WORLD_LEVEL;
+  if (!backendState) {
+    return null;
+  }
 
-  const isCompleted =
-    destination.level < CURRENT_WORLD_LEVEL;
 
-  const isLocked =
-    destination.level > CURRENT_WORLD_LEVEL;
+  const candidates = [
+    backendState?.unlockAt,
+    backendState?.unlock_at,
+    backendState?.unlockTime,
+    backendState?.unlock_time,
 
-  const glow = new Graphics();
-  glow.circle(0, 0, 31);
-  glow.fill({
-    color: 0xffcc51,
-    alpha: 0.28,
-  });
+    backendState?.levels?.[
+      localLevel
+    ]?.unlockAt,
 
-  const outer = new Graphics();
-  outer.circle(0, 0, 25);
-  outer.fill(
-    isCompleted
-      ? 0x4f9b5f
-      : isCurrent
-        ? 0xe4b742
-        : 0x6e6255,
-  );
-  outer.stroke({
-    width: 3,
-    color: 0xffefa4,
-  });
+    backendState?.levels?.[
+      localLevel
+    ]?.unlock_at,
 
-  const inner = new Graphics();
-  inner.circle(0, 0, 19);
-  inner.fill(
-    isCompleted
-      ? 0x18351f
-      : isCurrent
-        ? 0x2d1c13
-        : 0x2d2925,
-  );
+    backendState?.levels?.[
+      String(localLevel)
+    ]?.unlockAt,
 
-  const number = makeText(
-    isCompleted
-      ? '✓'
-      : isLocked
-        ? '🔒'
-        : String(destination.level),
-    isLocked ? 11 : 14,
-  );
+    backendState?.levels?.[
+      String(localLevel)
+    ]?.unlock_at,
+  ];
 
-  const board = new Graphics();
-  board.roundRect(
-    -58,
-    31,
-    116,
-    29,
-    8,
-  );
 
-  board.fill({
-    color: 0x271810,
-    alpha: 0.92,
-  });
-
-  board.stroke({
-    width: 2,
-    color: 0xc49b42,
-  });
-
-  const name = makeText(
-    destination.name,
-    9,
-  );
-
-  name.y = 45;
-
-  root.addChild(
-    glow,
-    outer,
-    inner,
-    number,
-    board,
-    name,
-  );
-
-  if (isCurrent) {
-    const playGlow =
-      new Graphics();
-
-    playGlow.roundRect(
-      -54,
-      58,
-      108,
-      38,
-      14,
+  const value =
+    candidates.find(
+      (candidate) =>
+        candidate !== undefined &&
+        candidate !== null &&
+        candidate !== '',
     );
 
-    playGlow.fill({
-      color: 0xffd65c,
-      alpha: 0.24,
-    });
 
-    const playButton =
-      new Graphics();
+  if (!value) {
+    return null;
+  }
 
-    playButton.roundRect(
-      -50,
-      60,
-      100,
-      34,
-      13,
+
+  const parsed =
+    typeof value === 'number'
+      ? value
+      : Date.parse(value);
+
+
+  if (
+    !Number.isFinite(parsed)
+  ) {
+    return null;
+  }
+
+
+  // Support seconds timestamps as well
+  // as JavaScript millisecond timestamps.
+  if (
+    typeof value === 'number' &&
+    parsed < 100000000000
+  ) {
+    return parsed * 1000;
+  }
+
+
+  return parsed;
+}
+function championLevelName(championshipNumber) {
+  const index =
+    Math.max(
+      0,
+      Number(championshipNumber) - 1,
     );
 
-    playButton.fill({
-      color: 0xe9bd4d,
-      alpha: 0.98,
-    });
+  const prefix =
+    CHAMPION_LEVEL_PREFIXES[
+      index % 10
+    ];
 
-    playButton.stroke({
-      width: 2,
-      color: 0xffefad,
-    });
+  const title =
+    CHAMPION_LEVEL_TITLES[
+      Math.floor(index / 10) % 10
+    ];
 
-    const playText =
-      makeText(
-        '▶ PLAY',
-        12,
-        0x2d1c13,
+  return `${prefix} ${title}`;
+}
+
+/*
+ * UI DISPLAY progression:
+ * Champion 1 = £100
+ * Champion 2 = £150
+ * Champion 3 = £200
+ * ...
+ * Champion 100 = £5,050
+ *
+ * This does NOT modify wallet/settlement logic.
+ */
+function championDisplayPrize(championshipNumber) {
+  return (
+    50 *
+    (
+      Number(championshipNumber) +
+      1
+    )
+  );
+}
+
+function formatChampionPrize(championshipNumber) {
+  return new Intl.NumberFormat(
+    'en-GB',
+    {
+      style: 'currency',
+      currency: 'GBP',
+      maximumFractionDigits: 0,
+    },
+  ).format(
+    championDisplayPrize(
+      championshipNumber,
+    ),
+  );
+}
+const TOTAL_PRIZE_POOL =
+  Array.from(
+    { length: 100 },
+    (_, index) =>
+      championDisplayPrize(
+        index + 1,
+      ),
+  ).reduce(
+    (total, prize) =>
+      total + Number(prize || 0),
+    0,
+  );
+
+const FORMATTED_TOTAL_PRIZE_POOL =
+  new Intl.NumberFormat(
+    'en-GB',
+    {
+      style: 'currency',
+      currency: 'GBP',
+      maximumFractionDigits: 0,
+    },
+  ).format(
+    TOTAL_PRIZE_POOL,
+  );
+const PL1000_SLOT_POSITIONS = [
+  { x: 50, bottom: 4  },  // Level 1
+  { x: 44, bottom: 12 },  // Level 2
+  { x: 38, bottom: 20 },  // Level 3
+  { x: 42, bottom: 28 },  // Level 4
+  { x: 50, bottom: 36 },  // Level 5
+  { x: 58, bottom: 44 },  // Level 6
+  { x: 62, bottom: 52 },  // Level 7
+  { x: 58, bottom: 60 },  // Level 8
+  { x: 52, bottom: 68 },  // Level 9
+  { x: 46, bottom: 76 },  // Level 10
+
+  // Dedicated Champion Arena position.
+  // This is NOT a numbered level.
+  { x: 50, bottom: 90 },  // Champion Arena
+];
+
+function formatUnlockCountdown(seconds) {
+  const safeSeconds = Math.max(
+    0,
+    Number(seconds) || 0,
+  );
+
+  const days =
+    Math.floor(safeSeconds / 86400);
+
+  const hours =
+    Math.floor((safeSeconds % 86400) / 3600);
+
+  const minutes =
+    Math.floor((safeSeconds % 3600) / 60);
+
+  const secs =
+    Math.floor(safeSeconds % 60);
+
+  const clock = [
+    String(hours).padStart(2, '0'),
+    String(minutes).padStart(2, '0'),
+    String(secs).padStart(2, '0'),
+  ].join(':');
+
+  return days > 0
+    ? `${days}d ${clock}`
+    : clock;
+}
+
+function globalLevelFor(
+  championshipNumber,
+  localLevel,
+) {
+  return (
+    ((championshipNumber - 1) * 10) +
+    localLevel
+  );
+}
+
+function localLevelForGlobal(globalLevel) {
+  return (
+    ((globalLevel - 1) % 10) + 1
+  );
+}
+
+const LEVEL_POSITIONS = [
+  { x: 50, y: 94 },
+  { x: 50, y: 85 },
+  { x: 50, y: 76 },
+  { x: 50, y: 67 },
+  { x: 50, y: 58 },
+  { x: 50, y: 49 },
+  { x: 50, y: 40 },
+  { x: 50, y: 31 },
+  { x: 50, y: 22 },
+  { x: 50, y: 13 },
+  { x: 50, y: 4 },
+];
+
+const CHAMPIONSHIP_PRIZES = {
+  1: 100,
+  2: 150,
+  3: 200,
+  4: 250,
+  5: 300,
+};
+const BIOMES = [
+  'emerald',
+  'riverlands',
+  'autumn',
+  'highlands',
+  'enchanted',
+  'coastal',
+  'golden',
+  'pine',
+  'royal',
+  'crystal',
+];
+
+function ChampionshipPrizePopup({
+  championshipNumber,
+}) {
+  const amount =
+    CHAMPIONSHIP_PRIZES[
+      championshipNumber
+    ];
+
+  const revealed =
+    Number.isFinite(amount);
+
+  return (
+    <div
+      className={[
+        'pl2d-castle-prize-popup',
+        revealed
+          ? 'is-revealed'
+          : 'is-locked',
+      ].join(' ')}
+    >
+      <div className="pl2d-prize-rays" />
+
+      <small>
+        CHAMPIONSHIP {championshipNumber}
+      </small>
+
+      <strong>
+        {revealed
+          ? `£${amount}`
+          : '🔒 PRIZE LOCKED'}
+      </strong>
+
+      <span>
+        {revealed
+          ? 'CHAMPIONSHIP PRIZE'
+          : 'Reach this Championship to reveal'}
+      </span>
+    </div>
+  );
+}
+function Castle({
+  championshipNumber,
+  locked,
+}) {
+  return (
+    <div
+      className={[
+        'pl2d-castle',
+        locked ? 'is-locked' : '',
+      ].join(' ')}
+    >
+      <div className="pl2d-castle-glow" />
+
+      <div className="pl2d-castle-tower pl2d-castle-tower-left">
+        <div className="pl2d-roof" />
+        <div className="pl2d-window" />
+      </div>
+
+      <div className="pl2d-castle-main">
+        <div className="pl2d-roof pl2d-roof-main" />
+
+        <div className="pl2d-castle-crest">
+          PL
+        </div>
+
+        <div className="pl2d-castle-door" />
+      </div>
+
+      <div className="pl2d-castle-tower pl2d-castle-tower-right">
+        <div className="pl2d-roof" />
+        <div className="pl2d-window" />
+      </div>
+
+      <div className="pl2d-castle-number">
+        Castle {championshipNumber}
+      </div>
+
+    </div>
+  );
+}
+
+function ForestLayer({
+  side,
+  amount = 15,
+}) {
+  return (
+    <div
+      className={`pl2d-forest pl2d-forest-${side}`}
+      aria-hidden="true"
+    >
+      {Array.from({ length: amount }).map((_, index) => (
+        <i
+          key={index}
+          style={{
+            '--tree': index,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function Mountains() {
+  return (
+    <div className="pl2d-mountains" aria-hidden="true">
+      <i />
+      <i />
+      <i />
+      <i />
+      <i />
+    </div>
+  );
+}
+
+function Clouds() {
+  return (
+    <div className="pl2d-clouds" aria-hidden="true">
+      <i />
+      <i />
+      <i />
+      <i />
+    </div>
+  );
+}
+
+function River() {
+  return (
+    <div className="pl2d-river-wrap" aria-hidden="true">
+      <svg
+        viewBox="0 0 100 1000"
+        preserveAspectRatio="none"
+        className="pl2d-river-svg"
+      >
+        <path
+          className="pl2d-river-shadow"
+          d="
+            M 4 1020
+            C 20 900, 3 810, 14 710
+            C 25 610, 7 520, 18 430
+            C 29 330, 8 230, 20 130
+            C 25 85, 23 35, 30 -20
+          "
+        />
+
+        <path
+          className="pl2d-river-water"
+          d="
+            M 4 1020
+            C 20 900, 3 810, 14 710
+            C 25 610, 7 520, 18 430
+            C 29 330, 8 230, 20 130
+            C 25 85, 23 35, 30 -20
+          "
+        />
+      </svg>
+    </div>
+  );
+}
+
+function Road() {
+  const roadPath = `
+    M 50 1000
+    C 49 970, 50 945, 50 920
+    C 47 890, 42 860, 39 830
+    C 34 800, 30 770, 31 740
+    C 32 710, 36 680, 40 650
+    C 46 620, 53 590, 58 560
+    C 63 530, 67 500, 67 470
+    C 67 440, 63 410, 58 380
+    C 53 350, 47 320, 42 290
+    C 37 260, 33 230, 33 200
+    C 34 165, 40 135, 47 110
+    C 49 75, 48 35, 47 -20
+  `;
+
+  return (
+    <svg
+      className="pl2d-road-svg"
+      viewBox="0 0 100 1000"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
+      <path
+        className="pl2d-road-deep-shadow"
+        d={roadPath}
+      />
+
+      <path
+        className="pl2d-road-shadow"
+        d={roadPath}
+      />
+
+      <path
+        className="pl2d-road-edge"
+        d={roadPath}
+      />
+
+      <path
+        className="pl2d-road-main"
+        d={roadPath}
+      />
+
+      <path
+        className="pl2d-road-highlight"
+        d={roadPath}
+      />
+    </svg>
+  );
+}
+function ChampionshipSection({
+  championship,
+  sectionIndex,
+  worldState,
+  currentGlobalLevel,
+  currentChampionship,
+  journeyStarted,
+  worldNowMs,
+}) {
+  const championshipNumber =
+    championship.championshipNumber ??
+    championship.number ??
+    sectionIndex + 1;
+
+  const startLevel =
+    ((championshipNumber - 1) * 10) + 1;
+
+  const endLevel =
+    championshipNumber * 10;
+
+  const biome =
+    BIOMES[
+      (championshipNumber - 1) %
+      BIOMES.length
+    ];
+
+  const isCurrentChampionship =
+    championshipNumber ===
+    currentChampionship;
+
+  const backendLevels =
+    worldState?.levels ?? [];
+
+  const backendLevelMap =
+    useMemo(() => {
+      const map = new Map();
+
+      backendLevels.forEach(
+        (item, index) => {
+          const localLevel =
+            Number(
+              item?.level ??
+              item?.level_number ??
+              index + 1,
+            );
+
+          map.set(
+            localLevel,
+            item,
+          );
+        },
       );
 
-    playText.y = 77;
-
-    const playHit =
-      new Container();
-
-    playHit.addChild(
-      playGlow,
-      playButton,
-      playText,
-    );
-
-    playHit.eventMode = 'static';
-    playHit.cursor = 'pointer';
-
-    playHit.on(
-      'pointertap',
-      (event) => {
-        event.stopPropagation();
-
-        window.dispatchEvent(
-          new CustomEvent(
-            'pl-world-level-select',
-            {
-              detail: {
-                level: destination.level,
-                name: destination.name,
-              },
-            },
-          ),
-        );
-      },
-    );
-
-    root.addChild(playHit);
-
-    // PLAY becomes visible only when the avatar reaches
-    // the current destination.
-    playHit.visible = false;
-
-    root.__playGlow = playGlow;
-    root.__playHit = playHit;
-  }
-
-  root.__glow = glow;
-
-  root.eventMode =
-    isLocked
-      ? 'none'
-      : 'static';
-
-  root.cursor =
-    isLocked
-      ? 'default'
-      : 'pointer';
-
-  if (!isLocked) {
-    root.on(
-      'pointertap',
-      () => {
-        window.dispatchEvent(
-          new CustomEvent(
-            'pl-world-level-select',
-            {
-              detail: {
-                level: destination.level,
-                name: destination.name,
-              },
-            },
-          ),
-        );
-      },
-    );
-  }
-
-  return root;
-}
-
-function createChampionArena() {
-  const root = new Container();
-
-  root.x = 510;
-  root.y = 110;
-
-  const halo = new Graphics();
-
-  halo.circle(
-    0,
-    0,
-    108,
-  );
-
-  halo.fill({
-    color: 0xffcf58,
-    alpha: 0.10,
-  });
-
-  const glow = new Graphics();
-
-  glow.circle(
-    0,
-    0,
-    82,
-  );
-
-  glow.fill({
-    color: 0xffc83c,
-    alpha: 0.20,
-  });
-
-  const crown = makeText(
-    '♛',
-    31,
-    0xffdc6f,
-  );
-
-  crown.y = -68;
-
-  const boardShadow =
-    new Graphics();
-
-  boardShadow.roundRect(
-    -155,
-    -44,
-    310,
-    94,
-    17,
-  );
-
-  boardShadow.fill({
-    color: 0x000000,
-    alpha: 0.32,
-  });
-
-  boardShadow.y = 7;
-
-  const board =
-    new Graphics();
-
-  board.roundRect(
-    -155,
-    -47,
-    310,
-    94,
-    17,
-  );
-
-  board.fill({
-    color: 0x21120d,
-    alpha: 0.97,
-  });
-
-  board.stroke({
-    width: 5,
-    color: 0xe5bc4e,
-  });
-
-  const innerBorder =
-    new Graphics();
-
-  innerBorder.roundRect(
-    -145,
-    -37,
-    290,
-    74,
-    13,
-  );
-
-  innerBorder.stroke({
-    width: 2,
-    color: 0xffe59a,
-    alpha: 0.68,
-  });
-
-  const title = makeText(
-    'CHAMPION ARENA I',
-    16,
-    0xffe294,
-  );
-
-  title.y = -23;
-
-  const prize = makeText(
-    '£100',
-    30,
-    0xffffff,
-  );
-
-  prize.y = 4;
-
-  const prizeLabel =
-    makeText(
-      'CHAMPION PRIZE',
-      10,
-      0xffdd79,
-    );
-
-  prizeLabel.y = 29;
-
-  const leftStar =
-    makeText(
-      '✦',
-      16,
-      0xffd65f,
-    );
-
-  leftStar.x = -122;
-  leftStar.y = 2;
-
-  const rightStar =
-    makeText(
-      '✦',
-      16,
-      0xffd65f,
-    );
-
-  rightStar.x = 122;
-  rightStar.y = 2;
-
-  root.addChild(
-    halo,
-    glow,
-    crown,
-    boardShadow,
-    board,
-    innerBorder,
-    title,
-    prize,
-    prizeLabel,
-    leftStar,
-    rightStar,
-  );
-
-  root.__halo = halo;
-  root.__glow = glow;
-  root.__crown = crown;
-  root.__leftStar = leftStar;
-  root.__rightStar = rightStar;
-
-  return root;
-}
-
-function createSeasonPrizeBanner() {
-  const root = new Container();
-
-  root.x = 510;
-  root.y = 1435;
-
-  const panel = new Graphics();
-
-  panel.roundRect(
-    -208,
-    -54,
-    416,
-    108,
-    18,
-  );
-
-  panel.fill({
-    color: 0x27170f,
-    alpha: 0.95,
-  });
-
-  panel.stroke({
-    width: 4,
-    color: 0xd7a943,
-  });
-
-  const title = makeText(
-    'PRIZE LEAGUE WORLD • SEASON 1',
-    12,
-    0xf6d77d,
-  );
-
-  title.y = -31;
-
-  const amount = makeText(
-    'UP TO £127,500',
-    25,
-  );
-
-  amount.y = -1;
-
-  const subtitle = makeText(
-    'IN SEASON PRIZES',
-    13,
-    0xffe9af,
-  );
-
-  subtitle.y = 24;
-
-  const meta = makeText(
-    '500 LEVELS • 50 CHAMPION ARENAS',
-    9,
-    0xe9cf8a,
-  );
-
-  meta.y = 43;
-
-  root.addChild(
-    panel,
-    title,
-    amount,
-    subtitle,
-    meta,
-  );
-
-  return root;
-}
-
-export default function WorldCanvas() {
-  const hostRef = useRef(null);
-
-  useEffect(() => {
-    const host = hostRef.current;
-
-    if (!host) {
-      return undefined;
+      return map;
+    }, [backendLevels]);
+
+  const selectLevel = (
+    globalLevel,
+    localLevel,
+    levelState,
+  ) => {
+    if (
+      !isCurrentChampionship ||
+      !levelState?.available ||
+      levelState?.completed
+    ) {
+      return;
     }
 
-    let app = null;
-    let initialized = false;
-    let destroyed = false;
-
-    let world = null;
-
-    let arena = null;
-
-    let zoom = 1;
-
-    let dragging = false;
-    let dragStartX = 0;
-    let dragStartY = 0;
-    let worldStartX = 0;
-    let worldStartY = 0;
-
-    const activePointers = new Map();
-
-    let pinchStartDistance = null;
-    let pinchStartZoom = null;
-
-    const markers = [];
-
-    let liveAvatar = null;
-
-    let avatarRoutePosition = {
-      x: ROYAL_VILLAGE_ROUTE[0].x,
-      y: ROYAL_VILLAGE_ROUTE[0].y,
-    };
-
-    let avatarRouteIndex = 0;
-
-    let avatarMoving = false;
-    let avatarArrived = false;
-
-    let currentMarker = null;
-
-    const AVATAR_SPEED = 165;
-    const arenaParticles = [];
-
-    const clampWorld = () => {
-      if (!app || !world) return;
-
-      const width = app.renderer.width;
-      const height = app.renderer.height;
-
-      const scaledWidth =
-        WORLD_WIDTH * zoom;
-
-      const scaledHeight =
-        WORLD_HEIGHT * zoom;
-
-      const margin = 70;
-
-      world.x = Math.min(
-        margin,
-        Math.max(
-          width - scaledWidth - margin,
-          world.x,
-        ),
-      );
-
-      world.y = Math.min(
-        margin,
-        Math.max(
-          height - scaledHeight - margin,
-          world.y,
-        ),
-      );
-    };
-
-    const setFocus = (
-      x,
-      y,
-      targetZoom,
-      verticalPosition = 0.62,
-    ) => {
-      zoom = Math.max(
-        MIN_ZOOM,
-        Math.min(
-          MAX_ZOOM,
-          targetZoom,
-        ),
-      );
-
-      world.scale.set(zoom);
-
-      world.x =
-        app.renderer.width / 2 -
-        x * zoom;
-
-      world.y =
-        app.renderer.height *
-          verticalPosition -
-        y * zoom;
-
-      clampWorld();
-    };
-
-    const revealCurrentPlay = () => {
-      if (
-        currentMarker?.__playHit
-      ) {
-        currentMarker.__playHit.visible =
-          true;
-      }
-    };
-
-    const hideCurrentPlay = () => {
-      if (
-        currentMarker?.__playHit
-      ) {
-        currentMarker.__playHit.visible =
-          false;
-      }
-    };
-
-    const focusOnAvatar = () => {
-      if (!app || !world) {
-        return;
-      }
-
-      const mobile =
-        app.renderer.width <=
-        760;
-
-      const desiredX =
-        app.renderer.width / 2;
-
-      const desiredY =
-        app.renderer.height *
-        (
-          mobile
-            ? 0.62
-            : 0.60
-        );
-
-      const targetX =
-        desiredX -
-        avatarRoutePosition.x *
-        zoom;
-
-      const targetY =
-        desiredY -
-        avatarRoutePosition.y *
-        zoom;
-
-      // Smooth camera following rather than snapping.
-      world.x +=
-        (
-          targetX -
-          world.x
-        ) * 0.075;
-
-      world.y +=
-        (
-          targetY -
-          world.y
-        ) * 0.075;
-
-      clampWorld();
-    };
-
-    const beginAvatarJourney = () => {
-      const destinationRouteIndex =
-        LEVEL_ROUTE_INDEX[
-          CURRENT_WORLD_LEVEL
-        ];
-
-      if (
-        destinationRouteIndex ===
-        undefined
-      ) {
-        revealCurrentPlay();
-        return;
-      }
-
-      avatarRouteIndex = 0;
-      avatarMoving = true;
-      avatarArrived = false;
-
-      hideCurrentPlay();
-
-      avatarRoutePosition = {
-        x: ROYAL_VILLAGE_ROUTE[0].x,
-        y: ROYAL_VILLAGE_ROUTE[0].y,
-      };
-
-      if (liveAvatar) {
-        liveAvatar.x =
-          avatarRoutePosition.x;
-
-        liveAvatar.y =
-          avatarRoutePosition.y;
-      }
-    };
-
-    const updateAvatarJourney = (
-      deltaSeconds,
-    ) => {
-      if (
-        !avatarMoving ||
-        avatarArrived
-      ) {
-        return;
-      }
-
-      const destinationRouteIndex =
-        LEVEL_ROUTE_INDEX[
-          CURRENT_WORLD_LEVEL
-        ];
-
-      if (
-        avatarRouteIndex >=
-        destinationRouteIndex
-      ) {
-        avatarMoving = false;
-        avatarArrived = true;
-
-        revealCurrentPlay();
-        return;
-      }
-
-      const nextWaypoint =
-        ROYAL_VILLAGE_ROUTE[
-          avatarRouteIndex + 1
-        ];
-
-      if (!nextWaypoint) {
-        avatarMoving = false;
-        avatarArrived = true;
-
-        revealCurrentPlay();
-        return;
-      }
-
-      const dx =
-        nextWaypoint.x -
-        avatarRoutePosition.x;
-
-      const dy =
-        nextWaypoint.y -
-        avatarRoutePosition.y;
-
-      const distance =
-        Math.hypot(
-          dx,
-          dy,
-        );
-
-      const movement =
-        AVATAR_SPEED *
-        deltaSeconds;
-
-      if (
-        distance <= movement ||
-        distance < 0.5
-      ) {
-        avatarRoutePosition = {
-          x: nextWaypoint.x,
-          y: nextWaypoint.y,
-        };
-
-        avatarRouteIndex += 1;
-      } else {
-        avatarRoutePosition = {
-          x:
-            avatarRoutePosition.x +
-            (
-              dx /
-              distance
-            ) *
-            movement,
-
-          y:
-            avatarRoutePosition.y +
-            (
-              dy /
-              distance
-            ) *
-            movement,
-        };
-      }
-
-      if (liveAvatar) {
-        liveAvatar.x =
-          avatarRoutePosition.x;
-
-        liveAvatar.y =
-          avatarRoutePosition.y;
-
-        const direction =
-          dx >= 0
-            ? 1
-            : -1;
-
-        liveAvatar.scale.x =
-          Math.abs(
-            liveAvatar.scale.x
-          ) * direction;
-      }
-
-      focusOnAvatar();
-    };
-
-    const focusStart = () => {
-      const mobile =
-        app.renderer.width <= 760;
-
-      setFocus(
-        DESTINATIONS[0].x,
-        DESTINATIONS[0].y,
-        mobile ? 1.05 : 0.78,
-        mobile ? 0.64 : 0.66,
-      );
-    };
-
-    const fitOverview = () => {
-      zoom = Math.min(
-        app.renderer.width /
-          WORLD_WIDTH,
-        app.renderer.height /
-          WORLD_HEIGHT,
-      ) * 0.96;
-
-      zoom = Math.max(
-        MIN_ZOOM,
-        zoom,
-      );
-
-      world.scale.set(zoom);
-
-      world.x =
-        (
-          app.renderer.width -
-          WORLD_WIDTH * zoom
-        ) / 2;
-
-      world.y =
-        (
-          app.renderer.height -
-          WORLD_HEIGHT * zoom
-        ) / 2;
-
-      clampWorld();
-    };
-
-    const applyZoom = (
-      nextZoom,
-      pointerX,
-      pointerY,
-    ) => {
-      const previousZoom = zoom;
-
-      zoom = Math.max(
-        MIN_ZOOM,
-        Math.min(
-          MAX_ZOOM,
-          nextZoom,
-        ),
-      );
-
-      const mapX =
-        (
-          pointerX -
-          world.x
-        ) /
-        previousZoom;
-
-      const mapY =
-        (
-          pointerY -
-          world.y
-        ) /
-        previousZoom;
-
-      world.scale.set(zoom);
-
-      world.x =
-        pointerX -
-        mapX * zoom;
-
-      world.y =
-        pointerY -
-        mapY * zoom;
-
-      clampWorld();
-    };
-
-    const start = async () => {
-      app = new Application();
-
-      await app.init({
-        backgroundAlpha: 0,
-        antialias: true,
-        autoDensity: true,
-        resolution: Math.min(
-          window.devicePixelRatio || 1,
-          2,
-        ),
-        resizeTo: host,
-        preference: 'webgl',
-      });
-
-      initialized = true;
-
-      if (destroyed) {
-        app.destroy(true, {
-          children: true,
-        });
-
-        return;
-      }
-
-      app.canvas.className =
-        'pl-world-canvas';
-
-      host.appendChild(
-        app.canvas,
-      );
-
-      const [
-        mapTexture,
-
-      ] = await Promise.all([
-        Assets.load(HD_WORLD),
-
-      ]);
-
-      if (destroyed) return;
-
-      world = new Container();
-
-      app.stage.addChild(world);
-
-      const background =
-        new Sprite(mapTexture);
-
-      background.anchor.set(0);
-
-      background.width =
-        WORLD_WIDTH;
-
-      background.height =
-        WORLD_HEIGHT;
-
-      world.addChild(background);
-
-      DESTINATIONS.forEach(
-        (destination) => {
-          const marker =
-            createLevelMarker(
-              destination,
-            );
-
-          markers.push(marker);
-
-          if (
-            destination.level ===
-            CURRENT_WORLD_LEVEL
-          ) {
-            currentMarker = marker;
-          }
-
-          world.addChild(marker);
-        },
-      );
-
-      arena =
-        createChampionArena();
-
-      world.addChild(arena);
-
-      /*
-       * Live avatar container.
-       *
-       * This container is ready for a premium transparent avatar
-       * asset. We deliberately leave it visually empty until that
-       * asset exists.
-       */
-      liveAvatar =
-        new Container();
-
-      liveAvatar.x =
-        avatarRoutePosition.x;
-
-      liveAvatar.y =
-        avatarRoutePosition.y;
-
-      liveAvatar.eventMode =
-        'none';
-
-      /*
-       * Temporary movement-test marker only.
-       * This is NOT the final avatar.
-       * It proves the route + camera + arrival logic.
-       */
-      const avatarShadow =
-        new Graphics();
-
-      avatarShadow.ellipse(
-        0,
-        4,
-        15,
-        6,
-      );
-
-      avatarShadow.fill({
-        color: 0x000000,
-        alpha: 0.28,
-      });
-
-      const avatarBody =
-        new Graphics();
-
-      avatarBody.circle(
-        0,
-        -18,
-        8,
-      );
-
-      avatarBody.fill(
-        0xd9b26f,
-      );
-
-      avatarBody.roundRect(
-        -7,
-        -10,
-        14,
-        24,
-        6,
-      );
-
-      avatarBody.fill(
-        0x224c78,
-      );
-
-      const avatarLegs =
-        new Graphics();
-
-      avatarLegs.rect(
-        -6,
-        12,
-        4,
-        14,
-      );
-
-      avatarLegs.rect(
-        2,
-        12,
-        4,
-        14,
-      );
-
-      avatarLegs.fill(
-        0x2c241d,
-      );
-
-      liveAvatar.addChild(
-        avatarShadow,
-        avatarLegs,
-        avatarBody,
-      );
-
-      liveAvatar.scale.set(
-        1.15,
-      );
-
-      world.addChild(
-        liveAvatar,
-      );
-
-      if (!LIVE_AVATAR_ENABLED) {
-        liveAvatar.visible = false;
-      }
-
-      // Decorative Champion Arena sparkles.
-      // These are promotional environmental effects only.
-      for (let i = 0; i < 14; i += 1) {
-        const sparkle =
-          new Graphics();
-
-        sparkle.circle(
-          0,
-          0,
-          2 + (i % 3),
-        );
-
-        sparkle.fill({
-          color:
-            i % 3 === 0
-              ? 0xffffff
-              : 0xffd45e,
-          alpha: 0.8,
-        });
-
-        sparkle.x =
-          510 +
-          Math.cos(
-            (Math.PI * 2 * i) /
-              14,
-          ) *
-            (
-              95 +
-              (i % 4) * 12
-            );
-
-        sparkle.y =
-          110 +
-          Math.sin(
-            (Math.PI * 2 * i) /
-              14,
-          ) *
-            (
-              65 +
-              (i % 3) * 10
-            );
-
-        sparkle.__seed =
-          i * 0.73;
-
-        sparkle.__baseX =
-          sparkle.x;
-
-        sparkle.__baseY =
-          sparkle.y;
-
-        arenaParticles.push(
-          sparkle,
-        );
-
-        world.addChild(
-          sparkle,
-        );
-      }
-
-
-
-      focusStart();
-
-      window.setTimeout(
-        () => {
-          beginAvatarJourney();
-        },
-        450,
-      );
-
-      const handleStart = () => {
-        focusStart();
-      };
-
-      const handleOverview = () => {
-        fitOverview();
-      };
-
-      const handleZoomIn = () => {
-        applyZoom(
-          zoom * 1.18,
-          app.renderer.width / 2,
-          app.renderer.height / 2,
-        );
-      };
-
-      const handleZoomOut = () => {
-        applyZoom(
-          zoom * 0.84,
-          app.renderer.width / 2,
-          app.renderer.height / 2,
-        );
-      };
-
-      window.addEventListener(
-        'pl-world-start',
-        handleStart,
-      );
-
-      window.addEventListener(
-        'pl-world-overview',
-        handleOverview,
-      );
-
-      window.addEventListener(
-        'pl-world-zoom-in',
-        handleZoomIn,
-      );
-
-      window.addEventListener(
-        'pl-world-zoom-out',
-        handleZoomOut,
-      );
-
-      app.__worldCleanup = () => {
-        window.removeEventListener(
-          'pl-world-start',
-          handleStart,
-        );
-
-        window.removeEventListener(
-          'pl-world-overview',
-          handleOverview,
-        );
-
-        window.removeEventListener(
-          'pl-world-zoom-in',
-          handleZoomIn,
-        );
-
-        window.removeEventListener(
-          'pl-world-zoom-out',
-          handleZoomOut,
-        );
-      };
-
-      app.canvas.addEventListener(
-        'wheel',
-        (event) => {
-          event.preventDefault();
-
-          const bounds =
-            app.canvas.getBoundingClientRect();
-
-          applyZoom(
-            zoom *
-              (
-                event.deltaY < 0
-                  ? 1.12
-                  : 0.89
-              ),
-            event.clientX -
-              bounds.left,
-            event.clientY -
-              bounds.top,
-          );
-        },
+    window.dispatchEvent(
+      new CustomEvent(
+        'pl-world-level-select',
         {
-          passive: false,
+          detail: {
+            level: localLevel,
+            globalLevel,
+            championshipNumber,
+            name:
+              `Level ${globalLevel}`,
+          },
         },
-      );
+      ),
+    );
+  };
 
-      app.canvas.addEventListener(
-        'pointerdown',
-        (event) => {
-          activePointers.set(
-            event.pointerId,
-            {
-              x: event.clientX,
-              y: event.clientY,
-            },
-          );
+  /*
+   * 11 VISUAL POSITIONS:
+   *
+   * 0-9  = ten real numbered levels
+   * 10   = reserved special slot
+   */
+  const pathItems =
+    useMemo(
+      () => [
+        ...Array.from(
+          { length: 10 },
+          (_, index) => ({
+            type: 'level',
+            localLevel:
+              index + 1,
+            globalLevel:
+              startLevel + index,
+          }),
+        ),
 
-          try {
-            app.canvas.setPointerCapture(
-              event.pointerId,
-            );
-          } catch (_) {}
-
-          if (
-            activePointers.size === 1
-          ) {
-            dragging = true;
-
-            dragStartX =
-              event.clientX;
-
-            dragStartY =
-              event.clientY;
-
-            worldStartX =
-              world.x;
-
-            worldStartY =
-              world.y;
-          }
-
-          if (
-            activePointers.size === 2
-          ) {
-            dragging = false;
-
-            const points =
-              Array.from(
-                activePointers.values(),
-              );
-
-            pinchStartDistance =
-              Math.hypot(
-                points[1].x -
-                  points[0].x,
-                points[1].y -
-                  points[0].y,
-              );
-
-            pinchStartZoom =
-              zoom;
-          }
+        {
+          type: 'special',
+          championshipNumber,
         },
-      );
+      ],
+      [
+        startLevel,
+        championshipNumber,
+      ],
+    );
 
-      app.canvas.addEventListener(
-        'pointermove',
-        (event) => {
-          if (
-            activePointers.has(
-              event.pointerId,
-            )
-          ) {
-            activePointers.set(
-              event.pointerId,
-              {
-                x: event.clientX,
-                y: event.clientY,
-              },
-            );
-          }
+  return (
+    <section
+      className={[
+        'pl1000-section',
+        `pl2d-biome-${biome}`,
+      ].join(' ')}
+      data-championship={
+        championshipNumber
+      }
+      style={{
+        minHeight:
+          `${CHAMPIONSHIP_HEIGHT}px`,
+      }}
+    >
+      <Mountains />
+      <Clouds />
+      <River />
 
-          if (
-            activePointers.size ===
-              2 &&
-            pinchStartDistance &&
-            pinchStartZoom
-          ) {
-            const points =
-              Array.from(
-                activePointers.values(),
+      <ForestLayer
+        side="left"
+        amount={12}
+      />
+
+      <ForestLayer
+        side="right"
+        amount={12}
+      />
+
+      <svg
+        className="pl1000-road-svg"
+        viewBox="0 0 100 1000"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <path
+          className="pl1000-road-shadow"
+          d="
+            M 50 1020
+
+            C 50 975,
+              43 950,
+              39 920
+
+            C 34 890,
+              30 850,
+              31 800
+
+            C 32 750,
+              37 715,
+              40 670
+
+            C 47 625,
+              55 590,
+              58 550
+
+            C 64 510,
+              68 470,
+              68 430
+
+            C 67 390,
+              63 350,
+              59 310
+
+            C 54 270,
+              48 225,
+              43 185
+
+            C 38 145,
+              34 120,
+              34 100
+
+            C 34 78,
+              40 62,
+              46 52
+
+            C 48 40,
+              49 26,
+              50 -20
+          "
+        />
+
+        <path
+          className="pl1000-road-surface"
+          d="
+            M 50 1020
+
+            C 50 975,
+              43 950,
+              39 920
+
+            C 34 890,
+              30 850,
+              31 800
+
+            C 32 750,
+              37 715,
+              40 670
+
+            C 47 625,
+              55 590,
+              58 550
+
+            C 64 510,
+              68 470,
+              68 430
+
+            C 67 390,
+              63 350,
+              59 310
+
+            C 54 270,
+              48 225,
+              43 185
+
+            C 38 145,
+              34 120,
+              34 100
+
+            C 34 78,
+              40 62,
+              46 52
+
+            C 48 40,
+              49 26,
+              50 -20
+          "
+        />
+
+        <path
+          className="pl1000-road-centre"
+          d="
+            M 50 1020
+
+            C 50 975,
+              43 950,
+              39 920
+
+            C 34 890,
+              30 850,
+              31 800
+
+            C 32 750,
+              37 715,
+              40 670
+
+            C 47 625,
+              55 590,
+              58 550
+
+            C 64 510,
+              68 470,
+              68 430
+
+            C 67 390,
+              63 350,
+              59 310
+
+            C 54 270,
+              48 225,
+              43 185
+
+            C 38 145,
+              34 120,
+              34 100
+
+            C 34 78,
+              40 62,
+              46 52
+
+            C 48 40,
+              49 26,
+              50 -20
+          "
+        />
+      </svg>
+
+      <div className="pl1000-path">
+
+        {pathItems.map(
+          (item, index) => {
+            /*
+             * 11 equally spaced positions.
+             *
+             * Slot 1 is lowest.
+             * Special slot is highest.
+             */
+            const slotPosition =
+              PL1000_SLOT_POSITIONS[
+                index
+              ];
+
+            const bottom =
+              slotPosition.bottom;
+
+            const left =
+              slotPosition.x;            if (
+              item.type ===
+              'special'
+            ) {
+              const championName =
+                championLevelName(
+                  championshipNumber,
+                );
+
+              const championPrize =
+                formatChampionPrize(
+                  championshipNumber,
+                );
+
+              return (
+                <button
+                  key={
+                    `special-${championshipNumber}`
+                  }
+                  type="button"
+                  className={[
+                    'pl1000-special-slot',
+                    'pl1000-champion-level',
+                  ].join(' ')}
+                  style={{
+                    left:
+                      `${left}%`,
+                    bottom:
+                      `${bottom}%`,
+                  }}
+                  data-special-slot={
+                    championshipNumber
+                  }
+                  data-championship={
+                    championshipNumber
+                  }
+                  onClick={() => {
+                    window.dispatchEvent(
+                      new CustomEvent(
+                        'pl-world-champion-select',
+                        {
+                          detail: {
+                            championshipNumber,
+                            championStage:
+                              championshipNumber,
+                            name:
+                              championName,
+                            prize:
+                              championDisplayPrize(
+                                championshipNumber,
+                              ),
+                          },
+                        },
+                      ),
+                    );
+                  }}
+                  aria-label={
+                    `Championship ${championshipNumber} ${championName}`
+                  }
+                >
+                  <span className="pl1000-champion-rays" />
+
+                  <span className="pl1000-special-node">
+                    <span className="pl1000-champion-crown">
+                      ♛
+                    </span>
+
+                    <b>
+                      {championshipNumber}
+                    </b>
+                  </span>
+
+                  <strong className="pl1000-champion-name">
+                    {championName}
+                  </strong>
+
+                  <span className="pl1000-champion-prize">
+                    {championPrize}
+                  </span>
+
+                  <small>
+                    CHAMPION LEVEL
+                  </small>
+                </button>
+              );
+            }
+
+
+            const {
+              globalLevel,
+              localLevel,
+            } = item;
+
+            const backendState =
+              isCurrentChampionship
+                ? backendLevelMap.get(
+                    localLevel,
+                  )
+                : null;
+
+            const completed =
+              Boolean(
+                backendState
+                  ?.completed,
               );
 
-            const distance =
-              Math.hypot(
-                points[1].x -
-                  points[0].x,
-                points[1].y -
-                  points[0].y,
+            const available =
+              Boolean(
+                backendState
+                  ?.available,
               );
 
-            const midpointX =
-              (
-                points[0].x +
-                points[1].x
-              ) / 2;
+            const isCurrent =
+              isCurrentChampionship &&
+              globalLevel ===
+                currentGlobalLevel;
 
-            const midpointY =
-              (
-                points[0].y +
-                points[1].y
-              ) / 2;
+            const locked =
+              !completed &&
+              !available;
 
-            const bounds =
-              app.canvas.getBoundingClientRect();
+            const levelUnlockMs =
+              worldUnlockTimeForLevel(
+                backendState,
+                localLevel,
+              );
 
-            applyZoom(
-              pinchStartZoom *
-                (
-                  distance /
-                  pinchStartDistance
-                ),
-              midpointX -
-                bounds.left,
-              midpointY -
-                bounds.top,
+            const hasFutureUnlock =
+              locked &&
+              Number.isFinite(
+                levelUnlockMs,
+              ) &&
+              levelUnlockMs >
+                worldNowMs;
+
+            const levelCountdown =
+              hasFutureUnlock
+                ? formatWorldCountdown(
+                    levelUnlockMs,
+                    worldNowMs,
+                  )
+                : null;
+
+            return (
+              <button
+                key={
+                  `level-${globalLevel}`
+                }
+                id={
+                  `pl2d-level-${globalLevel}`
+                }
+                type="button"
+                className={[
+                  'pl1000-level',
+                  completed
+                    ? 'is-completed'
+                    : '',
+                  isCurrent
+                    ? 'is-current'
+                    : '',
+                  available
+                    ? 'is-playable'
+                    : '',
+                  locked
+                    ? 'is-locked'
+                    : '',
+                ].join(' ')}
+                style={{
+                  left:
+                    `${left}%`,
+                  bottom:
+                    `${bottom}%`,
+                }}
+                onClick={() =>
+                  selectLevel(
+                    globalLevel,
+                    localLevel,
+                    backendState,
+                  )
+                }
+                aria-label={
+                  `Level ${globalLevel}`
+                }
+              >
+                <span className="pl1000-node">
+                  {completed
+                    ? '✓'
+                    : globalLevel}
+                </span>
+
+                <small>
+                  Level {globalLevel}
+                </small>
+
+                {locked && (
+                  <span className="pl1000-lock">
+                    🔒
+                  </span>
+                )}
+
+                {levelCountdown && (
+                  <span className="pl2d-level-timer">
+                    <b>
+                      UNLOCKS IN
+                    </b>
+
+                    <strong>
+                      {levelCountdown}
+                    </strong>
+                  </span>
+                )}
+
+                {isCurrent &&
+                  journeyStarted && (
+                    <div className="pl1000-avatar">
+                      <span className="pl1000-avatar-head" />
+
+                      <span className="pl1000-avatar-body">
+                        PL
+                      </span>
+
+                      <b>
+                        YOU
+                      </b>
+                    </div>
+                  )}
+
+                {isCurrent &&
+                  available &&
+                  !completed && (
+                    <span className="pl1000-play">
+                      PLAY
+                    </span>
+                  )}
+              </button>
             );
+          },
+        )}
 
+      </div>
+
+      <div className="pl1000-range">
+        <small>
+          CHAMPIONSHIP {championshipNumber}
+        </small>
+
+        <span>
+          LEVELS {startLevel}–{endLevel}
+        </span>
+      </div>
+    </section>
+  );
+}
+function SeasonStart({
+  showAvatar,
+  journeyWalking,
+  onStartJourney,
+}) {
+  return (
+    <div
+      id="pl2d-season-start"
+      className="pl2d-season-start"
+    >
+      <div
+        className="pl2d-entrance-mountains"
+        aria-hidden="true"
+      >
+        <i />
+        <i />
+        <i />
+        <i />
+      </div>
+
+      <div
+        className="pl2d-entrance-rays"
+        aria-hidden="true"
+      />
+
+      <div className="pl2d-entrance-heading">
+        <div className="pl2d-entrance-crest">
+          <span>PL</span>
+        </div>
+
+        <small>
+          WELCOME TO
+        </small>
+
+        <strong>
+          PRIZE LEAGUE
+        </strong>
+
+        <span>
+          SEASON 1
+        </span>
+
+        <p>
+          1,000 Levels • 100 Championships • One Journey
+        </p>
+      </div>
+
+      <div className="pl2d-grand-gate">
+        <div className="pl2d-gate-ground-road" />
+
+        <div className="pl2d-gate-wall left-wall" />
+        <div className="pl2d-gate-wall right-wall" />
+
+        <div className="pl2d-gate-tower left-tower">
+          <div className="pl2d-tower-crown" />
+          <div className="pl2d-tower-window" />
+          <div className="pl2d-tower-banner">
+            <span>PL</span>
+          </div>
+
+          <div className="pl2d-torch left-torch">
+            <i />
+          </div>
+        </div>
+
+        <div className="pl2d-gate-tower right-tower">
+          <div className="pl2d-tower-crown" />
+          <div className="pl2d-tower-window" />
+          <div className="pl2d-tower-banner">
+            <span>PL</span>
+          </div>
+
+          <div className="pl2d-torch right-torch">
+            <i />
+          </div>
+        </div>
+
+        <div className="pl2d-gate-arch">
+          <div className="pl2d-gate-arch-title">
+            PRIZE LEAGUE
+          </div>
+
+          <div className="pl2d-gate-arch-subtitle">
+            YOUR JOURNEY BEGINS HERE
+          </div>
+        </div>
+
+        <div className="pl2d-open-gate left-gate">
+          <i />
+          <i />
+          <i />
+          <i />
+          <i />
+          <i />
+        </div>
+
+        <div className="pl2d-open-gate right-gate">
+          <i />
+          <i />
+          <i />
+          <i />
+          <i />
+          <i />
+        </div>
+
+        <div className="pl2d-gate-light" />
+
+        {showAvatar && (
+          <div
+            className={[
+              'pl2d-gate-avatar',
+              journeyWalking
+                ? 'is-walking'
+                : '',
+            ].join(' ')}
+            aria-label="Your avatar"
+          >
+            <span className="pl2d-gate-avatar-shadow" />
+
+            <span className="pl2d-gate-avatar-head" />
+
+            <span className="pl2d-gate-avatar-body">
+              PL
+            </span>
+
+            <span className="pl2d-gate-avatar-arm left" />
+            <span className="pl2d-gate-avatar-arm right" />
+
+            <span className="pl2d-gate-avatar-leg left" />
+            <span className="pl2d-gate-avatar-leg right" />
+
+            <small>YOU</small>
+          </div>
+        )}
+
+        <div className="pl2d-gate-path">
+          <i />
+          <i />
+          <i />
+          <i />
+          <i />
+        </div>
+      </div>
+
+      <button
+        type="button"
+        className={[
+          'pl2d-start-button',
+          'pl2d-start-button-premium',
+          journeyWalking
+            ? 'is-walking'
+            : '',
+        ].join(' ')}
+        disabled={journeyWalking}
+        onClick={() => {
+          if (journeyWalking) {
             return;
           }
 
-          if (
-            !dragging ||
-            activePointers.size !==
-              1
-          ) {
-            return;
-          }
+          onStartJourney?.();
+        }}
+      >
+        <span className="pl2d-button-star">
+          ★
+        </span>
 
-          world.x =
-            worldStartX +
-            event.clientX -
-            dragStartX;
+        START YOUR JOURNEY
 
-          world.y =
-            worldStartY +
-            event.clientY -
-            dragStartY;
+        <span className="pl2d-button-arrow">
+          ↑
+        </span>
+      </button>
 
-          clampWorld();
+      <div className="pl2d-start-level-indicator">
+        <span>START</span>
+
+        <strong>
+          LEVEL 1
+        </strong>
+
+        <small>
+          Begin Championship 1
+        </small>
+      </div>
+
+    </div>
+  );
+}
+function SeasonFinish() {
+  return (
+    <div className="pl2d-season-finish">
+      <div className="pl2d-finish-crown">
+        ♛
+      </div>
+
+      <div className="pl2d-finish-title">
+        SEASON 1
+      </div>
+
+      <div className="pl2d-finish-subtitle">
+        LEVEL 1000 • GRAND CHAMPION
+      </div>
+
+    </div>
+  );
+}
+
+export default function WorldCanvas({
+  previewState = null,
+}) {
+
+  const [worldNowMs, setWorldNowMs] =
+    useState(() => Date.now());
+
+  useEffect(() => {
+    const timerId =
+      window.setInterval(
+        () => {
+          setWorldNowMs(Date.now());
         },
+        1000,
       );
 
-      const stopPointer =
-        (event) => {
-          activePointers.delete(
-            event.pointerId,
-          );
+    return () => {
+      window.clearInterval(timerId);
+    };
+  }, []);
 
-          if (
-            activePointers.size < 2
-          ) {
-            pinchStartDistance = null;
-            pinchStartZoom = null;
-          }
+  const navigate =
+    useNavigate();
 
-          dragging = false;
-        };
+  const location =
+    useLocation();
 
-      app.canvas.addEventListener(
-        'pointerup',
-        stopPointer,
-      );
+  const [navBusy, setNavBusy] =
+    useState(false);
 
-      app.canvas.addEventListener(
-        'pointercancel',
-        stopPointer,
-      );
+  const [
+    showFreeLeaderboard,
+    setShowFreeLeaderboard,
+  ] = useState(false);
 
-      let elapsed = 0;
+  const viewportRef =
+    useRef(null);
 
-      app.ticker.add(
-        (ticker) => {
-          elapsed +=
-            ticker.deltaTime *
-            0.03;
+  const initialScrollDoneRef =
+    useRef(false);
 
-          updateAvatarJourney(
+  const journeyTimerRef =
+    useRef(null);
+
+  const [zoom, setZoom] =
+    useState(1);
+
+  const [worldState, setWorldState] =
+    useState(previewState);
+
+  const [stateLoading, setStateLoading] =
+    useState(!previewState);
+
+  const [stateError, setStateError] =
+    useState('');
+
+  const [countdowns, setCountdowns] =
+    useState(() => {
+      const initial = {};
+
+      (
+        previewState?.levels ?? []
+      ).forEach(
+        (levelState, index) => {
+          const localLevel =
+            Number(
+              levelState?.level ??
+              levelState?.level_number ??
+              index + 1,
+            );
+
+          initial[localLevel] =
             Math.max(
               0,
               Number(
-                ticker.deltaMS ||
-                16.67
-              ) / 1000,
-            ),
-          );
-
-          markers.forEach(
-            (marker, index) => {
-              const pulse =
-                1 +
-                Math.sin(
-                  elapsed * 2 +
-                    index * 0.7,
-                ) *
-                  0.025;
-
-              marker.__glow.scale.set(
-                pulse,
-              );
-
-              if (marker.__playGlow) {
-                const playPulse =
-                  1 +
-                  Math.sin(
-                    elapsed * 3,
-                  ) *
-                    0.05;
-
-                marker.__playGlow.scale.set(
-                  playPulse,
-                );
-              }
-            },
-          );
-
-          if (
-            liveAvatar &&
-            avatarMoving
-          ) {
-            liveAvatar.rotation =
-              Math.sin(
-                elapsed * 8,
-              ) *
-                0.025;
-
-            liveAvatar.y =
-              avatarRoutePosition.y +
-              Math.abs(
-                Math.sin(
-                  elapsed * 8,
-                ),
-              ) *
-                2.5;
-          } else if (liveAvatar) {
-            liveAvatar.rotation = 0;
-            liveAvatar.y =
-              avatarRoutePosition.y;
-          }
-
-          if (arena) {
-            const pulse =
-              1 +
-              Math.sin(
-                elapsed * 2,
-              ) *
-                0.04;
-
-            const haloPulse =
-              1 +
-              Math.sin(
-                elapsed * 1.35,
-              ) *
-                0.07;
-
-            arena.__glow.scale.set(
-              pulse,
+                levelState
+                  ?.seconds_until_unlock ??
+                0,
+              ),
             );
-
-            arena.__halo.scale.set(
-              haloPulse,
-            );
-
-            arena.__crown.y =
-              -68 +
-              Math.sin(
-                elapsed * 2.3,
-              ) *
-                2.5;
-
-            arena.__leftStar.rotation =
-              elapsed * 0.6;
-
-            arena.__rightStar.rotation =
-              -elapsed * 0.6;
-          }
-
-          arenaParticles.forEach(
-            (particle) => {
-              particle.alpha =
-                0.35 +
-                (
-                  Math.sin(
-                    elapsed * 3 +
-                      particle.__seed,
-                  ) +
-                  1
-                ) *
-                  0.3;
-
-              particle.x =
-                particle.__baseX +
-                Math.sin(
-                  elapsed * 1.8 +
-                    particle.__seed,
-                ) *
-                  4;
-
-              particle.y =
-                particle.__baseY +
-                Math.cos(
-                  elapsed * 1.6 +
-                    particle.__seed,
-                ) *
-                  4;
-            },
-          );
-
         },
       );
-    };
 
-    start().catch(
-      (error) => {
-        console.error(
-          '[PrizeLeagueWorld] HD environment failed:',
-          error,
-        );
-      },
+      return initial;
+    });
+
+  const [journeyStarted, setJourneyStarted] =
+    useState(false);
+
+  const [journeyWalking, setJourneyWalking] =
+    useState(false);
+
+  const orderedChampionships =
+    useMemo(
+      () =>
+        [...SEASON_1_CHAMPIONSHIPS]
+          .sort((a, b) => {
+            const aNumber =
+              a.championshipNumber ??
+              a.number ??
+              0;
+
+            const bNumber =
+              b.championshipNumber ??
+              b.number ??
+              0;
+
+            return bNumber - aNumber;
+          }),
+      [],
     );
 
-    return () => {
-      destroyed = true;
+  const currentChampionship =
+    Math.max(
+      1,
+      Math.min(
+        100,
+        Number(
+          worldState?.progress
+            ?.champion_stage ??
+          1,
+        ),
+      ),
+    );
 
-      if (
-        app?.__worldCleanup
-      ) {
-        app.__worldCleanup();
+  const currentLocalLevel =
+    Math.max(
+      1,
+      Math.min(
+        10,
+        Number(
+          worldState?.progress
+            ?.current_level ??
+          1,
+        ),
+      ),
+    );
+
+  const currentGlobalLevel =
+    globalLevelFor(
+      currentChampionship,
+      currentLocalLevel,
+    );
+
+  const completedLevels =
+    worldState?.progress
+      ?.completed_levels ??
+    [];
+
+  /*
+   * Only a completely new World user
+   * begins outside the entrance gate.
+   *
+   * Returning users load directly at
+   * their current actual level.
+   */
+  const isAtJourneyStart =
+    Boolean(worldState) &&
+    currentChampionship === 1 &&
+    currentLocalLevel === 1 &&
+    completedLevels.length === 0 &&
+    !journeyStarted;
+
+  const setStateAndCountdowns =
+    (response) => {
+      setWorldState(response);
+
+      const next = {};
+
+      (
+        response?.levels ?? []
+      ).forEach(
+        (levelState, index) => {
+          const localLevel =
+            Number(
+              levelState?.level ??
+              levelState?.level_number ??
+              index + 1,
+            );
+
+          next[localLevel] =
+            Math.max(
+              0,
+              Number(
+                levelState
+                  ?.seconds_until_unlock ??
+                0,
+              ),
+            );
+        },
+      );
+
+      setCountdowns(next);
+    };
+
+  /*
+   * Production:
+   * real server-authoritative state.
+   *
+   * localhost /world-preview:
+   * isolated previewState supplied by
+   * WorldPreview.jsx.
+   */
+  useEffect(() => {
+    let cancelled = false;
+
+    if (previewState) {
+      setStateAndCountdowns(
+        previewState,
+      );
+
+      setStateLoading(false);
+      setStateError('');
+
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const load = async () => {
+      try {
+        setStateLoading(true);
+        setStateError('');
+
+        const response =
+          await worldAPI.state();
+
+        if (cancelled) {
+          return;
+        }
+
+        setStateAndCountdowns(
+          response,
+        );
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        const raw =
+          error?.response
+            ?.data?.detail;
+
+        setStateError(
+          typeof raw === 'string'
+            ? raw
+            : raw?.message ||
+              raw?.msg ||
+              'Unable to load your World progress.',
+        );
+      } finally {
+        if (!cancelled) {
+          setStateLoading(false);
+        }
       }
+    };
 
-      if (
-        app &&
-        initialized
-      ) {
-        app.destroy(
-          true,
-          {
-            children: true,
-            texture: false,
-            textureSource: false,
+    load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [previewState]);
+
+  /*
+   * Live countdown display.
+   *
+   * Production refreshes the server
+   * exactly when a timer reaches zero.
+   */
+  useEffect(() => {
+    if (!worldState) {
+      return undefined;
+    }
+
+    const interval =
+      window.setInterval(() => {
+        let reachedZero = false;
+
+        setCountdowns(
+          (previous) => {
+            const next = {
+              ...previous,
+            };
+
+            Object.keys(next)
+              .forEach((key) => {
+                const before =
+                  Number(
+                    next[key] ?? 0,
+                  );
+
+                if (before <= 0) {
+                  return;
+                }
+
+                const after =
+                  Math.max(
+                    0,
+                    before - 1,
+                  );
+
+                next[key] = after;
+
+                if (
+                  before > 0 &&
+                  after === 0
+                ) {
+                  reachedZero = true;
+                }
+              });
+
+            return next;
           },
         );
+
+        if (
+          reachedZero &&
+          !previewState
+        ) {
+          worldAPI
+            .state()
+            .then(
+              setStateAndCountdowns,
+            )
+            .catch(() => {
+              /*
+               * Server stays authoritative.
+               * Do not fake-unlock locally.
+               */
+            });
+        }
+      }, 1000);
+
+    return () => {
+      window.clearInterval(
+        interval,
+      );
+    };
+  }, [
+    worldState,
+    previewState,
+  ]);
+
+  /*
+   * INITIAL POSITION
+   *
+   * New user:
+   * immediately show Season entrance.
+   *
+   * Returning user:
+   * directly show their current node.
+   *
+   * Never begin at Level 1000.
+   */
+  useEffect(() => {
+    if (
+      !worldState ||
+      initialScrollDoneRef.current
+    ) {
+      return;
+    }
+
+    const viewport =
+      viewportRef.current;
+
+    if (!viewport) {
+      return;
+    }
+
+    const positionWorld = () => {
+      if (isAtJourneyStart) {
+        viewport.scrollTop =
+          Math.max(
+            0,
+            viewport.scrollHeight -
+            viewport.clientHeight,
+          );
+
+        initialScrollDoneRef.current =
+          true;
+
+        return;
       }
 
-      if (host) {
-        host.replaceChildren();
+      const node =
+        document.getElementById(
+          `pl2d-level-${currentGlobalLevel}`,
+        );
+
+      if (!node) {
+        return;
+      }
+
+      node.scrollIntoView({
+        behavior: 'auto',
+        block: 'center',
+      });
+
+      initialScrollDoneRef.current =
+        true;
+    };
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(
+        positionWorld,
+      );
+    });
+  }, [
+    worldState,
+    currentGlobalLevel,
+    isAtJourneyStart,
+  ]);
+
+  /*
+   * START YOUR JOURNEY
+   *
+   * Avatar begins OUTSIDE gate.
+   * Click button.
+   * Avatar walks through gate.
+   * World slowly travels to Level 1.
+   * Avatar then appears at Level 1.
+   *
+   * Game does NOT auto-open.
+   * User can press PLAY at Level 1.
+   */
+  const startJourney = () => {
+    if (
+      journeyWalking ||
+      !isAtJourneyStart
+    ) {
+      return;
+    }
+
+    const viewport =
+      viewportRef.current;
+
+    const levelOne =
+      document.getElementById(
+        'pl2d-level-1',
+      );
+
+    if (
+      !viewport ||
+      !levelOne
+    ) {
+      return;
+    }
+
+    setJourneyWalking(true);
+
+    /*
+     * Allow the avatar's walking
+     * animation to begin first.
+     */
+    window.setTimeout(() => {
+      levelOne.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }, 900);
+
+    journeyTimerRef.current =
+      window.setTimeout(() => {
+        setJourneyWalking(false);
+        setJourneyStarted(true);
+
+        requestAnimationFrame(() => {
+          levelOne.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+          });
+        });
+      }, 5600);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (
+        journeyTimerRef.current
+      ) {
+        window.clearTimeout(
+          journeyTimerRef.current,
+        );
       }
     };
   }, []);
 
+  useEffect(() => {
+    const zoomIn = () =>
+      setZoom((value) =>
+        Math.min(
+          1.2,
+          value + 0.1,
+        ),
+      );
+
+    const zoomOut = () =>
+      setZoom((value) =>
+        Math.max(
+          0.72,
+          value - 0.1,
+        ),
+      );
+
+    const overview = () => {
+      setZoom(0.78);
+
+      const node =
+        document.getElementById(
+          `pl2d-level-${currentGlobalLevel}`,
+        );
+
+      if (node) {
+        node.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      }
+    };
+
+    window.addEventListener(
+      'pl-world-zoom-in',
+      zoomIn,
+    );
+
+    window.addEventListener(
+      'pl-world-zoom-out',
+      zoomOut,
+    );
+
+    window.addEventListener(
+      'pl-world-overview',
+      overview,
+    );
+
+    return () => {
+      window.removeEventListener(
+        'pl-world-zoom-in',
+        zoomIn,
+      );
+
+      window.removeEventListener(
+        'pl-world-zoom-out',
+        zoomOut,
+      );
+
+      window.removeEventListener(
+        'pl-world-overview',
+        overview,
+      );
+    };
+  }, [currentGlobalLevel]);
+
+  const navigateTo = (path) => {
+    if (
+      navBusy ||
+      !path ||
+      location.pathname === path
+    ) {
+      return;
+    }
+
+    setNavBusy(true);
+
+    navigate(path);
+
+    window.setTimeout(
+      () => {
+        setNavBusy(false);
+      },
+      300,
+    );
+  };
+
+  const goToFreeContests = () => {
+    if (showFreeLeaderboard) {
+      setShowFreeLeaderboard(false);
+      return;
+    }
+    const isLocalPreview =
+      window.location.hostname ===
+        'localhost' ||
+      window.location.hostname ===
+        '127.0.0.1';
+
+    navigateTo(
+      isLocalPreview
+        ? '/world-preview'
+        : '/world',
+    );
+  };
+
+  const goToPaidContests = () => {
+    navigateTo('/');
+  };
+
+  const goToLeaderboard = () => {
+    setShowFreeLeaderboard(true);
+  };
+
+  const freeHomeActive =
+    location.pathname === '/world' ||
+    location.pathname ===
+      '/world-preview';
+
+  const paidActive =
+    location.pathname === '/';
+
+  const leaderboardActive =
+    showFreeLeaderboard;
   return (
     <div
-      ref={hostRef}
-      className="pl-world-render-host"
-      aria-label="Prize League HD Royal Village"
-    />
+      ref={viewportRef}
+      className="pl2d-viewport"
+    >
+      <div className="pl2d-world-header pl2d-world-header-final">
+
+        <div className="pl2d-final-brand">
+          <strong>
+            <span>PRIZE</span>
+            <span>LEAGUE</span>
+          </strong>
+
+          <small>
+            <span>1,000 LEVELS</span>
+            <span>100 CHAMPIONSHIPS</span>
+          </small>
+        </div>
+
+        <div className="pl2d-total-prize">
+          <small>TOTAL PRIZE POOL</small>
+          <strong>{FORMATTED_TOTAL_PRIZE_POOL}</strong>
+        </div>
+
+      </div>
+
+      {stateLoading && (
+        <div className="pl2d-progress-status">
+          Loading your position…
+        </div>
+      )}
+
+      {stateError && (
+        <div className="pl2d-progress-status is-error">
+          {stateError}
+        </div>
+      )}
+
+      {worldState &&
+        !isAtJourneyStart && (
+          <div className="pl2d-current-progress-card">
+            <small>
+              YOUR POSITION
+            </small>
+
+            <strong>
+              CHAMPIONSHIP {currentChampionship}
+            </strong>
+
+            <span>
+              LEVEL {currentGlobalLevel}
+            </span>
+          </div>
+        )}
+
+      {journeyWalking && (
+        <div
+          className="pl2d-travelling-avatar"
+          aria-label="Walking to Level 1"
+        >
+          <span className="pl2d-travel-shadow" />
+
+          <span className="pl2d-travel-head" />
+
+          <span className="pl2d-travel-body">
+            PL
+          </span>
+
+          <span className="pl2d-travel-arm left" />
+          <span className="pl2d-travel-arm right" />
+
+          <span className="pl2d-travel-leg left" />
+          <span className="pl2d-travel-leg right" />
+
+          <small>
+            YOU
+          </small>
+        </div>
+      )}
+
+      <div
+        className="pl2d-world"
+        style={{
+          '--world-zoom': zoom,
+        }}
+      >
+        <SeasonFinish />
+
+        {orderedChampionships.map(
+          (
+            championship,
+            index,
+          ) => (
+            <ChampionshipSection
+              key={
+                championship.id ??
+                championship
+                  .championshipNumber ??
+                index
+              }
+              championship={
+                championship
+              }
+              sectionIndex={
+                orderedChampionships
+                  .length -
+                index -
+                1
+              }
+              worldState={
+                worldState
+              }
+              countdowns={
+                countdowns
+              }
+              currentGlobalLevel={
+                currentGlobalLevel
+              }
+              currentChampionship={
+                currentChampionship
+              }
+              journeyStarted={
+                journeyStarted
+              }
+            />
+          ),
+        )}
+
+        <SeasonStart
+          showAvatar={
+            isAtJourneyStart &&
+            !journeyWalking
+          }
+          journeyWalking={
+            journeyWalking
+          }
+          onStartJourney={
+            startJourney
+          }
+        />
+      </div>
+      
+      <FreeWorldLeaderboard
+        open={showFreeLeaderboard}
+        onClose={() => {
+          setShowFreeLeaderboard(false);
+        }}
+      />
+<nav
+        className={[
+          'pl2d-bottom-nav',
+          navBusy
+            ? 'is-busy'
+            : '',
+        ].join(' ')}
+        aria-label="Prize League primary navigation"
+      >
+        <button
+          type="button"
+          className={[
+            'pl2d-bottom-token',
+            freeHomeActive
+              ? 'is-active'
+              : '',
+          ].join(' ')}
+          onClick={
+            goToFreeContests
+          }
+          disabled={navBusy}
+          aria-current={
+            freeHomeActive
+              ? 'page'
+              : undefined
+          }
+        >
+          <span
+            className="pl2d-token-icon"
+            aria-hidden="true"
+          >
+            ⌂
+          </span>
+
+          <strong>
+            HOME
+          </strong>
+
+          <small>
+            FREE CONTESTS
+          </small>
+        </button>
+
+        <button
+          type="button"
+          className={[
+            'pl2d-bottom-token',
+            paidActive
+              ? 'is-active'
+              : '',
+          ].join(' ')}
+          onClick={
+            goToPaidContests
+          }
+          disabled={navBusy}
+          aria-current={
+            paidActive
+              ? 'page'
+              : undefined
+          }
+        >
+          <span
+            className="pl2d-token-icon"
+            aria-hidden="true"
+          >
+            ♛
+          </span>
+
+          <strong>
+            PAID CONTESTS
+          </strong>
+
+          <small>
+            WIN PRIZES
+          </small>
+        </button>
+
+        <button
+          type="button"
+          className={[
+            'pl2d-bottom-token',
+            leaderboardActive
+              ? 'is-active'
+              : '',
+          ].join(' ')}
+          onClick={
+            goToLeaderboard
+          }
+          disabled={navBusy}
+          aria-current={
+            leaderboardActive
+              ? 'page'
+              : undefined
+          }
+        >
+          <span
+            className="pl2d-token-icon"
+            aria-hidden="true"
+          >
+            ♜
+          </span>
+
+          <strong>
+            LEADERBOARD
+          </strong>
+
+          <small>
+            TOP PLAYERS
+          </small>
+        </button>
+      </nav>
+
+    </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
