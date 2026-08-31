@@ -12,7 +12,6 @@ import {
   ArrowLeft,
   Crown,
   Home,
-  MapIcon as Map,
   Minus,
   Plus,
   Trophy,
