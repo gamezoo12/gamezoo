@@ -57,6 +57,8 @@ import PrivacyPage from './pages/legal/PrivacyPage';
 import WebsiteTermsPage from './pages/legal/WebsiteTermsPage';
 import MobileTermsPage from './pages/legal/MobileTermsPage';
 import PrizeLeagueWorld from './world/PrizeLeagueWorld';
+import WorldPreview from './world/WorldPreview';
+import WorldSelector from './pages/WorldSelector';
 
 import ProductionLayout from './components/admin/ProductionLayout';
 import LiveDrawPage from './pages/production/LiveDraw';
@@ -102,11 +104,13 @@ function AppRouter() {
         <Route path="/mobile-terms" element={<MobileTermsPage />} />
       </Route>
 
+      <Route path="/choose-world" element={<WorldSelector />} />
       <Route path="/world" element={<PrizeLeagueWorld />} />
+      <Route path="/world-preview" element={<WorldPreview />} />
 
       <Route path="/admin/login" element={<AdminLogin />} />
 
-      {/* Emergent Google OAuth redirects here with #session_id=… in the URL.
+      {/* Emergent Google OAuth redirects here with #session_id=â€¦ in the URL.
           The hash-intercept at the top of AppRouter also matches, but keeping
           a dedicated route avoids any 404 flash before the intercept runs. */}
       <Route path="/auth-callback" element={<AuthCallback />} />
@@ -160,3 +164,4 @@ function App() {
 }
 
 export default App;
+

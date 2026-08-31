@@ -34,10 +34,13 @@ import {
 import WorldCanvas
   from './components/WorldCanvas';
 
-import FreeWorldNumberSequence
-  from './components/FreeWorldNumberSequence';
+
+import FreeWorldLeaderboard
+  from './components/FreeWorldLeaderboard';import FreeWorldNumberSequence
+  from './components/FreeWorldNumberSequenceV3';
 
 import './styles/world.css';
+
 
 function dispatchWorldEvent(name) {
   window.dispatchEvent(
@@ -69,6 +72,11 @@ export default function PrizeLeagueWorld() {
   const [gameFlowOpen, setGameFlowOpen] =
     useState(false);
 
+
+  const [
+    showWorldLeaderboard,
+    setShowWorldLeaderboard,
+  ] = useState(false);
   useEffect(() => {
     const onLevelSelect = async (event) => {
       const level =
@@ -95,6 +103,7 @@ export default function PrizeLeagueWorld() {
           await worldAPI.level(level);
 
         setLevelData(response);
+        setGameFlowOpen(true);
       } catch (error) {
         const raw =
           error?.response?.data?.detail;
@@ -134,7 +143,7 @@ export default function PrizeLeagueWorld() {
         </div>
 
         <div className="pl-world-loading-subtitle">
-          Preparing Prize League World…
+          Preparing Prize League Worldâ€¦
         </div>
       </div>
     );
@@ -219,7 +228,7 @@ export default function PrizeLeagueWorld() {
             </span>
 
             <strong>
-              £127,500
+              Â£127,500
             </strong>
           </div>
         </motion.div>
@@ -266,72 +275,74 @@ export default function PrizeLeagueWorld() {
           <Minus size={20} />
         </button>
       </motion.div>
-
-
-      {/* Bottom game navigation */}
-      <motion.div
-        className="pl-world-bottom-controls"
-        initial={{
-          y: 28,
-          opacity: 0,
-        }}
-        animate={{
-          y: 0,
-          opacity: 1,
-        }}
-        transition={{
-          delay: 0.28,
-        }}
+      {/* Prize League primary navigation */}
+      <nav
+        className="pl-world-primary-nav"
+        aria-label="Prize League World navigation"
       >
 
         <button
           type="button"
-          onClick={() =>
-            dispatchWorldEvent(
-              'pl-world-start',
-            )
+          className={
+            !showWorldLeaderboard
+              ? 'is-active'
+              : ''
           }
+          onClick={() => {
+            setShowWorldLeaderboard(false);
+
+            dispatchWorldEvent(
+              'pl-world-start'
+            );
+          }}
         >
-          <Home size={19} />
+          <Home size={20} />
 
           <span>
-            Season Start
+            HOME
           </span>
         </button>
 
-        <div className="pl-world-bottom-center">
-          <span>
-            SEASON 1
-          </span>
-
-          <strong>
-            500 Levels • 50 Arenas
-          </strong>
-        </div>
 
         <button
           type="button"
           onClick={() =>
-            dispatchWorldEvent(
-              'pl-world-overview',
-            )
+            navigate('/')
           }
         >
-          <Map size={19} />
+          <Crown size={20} />
 
           <span>
-            Overview
+            PAID CONTESTS
           </span>
         </button>
 
-      </motion.div>
 
-      <div className="pl-world-touch-hint">
-        Drag to explore • Pinch to zoom
+        <button
+          type="button"
+          className={
+            showWorldLeaderboard
+              ? 'is-active'
+              : ''
+          }
+          onClick={() =>
+            setShowWorldLeaderboard(true)
+          }
+        >
+          <Trophy size={20} />
+
+          <span>
+            LEADERBOARD
+          </span>
+        </button>
+
+      </nav>
+<div className="pl-world-touch-hint">
+        Drag to explore â€¢ Pinch to zoom
       </div>
 
       <AnimatePresence>
-        {selectedLevel && (
+        {false && selectedLevel && (
           <motion.div
             className="pl-world-level-modal-backdrop"
             initial={{ opacity: 0 }}
@@ -369,7 +380,7 @@ export default function PrizeLeagueWorld() {
                   setSelectedLevel(null)
                 }
               >
-                ×
+                Ã—
               </button>
 
               <div className="pl-world-level-kicker">
@@ -386,7 +397,7 @@ export default function PrizeLeagueWorld() {
 
               {levelBusy && (
                 <div className="pl-world-level-loading">
-                  Loading level…
+                  Loading levelâ€¦
                 </div>
               )}
 
@@ -429,7 +440,7 @@ export default function PrizeLeagueWorld() {
                         </span>
 
                         <strong>
-                          1 → {levelData.level?.game_config?.target_number}
+                          1 â†’ {levelData.level?.game_config?.target_number}
                         </strong>
                       </div>
 
@@ -525,6 +536,15 @@ export default function PrizeLeagueWorld() {
           />
         )}
 
+
+      <FreeWorldLeaderboard
+        open={showWorldLeaderboard}
+        onClose={() =>
+          setShowWorldLeaderboard(false)
+        }
+      />
     </div>
   );
 }
+
+
