@@ -5,7 +5,7 @@ import pytest
 import requests
 from datetime import datetime, timezone, timedelta
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://contest-arena-16.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://import-verify-6.preview.emergentagent.com').rstrip('/')
 ADMIN_EMAIL = 'bachanta8@gmail.com'
 ADMIN_PASS = 'Herts@910022'
 

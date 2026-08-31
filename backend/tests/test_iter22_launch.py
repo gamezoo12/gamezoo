@@ -7,7 +7,7 @@ import pytest
 import requests
 import uuid
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://contest-arena-16.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://import-verify-6.preview.emergentagent.com').rstrip('/')
 ADMIN_EMAIL = 'bachanta8@gmail.com'
 ADMIN_PASSWORD = 'Herts@910022'
 TEST_CONTEST_SLUG = 'test-skill-leaderboard-contest-a0e33a'

@@ -9,7 +9,7 @@ import json
 from playwright.async_api import async_playwright
 
 
-BASE = "https://contest-arena-16.preview.emergentagent.com"
+BASE = "https://import-verify-6.preview.emergentagent.com"
 
 
 async def visible_logo_infos(page, route_label):

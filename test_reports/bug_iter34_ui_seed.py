@@ -7,7 +7,7 @@ from pathlib import Path
 
 import requests
 
-BASE = 'https://contest-arena-16.preview.emergentagent.com'
+BASE = 'https://import-verify-6.preview.emergentagent.com'
 OUT = Path('/app/test_reports/bug_iter34_ui_seed.json')
 
 s = requests.Session()

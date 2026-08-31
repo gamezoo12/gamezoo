@@ -5,7 +5,7 @@ async def run(page):
     await page.set_viewport_size({"width": 1920, "height": 1080})
     try:
         print("Opening admin login page")
-        await page.goto("https://contest-arena-16.preview.emergentagent.com/admin/login", wait_until="domcontentloaded")
+        await page.goto("https://import-verify-6.preview.emergentagent.com/admin/login", wait_until="domcontentloaded")
         await page.locator('input[name="email"]').fill('bachanta8@gmail.com')
         await page.locator('input[name="password"]').fill('Herts@910022')
         await page.get_by_role('button', name='Sign in to admin').click()
@@ -13,7 +13,7 @@ async def run(page):
         print("Admin login succeeded")
 
         print("Opening settings page")
-        await page.goto("https://contest-arena-16.preview.emergentagent.com/admin/settings", wait_until="networkidle")
+        await page.goto("https://import-verify-6.preview.emergentagent.com/admin/settings", wait_until="networkidle")
         danger = page.locator('[data-testid="danger-zone-wipe"]')
         await danger.wait_for(state="visible", timeout=15000)
         print("Danger Zone panel is visible")

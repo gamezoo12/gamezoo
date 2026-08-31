@@ -7,7 +7,7 @@ from urllib.request import Request, urlopen
 from PIL import Image
 
 
-BASE = "https://contest-arena-16.preview.emergentagent.com"
+BASE = "https://import-verify-6.preview.emergentagent.com"
 ROOT = Path("/app")
 
 

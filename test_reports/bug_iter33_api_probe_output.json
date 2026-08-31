@@ -1,5 +1,5 @@
 {
-  "base": "https://contest-arena-16.preview.emergentagent.com/api",
+  "base": "https://import-verify-6.preview.emergentagent.com/api",
   "steps": [
     {
       "login_status": 200
@@ -42,7 +42,7 @@
     }
   ],
   "errors": [
-    "HTTPError('400 Client Error: Bad Request for url: https://contest-arena-16.preview.emergentagent.com/api/orders/checkout')"
+    "HTTPError('400 Client Error: Bad Request for url: https://import-verify-6.preview.emergentagent.com/api/orders/checkout')"
   ],
   "checkout": null,
   "my_ticket": null,
