@@ -416,7 +416,7 @@ export default function SignupWizard() {
         requestedNext.startsWith('/') &&
         !requestedNext.startsWith('//')
           ? requestedNext
-          : '/';
+          : '/choose-world';
 
       nav(safeNext, {
         replace: true,

@@ -10,7 +10,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Coins, Gamepad2, ListChecks, Trophy, ChevronRight, Sparkles, Target, Zap as SpeedIcon } from 'lucide-react';
+import { Coins, Gamepad2, ListChecks, Trophy, Globe2, ChevronRight, Sparkles, Target, Zap as SpeedIcon } from 'lucide-react';
 import { contestsAPI, gamesAPI, ordersAPI } from '../../lib/api';
 import { tokenCount, tokens as fmtTokens } from '../../lib/format';
 import { useAuth } from '../../context/AuthContext';
@@ -23,7 +23,8 @@ import CompetitionCard from '../CompetitionCard';
 import UnifiedLeaderboard from '../leaderboard/UnifiedLeaderboard';
 
 const TABS = [
-  { id: 'contests', label: 'Home',    Icon: ListChecks },
+  { id: 'contests', label: 'Home',       Icon: ListChecks },
+  { id: 'free-world', label: 'Free World', Icon: Globe2, href: '/world' },
   { id: 'leaderboard', label: 'Leaderboard', Icon: Trophy },
   { id: 'games',       label: 'Games',       Icon: Gamepad2 },
 ];
@@ -31,7 +32,7 @@ const TABS = [
 export default function MobileHome() {
   const [tab, setTab] = useState(() => {
     const p = new URLSearchParams(window.location.search).get('m');
-    return TABS.find(t => t.id === p) ? p : 'contests';
+    return TABS.find(t => t.id === p && !t.href) ? p : 'contests';
   });
   const [contests, setContests] = useState([]);
   useEffect(() => {
@@ -49,13 +50,13 @@ export default function MobileHome() {
       {/* Sticky tab bar directly under the mobile header (site header injected outside). */}
       <div className="sticky top-14 z-30 bg-[#0b0716]/95 backdrop-blur border-b border-white/5" data-testid="mobile-tabs">
         <div className="flex">
-          {TABS.map(({ id, label, Icon }) => {
+          {TABS.map(({ id, label, Icon, href }) => {
             const active = tab === id;
             return (
               <button
                 key={id}
                 type="button"
-                onClick={() => setTab(id)}
+                onClick={() => { if (href) { window.location.assign(href); return; } setTab(id); }}
                 data-testid={`mobile-tab-${id}`}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-bold tracking-wide transition ${active ? 'text-[#FFD54A] border-b-2 border-[#FFD54A]' : 'text-white border-b-2 border-transparent'}`}
               >
