@@ -15,6 +15,7 @@ import { tokenCount } from '../../lib/format';
 
 const NAV = [
  { label: 'Home', href: '/' },
+ { label: 'Free World', href: '/world' },
  { label: 'Contests', href: '/competitions' },
  { label: 'Leaderboard', href: '/leaderboard' },
  { label: 'How It Works', href: '/how-it-works' },
@@ -170,7 +171,16 @@ export default function Header() {
  </Link>
  )}
 
- {/* Desktop notifications kept unchanged */}
+ {/* Free World — tablet/mobile quick access */}
+<Link
+  to="/world"
+  data-testid="mobile-header-free-world"
+  className="lg:hidden inline-flex items-center justify-center px-3 py-2 rounded-lg border border-[#FFD54A]/40 bg-[#FFD54A]/10 text-[#FFD54A] text-xs font-extrabold whitespace-nowrap hover:bg-[#FFD54A]/20 transition"
+>
+  FREE WORLD
+</Link>
+
+{/* Desktop notifications kept unchanged */}
  <span className="hidden sm:inline-flex"><NotificationsBell /></span>
 
  {/* Draw Centre icon — desktop only kept unchanged */}

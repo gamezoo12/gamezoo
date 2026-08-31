@@ -103,6 +103,11 @@ export default function FreeWorldNumberSequence({
   const [demoNext, setDemoNext] =
     useState(1);
 
+  const [demoRemainingMs, setDemoRemainingMs] =
+    useState(
+      timeLimitSeconds * 1000,
+    );
+
   const [session, setSession] =
     useState(null);
 
@@ -228,6 +233,55 @@ export default function FreeWorldNumberSequence({
     }, [
       target,
     ]);
+
+
+  useEffect(() => {
+    if (stage !== 'demo') {
+      return undefined;
+    }
+
+    const startedAt = Date.now();
+    const totalMs =
+      timeLimitSeconds * 1000;
+
+    setDemoRemainingMs(totalMs);
+
+    const interval =
+      window.setInterval(() => {
+        const elapsed =
+          Date.now() - startedAt;
+
+        const remaining =
+          Math.max(
+            0,
+            totalMs - elapsed,
+          );
+
+        setDemoRemainingMs(
+          remaining,
+        );
+
+        if (remaining <= 0) {
+          window.clearInterval(
+            interval,
+          );
+
+          if (mountedRef.current) {
+            setStage(
+              'demo-complete',
+            );
+          }
+        }
+      }, 100);
+
+    return () =>
+      window.clearInterval(
+        interval,
+      );
+  }, [
+    stage,
+    timeLimitSeconds,
+  ]);
 
 
   const tapDemo = (number) => {
@@ -650,7 +704,7 @@ export default function FreeWorldNumberSequence({
 
   return (
     <div
-      className="pl-free-game-shell"
+      className="pl-free-game-shell pl-free-game-v2"
       data-testid="free-world-number-sequence"
     >
       <div className="pl-free-game-safe">
@@ -660,10 +714,6 @@ export default function FreeWorldNumberSequence({
             type="button"
             className="pl-free-game-back"
             onClick={onClose}
-            disabled={
-              stage === 'official'
-              || stage === 'countdown'
-            }
             aria-label="Close game"
           >
             <ArrowLeft size={20} />
@@ -704,7 +754,7 @@ export default function FreeWorldNumberSequence({
             </div>
 
             <div className="pl-free-kicker">
-              GAME INSTRUCTIONS
+              BEFORE YOU BEGIN
             </div>
 
             <h1>
@@ -811,7 +861,7 @@ export default function FreeWorldNumberSequence({
               <Play size={18} />
               {level?.demo_enabled === false
                 ? 'CONTINUE'
-                : 'START DEMO'}
+                : 'PLAY DEMO'}
             </button>
 
           </main>
@@ -821,8 +871,20 @@ export default function FreeWorldNumberSequence({
         {stage === 'demo' && (
           <main className="pl-free-game-panel pl-free-play-panel">
 
-            <div className="pl-free-demo-badge">
-              DEMO • NO ATTEMPT USED
+            <div className="pl-free-demo-status">
+              <div className="pl-free-demo-badge">
+                PRACTICE MODE · NO ATTEMPT USED
+              </div>
+
+              <div className="pl-free-demo-timer">
+                <Clock3 size={15} />
+
+                <strong>
+                  {formatTime(
+                    demoRemainingMs,
+                  )}
+                </strong>
+              </div>
             </div>
 
             <div className="pl-free-play-title">
@@ -890,7 +952,7 @@ export default function FreeWorldNumberSequence({
                   )
                 }
               >
-                View instructions
+                INSTRUCTIONS
               </button>
 
               {level?.demo_skippable !== false && (
@@ -921,7 +983,7 @@ export default function FreeWorldNumberSequence({
             />
 
             <div className="pl-free-kicker">
-              DEMO COMPLETE
+              OFFICIAL ATTEMPT
             </div>
 
             <h1>
@@ -1118,7 +1180,7 @@ export default function FreeWorldNumberSequence({
               {
                 result?.passed
                   ? 'LEVEL COMPLETE'
-                  : 'TRY AGAIN'
+                  : 'ATTEMPT COMPLETE'
               }
             </div>
 
@@ -1126,7 +1188,7 @@ export default function FreeWorldNumberSequence({
               {
                 result?.passed
                   ? 'CONGRATULATIONS!'
-                  : 'ENCORE!'
+                  : 'ATTEMPT COMPLETE'
               }
             </h1>
 

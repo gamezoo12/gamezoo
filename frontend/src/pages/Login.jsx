@@ -126,7 +126,7 @@ export default function Login() {
  if (r?.token) localStorage.setItem('gz_token', r.token);
  if (r?.user) setGoogleUser(r.user);
  toast({ title: `Welcome back, ${r?.user?.name || 'friend'} 👋` });
- nav('/');
+ nav('/choose-world');
  };
 
  return (
