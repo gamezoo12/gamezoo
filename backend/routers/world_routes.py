@@ -974,6 +974,9 @@ async def admin_world_contests(request: Request):
 
     return {
         "season_id": WORLD_SEASON_ID,
+        "server_time": _serialize_datetime(
+            _utcnow()
+        ),
         "active_contest_number": (
             active.get("contest_number")
             if active
@@ -1253,6 +1256,55 @@ async def activate_admin_world_contest(
 
     now = _utcnow()
 
+    # --- Free World Season Launch safety guard ---
+    # Reuse of this activation endpoint as the authoritative Season
+    # Launch requires two protections:
+    #   1. Idempotency: a duplicated submit (double-click / retry /
+    #      refresh) with the SAME start/end must NOT shift the season
+    #      or write a second audit row.
+    #   2. No-shift once live: once a season is LIVE (now >= start_at),
+    #      its start time can no longer be changed. Controlled
+    #      rescheduling is only allowed while still SCHEDULED
+    #      (now < start_at).
+    existing_status = contest.get("status")
+    existing_start = _ensure_aware_datetime(
+        contest.get("start_at")
+    )
+    existing_end = _ensure_aware_datetime(
+        contest.get("end_at")
+    )
+    incoming_start = _ensure_aware_datetime(
+        body.start_at
+    )
+    incoming_end = _ensure_aware_datetime(
+        body.end_at
+    )
+
+    already_live = (
+        existing_status == "active"
+        and existing_start is not None
+        and now >= existing_start
+    )
+
+    if (
+        already_live
+        and incoming_start != existing_start
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Season is already live. The start "
+                "time of a live season cannot be "
+                "changed."
+            ),
+        )
+
+    is_noop_relaunch = bool(
+        existing_status == "active"
+        and existing_start == incoming_start
+        and existing_end == incoming_end
+    )
+
     # Only one GLOBAL Champion Contest can be active.
     await db.world_global_contests.update_many(
         {
@@ -1308,6 +1360,30 @@ async def activate_admin_world_contest(
         upsert=True,
     )
 
+    # Audit the launch (reuse existing db.audit_log). Skip on an
+    # idempotent no-op re-launch so retries do not spam the log.
+    if not is_noop_relaunch:
+        await db.audit_log.insert_one(
+            {
+                "audit_id":
+                    f"aud_{secrets.token_hex(6)}",
+                "kind":
+                    "free_world_season_launch",
+                "action":
+                    "FREE_WORLD_SEASON_LAUNCH",
+                "admin_email":
+                    admin.get("email"),
+                "admin_user_id":
+                    admin.get("user_id"),
+                "season_id": WORLD_SEASON_ID,
+                "contest_number":
+                    body.contest_number,
+                "start_at": body.start_at,
+                "end_at": body.end_at,
+                "at": now,
+            }
+        )
+
     updated = await db.world_global_contests.find_one(
         {
             "season_id": WORLD_SEASON_ID,
@@ -1321,6 +1397,10 @@ async def activate_admin_world_contest(
 
     return {
         "ok": True,
+        "server_time": _serialize_datetime(
+            now
+        ),
+        "launched": not is_noop_relaunch,
         "contest": _clean_doc(updated),
     }
 

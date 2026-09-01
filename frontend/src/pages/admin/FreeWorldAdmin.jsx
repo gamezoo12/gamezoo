@@ -95,6 +95,9 @@ export default function FreeWorldAdmin() {
   const [activeContest, setActiveContest] =
     useState(null);
 
+  const [serverTime, setServerTime] =
+    useState(null);
+
   const [contests, setContests] =
     useState([]);
 
@@ -157,6 +160,11 @@ export default function FreeWorldAdmin() {
       setActiveContest(
         contestResponse
           ?.active_contest_number ??
+          null
+      );
+
+      setServerTime(
+        contestResponse?.server_time ||
           null
       );
 
@@ -657,6 +665,14 @@ export default function FreeWorldAdmin() {
           value={entries.length}
         />
       </div>
+
+      <SeasonLaunchPanel
+        seasonId={seasonId}
+        contest={selectedContest}
+        serverTime={serverTime}
+        busy={busy}
+        onLaunched={load}
+      />
 
       <div className="grid xl:grid-cols-[360px_minmax(0,1fr)] gap-6">
         <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
@@ -1204,6 +1220,666 @@ function Stat({
       <div className="font-display font-extrabold text-2xl text-slate-900 mt-2">
         {value}
       </div>
+    </div>
+  );
+}
+
+/* ==========================================================
+ * Free World Season Launch
+ *
+ * Reuses the existing authoritative activation endpoint
+ * (POST /api/admin/world/activate). It only adds:
+ *   - Europe/London launch date/time selection
+ *   - a confirmation modal
+ *   - status display (NOT LAUNCHED / SCHEDULED / LIVE / ENDED)
+ *   - double-submit protection
+ * The backend remains the single source of truth for the
+ * schedule; every level unlock derives from the stored
+ * start_at using the existing fixed 24-hour offsets.
+ * ======================================================== */
+
+const LONDON_TZ = 'Europe/London';
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function londonOffsetMs(utcMs) {
+  const dtf = new Intl.DateTimeFormat('en-GB', {
+    timeZone: LONDON_TZ,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+
+  const map = {};
+  dtf
+    .formatToParts(new Date(utcMs))
+    .forEach(part => {
+      map[part.type] = part.value;
+    });
+
+  let hour = Number(map.hour);
+  if (hour === 24) hour = 0;
+
+  const asUtc = Date.UTC(
+    Number(map.year),
+    Number(map.month) - 1,
+    Number(map.day),
+    hour,
+    Number(map.minute),
+    Number(map.second)
+  );
+
+  return asUtc - utcMs;
+}
+
+function londonWallToUtcIso(dateStr, timeStr) {
+  if (!dateStr) return null;
+
+  const [y, m, d] = dateStr
+    .split('-')
+    .map(Number);
+
+  const [hh, mm] = (timeStr || '00:00')
+    .split(':')
+    .map(Number);
+
+  if (!y || !m || !d) return null;
+
+  const naive = Date.UTC(
+    y,
+    m - 1,
+    d,
+    hh || 0,
+    mm || 0,
+    0
+  );
+
+  const offset = londonOffsetMs(naive);
+  let utc = naive - offset;
+
+  // Refine once for the rare DST-boundary case where the
+  // offset at the guessed instant differs from the naive one.
+  const offset2 = londonOffsetMs(utc);
+  if (offset2 !== offset) {
+    utc = naive - offset2;
+  }
+
+  return new Date(utc).toISOString();
+}
+
+function londonPartsFromIso(value) {
+  if (!value) {
+    return { date: '', time: '00:00' };
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return { date: '', time: '00:00' };
+  }
+
+  const dtf = new Intl.DateTimeFormat('en-GB', {
+    timeZone: LONDON_TZ,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  const map = {};
+  dtf.formatToParts(date).forEach(part => {
+    map[part.type] = part.value;
+  });
+
+  const hour = map.hour === '24' ? '00' : map.hour;
+
+  return {
+    date: `${map.year}-${map.month}-${map.day}`,
+    time: `${hour}:${map.minute}`,
+  };
+}
+
+function formatLondon(value) {
+  if (!value) return '—';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+
+  return `${new Intl.DateTimeFormat('en-GB', {
+    timeZone: LONDON_TZ,
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date)} (Europe/London)`;
+}
+
+function formatDuration(ms) {
+  const total = Math.max(
+    0,
+    Math.floor(ms / 1000)
+  );
+
+  const days = Math.floor(total / 86400);
+  const hours = Math.floor(
+    (total % 86400) / 3600
+  );
+  const minutes = Math.floor(
+    (total % 3600) / 60
+  );
+  const seconds = total % 60;
+
+  const hh = String(hours).padStart(2, '0');
+  const mm = String(minutes).padStart(2, '0');
+  const ss = String(seconds).padStart(2, '0');
+
+  if (days > 0) {
+    return `${days}d ${hh}:${mm}:${ss}`;
+  }
+
+  return `${hh}:${mm}:${ss}`;
+}
+
+const LAUNCH_BADGE = {
+  'NOT LAUNCHED': 'bg-slate-200 text-slate-600',
+  SCHEDULED: 'bg-amber-100 text-amber-700',
+  LIVE: 'bg-emerald-100 text-emerald-700',
+  ENDED: 'bg-slate-300 text-slate-700',
+};
+
+function SeasonLaunchPanel({
+  seasonId,
+  contest,
+  serverTime,
+  busy,
+  onLaunched,
+}) {
+  const { toast } = useToast();
+
+  const [startDate, setStartDate] =
+    useState('');
+  const [startTime, setStartTime] =
+    useState('00:00');
+  const [endDate, setEndDate] = useState('');
+  const [endTime, setEndTime] =
+    useState('00:00');
+
+  const [showConfirm, setShowConfirm] =
+    useState(false);
+  const [launchBusy, setLaunchBusy] =
+    useState(false);
+
+  // Server-authoritative clock reference. We anchor to the
+  // server time reported at load and only tick locally for
+  // display, so browser clock skew cannot drift the display.
+  const [serverOffset, setServerOffset] =
+    useState(0);
+  const [nowMs, setNowMs] = useState(() =>
+    Date.now()
+  );
+
+  useEffect(() => {
+    if (serverTime) {
+      const parsed = new Date(
+        serverTime
+      ).getTime();
+
+      if (!Number.isNaN(parsed)) {
+        setServerOffset(
+          parsed - Date.now()
+        );
+      }
+    }
+  }, [serverTime]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () =>
+      window.clearInterval(id);
+  }, []);
+
+  const serverNow = nowMs + serverOffset;
+
+  // Prefill from the currently stored schedule (if any).
+  useEffect(() => {
+    if (contest?.start_at) {
+      const parts = londonPartsFromIso(
+        contest.start_at
+      );
+      setStartDate(parts.date);
+      setStartTime(parts.time || '00:00');
+    }
+
+    if (contest?.end_at) {
+      const parts = londonPartsFromIso(
+        contest.end_at
+      );
+      setEndDate(parts.date);
+      setEndTime(parts.time || '00:00');
+    }
+  }, [
+    contest?.contest_number,
+    contest?.start_at,
+    contest?.end_at,
+  ]);
+
+  const status = useMemo(() => {
+    if (
+      !contest ||
+      contest.status !== 'active' ||
+      !contest.start_at
+    ) {
+      return 'NOT LAUNCHED';
+    }
+
+    const startMs = new Date(
+      contest.start_at
+    ).getTime();
+    const endMs = contest.end_at
+      ? new Date(contest.end_at).getTime()
+      : null;
+
+    if (serverNow < startMs) {
+      return 'SCHEDULED';
+    }
+
+    if (endMs !== null && serverNow >= endMs) {
+      return 'ENDED';
+    }
+
+    return 'LIVE';
+  }, [contest, serverNow]);
+
+  const liveSchedule = useMemo(() => {
+    if (
+      !contest ||
+      contest.status !== 'active' ||
+      !contest.start_at ||
+      status === 'NOT LAUNCHED'
+    ) {
+      return null;
+    }
+
+    const startMs = new Date(
+      contest.start_at
+    ).getTime();
+
+    if (serverNow < startMs) {
+      return {
+        currentLevel: 0,
+        nextUnlockMs: startMs,
+        remainingMs: startMs - serverNow,
+        label: 'Season starts in',
+      };
+    }
+
+    const elapsed = serverNow - startMs;
+    const completedWindows = Math.floor(
+      elapsed / DAY_MS
+    );
+
+    // Level 1 is open at start; the next scheduled unlock is
+    // the boundary of the window the user is currently in.
+    const currentLevel = Math.min(
+      10,
+      completedWindows + 1
+    );
+    const nextUnlockMs =
+      startMs +
+      (completedWindows + 1) * DAY_MS;
+
+    return {
+      currentLevel,
+      nextUnlockMs,
+      remainingMs: Math.max(
+        0,
+        nextUnlockMs - serverNow
+      ),
+      label: 'Next level unlocks in',
+    };
+  }, [contest, serverNow, status]);
+
+  const startIso = londonWallToUtcIso(
+    startDate,
+    startTime
+  );
+  const endIso = londonWallToUtcIso(
+    endDate,
+    endTime
+  );
+
+  const validRange =
+    startIso &&
+    endIso &&
+    new Date(endIso).getTime() >
+      new Date(startIso).getTime();
+
+  const openConfirm = () => {
+    if (!contest) {
+      toast({
+        title:
+          'Select a contest holder first',
+        description:
+          'Choose the Champion Contest to launch below.',
+      });
+      return;
+    }
+
+    if (!validRange) {
+      toast({
+        title: 'Check the launch window',
+        description:
+          'Pick a start and an end, with end after start.',
+      });
+      return;
+    }
+
+    setShowConfirm(true);
+  };
+
+  const confirmLaunch = async () => {
+    if (launchBusy || !contest) return;
+
+    setLaunchBusy(true);
+
+    try {
+      const response =
+        await worldAdminAPI.activate({
+          contest_number:
+            contest.contest_number,
+          start_at: startIso,
+          end_at: endIso,
+        });
+
+      toast({
+        title: response?.launched
+          ? `Season launch scheduled for Contest #${contest.contest_number}`
+          : 'Season schedule unchanged',
+        description: `Start: ${formatLondon(
+          startIso
+        )}`,
+      });
+
+      setShowConfirm(false);
+      await onLaunched?.();
+    } catch (error) {
+      toast({
+        title: 'Season launch failed',
+        description:
+          error?.response?.data?.detail ||
+          'The season was not launched.',
+      });
+    } finally {
+      setLaunchBusy(false);
+    }
+  };
+
+  const badge =
+    LAUNCH_BADGE[status] ||
+    LAUNCH_BADGE['NOT LAUNCHED'];
+
+  const isLocked = status === 'LIVE';
+
+  return (
+    <div
+      className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm"
+      data-testid="season-launch-panel"
+    >
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 text-[#6C2BFF] font-extrabold uppercase tracking-widest text-xs">
+            <Crown className="w-4 h-4" />
+            Free World Season
+          </div>
+
+          <h2 className="font-display font-extrabold text-2xl text-slate-900 mt-1">
+            {seasonId
+              ? `Season ${seasonId}`
+              : 'Season'}
+            {contest
+              ? ` · Contest #${contest.contest_number}`
+              : ''}
+          </h2>
+        </div>
+
+        <span
+          data-testid="season-status-badge"
+          className={`px-3 py-1 rounded-full text-xs font-extrabold tracking-wider ${badge}`}
+        >
+          {status}
+        </span>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-4 mt-4">
+        <div className="space-y-2">
+          <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            Launch date (Europe/London)
+          </label>
+
+          <div className="flex gap-2">
+            <input
+              type="date"
+              data-testid="season-start-date"
+              value={startDate}
+              disabled={isLocked || busy}
+              onChange={e =>
+                setStartDate(e.target.value)
+              }
+              className="flex-1 border border-slate-300 rounded-xl px-3 py-2 text-sm"
+            />
+
+            <input
+              type="time"
+              data-testid="season-start-time"
+              value={startTime}
+              disabled={isLocked || busy}
+              onChange={e =>
+                setStartTime(e.target.value)
+              }
+              className="w-28 border border-slate-300 rounded-xl px-3 py-2 text-sm"
+            />
+          </div>
+
+          <p className="text-xs text-slate-500">
+            {startIso
+              ? formatLondon(startIso)
+              : 'Suggested launch time 00:00.'}
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            End date (Europe/London)
+          </label>
+
+          <div className="flex gap-2">
+            <input
+              type="date"
+              data-testid="season-end-date"
+              value={endDate}
+              disabled={isLocked || busy}
+              onChange={e =>
+                setEndDate(e.target.value)
+              }
+              className="flex-1 border border-slate-300 rounded-xl px-3 py-2 text-sm"
+            />
+
+            <input
+              type="time"
+              data-testid="season-end-time"
+              value={endTime}
+              disabled={isLocked || busy}
+              onChange={e =>
+                setEndTime(e.target.value)
+              }
+              className="w-28 border border-slate-300 rounded-xl px-3 py-2 text-sm"
+            />
+          </div>
+
+          <p className="text-xs text-slate-500">
+            {endIso
+              ? formatLondon(endIso)
+              : 'Select the season end.'}
+          </p>
+        </div>
+      </div>
+
+      {liveSchedule && (
+        <div
+          className="mt-4 grid sm:grid-cols-3 gap-3 bg-slate-50 border border-slate-200 rounded-xl p-4"
+          data-testid="season-live-schedule"
+        >
+          <div>
+            <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
+              {status === 'SCHEDULED'
+                ? 'Starts'
+                : 'Current level'}
+            </div>
+            <div className="font-display font-extrabold text-xl text-slate-900 mt-1">
+              {status === 'SCHEDULED'
+                ? formatLondon(
+                    contest.start_at
+                  )
+                : `Level ${liveSchedule.currentLevel}`}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
+              Next unlock
+            </div>
+            <div className="font-display font-extrabold text-xl text-slate-900 mt-1">
+              {formatLondon(
+                new Date(
+                  liveSchedule.nextUnlockMs
+                ).toISOString()
+              )}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
+              {liveSchedule.label}
+            </div>
+            <div
+              className="font-display font-extrabold text-xl text-emerald-700 mt-1 tabular-nums"
+              data-testid="season-remaining"
+            >
+              {formatDuration(
+                liveSchedule.remainingMs
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <Button
+          data-testid="season-launch-btn"
+          onClick={openConfirm}
+          disabled={
+            busy ||
+            launchBusy ||
+            !contest ||
+            !validRange ||
+            isLocked
+          }
+          className="bg-[#6C2BFF] hover:bg-[#5a20e0] text-white"
+        >
+          <Play className="w-4 h-4 mr-1" />
+          {status === 'NOT LAUNCHED'
+            ? 'Launch season'
+            : status === 'SCHEDULED'
+            ? 'Reschedule launch'
+            : 'Season live'}
+        </Button>
+
+        {isLocked && (
+          <span className="text-xs text-slate-500">
+            A live season start time is locked.
+            Close the active contest to change it.
+          </span>
+        )}
+      </div>
+
+      {showConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          data-testid="season-confirm-modal"
+        >
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+            <h3 className="font-display font-extrabold text-xl text-slate-900">
+              Launch Free World{' '}
+              {seasonId
+                ? `Season ${seasonId}`
+                : 'Season'}
+              ?
+            </h3>
+
+            <div className="mt-4 space-y-2 text-sm text-slate-700">
+              <div>
+                <span className="font-bold">
+                  Contest:
+                </span>{' '}
+                #{contest?.contest_number}
+              </div>
+              <div>
+                <span className="font-bold">
+                  Start:
+                </span>{' '}
+                {formatLondon(startIso)}
+              </div>
+              <div>
+                <span className="font-bold">
+                  End:
+                </span>{' '}
+                {formatLondon(endIso)}
+              </div>
+            </div>
+
+            <p className="mt-4 text-xs text-slate-500">
+              All users will use this global
+              schedule. Each level unlocks in
+              exact 24-hour windows from the
+              start time.
+            </p>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <Button
+                variant="outline"
+                data-testid="season-cancel-btn"
+                onClick={() =>
+                  setShowConfirm(false)
+                }
+                disabled={launchBusy}
+              >
+                Cancel
+              </Button>
+
+              <Button
+                data-testid="season-confirm-btn"
+                onClick={confirmLaunch}
+                disabled={launchBusy}
+                className="bg-[#6C2BFF] hover:bg-[#5a20e0] text-white"
+              >
+                {launchBusy
+                  ? 'Launching…'
+                  : 'Confirm launch'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
