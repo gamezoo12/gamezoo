@@ -1523,20 +1523,49 @@ function SeasonLaunchPanel({
       };
     }
 
-    const elapsed = serverNow - startMs;
-    const completedWindows = Math.floor(
-      elapsed / DAY_MS
-    );
+    // Derive the schedule from the contest's ACTUAL per-level
+    // unlock_after_days config (server-authoritative offsets),
+    // rather than assuming any fixed window length.
+    const levels = Array.isArray(
+      contest.levels_config
+    )
+      ? contest.levels_config
+      : [];
 
-    // Level 1 is open at start; the next scheduled unlock is
-    // the boundary of the window the user is currently in.
-    const currentLevel = Math.min(
-      10,
-      completedWindows + 1
-    );
-    const nextUnlockMs =
-      startMs +
-      (completedWindows + 1) * DAY_MS;
+    const schedule = levels
+      .map(lv => ({
+        level: Number(lv.level) || 0,
+        unlockMs:
+          startMs +
+          (Number(lv.unlock_after_days) ||
+            0) *
+            DAY_MS,
+      }))
+      .sort(
+        (a, b) => a.unlockMs - b.unlockMs
+      );
+
+    let currentLevel = 1;
+    let nextUnlockMs = null;
+
+    schedule.forEach(item => {
+      if (item.unlockMs <= serverNow) {
+        if (item.level > currentLevel) {
+          currentLevel = item.level;
+        }
+      } else if (nextUnlockMs === null) {
+        nextUnlockMs = item.unlockMs;
+      }
+    });
+
+    if (nextUnlockMs === null) {
+      return {
+        currentLevel,
+        nextUnlockMs: null,
+        remainingMs: 0,
+        label: 'All levels unlocked',
+      };
+    }
 
     return {
       currentLevel,
@@ -1759,11 +1788,13 @@ function SeasonLaunchPanel({
               Next unlock
             </div>
             <div className="font-display font-extrabold text-xl text-slate-900 mt-1">
-              {formatLondon(
-                new Date(
-                  liveSchedule.nextUnlockMs
-                ).toISOString()
-              )}
+              {liveSchedule.nextUnlockMs
+                ? formatLondon(
+                    new Date(
+                      liveSchedule.nextUnlockMs
+                    ).toISOString()
+                  )
+                : '—'}
             </div>
           </div>
 
