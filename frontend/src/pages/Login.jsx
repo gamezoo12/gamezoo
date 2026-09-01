@@ -78,6 +78,17 @@ function PhoneLoginForm({ onLoggedIn }) {
  );
 }
 
+// After a successful login the ordinary destination is the World
+// Selector (/choose-world). A legitimate explicit deep link passed as
+// ?next=/some/path is preserved (safe same-origin absolute paths only).
+function resolvePostAuthDestination() {
+ const params = new URLSearchParams(window.location.search);
+ const requestedNext = String(params.get('next') || '').trim();
+ const isSafeNext =
+   requestedNext.startsWith('/') && !requestedNext.startsWith('//');
+ return isSafeNext ? requestedNext : '/choose-world';
+}
+
 export default function Login() {
  const [mode, setMode] = useState('login');
  const [busy, setBusy] = useState(false);
@@ -106,7 +117,7 @@ export default function Login() {
  try {
  await login({ email: fd.get('email'), password: fd.get('password') });
  toast({ title: 'Welcome back!' });
- nav('/');
+ nav(resolvePostAuthDestination());
  } catch (err) {
  const raw = err?.response?.data?.detail;
  const detail = Array.isArray(raw) ? raw.map(e => e.msg).join('. ') : (raw || 'Please check your details and try again.');
@@ -126,7 +137,7 @@ export default function Login() {
  if (r?.token) localStorage.setItem('gz_token', r.token);
  if (r?.user) setGoogleUser(r.user);
  toast({ title: `Welcome back, ${r?.user?.name || 'friend'} 👋` });
- nav('/choose-world');
+ nav(resolvePostAuthDestination());
  };
 
  return (

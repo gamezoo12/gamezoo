@@ -271,10 +271,74 @@ frontend:
           agent: "main"
           comment: "Home/Competitions/CompetitionDetail read from /api/contests. Cart stores in localStorage, checkout hits /api/orders/checkout. Login supports Email+Password (backend) + Google (redirect to Emergent auth). Admin & Production panels gated on role='admin'. Winners page uses /api/public/winners. Not requesting FE testing yet."
 
+  - task: "Post-authentication routing fix: Email login redirects to /choose-world"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/Login.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Fixed email login to redirect to /choose-world (World Selector page) instead of home (/). The resolvePostAuthDestination() function now defaults to /choose-world while preserving explicit deep links via ?next= parameter. Admin login unchanged (still goes to /admin). World Selector buttons navigate to /world (Free World) and / (Paid Leagues)."
+        - working: true
+          agent: "testing"
+          comment: |
+            ✅ ALL 6 AUTHENTICATION ROUTING TESTS PASSED
+            
+            TEST 1 - Email login redirect (PRIMARY FIX): ✅ PASS
+            - Logged in with player1@example.com / Player@12345
+            - Successfully redirected to /choose-world
+            - World Selector page displayed with "PAID LEAGUES" and "FREE WORLD" artwork
+            - URL: https://import-verify-6.preview.emergentagent.com/choose-world
+            
+            TEST 2 - Deep-link preservation: ✅ PASS
+            - Logged in with ?next=/competitions parameter
+            - Successfully redirected to /competitions (deep link honored)
+            - Did NOT redirect to /choose-world
+            - URL: https://import-verify-6.preview.emergentagent.com/competitions
+            
+            TEST 3 - Refresh on /choose-world while authenticated: ✅ PASS
+            - Refreshed page while on /choose-world
+            - Remained on /choose-world (no redirect to home or login)
+            - World Selector still visible after refresh
+            - User stayed authenticated
+            
+            TEST 4 - World Selector "Free World" button: ✅ PASS
+            - Clicked "Free World" button on /choose-world
+            - Successfully navigated to /world
+            - User stayed logged in (no redirect to /login)
+            - URL: https://import-verify-6.preview.emergentagent.com/world
+            
+            TEST 5 - World Selector "Paid Leagues" button: ✅ PASS
+            - Clicked "Paid Leagues" button on /choose-world
+            - Successfully navigated to / (home page)
+            - User stayed logged in
+            - URL: https://import-verify-6.preview.emergentagent.com/
+            
+            TEST 6 - Admin login regression: ✅ PASS
+            - Logged in with admin credentials (bachanta8@gmail.com / Herts@910022)
+            - Successfully redirected to /admin (admin dashboard)
+            - Did NOT redirect to /choose-world (no regression)
+            - Admin experience unchanged
+            - URL: https://import-verify-6.preview.emergentagent.com/admin
+            
+            VERIFIED FEATURES:
+            - resolvePostAuthDestination() correctly defaults to /choose-world for normal email login
+            - Deep link preservation via ?next= parameter working correctly
+            - World Selector page renders correctly with responsive artwork
+            - Both World Selector buttons (Free World → /world, Paid Leagues → /) working
+            - Admin login flow unchanged (still goes to /admin, not /choose-world)
+            - Authentication state persists across page refreshes
+            - No logout/redirect issues when navigating from World Selector
+            
+            All authentication routing flows working as expected. No issues found.
+
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 3
+  test_sequence: 4
   run_ui: false
 
 test_plan:
@@ -362,3 +426,45 @@ agent_communication:
         
         All backend tasks marked as working: true, needs_retesting: false.
         Backend is production-ready. No critical issues found.
+
+    - agent: "main"
+      message: |
+        Post-authentication routing fix implemented. Email login now redirects to /choose-world (World Selector page) instead of home (/). Deep links via ?next= parameter are preserved. Admin login unchanged.
+        
+        Please test the following 6 scenarios:
+        TEST 1: Email login with player1@example.com / Player@12345 should redirect to /choose-world (PRIMARY FIX)
+        TEST 2: Login with ?next=/competitions should honor the deep link and go to /competitions
+        TEST 3: Refresh on /choose-world while authenticated should keep user on /choose-world
+        TEST 4: Click "Free World" button on /choose-world should navigate to /world
+        TEST 5: Click "Paid Leagues" button on /choose-world should navigate to / (home)
+        TEST 6: Admin login with bachanta8@gmail.com / Herts@910022 should go to /admin (NOT /choose-world)
+        
+        Credentials in /app/memory/test_credentials.md. Take screenshots at each step and report PASS/FAIL with observed URLs.
+
+    - agent: "testing"
+      message: |
+        ✅ POST-AUTHENTICATION ROUTING FIX VERIFIED - ALL 6 TESTS PASSED
+        
+        Executed comprehensive browser automation tests covering all 6 scenarios specified in the review request.
+        
+        SUMMARY OF RESULTS:
+        ✅ TEST 1 PASSED: Email login redirects to /choose-world (PRIMARY FIX verified)
+        ✅ TEST 2 PASSED: Deep-link preservation with ?next=/competitions working correctly
+        ✅ TEST 3 PASSED: Refresh on /choose-world maintains user session and page
+        ✅ TEST 4 PASSED: "Free World" button navigates to /world, user stays logged in
+        ✅ TEST 5 PASSED: "Paid Leagues" button navigates to / (home), user stays logged in
+        ✅ TEST 6 PASSED: Admin login goes to /admin (NOT /choose-world) - no regression
+        
+        DETAILED VERIFICATION:
+        - World Selector page renders correctly with responsive artwork showing "PAID LEAGUES" and "FREE WORLD" options
+        - resolvePostAuthDestination() function correctly defaults to /choose-world for normal users
+        - Deep link preservation via ?next= parameter working as expected (safe same-origin paths only)
+        - Authentication state persists across page refreshes and navigation
+        - Both World Selector buttons functional (Free World → /world, Paid Leagues → /)
+        - Admin login flow unchanged (bachanta8@gmail.com redirects to /admin, not /choose-world)
+        - No logout or redirect issues when navigating from World Selector
+        
+        All screenshots saved to .screenshots/ directory for visual verification.
+        Console logs captured and saved.
+        
+        NO ISSUES FOUND. The post-authentication routing fix is working perfectly across all test scenarios.
