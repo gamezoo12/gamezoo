@@ -1361,7 +1361,8 @@ function formatLondon(value) {
   }).format(date)} (Europe/London)`;
 }
 
-function formatDuration(ms) {
+// DD:HH:MM:SS clock format used by the Season countdowns.
+function formatDaysClock(ms) {
   const total = Math.max(
     0,
     Math.floor(ms / 1000)
@@ -1376,16 +1377,24 @@ function formatDuration(ms) {
   );
   const seconds = total % 60;
 
+  const dd = String(days).padStart(2, '0');
   const hh = String(hours).padStart(2, '0');
   const mm = String(minutes).padStart(2, '0');
   const ss = String(seconds).padStart(2, '0');
 
-  if (days > 0) {
-    return `${days}d ${hh}:${mm}:${ss}`;
-  }
-
-  return `${hh}:${mm}:${ss}`;
+  return `${dd}:${hh}:${mm}:${ss}`;
 }
+
+// Fixed Season 1 architecture (see backend/world/season1.py).
+// 100 Championships x 10 numbered levels = 1000 levels, plus one
+// separate Champion/Prize stage per Championship (100 total).
+const SEASON_CHAMPIONSHIP_COUNT = 100;
+const SEASON_LEVELS_PER_CHAMPIONSHIP = 10;
+const SEASON_TOTAL_LEVELS =
+  SEASON_CHAMPIONSHIP_COUNT *
+  SEASON_LEVELS_PER_CHAMPIONSHIP;
+const SEASON_CHAMPION_STAGES =
+  SEASON_CHAMPIONSHIP_COUNT;
 
 const LAUNCH_BADGE = {
   'NOT LAUNCHED': 'bg-slate-200 text-slate-600',
@@ -1514,9 +1523,27 @@ function SeasonLaunchPanel({
       contest.start_at
     ).getTime();
 
+    // The selected/active contest represents one Championship of the
+    // 100-Championship season. Championship k spans global levels
+    // (k-1)*10+1 .. k*10 (see backend/world/season1.py). We only
+    // REPRESENT this mapping; we do not change progression.
+    const championshipNumber = Math.min(
+      SEASON_CHAMPIONSHIP_COUNT,
+      Math.max(
+        1,
+        Number(contest.contest_number) || 1
+      )
+    );
+
+    const globalLevelBase =
+      (championshipNumber - 1) *
+      SEASON_LEVELS_PER_CHAMPIONSHIP;
+
     if (serverNow < startMs) {
       return {
+        championshipNumber,
         currentLevel: 0,
+        globalLevel: 0,
         nextUnlockMs: startMs,
         remainingMs: startMs - serverNow,
         label: 'Season starts in',
@@ -1560,7 +1587,10 @@ function SeasonLaunchPanel({
 
     if (nextUnlockMs === null) {
       return {
+        championshipNumber,
         currentLevel,
+        globalLevel:
+          globalLevelBase + currentLevel,
         nextUnlockMs: null,
         remainingMs: 0,
         label: 'All levels unlocked',
@@ -1568,7 +1598,10 @@ function SeasonLaunchPanel({
     }
 
     return {
+      championshipNumber,
       currentLevel,
+      globalLevel:
+        globalLevelBase + currentLevel,
       nextUnlockMs,
       remainingMs: Math.max(
         0,
@@ -1689,6 +1722,63 @@ function SeasonLaunchPanel({
         </span>
       </div>
 
+      {/* Fixed Season 1 architecture: 100 Championships,
+          1,000 numbered levels, 100 Champion/Prize stages. */}
+      <div
+        className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4"
+        data-testid="season-totals"
+      >
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+          <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
+            Total Championships
+          </div>
+          <div
+            className="font-display font-extrabold text-2xl text-slate-900 mt-1"
+            data-testid="season-total-championships"
+          >
+            {SEASON_CHAMPIONSHIP_COUNT}
+          </div>
+        </div>
+
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+          <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
+            Total Numbered Levels
+          </div>
+          <div
+            className="font-display font-extrabold text-2xl text-slate-900 mt-1"
+            data-testid="season-total-levels"
+          >
+            {SEASON_TOTAL_LEVELS.toLocaleString()}
+          </div>
+        </div>
+
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+          <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
+            Champion / Prize Stages
+          </div>
+          <div
+            className="font-display font-extrabold text-2xl text-slate-900 mt-1"
+            data-testid="season-champion-stages"
+          >
+            {SEASON_CHAMPION_STAGES}
+          </div>
+        </div>
+
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+          <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
+            Season Start
+          </div>
+          <div
+            className="font-semibold text-sm text-slate-900 mt-1"
+            data-testid="season-start-display"
+          >
+            {contest?.start_at
+              ? formatLondon(contest.start_at)
+              : 'Not launched'}
+          </div>
+        </div>
+      </div>
+
       <div className="grid md:grid-cols-2 gap-4 mt-4">
         <div className="space-y-2">
           <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
@@ -1763,52 +1853,142 @@ function SeasonLaunchPanel({
         </div>
       </div>
 
-      {liveSchedule && (
+      {status === 'SCHEDULED' && liveSchedule && (
         <div
-          className="mt-4 grid sm:grid-cols-3 gap-3 bg-slate-50 border border-slate-200 rounded-xl p-4"
+          className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-4"
+          data-testid="season-scheduled"
+        >
+          <div className="text-sm font-extrabold uppercase tracking-wider text-amber-700">
+            {seasonId
+              ? `Season ${seasonId}`
+              : 'Season'}{' '}
+            — Scheduled
+          </div>
+
+          <div className="grid sm:grid-cols-3 gap-3 mt-3">
+            <div>
+              <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
+                Starts in
+              </div>
+              <div
+                className="font-display font-extrabold text-2xl text-amber-700 mt-1 tabular-nums"
+                data-testid="season-starts-in"
+              >
+                {formatDaysClock(
+                  liveSchedule.remainingMs
+                )}
+              </div>
+              <div className="text-[10px] text-slate-400 mt-0.5">
+                DD:HH:MM:SS
+              </div>
+            </div>
+
+            <div>
+              <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
+                Start
+              </div>
+              <div className="font-semibold text-sm text-slate-900 mt-1">
+                {formatLondon(
+                  contest.start_at
+                )}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
+                Timezone
+              </div>
+              <div className="font-semibold text-sm text-slate-900 mt-1">
+                Europe/London
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {status === 'LIVE' && liveSchedule && (
+        <div
+          className="mt-4 bg-emerald-50 border border-emerald-200 rounded-xl p-4"
           data-testid="season-live-schedule"
         >
-          <div>
-            <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
-              {status === 'SCHEDULED'
-                ? 'Starts'
-                : 'Current level'}
-            </div>
-            <div className="font-display font-extrabold text-xl text-slate-900 mt-1">
-              {status === 'SCHEDULED'
-                ? formatLondon(
-                    contest.start_at
-                  )
-                : `Level ${liveSchedule.currentLevel}`}
-            </div>
+          <div className="text-sm font-extrabold uppercase tracking-wider text-emerald-700">
+            {seasonId
+              ? `Season ${seasonId}`
+              : 'Season'}{' '}
+            — Live
           </div>
 
-          <div>
-            <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
-              Next unlock
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-3">
+            <div>
+              <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
+                Current Championship
+              </div>
+              <div
+                className="font-display font-extrabold text-xl text-slate-900 mt-1"
+                data-testid="season-current-championship"
+              >
+                {liveSchedule.championshipNumber}{' '}
+                / {SEASON_CHAMPIONSHIP_COUNT}
+              </div>
             </div>
-            <div className="font-display font-extrabold text-xl text-slate-900 mt-1">
-              {liveSchedule.nextUnlockMs
-                ? formatLondon(
-                    new Date(
-                      liveSchedule.nextUnlockMs
-                    ).toISOString()
-                  )
-                : '—'}
-            </div>
-          </div>
 
-          <div>
-            <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
-              {liveSchedule.label}
+            <div>
+              <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
+                Current Global Level
+              </div>
+              <div
+                className="font-display font-extrabold text-xl text-slate-900 mt-1"
+                data-testid="season-global-level"
+              >
+                {liveSchedule.globalLevel} /{' '}
+                {SEASON_TOTAL_LEVELS.toLocaleString()}
+              </div>
             </div>
-            <div
-              className="font-display font-extrabold text-xl text-emerald-700 mt-1 tabular-nums"
-              data-testid="season-remaining"
-            >
-              {formatDuration(
-                liveSchedule.remainingMs
-              )}
+
+            <div>
+              <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
+                Current Championship Level
+              </div>
+              <div
+                className="font-display font-extrabold text-xl text-slate-900 mt-1"
+                data-testid="season-championship-level"
+              >
+                {liveSchedule.currentLevel} /{' '}
+                {SEASON_LEVELS_PER_CHAMPIONSHIP}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
+                Next Unlock
+              </div>
+              <div className="font-semibold text-sm text-slate-900 mt-1">
+                {liveSchedule.nextUnlockMs
+                  ? formatLondon(
+                      new Date(
+                        liveSchedule.nextUnlockMs
+                      ).toISOString()
+                    )
+                  : '—'}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
+                {liveSchedule.nextUnlockMs
+                  ? 'Time Remaining'
+                  : 'Status'}
+              </div>
+              <div
+                className="font-display font-extrabold text-xl text-emerald-700 mt-1 tabular-nums"
+                data-testid="season-remaining"
+              >
+                {liveSchedule.nextUnlockMs
+                  ? formatDaysClock(
+                      liveSchedule.remainingMs
+                    )
+                  : 'All levels unlocked'}
+              </div>
             </div>
           </div>
         </div>

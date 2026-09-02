@@ -342,12 +342,17 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Free World Admin Season panel: 100-Championship / 1000-level display + SCHEDULED/LIVE countdowns"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
+    - agent: "main"
+      message: |
+        FRONTEND display-only change in /app/frontend/src/pages/admin/FreeWorldAdmin.jsx (Season panel). No backend change. Verify the admin Season panel represents the EXISTING 100-Championship season (100 championships, 1,000 numbered levels, 100 champion stages), a SCHEDULED "STARTS IN DD:HH:MM:SS" live countdown from authoritative start_at (refresh must not reset), and a LIVE view showing Current Championship X/100, Current Global Level Y/1000, Current Championship Level Z/10, Next Unlock, Time Remaining. Championship X = selected contest_number; global level = (X-1)*10 + Z. Admin creds in /app/memory/test_credentials.md. Isolated test DB; clean up (deactivate) at the end.
+
     - agent: "main"
       message: |
         NEW: Please test ONLY the Free World Season Launch backend changes in world_routes.py (POST /api/admin/world/activate idempotency + audit + server_time, and the exact 24h unlock schedule via GET /api/world/state). Do NOT retest previously-passing tasks.
