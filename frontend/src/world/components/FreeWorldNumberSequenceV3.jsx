@@ -109,6 +109,7 @@ function getErrorMessage(
 export default function FreeWorldNumberSequenceV3({
   selectedLevel,
   levelData,
+  guestMode = false,
   onClose,
   onFinished,
 }) {
@@ -281,8 +282,13 @@ export default function FreeWorldNumberSequenceV3({
 
 
   useEffect(() => {
+    if (guestMode) {
+      return;
+    }
+
     refreshAttemptSummary();
   }, [
+    guestMode,
     refreshAttemptSummary,
   ]);
 
@@ -451,6 +457,46 @@ export default function FreeWorldNumberSequenceV3({
       setBusy(true);
       setError('');
 
+      if (guestMode) {
+        setSession({
+          session_id: 'guest-level-1',
+
+          time_limit_seconds:
+            timeLimitSeconds,
+
+          game_config: {
+            target_number:
+              target,
+
+            numbers:
+              shuffle(
+                Array.from(
+                  {
+                    length:
+                      Math.max(
+                        5,
+                        target,
+                      ),
+                  },
+                  (_, index) =>
+                    index + 1,
+                ),
+              ),
+          },
+        });
+
+        setOfficialNext(1);
+        setOfficialTaps([]);
+        setOfficialElapsedMs(0);
+        setCountdown(3);
+
+        setStage('countdown');
+        setBusy(false);
+
+        return;
+      }
+
+
       try {
         const response =
           await worldAPI
@@ -534,13 +580,26 @@ export default function FreeWorldNumberSequenceV3({
         setError('');
 
         try {
+          if (guestMode) {
+
+            begunAtRef.current =
+              performance.now();
+
+            setOfficialElapsedMs(0);
+
+            setStage(
+              'official',
+            );
+
+            return;
+          }
+
           const response =
             await worldAPI
               .beginSession(
                 session?.session_id,
               );
-
-          if (
+if (
             cancelled ||
             !mountedRef.current
           ) {
@@ -590,6 +649,7 @@ export default function FreeWorldNumberSequenceV3({
     };
   }, [
     countdown,
+    guestMode,
     session?.session_id,
     stage,
   ]);
@@ -630,7 +690,44 @@ export default function FreeWorldNumberSequenceV3({
           );
 
         try {
-          const response =
+          if (guestMode) {
+
+          window.localStorage.setItem(
+            'pl_guest_level_1_attempt_used',
+            '1',
+          );
+
+          setResult({
+            guest: true,
+
+            solved:
+              Boolean(solved),
+
+            duration_ms:
+              durationMs,
+
+            message:
+              solved
+                ? 'Great first run. Sign up to continue.'
+                : 'Your free Level 1 try is complete. Sign up to continue.',
+          });
+
+          setStage(
+            'result',
+          );
+
+          window.setTimeout(
+            () => {
+              window.location.href =
+                '/login';
+            },
+            1500,
+          );
+
+          return;
+        }
+
+        const response =
             await worldAPI
               .submitSession({
                 session_id:
@@ -704,6 +801,7 @@ export default function FreeWorldNumberSequenceV3({
         }
       },
       [
+        guestMode,
         selectedLevel?.level,
         session,
       ],
@@ -1047,7 +1145,7 @@ export default function FreeWorldNumberSequenceV3({
             <article>
 
               <div className="fwv3-bars">
-                ▂▄▆█
+                â–‚â–„â–†â–ˆ
               </div>
 
               <div>

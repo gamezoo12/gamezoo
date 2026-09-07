@@ -1389,6 +1389,11 @@ export default function WorldCanvas({
   const initialScrollDoneRef =
     useRef(false);
 
+  const [
+    initialPositionReady,
+    setInitialPositionReady,
+  ] = useState(false);
+
   const journeyTimerRef =
     useRef(null);
 
@@ -1728,7 +1733,11 @@ export default function WorldCanvas({
           );
 
         initialScrollDoneRef.current =
-          true;
+        true;
+
+      setInitialPositionReady(
+        true,
+      );
 
         return;
       }
@@ -1749,6 +1758,10 @@ export default function WorldCanvas({
 
       initialScrollDoneRef.current =
         true;
+
+      setInitialPositionReady(
+        true,
+      );
     };
 
     requestAnimationFrame(() => {
@@ -1774,6 +1787,166 @@ export default function WorldCanvas({
    * Game does NOT auto-open.
    * User can press PLAY at Level 1.
    */
+
+  /*
+   * HOME RETURNS TO CURRENT PROGRESS
+   *
+   * Not started:
+   * return to Season 1 entrance.
+   *
+   * Started:
+   * return to the user's current saved level.
+   *
+   * No API request.
+   * No progress reset.
+   * No page navigation.
+   */
+  useEffect(() => {
+
+    const positionNodeInViewport =
+      (
+        viewport,
+        node,
+      ) => {
+
+        if (
+          !viewport ||
+          !node
+        ) {
+          return;
+        }
+
+        const viewportRect =
+          viewport.getBoundingClientRect();
+
+        const nodeRect =
+          node.getBoundingClientRect();
+
+        const relativeTop =
+          nodeRect.top -
+          viewportRect.top;
+
+        const targetTop =
+          viewport.scrollTop +
+          relativeTop -
+          (
+            viewport.clientHeight / 2
+          ) +
+          (
+            nodeRect.height / 2
+          );
+
+        viewport.scrollTo({
+          top:
+            Math.max(
+              0,
+              targetTop,
+            ),
+
+          behavior:
+            'smooth',
+        });
+      };
+
+
+    const onWorldHome = () => {
+
+      const viewport =
+        viewportRef.current;
+
+      if (!viewport) {
+        return;
+      }
+
+
+      requestAnimationFrame(() => {
+
+        /*
+         * Brand-new user:
+         * HOME goes back to Season 1 entrance.
+         */
+        if (isAtJourneyStart) {
+
+          const seasonStart =
+            document.getElementById(
+              'pl2d-season-start',
+            );
+
+          if (seasonStart) {
+
+            positionNodeInViewport(
+              viewport,
+              seasonStart,
+            );
+
+            return;
+          }
+
+
+          /*
+           * Fallback only if entrance node
+           * cannot be found.
+           */
+          viewport.scrollTo({
+            top:
+              Math.max(
+                0,
+                viewport.scrollHeight -
+                viewport.clientHeight,
+              ),
+
+            behavior:
+              'smooth',
+          });
+
+          return;
+        }
+
+
+        /*
+         * Existing user:
+         * HOME returns to their actual
+         * current progression level.
+         */
+        const currentNode =
+          document.getElementById(
+            `pl2d-level-${currentGlobalLevel}`,
+          );
+
+        if (!currentNode) {
+          return;
+        }
+
+        positionNodeInViewport(
+          viewport,
+          currentNode,
+        );
+
+      });
+
+    };
+
+
+    window.addEventListener(
+      'pl-world-home',
+      onWorldHome,
+    );
+
+
+    return () => {
+
+      window.removeEventListener(
+        'pl-world-home',
+        onWorldHome,
+      );
+
+    };
+
+  }, [
+    currentGlobalLevel,
+    isAtJourneyStart,
+  ]);
+
   const startJourney = () => {
     if (
       journeyWalking ||
@@ -1962,7 +2135,12 @@ export default function WorldCanvas({
   return (
     <div
       ref={viewportRef}
-      className="pl2d-viewport"
+      className={[
+        'pl2d-viewport',
+        initialPositionReady
+          ? 'is-position-ready'
+          : 'is-positioning',
+      ].join(' ')}
     >
       <div className="pl2d-world-header pl2d-world-header-final">
 

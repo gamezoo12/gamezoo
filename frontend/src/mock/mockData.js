@@ -28,16 +28,16 @@ export const HOW_IT_WORKS = [
   { step: 1, title: 'Pick a contest', desc: 'Browse live skill contests and pick one you fancy.' },
   { step: 2, title: 'Solve the skill puzzle', desc: 'Answer a genuine skill question — math, trivia, or word puzzle.' },
   { step: 3, title: 'Buy your ticket', desc: 'Pay the entry fee per ticket via card, Apple Pay or Google Pay.' },
-  { step: 4, title: 'Winner announced live', desc: 'Draw is broadcast live — winners paid or shipped within 24 hours.' },
+  { step: 4, title: 'Winner confirmed', desc: 'The result is verified according to the competition rules and the winner is contacted after verification.' },
 ];
 
 export const FAQ_ITEMS = [
-  { q: 'Is Prize League gambling?', a: 'No. Prize League is a UK skill-based prize competition platform. Every entry requires you to correctly answer a genuine skill question. Entries with an incorrect answer are excluded from the draw, which places us outside the Gambling Act 2005 under the "skill-competition" exemption.' },
+  { q: 'Is Prize League gambling?', a: 'No. Prize League is a UK skill-based prize competition platform. Every entry requires you to correctly answer a genuine skill question. Entries with an incorrect answer are excluded from eligibility. Prize League competitions use genuine skill requirements as part of the entry process.' },
   { q: 'How do I enter a contest?', a: 'Pick a contest, correctly answer the skill question, choose the number of tickets you want, and pay the entry fee at checkout.' },
-  { q: 'When are the draws?', a: 'Every contest has a published draw date and time on its page. All draws are live-streamed on our Production channel.' },
+  { q: 'When are the draws?', a: 'Every competition displays its published closing and result information on the competition page.' },
   { q: 'Is there a free entry route?', a: 'Yes — UK law requires a free postal entry alternative. Details are printed on every contest page under "Free Entry".' },
-  { q: 'How do winners get paid?', a: 'Cash prizes are transferred to your bank account within 24 hours of the draw. Physical prizes ship free within 5 working days.' },
-  { q: 'What happens if I answer wrong?', a: 'Incorrect answers are excluded from the prize draw, so please double-check before submitting. This is what makes Prize League a skill contest rather than a lottery.' },
+  { q: 'How do winners get paid?', a: 'Cash and physical prizes are fulfilled after winner verification in accordance with the competition rules.' },
+  { q: 'What happens if I answer wrong?', a: 'Incorrect answers are excluded from eligibility, so please double-check before submitting. Prize League competitions include genuine skill requirements.' },
   { q: 'Who can enter?', a: 'You must be 18+ and a UK resident. Verification may be required before payout.' },
   { q: 'How do I contact support?', a: 'Email support@prizeleague.co.uk — we typically reply within one business day.' },
 ];
@@ -46,7 +46,7 @@ export const NAV_LINKS = [
   { label: 'Contests', href: '/competitions' },
   { label: 'Leaderboard', href: '/leaderboard' },
   { label: 'Winners', href: '/winners' },
-  { label: 'Draw Results', href: '/draw-results' },
+  { label: 'Results', href: '/draw-results' },
   { label: 'How it Works', href: '/#how-it-works' },
   { label: 'FAQs', href: '/faq' },
 ];

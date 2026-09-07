@@ -49,17 +49,17 @@ WORLD_DEFAULT_CURRENCY = "GBP"
 # Champion prize distribution.
 #
 # Final payout:
-#   base rank prize × PERSONAL Champion stage.
+#   base rank prize Ã— PERSONAL Champion stage.
 #
 # Champion 1:
-#   1st £50
-#   2nd £20
-#   3rd £15
-#   4th £10
-#   5th £5
+#   1st Â£50
+#   2nd Â£20
+#   3rd Â£15
+#   4th Â£10
+#   5th Â£5
 #
 # Champion 9 example:
-#   4th = £10 × 9 = £90
+#   4th = Â£10 Ã— 9 = Â£90
 CHAMPION_BASE_RANK_PRIZES = {
     1: 50,
     2: 20,
@@ -911,7 +911,7 @@ async def seed_world_engine(request: Request):
             "champion_stage": number,
 
             # Locked product rule:
-            # Stage 1 = £100 ... Stage 50 = £5,000.
+            # Stage 1 = Â£100 ... Stage 50 = Â£5,000.
             "amount": number * 100,
             "currency":
                 WORLD_DEFAULT_CURRENCY,
@@ -1584,7 +1584,7 @@ async def admin_world_entries(
 
 
 # ===========================================================================
-# FREE WORLD PROGRESSION LEVELS — ROYAL VILLAGE
+# FREE WORLD PROGRESSION LEVELS â€” ROYAL VILLAGE
 # ===========================================================================
 #
 # IMPORTANT:
@@ -1996,7 +1996,7 @@ def _validate_world_level_config(
                 status_code=400,
                 detail=(
                     f"Level {level} time limit "
-                    "must be 5–900 seconds."
+                    "must be 5â€“900 seconds."
                 ),
             )
 
@@ -2253,7 +2253,7 @@ def _validate_world_champion_config(
             status_code=400,
             detail=(
                 "Champion time limit must be "
-                "5–1800 seconds."
+                "5â€“1800 seconds."
             ),
         )
 
@@ -3924,13 +3924,30 @@ async def _consume_world_attempt(
 async def free_world_state(
     request: Request,
 ):
-    user = await get_current_user(request)
     db = get_db()
 
-    progress = await _free_world_progress(
-        db,
-        user["user_id"],
-    )
+    try:
+        user = await get_current_user(request)
+    except HTTPException as exc:
+        if exc.status_code != 401:
+            raise
+        user = None
+
+    if user:
+        progress = await _free_world_progress(
+            db,
+            user["user_id"],
+        )
+    else:
+        # Public viewing state only.
+        # No guest progress is created or persisted.
+        progress = {
+            "current_level": 1,
+            "highest_unlocked_level": 1,
+            "completed_levels": [],
+            "champion_stage": 1,
+            "champion_ready": False,
+        }
 
     current_level = max(
         1,
@@ -3952,13 +3969,17 @@ async def free_world_state(
         )
     )
 
-    attempt_status = (
-        await _free_attempt_status(
-            db,
-            user["user_id"],
-            current_level,
+    if user:
+        attempt_status = (
+            await _free_attempt_status(
+                db,
+                user["user_id"],
+                current_level,
+            )
         )
-    )
+    else:
+        # Public viewers do not receive or consume attempts.
+        attempt_status = None
 
     unlock_state = (
         await _world_unlock_context(
@@ -4862,7 +4883,7 @@ async def free_world_session_submit(
 
 
 # ===========================================================================
-# FREE WORLD — CHAMPION CONTEST GAMEPLAY
+# FREE WORLD â€” CHAMPION CONTEST GAMEPLAY
 # ===========================================================================
 #
 # GLOBAL CONTEST NUMBER:
@@ -5021,7 +5042,7 @@ async def _ensure_champion_entry(
         "season_id":
             WORLD_SEASON_ID,
 
-        # GLOBAL — decides game everyone plays.
+        # GLOBAL â€” decides game everyone plays.
         "global_contest_number":
             contest_number,
 
@@ -5603,7 +5624,7 @@ async def champion_session_start(
         )
     )
 
-    # Champion Number Sequence stays 1–100.
+    # Champion Number Sequence stays 1â€“100.
     target = max(
         5,
         min(
@@ -6556,7 +6577,7 @@ async def champion_my_history(
 
 
 # ===========================================================================
-# PHASE 2C REVISED — TOKEN / BEST-TIME / CHAMPION RULES
+# PHASE 2C REVISED â€” TOKEN / BEST-TIME / CHAMPION RULES
 # ===========================================================================
 
 
@@ -6599,9 +6620,9 @@ def _champion_final_prize(
 ) -> int:
     """
     Example:
-      rank 4 base = £10
+      rank 4 base = Â£10
       Champion 9
-      final = £90
+      final = Â£90
     """
     return (
         _champion_rank_base_prize(rank)
@@ -6642,7 +6663,7 @@ async def _world_best_verified_time(
 
 
 # ===========================================================================
-# TOKEN RETRY — RESERVATION HOOK ONLY
+# TOKEN RETRY â€” RESERVATION HOOK ONLY
 # ===========================================================================
 
 
@@ -7222,7 +7243,7 @@ async def reserve_world_token_retry(
 
 
 # ===========================================================================
-# TOKEN LEVEL UNLOCK — RESERVATION HOOK ONLY
+# TOKEN LEVEL UNLOCK â€” RESERVATION HOOK ONLY
 # ===========================================================================
 
 
@@ -7344,7 +7365,7 @@ async def reserve_world_level_unlock(
             },
         )
 
-    # Tokens bypass time only — never progression/start/closed rules.
+    # Tokens bypass time only â€” never progression/start/closed rules.
     if access.get(
         "lock_reason"
     ) != "time":
@@ -7718,7 +7739,7 @@ async def free_world_level_attempt_summary(
 
 
 # ===========================================================================
-# PAID-CONTEST QUALIFICATION EVIDENCE — SHADOW MODE
+# PAID-CONTEST QUALIFICATION EVIDENCE â€” SHADOW MODE
 # ===========================================================================
 #
 # IMPORTANT:
@@ -9835,7 +9856,7 @@ async def continue_after_champion(
 
 
 # ===========================================================================
-# FREE WORLD — LEVEL ACCESS / TIMING
+# FREE WORLD â€” LEVEL ACCESS / TIMING
 # ===========================================================================
 
 

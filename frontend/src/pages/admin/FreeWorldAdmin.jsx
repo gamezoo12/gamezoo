@@ -40,6 +40,10 @@ const EMPTY_EDIT = {
   champion_config: {},
 };
 
+function padDatePart(value) {
+  return String(value).padStart(2, '0');
+}
+
 function localInputValue(value) {
   if (!value) return '';
 
@@ -49,26 +53,68 @@ function localInputValue(value) {
     return '';
   }
 
-  const offset = date.getTimezoneOffset();
-  const local = new Date(
-    date.getTime() - offset * 60000
-  );
-
-  return local
-    .toISOString()
-    .slice(0, 16);
+  return [
+    date.getFullYear(),
+    '-',
+    padDatePart(date.getMonth() + 1),
+    '-',
+    padDatePart(date.getDate()),
+    'T',
+    padDatePart(date.getHours()),
+    ':',
+    padDatePart(date.getMinutes()),
+  ].join('');
 }
 
 function isoValue(value) {
   if (!value) return null;
 
-  const date = new Date(value);
+  /*
+   * datetime-local contains NO timezone.
+   * Treat exactly what the admin selected as browser-local time.
+   *
+   * Example UK:
+   * 2026-09-07T23:59 during BST
+   * becomes 2026-09-07T22:59:00.000Z.
+   *
+   * When loaded again, localInputValue converts it back
+   * and the field still displays 23:59.
+   */
 
-  if (Number.isNaN(date.getTime())) {
+  const match =
+    String(value).match(
+      /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/
+    );
+
+  if (!match) {
     return null;
   }
 
-  return date.toISOString();
+  const [
+    ,
+    year,
+    month,
+    day,
+    hour,
+    minute,
+  ] = match;
+
+  const localDate =
+    new Date(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      Number(hour),
+      Number(minute),
+      0,
+      0
+    );
+
+  if (Number.isNaN(localDate.getTime())) {
+    return null;
+  }
+
+  return localDate.toISOString();
 }
 
 function statusClasses(status) {

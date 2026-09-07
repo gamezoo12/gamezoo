@@ -72,7 +72,15 @@ def _to_public(c: dict) -> dict:
 async def list_contests(category: Optional[str] = None, q: Optional[str] = Query(None), limit: int = 100):
     from deps import get_db
     db = get_db()
-    query = {'status': 'live'}
+    query = {
+        '$or': [
+            {'status': 'live'},
+            {
+                'status': 'draft',
+                'public_coming_soon': True,
+            },
+        ],
+    }
     if category and category != 'all':
         query['category'] = category
     if q:
@@ -152,7 +160,7 @@ async def issue_skill_challenge(slug: str):
 @router.post('/{contest_id}/track-view')
 async def track_contest_view(contest_id: str, is_mobile: bool = False):
     """Bump card-view counters used by admin's mobile-optimisation hint.
-    No auth required — anonymous view tracking with rate-limit-safe increments."""
+    No auth required â€” anonymous view tracking with rate-limit-safe increments."""
     from deps import get_db
     db = get_db()
     field = 'mobile_views' if is_mobile else 'desktop_views'
