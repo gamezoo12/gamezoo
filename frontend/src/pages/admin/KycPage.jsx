@@ -60,12 +60,12 @@ export default function KycAdmin() {
                 {(k.passport_url || k.address_proof_url) && (
                   <div className="flex flex-wrap gap-2 pt-2">
                     {k.passport_url && (
-                      <a href={k.passport_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-teal-100 text-teal-800 hover:bg-teal-200 font-medium">
+                      <a href={`${k.passport_url}${k.passport_url.includes('?') ? '&' : '?'}auth=${localStorage.getItem('gz_token') || ''}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-teal-100 text-teal-800 hover:bg-teal-200 font-medium">
                         📄 View ID / Passport
                       </a>
                     )}
                     {k.address_proof_url && (
-                      <a href={k.address_proof_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-800 hover:bg-indigo-200 font-medium">
+                      <a href={`${k.address_proof_url}${k.address_proof_url.includes('?') ? '&' : '?'}auth=${localStorage.getItem('gz_token') || ''}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-800 hover:bg-indigo-200 font-medium">
                         📄 View Address Proof
                       </a>
                     )}

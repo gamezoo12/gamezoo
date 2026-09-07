@@ -43,6 +43,7 @@ const minimalWorldHeader =
  const isFreeWorldHeader =
    pathname === '/world';
  const profileRef = useRef(null);
+ const freeProfileRef = useRef(null);
 
  // Cart badge
  useEffect(() => {
@@ -63,7 +64,8 @@ const minimalWorldHeader =
  const load = () => walletAPI.me().then(w => setBalance(w.balance)).catch(() => {});
  load();
  const t = setInterval(load, 30000);
- return () => clearInterval(t);
+ window.addEventListener('pl-world-progress-refresh', load);
+ return () => { clearInterval(t); window.removeEventListener('pl-world-progress-refresh', load); };
  }, [user, pathname]);
 
  // Pending draws (mobile badge)
@@ -118,7 +120,7 @@ const minimalWorldHeader =
 
  // Close profile dropdown on outside click
  useEffect(() => {
- const onDown = (e) => { if (profileRef.current && !profileRef.current.contains(e.target)) setProfileOpen(false); };
+ const onDown = (e) => { const inReal = profileRef.current && profileRef.current.contains(e.target); const inFree = freeProfileRef.current && freeProfileRef.current.contains(e.target); if (!inReal && !inFree) setProfileOpen(false); };
  document.addEventListener('mousedown', onDown);
  return () => document.removeEventListener('mousedown', onDown);
  }, []);
@@ -254,7 +256,7 @@ const minimalWorldHeader =
  <div className="max-w-7xl mx-auto flex items-center justify-between px-3 sm:px-4 lg:px-8 h-14 sm:h-16 md:h-[70px] gap-2">
  <Link to="/" className="shrink-0 flex items-center" data-testid="header-logo">
  {/* Mobile (below 640px): show full wordmark; ≥sm/≥lg keep existing sizes exactly */}
- <span className="sm:hidden"><PrizeLeagueLogo size={36} /></span>
+ <span className="sm:hidden"><PrizeLeagueLogo size={36} emblemOnly={isFreeWorldHeader} /></span>
  <span className="hidden sm:inline lg:hidden"><PrizeLeagueLogo size={44} /></span>
  <span className="hidden lg:inline"><PrizeLeagueLogo size={60} /></span>
  </Link>
@@ -440,8 +442,25 @@ const minimalWorldHeader =
 
 
  {/* Free World auth control */}
+ {isFreeWorldHeader && user && (
+   <Link
+     to="/my-account/wallet"
+     data-testid="free-world-token-balance"
+     className="inline-flex items-center gap-1.5 rounded-full border border-[#FFD54A]/60 bg-gradient-to-b from-[#1a1140] to-[#0a0b1a] px-2.5 py-1.5 text-[#FFDD42] shadow-[0_0_12px_rgba(255,202,31,0.25)] hover:border-[#FFE680] hover:shadow-[0_0_18px_rgba(255,202,31,0.4)] transition whitespace-nowrap"
+     title="Your token balance"
+   >
+     <span className="text-[13px] leading-none" aria-hidden="true">🪙</span>
+     <span className="text-[13px] sm:text-sm font-black leading-none" data-testid="free-world-token-balance-value">
+       {balance === null ? '…' : tokenCount(balance)}
+     </span>
+     <span className="hidden sm:inline text-[8px] font-black tracking-wider text-[#fff3a1] leading-none">TOKENS</span>
+   </Link>
+ )}
+
+ {/* Free World auth control */}
  {isFreeWorldHeader && (
    <div
+     ref={freeProfileRef}
      className="relative"
      data-testid="free-world-auth-control"
    >
@@ -477,12 +496,12 @@ const minimalWorldHeader =
                .toUpperCase()}
            </div>
 
-           <span className="hidden min-[360px]:inline text-[9px] sm:text-xs font-bold">
+           <span className="hidden sm:inline text-[9px] sm:text-xs font-bold">
              PROFILE
            </span>
 
            <ChevronDown
-             className={`w-3 h-3 text-white/70 transition-transform ${
+             className={`hidden sm:block w-3 h-3 text-white/70 transition-transform ${
                profileOpen
                  ? 'rotate-180'
                  : ''

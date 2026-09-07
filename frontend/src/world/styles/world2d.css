@@ -12941,3 +12941,425 @@
 
 /* ===== END FREE WORLD LEADERBOARD UX V10 ===== */
 
+
+
+
+/* =========================================================
+   FREE WORLD TOKEN HUD (header balance chip)
+   ========================================================= */
+
+.pl2d-token-hud {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+
+  padding: 7px 15px 8px;
+  box-sizing: border-box;
+
+  cursor: pointer;
+  appearance: none;
+  border: 2px solid #ffd538;
+  border-radius: 13px;
+
+  background:
+    radial-gradient(circle at 50% 15%, rgba(91,44,180,.42), transparent 60%),
+    linear-gradient(145deg, #17102f 0%, #0a0b1a 60%, #04050c 100%);
+
+  box-shadow:
+    0 0 14px rgba(255,202,31,.26),
+    0 6px 14px rgba(0,0,0,.5),
+    inset 0 1px 0 rgba(255,255,255,.1);
+
+  transition:
+    transform .16s ease,
+    box-shadow .16s ease,
+    border-color .16s ease;
+}
+
+.pl2d-token-hud:hover {
+  transform: translateY(-1px);
+  border-color: #ffe680;
+  box-shadow:
+    0 0 20px rgba(255,202,31,.45),
+    0 8px 18px rgba(0,0,0,.55),
+    inset 0 1px 0 rgba(255,255,255,.14);
+}
+
+.pl2d-token-hud:active {
+  transform: translateY(0);
+}
+
+.pl2d-token-hud-coin {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.pl2d-token-hud-value {
+  display: block;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 22px;
+  line-height: 1;
+  font-weight: 900;
+  color: #ffdd42;
+  text-shadow:
+    0 2px 0 #6c4100,
+    0 0 8px rgba(255,210,45,.6);
+}
+
+.pl2d-token-hud > small {
+  font-size: 8px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 1.4px;
+  color: #fff3a1;
+}
+
+.pl2d-token-hud-coin {
+  position: absolute;
+  top: 5px;
+  right: 7px;
+  font-size: 12px;
+  opacity: .85;
+}
+
+@media (max-width: 560px) {
+  .pl2d-token-hud {
+    padding: 6px 11px 7px;
+  }
+
+  .pl2d-token-hud-value {
+    font-size: 18px;
+  }
+}
+
+
+/* =========================================================
+   EARLY UNLOCK HINT (on a time-locked level node)
+   ========================================================= */
+
+.pl1000-level.is-unlockable {
+  cursor: pointer;
+}
+
+.pl2d-level-unlock-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+
+  margin-top: 4px;
+  padding: 3px 8px 4px;
+
+  border-radius: 8px;
+  border: 1px solid rgba(255,213,56,.7);
+
+  background:
+    linear-gradient(145deg, rgba(91,44,180,.55), rgba(9,10,24,.9));
+
+  box-shadow: 0 0 10px rgba(255,202,31,.35);
+
+  animation: pl2dUnlockPulse 2s ease-in-out infinite;
+}
+
+.pl2d-level-unlock-hint b {
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: #fff3a1;
+}
+
+.pl2d-level-unlock-hint strong {
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .4px;
+  color: #ffdd42;
+  text-shadow: 0 1px 0 #5a3600;
+}
+
+@keyframes pl2dUnlockPulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(255,202,31,.28); }
+  50% { box-shadow: 0 0 16px rgba(255,202,31,.6); }
+}
+
+
+/* =========================================================
+   TOKEN CONFIRMATION MODAL (early unlock)
+   ========================================================= */
+
+.pl2d-token-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 18px;
+
+  background: rgba(2,3,10,.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+
+  animation: pl2dFadeIn .18s ease;
+}
+
+.pl2d-token-modal {
+  width: 100%;
+  max-width: 380px;
+  box-sizing: border-box;
+
+  padding: 24px 22px 22px;
+
+  border: 2px solid #ffd538;
+  border-radius: 20px;
+
+  background:
+    radial-gradient(circle at 50% 0%, rgba(91,44,180,.5), transparent 55%),
+    linear-gradient(160deg, #171032 0%, #0a0b1a 60%, #04050c 100%);
+
+  box-shadow:
+    0 0 28px rgba(255,202,31,.28),
+    0 22px 50px rgba(0,0,0,.6),
+    inset 0 1px 0 rgba(255,255,255,.1);
+
+  animation: pl2dModalPop .22s cubic-bezier(.2,.9,.3,1.2);
+}
+
+.pl2d-token-modal-kicker {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: #fff3a1;
+  text-align: center;
+}
+
+.pl2d-token-modal h2 {
+  margin: 6px 0 10px;
+  text-align: center;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 30px;
+  font-weight: 900;
+  color: #ffdd42;
+  text-shadow: 0 2px 0 #6c4100, 0 0 10px rgba(255,210,45,.5);
+}
+
+.pl2d-token-modal-lead {
+  margin: 0 0 16px;
+  text-align: center;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: rgba(255,255,255,.78);
+}
+
+.pl2d-token-modal-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255,213,56,.28);
+  margin-bottom: 16px;
+}
+
+.pl2d-token-modal-rows > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 11px 14px;
+  background: rgba(255,255,255,.03);
+}
+
+.pl2d-token-modal-rows > div span {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255,255,255,.7);
+}
+
+.pl2d-token-modal-rows > div strong {
+  font-size: 15px;
+  font-weight: 900;
+  color: #ffe680;
+}
+
+.pl2d-token-modal-insufficient {
+  margin-bottom: 14px;
+  padding: 10px;
+  text-align: center;
+
+  border-radius: 10px;
+  border: 1px solid rgba(255,90,90,.5);
+  background: rgba(120,20,20,.35);
+
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: .5px;
+  color: #ff9a9a;
+}
+
+.pl2d-token-modal-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.pl2d-token-modal-cancel,
+.pl2d-token-modal-confirm {
+  flex: 1;
+  appearance: none;
+  cursor: pointer;
+
+  padding: 13px 10px;
+  border-radius: 12px;
+
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: .6px;
+
+  transition:
+    transform .14s ease,
+    box-shadow .14s ease,
+    filter .14s ease,
+    opacity .14s ease;
+}
+
+.pl2d-token-modal-cancel {
+  border: 1px solid rgba(255,255,255,.22);
+  background: rgba(255,255,255,.06);
+  color: rgba(255,255,255,.85);
+}
+
+.pl2d-token-modal-cancel:hover {
+  background: rgba(255,255,255,.12);
+}
+
+.pl2d-token-modal-confirm {
+  border: 1px solid #ffd538;
+  background: linear-gradient(145deg, #ffd944, #f0a814);
+  color: #2a1a00;
+  box-shadow: 0 6px 16px rgba(255,180,20,.35);
+}
+
+.pl2d-token-modal-confirm:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+  box-shadow: 0 9px 20px rgba(255,180,20,.45);
+}
+
+.pl2d-token-modal-confirm:disabled,
+.pl2d-token-modal-cancel:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+@keyframes pl2dFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pl2dModalPop {
+  from { opacity: 0; transform: translateY(16px) scale(.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+
+/* =========================================================
+   PROGRESSION AVATAR (standalone, road-aware, visual only)
+   Always visible for a started user. Sits AT the immediate
+   next playable level, or WAITS on the road when that level
+   is still time-locked. Position is deterministic; smooth
+   transition when it moves to a newly unlocked level.
+   ========================================================= */
+
+.pl1000-progress-avatar {
+  position: absolute;
+
+  width: 42px;
+  height: 61px;
+
+  /* lift so the avatar stands on/near the node circle */
+  margin-bottom: 74px;
+
+  transform: translateX(-50%);
+  transform-origin: bottom center;
+
+  z-index: 46;
+  pointer-events: none;
+
+  transition:
+    left .75s cubic-bezier(.4, 0, .2, 1),
+    bottom .75s cubic-bezier(.4, 0, .2, 1);
+}
+
+.pl1000-progress-avatar .pl1000-avatar-head,
+.pl1000-progress-avatar .pl1000-avatar-body {
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .35));
+}
+
+/* YOU tag */
+.pl1000-progress-avatar b {
+  position: absolute;
+
+  left: 50%;
+  top: -18px;
+
+  transform: translateX(-50%);
+
+  padding: 2px 6px;
+
+  border-radius: 999px;
+
+  background: #121325;
+  color: #ffe05a;
+
+  font-size: 7px;
+  font-weight: 1000;
+
+  white-space: nowrap;
+}
+
+/* Waiting-on-the-road treatment */
+.pl1000-progress-avatar.is-waiting {
+  animation: pl1000AvatarBob 1.9s ease-in-out infinite;
+}
+
+.pl1000-avatar-waiting {
+  position: absolute;
+
+  left: 100%;
+  top: 50%;
+
+  transform: translateY(-50%);
+
+  margin-left: 6px;
+
+  padding: 3px 9px;
+
+  border-radius: 999px;
+
+  border: 1px solid rgba(255, 213, 56, .7);
+
+  background:
+    linear-gradient(145deg, rgba(91, 44, 180, .92), rgba(9, 10, 24, .95));
+
+  color: #ffdd42;
+
+  font-size: 8px;
+  font-weight: 1000;
+  letter-spacing: 1px;
+
+  white-space: nowrap;
+
+  box-shadow: 0 0 10px rgba(255, 202, 31, .4);
+}
+
+@keyframes pl1000AvatarBob {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(-5px); }
+}
+

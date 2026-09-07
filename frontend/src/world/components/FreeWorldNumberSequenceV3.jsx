@@ -19,7 +19,12 @@ import {
 
 import {
   worldAPI,
+  walletAPI,
 } from '../../lib/api';
+
+import { toast } from 'sonner';
+
+import { useNavigate } from 'react-router-dom';
 
 import '../styles/freeWorldGameV3.css';
 
@@ -196,6 +201,41 @@ export default function FreeWorldNumberSequenceV3({
 
   const [error, setError] =
     useState('');
+
+  const [
+    retryConfirmOpen,
+    setRetryConfirmOpen,
+  ] = useState(false);
+
+  const [walletBalance, setWalletBalance] =
+    useState(null);
+
+  const navigate = useNavigate();
+
+  const loadBalance =
+    useCallback(() => {
+      if (guestMode) {
+        return;
+      }
+
+      walletAPI
+        .me()
+        .then((wallet) => {
+          if (mountedRef.current) {
+            setWalletBalance(
+              Number(
+                wallet?.tokens ??
+                  Math.round(
+                    Number(
+                      wallet?.balance ?? 0,
+                    ),
+                  ),
+              ),
+            );
+          }
+        })
+        .catch(() => {});
+    }, [guestMode]);
 
 
   const mountedRef =
@@ -948,6 +988,8 @@ if (
   /*
    * Real backend token retry reservation.
    * No frontend fake token deduction.
+   * Backend reservation/idempotency guarantees a single charge
+   * even on double-click, refresh mid-request or multiple tabs.
    */
   const retryWithToken =
     async () => {
@@ -961,27 +1003,59 @@ if (
       setError('');
 
       try {
-        await worldAPI
-          .reserveTokenRetry(
-            Number(
-              selectedLevel?.level,
-            ),
-          );
+        const response =
+          await worldAPI
+            .reserveTokenRetry(
+              Number(
+                selectedLevel?.level,
+              ),
+            );
 
         await refreshAttemptSummary();
 
-        if (
-          mountedRef.current
-        ) {
+        const cost = Number(
+          response?.token_cost ??
+            resultAttempts?.token_retry_cost ??
+            1,
+        );
+
+        const remaining = Number(
+          response?.tokens_remaining ?? 0,
+        );
+
+        if (mountedRef.current) {
+          setWalletBalance(remaining);
+          setRetryConfirmOpen(false);
+
+          toast.success('Retry unlocked', {
+            description:
+              `${cost} Tokens used \u2022 ${remaining} remaining`,
+          });
+
+          window.dispatchEvent(
+            new CustomEvent(
+              'pl-world-progress-refresh',
+            ),
+          );
+
           retryFree();
         }
       } catch (requestError) {
-        setError(
+        const message =
           getErrorMessage(
             requestError,
             'Unable to reserve a token retry.',
-          ),
-        );
+          );
+
+        if (mountedRef.current) {
+          setError(message);
+          setRetryConfirmOpen(false);
+          loadBalance();
+
+          toast.error('Retry not applied', {
+            description: message,
+          });
+        }
       } finally {
         if (
           mountedRef.current
@@ -1004,6 +1078,12 @@ if (
     attemptSummary?.attempts ||
     result?.attempts ||
     attempts;
+
+  const retryCost =
+    Number(
+      resultAttempts
+        ?.token_retry_cost ?? 1,
+    );
 
 
   const resultFreeAttempts =
@@ -1958,12 +2038,26 @@ if (
               <button
                 type="button"
                 className="fwv3-button fwv3-button-primary fwv3-full"
+                data-testid="retry-with-tokens-button"
                 disabled={busy}
-                onClick={
-                  retryWithToken
-                }
+                onClick={() => {
+                  loadBalance();
+                  setRetryConfirmOpen(true);
+                }}
               >
-                RETRY NOW - 1 TOKEN
+                RETRY WITH TOKENS - {
+                  Number(
+                    resultAttempts
+                      ?.token_retry_cost ?? 1,
+                  )
+                } {
+                  Number(
+                    resultAttempts
+                      ?.token_retry_cost ?? 1,
+                  ) === 1
+                    ? 'TOKEN'
+                    : 'TOKENS'
+                }
               </button>
             ) : null
           }
@@ -2018,6 +2112,134 @@ if (
               </div>
             )
           }
+
+          {retryConfirmOpen && (
+            <div
+              className="fwv3-token-modal-backdrop"
+              data-testid="retry-confirm-modal"
+              onClick={() => {
+                if (!busy) {
+                  setRetryConfirmOpen(false);
+                }
+              }}
+            >
+              <section
+                className="fwv3-token-modal"
+                onClick={(event) =>
+                  event.stopPropagation()
+                }
+              >
+                <div className="fwv3-token-modal-kicker">
+                  RETRY WITH TOKENS
+                </div>
+
+                <h3>
+                  {selectedLevel?.name ||
+                    `Level ${selectedLevel?.level}`}
+                </h3>
+
+                <p className="fwv3-token-modal-lead">
+                  You have used all your free attempts.
+                  Spend tokens to play this level again.
+                </p>
+
+                <div className="fwv3-token-modal-rows">
+                  <div>
+                    <span>Token cost</span>
+                    <strong data-testid="retry-cost">
+                      {retryCost} 🪙
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>Current balance</span>
+                    <strong data-testid="retry-current-balance">
+                      {walletBalance === null
+                        ? '…'
+                        : `${walletBalance} 🪙`}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>Remaining balance</span>
+                    <strong data-testid="retry-remaining-balance">
+                      {walletBalance === null
+                        ? '…'
+                        : `${Math.max(
+                            0,
+                            walletBalance -
+                              retryCost,
+                          )} 🪙`}
+                    </strong>
+                  </div>
+                </div>
+
+                {walletBalance !== null &&
+                walletBalance < retryCost ? (
+                  <>
+                    <div
+                      className="fwv3-token-modal-insufficient"
+                      data-testid="retry-insufficient"
+                    >
+                      Not enough tokens
+                    </div>
+
+                    <div className="fwv3-token-modal-actions">
+                      <button
+                        type="button"
+                        className="fwv3-button fwv3-button-outline"
+                        data-testid="retry-cancel"
+                        onClick={() =>
+                          setRetryConfirmOpen(false)
+                        }
+                      >
+                        Cancel
+                      </button>
+
+                      <button
+                        type="button"
+                        className="fwv3-button fwv3-button-primary"
+                        data-testid="retry-topup"
+                        onClick={() =>
+                          navigate(
+                            '/my-account/wallet',
+                          )
+                        }
+                      >
+                        Top Up Wallet
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="fwv3-token-modal-actions">
+                    <button
+                      type="button"
+                      className="fwv3-button fwv3-button-outline"
+                      data-testid="retry-cancel"
+                      disabled={busy}
+                      onClick={() =>
+                        setRetryConfirmOpen(false)
+                      }
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      type="button"
+                      className="fwv3-button fwv3-button-primary"
+                      data-testid="retry-confirm"
+                      disabled={busy}
+                      onClick={retryWithToken}
+                    >
+                      {busy
+                        ? 'Please wait…'
+                        : 'Confirm'}
+                    </button>
+                  </div>
+                )}
+              </section>
+            </div>
+          )}
 
         </section>
 

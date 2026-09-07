@@ -1,16 +1,16 @@
-from fastapi import APIRouter, HTTPException, Request, UploadFile, File
+from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Query
+from fastapi.responses import Response
+from starlette.concurrency import run_in_threadpool
 from datetime import datetime, timezone
 from pydantic import BaseModel, EmailStr
 from typing import Optional
-from pathlib import Path
 import uuid
 
-from auth import get_current_user, hash_password, verify_password
+from auth import get_current_user, hash_password, verify_password, decode_jwt
+from object_storage import put_object, get_object, APP_NAME
 
 router = APIRouter(prefix='/api/users', tags=['users'])
 
-KYC_UPLOAD_DIR = Path(__file__).resolve().parents[1] / "uploads" / "kyc"
-KYC_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 KYC_MAX_BYTES = 8 * 1024 * 1024  # 8 MB
 KYC_SIGNATURES = {
     b"\xff\xd8\xff": ("image/jpeg", ".jpg"),
@@ -27,14 +27,6 @@ def _kyc_sniff(data: bytes):
                 continue
             return meta
     return None
-
-
-def _public_base_url(request: Request) -> str:
-    proto = request.headers.get("x-forwarded-proto") or request.url.scheme or "https"
-    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
-    if host:
-        return f"{proto}://{host}"
-    return str(request.base_url).rstrip("/")
 
 
 class ProfileUpdate(BaseModel):
@@ -144,8 +136,9 @@ class KycSubmit(BaseModel):
 
 @router.post('/kyc/upload')
 async def upload_kyc_document(request: Request, kind: str, file: UploadFile = File(...)):
-    """Upload a KYC document (passport OR address proof). Returns a URL to be
-    submitted alongside the KYC form. `kind` = 'passport' | 'address_proof'."""
+    """Upload a KYC document (passport OR address proof) to object storage.
+    Returns a backend-served URL to be submitted alongside the KYC form.
+    `kind` = 'passport' | 'address_proof'."""
     user = await get_current_user(request)
     if kind not in ('passport', 'address_proof'):
         raise HTTPException(400, "kind must be 'passport' or 'address_proof'")
@@ -159,13 +152,72 @@ async def upload_kyc_document(request: Request, kind: str, file: UploadFile = Fi
         raise HTTPException(415, "Unsupported file type. Use JPG, PNG, WEBP or PDF.")
     mime, ext = sniffed
 
-    name = f"{user['user_id']}_{kind}_{uuid.uuid4().hex[:10]}{ext}"
-    dest = KYC_UPLOAD_DIR / name
-    dest.write_bytes(data)
+    from deps import get_db
+    db = get_db()
 
-    base = _public_base_url(request).rstrip("/")
-    url = f"{base}/api/uploads/kyc/{name}"
+    file_id = uuid.uuid4().hex
+    storage_path = f"{APP_NAME}/kyc/{user['user_id']}/{file_id}{ext}"
+
+    result = await run_in_threadpool(put_object, storage_path, data, mime)
+
+    await db.kyc_files.insert_one({
+        'file_id': file_id,
+        'user_id': user['user_id'],
+        'kind': kind,
+        'storage_path': result.get('path', storage_path),
+        'content_type': mime,
+        'size': len(data),
+        'is_deleted': False,
+        'created_at': datetime.now(timezone.utc),
+    })
+
+    # Relative URL served (with auth) by the backend — works in deployed envs.
+    url = f"/api/users/kyc/file/{file_id}"
     return {"url": url, "kind": kind, "size": len(data), "mime": mime}
+
+
+async def _resolve_user_from_token(db, token: Optional[str]):
+    if not token:
+        return None
+    uid = decode_jwt(token)
+    if uid:
+        u = await db.users.find_one({'user_id': uid}, {'_id': 0, 'password_hash': 0})
+        if u:
+            return u
+    sess = await db.user_sessions.find_one({'session_token': token}, {'_id': 0})
+    if sess:
+        u = await db.users.find_one({'user_id': sess['user_id']}, {'_id': 0, 'password_hash': 0})
+        if u:
+            return u
+    return None
+
+
+@router.get('/kyc/file/{file_id}')
+async def get_kyc_file(file_id: str, request: Request, auth: Optional[str] = Query(None)):
+    """Serve a KYC document to its owner or an admin. Supports `?auth=<token>`
+    so the file can be opened directly in a new browser tab / <img> tag."""
+    from deps import get_db
+    db = get_db()
+
+    header = request.headers.get('Authorization') or ''
+    token = header.split(' ', 1)[1].strip() if header.lower().startswith('bearer ') else None
+    token = token or auth or request.cookies.get('session_token')
+
+    requester = await _resolve_user_from_token(db, token)
+    if not requester:
+        raise HTTPException(401, 'Not authenticated')
+
+    record = await db.kyc_files.find_one({'file_id': file_id, 'is_deleted': False}, {'_id': 0})
+    if not record:
+        raise HTTPException(404, 'File not found')
+
+    is_owner = record['user_id'] == requester['user_id']
+    is_admin = requester.get('role') in ('admin', 'super_admin', 'operator', 'support')
+    if not (is_owner or is_admin):
+        raise HTTPException(403, 'Forbidden')
+
+    content, content_type = await run_in_threadpool(get_object, record['storage_path'])
+    return Response(content=content, media_type=record.get('content_type') or content_type)
 
 
 @router.post('/kyc/submit')

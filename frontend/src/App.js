@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import './App.css';
 import { Toaster } from './components/ui/toaster';
+import { Toaster as SonnerToaster } from './components/ui/sonner';
 import { AuthProvider } from './context/AuthContext';
 import TermsGate from './components/TermsGate';
 
@@ -158,6 +159,7 @@ function App() {
           <AppRouter />
           <TermsGate />
           <Toaster />
+          <SonnerToaster position="top-center" richColors closeButton />
         </BrowserRouter>
       </AuthProvider>
     </div>

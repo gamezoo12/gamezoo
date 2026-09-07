@@ -1,0 +1,37 @@
+{
+  "summary": "Full backend + frontend validation of Free World token unlock/retry UX. Backend rules verified: early-unlock happy path deducts exactly 1 token (350->349), double-call idempotency (second returns 409 LEVEL_ALREADY_AVAILABLE, no extra charge), progression guard on L3 (409 PREVIOUS_LEVEL_NOT_COMPLETED), insufficient balance (400), and retry-reserve double-charge safety. Frontend verified end-to-end for player1: header chip shows 350 TOKENS, L2 shows early-unlock hint, L3 does not, modal renders correct natural time / cost / current / remaining / cancel / confirm, confirm calls backend once, sonner toast reads 'Level unlocked / 1 Tokens used * 349 remaining', chip updates to 349 and persists after /world refresh. Insufficient-balance modal for player_broke shows 'Not enough tokens' with Top Up Wallet button that navigates to /my-account/wallet, and NO confirm/charge button rendered. Found seed-script hygiene bug (fixed) and a minor UX bug where the page briefly navigates to /login after a successful unlock confirmation before settling back into an authenticated /world.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "WorldCanvas.confirmEarlyUnlock", "issue": "After a successful early unlock confirm, the app briefly navigates to /login (sonner 'Level unlocked' toast is shown on the login page) before user returns to /world on reload. Session is not fully lost (subsequent /world reload shows PROFILE + updated chip), but the intermediate redirect is a UX regression and can look like a forced logout. Likely due to attempting to open the Level 2 game immediately after unlock while the level state/lock_reason has not yet flipped in the local store.", "selector": "[data-testid=\"early-unlock-confirm\"]", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_free_world_token_flow.py",
+    "/app/test_reports/pytest/iter35_token_flow.xml"
+  ],
+  "action_items": [
+    "Fix WorldCanvas.confirmEarlyUnlock post-success flow so user stays on /world (or opens Level 2 game) instead of briefly landing on /login. Reload/refresh world state via the pl-world-progress-refresh event before attempting to open the level game.",
+    "OPTIONAL: consider also clearing world_token_retry_daily/reservations wallet idempotency markers in seed_token_test_scenario.py if additional retry test isolation is needed (unlock side already fixed)."
+  ],
+  "critical_code_review_comments": [
+    "Seed script (backend/scripts/seed_token_test_scenario.py) was resetting only wallet.balance but leaving wallet.applied_tx_refs populated. Combined with deterministic reservation_id (WLU-<season>-<user>-C<stage>-L<level>), _apply_tx_idempotent replayed the previous debit and returned tokens_remaining unchanged, giving a false impression that unlock did not charge. FIX APPLIED: seed now resets applied_tx_refs=[], lifetime_spend=0, lifetime_tokens_spent=0 in set_wallet.",
+    "Consider surfacing a clearer intermediate loading state on the early-unlock modal instead of allowing the immediate navigation-to-login after confirm."
+  ],
+  "updated_files": [
+    "/app/backend/scripts/seed_token_test_scenario.py (reset wallet idempotency markers so re-seed produces a truly clean scenario)",
+    "/app/backend/tests/test_free_world_token_flow.py (new pytest coverage for unlock/retry token flows)"
+  ],
+  "success_rate": {"backend": "100% (5/5)", "frontend": "95% (all core token UX flows pass; minor post-confirm /login flash)"},
+  "test_credentials": "player1@example.com / Player@12345 (350 tokens, L1 done); player_broke@example.com / Player@12345 (0 tokens, L1 done). Re-run python3 /app/backend/scripts/seed_token_test_scenario.py before destructive tests.",
+  "seed_data_creation": "Ran /app/backend/scripts/seed_token_test_scenario.py to reset player1 balance=350 / L2 time-locked and player_broke balance=0 before each destructive backend test and before frontend UI tests.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend token unlock/retry endpoints are correct and idempotent. The only outstanding item is the frontend post-confirm navigation flash to /login inside WorldCanvas.confirmEarlyUnlock. When retesting, re-run seed script; verify the confirm-success flow keeps the user authenticated on /world (or directly on the Level 2 gameplay screen) without any /login intermediate state.",
+  "rca of the issue": "Initial pytest happy-path FAILURE was caused by seed hygiene, not backend logic. Deterministic reservation_id WLU-season-1-<user>-C1-L2 + persistent wallet.applied_tx_refs from prior test runs made _apply_tx_idempotent return idempotent_replay=true with tokens_remaining unchanged. Clearing applied_tx_refs and spend counters in set_wallet restores clean-slate behavior. Manual re-verification confirmed 350->349 debit and 409 LEVEL_ALREADY_AVAILABLE on second call."
+}

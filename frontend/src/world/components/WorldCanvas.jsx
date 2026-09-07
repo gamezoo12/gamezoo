@@ -16,7 +16,12 @@ import {
 
 import {
   worldAPI,
+  walletAPI,
 } from '../../lib/api';
+
+import { toast } from 'sonner';
+
+import { useAuth } from '../../context/AuthContext';
 
 import FreeWorldLeaderboard from './FreeWorldLeaderboard';
 
@@ -585,6 +590,8 @@ function ChampionshipSection({
   currentChampionship,
   journeyStarted,
   worldNowMs,
+  onRequestUnlock,
+  canUseTokens,
 }) {
   const championshipNumber =
     championship.championshipNumber ??
@@ -638,28 +645,60 @@ function ChampionshipSection({
     localLevel,
     levelState,
   ) => {
-    if (
-      !isCurrentChampionship ||
-      !levelState?.available ||
-      levelState?.completed
-    ) {
+    if (!isCurrentChampionship) {
       return;
     }
 
-    window.dispatchEvent(
-      new CustomEvent(
-        'pl-world-level-select',
-        {
-          detail: {
-            level: localLevel,
-            globalLevel,
-            championshipNumber,
-            name:
-              `Level ${globalLevel}`,
+    // Playable level → open the game (existing behaviour).
+    if (
+      levelState?.available &&
+      !levelState?.completed
+    ) {
+      window.dispatchEvent(
+        new CustomEvent(
+          'pl-world-level-select',
+          {
+            detail: {
+              level: localLevel,
+              globalLevel,
+              championshipNumber,
+              name:
+                `Level ${globalLevel}`,
+            },
           },
-        },
-      ),
-    );
+        ),
+      );
+
+      return;
+    }
+
+    // Early unlock is offered ONLY when the level is locked purely
+    // by its scheduled countdown timer. Backend remains the single
+    // source of truth for eligibility. We never bypass progression,
+    // contest-open or previous-level rules on the client.
+    const eligibleForEarlyUnlock =
+      canUseTokens &&
+      !levelState?.available &&
+      !levelState?.completed &&
+      levelState?.lock_reason === 'time' &&
+      levelState?.sequence_available === true &&
+      levelState?.token_unlock_enabled !== false &&
+      Number(localLevel) >= 2;
+
+    if (eligibleForEarlyUnlock) {
+      onRequestUnlock?.({
+        level: Number(localLevel),
+        globalLevel,
+        championshipNumber,
+        cost: Number(
+          levelState?.token_unlock_cost ?? 1,
+        ),
+        secondsUntilUnlock: Number(
+          levelState?.seconds_until_unlock ?? 0,
+        ),
+        unlockAt: levelState?.unlock_at || null,
+      });
+    }
   };
 
   /*
@@ -692,6 +731,84 @@ function ChampionshipSection({
         championshipNumber,
       ],
     );
+
+  /*
+   * PROGRESSION AVATAR POSITION (visual only — backend stays
+   * authoritative for progress). Rendered once, on the road,
+   * for the current championship after the journey has begun.
+   *
+   *  - Immediate next level playable  -> avatar sits AT that node.
+   *  - Immediate next level time-locked -> avatar waits on the road
+   *    ~60% of the way from the last completed level toward it.
+   */
+  const progressAvatar =
+    useMemo(() => {
+      if (
+        !isCurrentChampionship ||
+        !journeyStarted
+      ) {
+        return null;
+      }
+
+      const localLevel =
+        localLevelForGlobal(
+          currentGlobalLevel,
+        );
+
+      const slotIndex = localLevel - 1;
+
+      const slot =
+        PL1000_SLOT_POSITIONS[slotIndex];
+
+      if (!slot) {
+        return null;
+      }
+
+      const state =
+        backendLevelMap.get(localLevel);
+
+      const waiting =
+        Boolean(state) &&
+        !state.available &&
+        !state.completed &&
+        state.lock_reason === 'time';
+
+      if (waiting && slotIndex >= 1) {
+        const prev =
+          PL1000_SLOT_POSITIONS[
+            slotIndex - 1
+          ];
+
+        // Deterministic point ON the black road between the
+        // completed level and the locked one. No sideways nudge —
+        // the avatar must stay on the path. Positioned a bit below
+        // the midpoint so it sits clear of the locked level's
+        // timer / early-unlock labels that hang down toward it.
+        const fraction = 0.42;
+
+        return {
+          left:
+            prev.x +
+            fraction * (slot.x - prev.x),
+          bottom:
+            prev.bottom +
+            fraction *
+              (slot.bottom - prev.bottom),
+          waiting: true,
+        };
+      }
+
+      return {
+        left: slot.x,
+        bottom: slot.bottom,
+        waiting: false,
+      };
+    }, [
+      isCurrentChampionship,
+      journeyStarted,
+      currentGlobalLevel,
+      backendLevelMap,
+    ]);
 
   return (
     <section
@@ -1023,13 +1140,25 @@ function ChampionshipSection({
               levelUnlockMs >
                 worldNowMs;
 
+            // Only the user's IMMEDIATE next progression level
+            // (isCurrent) ever shows a countdown. Future locked
+            // levels stay locked but display no timer.
             const levelCountdown =
-              hasFutureUnlock
+              hasFutureUnlock && isCurrent
                 ? formatWorldCountdown(
                     levelUnlockMs,
                     worldNowMs,
                   )
                 : null;
+
+            const canEarlyUnlock =
+              canUseTokens &&
+              isCurrent &&
+              locked &&
+              backendState?.lock_reason === 'time' &&
+              backendState?.sequence_available === true &&
+              backendState?.token_unlock_enabled !== false &&
+              Number(localLevel) >= 2;
 
             return (
               <button
@@ -1040,6 +1169,9 @@ function ChampionshipSection({
                   `pl2d-level-${globalLevel}`
                 }
                 type="button"
+                data-testid={
+                  `free-world-level-${globalLevel}`
+                }
                 className={[
                   'pl1000-level',
                   completed
@@ -1053,6 +1185,9 @@ function ChampionshipSection({
                     : '',
                   locked
                     ? 'is-locked'
+                    : '',
+                  canEarlyUnlock
+                    ? 'is-unlockable'
                     : '',
                 ].join(' ')}
                 style={{
@@ -1100,20 +1235,19 @@ function ChampionshipSection({
                   </span>
                 )}
 
-                {isCurrent &&
-                  journeyStarted && (
-                    <div className="pl1000-avatar">
-                      <span className="pl1000-avatar-head" />
-
-                      <span className="pl1000-avatar-body">
-                        PL
-                      </span>
-
-                      <b>
-                        YOU
-                      </b>
-                    </div>
-                  )}
+                {canEarlyUnlock && (
+                  <span
+                    className="pl2d-level-unlock-hint"
+                    data-testid={
+                      `free-world-early-unlock-hint-${globalLevel}`
+                    }
+                  >
+                    <b>TAP TO</b>
+                    <strong>
+                      EARLY UNLOCK
+                    </strong>
+                  </span>
+                )}
 
                 {isCurrent &&
                   available &&
@@ -1125,6 +1259,42 @@ function ChampionshipSection({
               </button>
             );
           },
+        )}
+
+        {progressAvatar && (
+          <div
+            className={[
+              'pl1000-progress-avatar',
+              progressAvatar.waiting
+                ? 'is-waiting'
+                : 'is-at-level',
+            ].join(' ')}
+            style={{
+              left: `${progressAvatar.left}%`,
+              bottom: `${progressAvatar.bottom}%`,
+            }}
+            data-testid="free-world-avatar"
+            data-avatar-state={
+              progressAvatar.waiting
+                ? 'waiting'
+                : 'at-level'
+            }
+            aria-label="Your avatar"
+          >
+            <span className="pl1000-avatar-head" />
+
+            <span className="pl1000-avatar-body">
+              PL
+            </span>
+
+            <b>YOU</b>
+
+            {progressAvatar.waiting && (
+              <span className="pl1000-avatar-waiting">
+                WAITING
+              </span>
+            )}
+          </div>
         )}
 
       </div>
@@ -1352,6 +1522,17 @@ export default function WorldCanvas({
   previewState = null,
 }) {
 
+  const { user } = useAuth();
+
+  const [walletBalance, setWalletBalance] =
+    useState(null);
+
+  const [unlockModal, setUnlockModal] =
+    useState(null);
+
+  const [unlockBusy, setUnlockBusy] =
+    useState(false);
+
   const [worldNowMs, setWorldNowMs] =
     useState(() => Date.now());
 
@@ -1516,6 +1697,26 @@ export default function WorldCanvas({
     completedLevels.length === 0 &&
     !journeyStarted;
 
+  /*
+   * Returning users (anyone past the brand-new Level-1 start) must
+   * immediately have a visible avatar. The gate "start journey"
+   * animation only runs for first-time users, so without this the
+   * avatar would vanish on every page refresh once Level 1 is done.
+   */
+  useEffect(() => {
+    if (
+      worldState &&
+      !isAtJourneyStart &&
+      !journeyStarted
+    ) {
+      setJourneyStarted(true);
+    }
+  }, [
+    worldState,
+    isAtJourneyStart,
+    journeyStarted,
+  ]);
+
   const setStateAndCountdowns =
     (response) => {
       setWorldState(response);
@@ -1547,6 +1748,138 @@ export default function WorldCanvas({
 
       setCountdowns(next);
     };
+
+  const refreshBalance = React.useCallback(() => {
+    if (!user) {
+      return;
+    }
+
+    walletAPI
+      .me()
+      .then((wallet) => {
+        setWalletBalance(
+          Number(
+            wallet?.tokens ??
+              Math.round(
+                Number(wallet?.balance ?? 0),
+              ),
+          ),
+        );
+      })
+      .catch(() => {
+        /* Guests / transient errors: keep last known value. */
+      });
+  }, [user]);
+
+  useEffect(() => {
+    refreshBalance();
+  }, [refreshBalance]);
+
+  // Reload authoritative world state + balance whenever a level
+  // attempt or a token action reports progress may have changed.
+  useEffect(() => {
+    const onProgressRefresh = () => {
+      if (!previewState) {
+        worldAPI
+          .state()
+          .then(setStateAndCountdowns)
+          .catch(() => {});
+      }
+
+      refreshBalance();
+    };
+
+    window.addEventListener(
+      'pl-world-progress-refresh',
+      onProgressRefresh,
+    );
+
+    return () => {
+      window.removeEventListener(
+        'pl-world-progress-refresh',
+        onProgressRefresh,
+      );
+    };
+  }, [previewState, refreshBalance]);
+
+  const confirmEarlyUnlock = async () => {
+    if (!unlockModal || unlockBusy) {
+      return;
+    }
+
+    const level = Number(unlockModal.level);
+
+    setUnlockBusy(true);
+
+    try {
+      const response =
+        await worldAPI.reserveTokenUnlock(level);
+
+      const cost = Number(
+        response?.token_cost ??
+          unlockModal.cost ??
+          0,
+      );
+
+      const remaining = Number(
+        response?.tokens_remaining ?? 0,
+      );
+
+      setWalletBalance(remaining);
+
+      // Pull fresh authoritative state so the timer lock clears.
+      if (!previewState) {
+        try {
+          const fresh = await worldAPI.state();
+          setStateAndCountdowns(fresh);
+        } catch (error) {
+          /* Best effort; server stays authoritative. */
+        }
+      }
+
+      toast.success('Level unlocked', {
+        description:
+          `${cost} Tokens used \u2022 ${remaining} remaining`,
+      });
+
+      setUnlockModal(null);
+
+      // Refresh the visible header token balance. The world state
+      // was already re-fetched above, so the timer lock clears and
+      // the avatar moves to the now-playable level. We deliberately
+      // do NOT auto-open the game (that caused a redirect flash);
+      // the level simply becomes playable for the user to tap.
+      window.dispatchEvent(
+        new CustomEvent(
+          'pl-world-progress-refresh',
+        ),
+      );
+    } catch (error) {
+      const detail =
+        error?.response?.data?.detail;
+
+      const message =
+        typeof detail === 'string'
+          ? detail
+          : detail?.message ||
+            detail?.msg ||
+            'Unable to unlock this level.';
+
+      if (
+        error?.response?.status === 400 &&
+        /insufficient/i.test(message)
+      ) {
+        // Keep the modal open; it already shows Top Up.
+        refreshBalance();
+      } else {
+        toast.error('Could not unlock level', {
+          description: message,
+        });
+      }
+    } finally {
+      setUnlockBusy(false);
+    }
+  };
 
   /*
    * Production:
@@ -2261,6 +2594,11 @@ export default function WorldCanvas({
               journeyStarted={
                 journeyStarted
               }
+              worldNowMs={worldNowMs}
+              canUseTokens={Boolean(user)}
+              onRequestUnlock={
+                setUnlockModal
+              }
             />
           ),
         )}
@@ -2396,6 +2734,146 @@ export default function WorldCanvas({
           </small>
         </button>
       </nav>
+
+      {unlockModal && (
+        <div
+          className="pl2d-token-modal-backdrop"
+          data-testid="early-unlock-modal"
+          onClick={() => {
+            if (!unlockBusy) {
+              setUnlockModal(null);
+            }
+          }}
+        >
+          <section
+            className="pl2d-token-modal"
+            onClick={(event) =>
+              event.stopPropagation()
+            }
+          >
+            <div className="pl2d-token-modal-kicker">
+              EARLY UNLOCK WITH TOKENS
+            </div>
+
+            <h2>
+              Level {unlockModal.globalLevel}
+            </h2>
+
+            <p className="pl2d-token-modal-lead">
+              Skip the wait and open this level now.
+              Your progress rules stay the same — this
+              only removes the countdown timer.
+            </p>
+
+            <div className="pl2d-token-modal-rows">
+              <div>
+                <span>Unlocks naturally in</span>
+                <strong data-testid="early-unlock-natural-time">
+                  {formatUnlockCountdown(
+                    Number(
+                      unlockModal.secondsUntilUnlock ||
+                        0,
+                    ),
+                  )}
+                </strong>
+              </div>
+
+              <div>
+                <span>Token cost</span>
+                <strong data-testid="early-unlock-cost">
+                  {unlockModal.cost} 🪙
+                </strong>
+              </div>
+
+              <div>
+                <span>Current balance</span>
+                <strong data-testid="early-unlock-current-balance">
+                  {walletBalance === null
+                    ? '…'
+                    : `${walletBalance} 🪙`}
+                </strong>
+              </div>
+
+              <div>
+                <span>Balance after unlock</span>
+                <strong data-testid="early-unlock-remaining-balance">
+                  {walletBalance === null
+                    ? '…'
+                    : `${Math.max(
+                        0,
+                        walletBalance -
+                          unlockModal.cost,
+                      )} 🪙`}
+                </strong>
+              </div>
+            </div>
+
+            {walletBalance !== null &&
+            walletBalance < unlockModal.cost ? (
+              <>
+                <div
+                  className="pl2d-token-modal-insufficient"
+                  data-testid="early-unlock-insufficient"
+                >
+                  Not enough tokens
+                </div>
+
+                <div className="pl2d-token-modal-actions">
+                  <button
+                    type="button"
+                    className="pl2d-token-modal-cancel"
+                    data-testid="early-unlock-cancel"
+                    onClick={() =>
+                      setUnlockModal(null)
+                    }
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="button"
+                    className="pl2d-token-modal-confirm"
+                    data-testid="early-unlock-topup"
+                    onClick={() =>
+                      navigate(
+                        '/my-account/wallet',
+                      )
+                    }
+                  >
+                    Top Up Wallet
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="pl2d-token-modal-actions">
+                <button
+                  type="button"
+                  className="pl2d-token-modal-cancel"
+                  data-testid="early-unlock-cancel"
+                  disabled={unlockBusy}
+                  onClick={() =>
+                    setUnlockModal(null)
+                  }
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  className="pl2d-token-modal-confirm"
+                  data-testid="early-unlock-confirm"
+                  disabled={unlockBusy}
+                  onClick={confirmEarlyUnlock}
+                >
+                  {unlockBusy
+                    ? 'Unlocking…'
+                    : 'Unlock Now'}
+                </button>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
 
     </div>
   );

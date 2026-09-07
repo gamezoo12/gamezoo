@@ -1772,3 +1772,138 @@
     font-size: 18px;
   }
 }
+
+
+/* =========================================================
+   RETRY WITH TOKENS — CONFIRMATION MODAL
+   ========================================================= */
+
+.fwv3-token-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30000;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 18px;
+
+  background: rgba(24, 10, 48, .55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+
+  animation: fwv3FadeIn .18s ease;
+}
+
+.fwv3-token-modal {
+  width: 100%;
+  max-width: 360px;
+  box-sizing: border-box;
+
+  padding: 22px 20px 20px;
+
+  border-radius: 20px;
+  border: 2px solid #6420c8;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 24px 60px rgba(60, 20, 130, .35),
+    inset 0 1px 0 rgba(255,255,255,.6);
+
+  animation: fwv3ModalPop .22s cubic-bezier(.2,.9,.3,1.2);
+}
+
+.fwv3-token-modal-kicker {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: #7b2be2;
+}
+
+.fwv3-token-modal h3 {
+  margin: 6px 0 8px;
+  text-align: center;
+  font-size: 22px;
+  font-weight: 900;
+  color: #2a1160;
+}
+
+.fwv3-token-modal-lead {
+  margin: 0 0 16px;
+  text-align: center;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #6b5e86;
+}
+
+.fwv3-token-modal-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(100,32,200,.18);
+  margin-bottom: 16px;
+}
+
+.fwv3-token-modal-rows > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 11px 14px;
+  background: rgba(123,43,226,.05);
+}
+
+.fwv3-token-modal-rows > div span {
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b5e86;
+}
+
+.fwv3-token-modal-rows > div strong {
+  font-size: 15px;
+  font-weight: 900;
+  color: #4b1aa8;
+}
+
+.fwv3-token-modal-insufficient {
+  margin-bottom: 14px;
+  padding: 10px;
+  text-align: center;
+
+  border-radius: 10px;
+  border: 1px solid rgba(220,40,60,.4);
+  background: rgba(255,80,90,.08);
+
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: .5px;
+  color: #d61f37;
+}
+
+.fwv3-token-modal-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.fwv3-token-modal-actions .fwv3-button {
+  flex: 1;
+  margin: 0;
+  padding: 13px 10px;
+  font-size: 13px;
+}
+
+@keyframes fwv3FadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fwv3ModalPop {
+  from { opacity: 0; transform: translateY(16px) scale(.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
