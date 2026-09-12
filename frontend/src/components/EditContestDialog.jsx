@@ -68,6 +68,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
     price: 1, tickets_total: 150, prize_amount: 100,
     end_date: new Date(Date.now() + 7 * 86400000).toISOString(),
     jackpot: false, featured: false, status: 'draft',
+    public_coming_soon: false,
     skill_question_type: 'addition',
     skill_question_difficulty: 'easy',
   };
@@ -130,6 +131,10 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
         end_date: form.end_date,
         jackpot: !!form.jackpot,
         featured: !!form.featured,
+        status: form.public_coming_soon
+          ? 'draft'
+          : (form.status || 'draft'),
+        public_coming_soon: !!form.public_coming_soon,
         skill_question: form.skill_question,
         skill_question_type: form.skill_question_type || 'addition',
         skill_question_difficulty: form.skill_question_difficulty || 'easy',
@@ -167,7 +172,9 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
         free_postal_entry_instructions: form.free_postal_entry_instructions || null,
       };
       if (isCreate) {
-        payload.status = form.status || 'draft';
+        payload.status = form.public_coming_soon
+          ? 'draft'
+          : (form.status || 'draft');
         await adminAPI.createContest(payload);
         toast({ title: 'Contest created', description: `"${payload.title}" saved as ${payload.status}` });
       } else {
@@ -220,7 +227,71 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
           </div>
           <div>
             <Label>End date/time</Label>
-            <Input type="datetime-local" value={endDateStr} onChange={e => upd('end_date', e.target.value ? new Date(e.target.value).toISOString() : null)} />
+            <Input
+              type="datetime-local"
+              value={endDateStr}
+              onChange={e =>
+                upd(
+                  'end_date',
+                  e.target.value
+                    ? new Date(e.target.value).toISOString()
+                    : null
+                )
+              }
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-xl border border-[#FFD54A]/40 bg-[#FFD54A]/5 p-4">
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                checked={!!form.public_coming_soon}
+                onChange={e => {
+                  const checked = e.target.checked;
+                  upd('public_coming_soon', checked);
+
+                  if (checked) {
+                    upd('status', 'draft');
+                  }
+                }}
+                className="mt-1 h-4 w-4"
+                data-testid="contest-coming-soon-toggle"
+              />
+
+              <span>
+                <span className="block text-sm font-extrabold text-slate-900">
+                  Show publicly as Coming Soon
+                </span>
+
+                <span className="mt-1 block text-xs leading-5 text-slate-500">
+                  Displays the Coming Soon card without timer, Join,
+                  progress, ticket purchase or gameplay.
+                </span>
+              </span>
+            </label>
+
+            <div>
+              <Label>Contest status</Label>
+
+              <select
+                value={
+                  form.public_coming_soon
+                    ? 'draft'
+                    : (form.status || 'draft')
+                }
+                onChange={e => upd('status', e.target.value)}
+                disabled={!!form.public_coming_soon}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100"
+                data-testid="contest-status-select"
+              >
+                <option value="draft">Draft</option>
+                <option value="live">Live</option>
+              </select>
+
+              <div className="mt-1 text-xs text-slate-500">
+                Turn off Coming Soon, choose Live, then Save to launch.
+              </div>
+            </div>
           </div>
 
           {/* Entry Mode + attempts + leaderboard visibility */}

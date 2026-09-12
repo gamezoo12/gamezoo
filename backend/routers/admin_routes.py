@@ -787,6 +787,12 @@ async def create_contest_api(payload: dict, request: Request):
         raise HTTPException(status_code=400, detail=f'Invalid contest data: {e}')
 
     doc = contest.model_dump()
+
+    doc['public_coming_soon'] = (
+        bool(payload.get('public_coming_soon', False))
+        and doc.get('status') == 'draft'
+    )
+
     if sqt:
         doc['skill_question_type'] = sqt
         doc['skill_question_difficulty'] = sqd or 'easy'
@@ -801,7 +807,7 @@ async def update_contest_full(contest_id: str, payload: dict, request: Request):
     from deps import get_db
     db = get_db()
     allowed = {'title', 'subtitle', 'category', 'tag', 'image', 'price', 'tickets_total',
-               'prize_amount', 'end_date', 'jackpot', 'featured', 'status', 'skill_question',
+               'prize_amount', 'end_date', 'jackpot', 'featured', 'status', 'public_coming_soon', 'skill_question',
                'skill_question_type', 'skill_question_difficulty',
                'game_type', 'game_config', 'entry_mode', 'max_attempts', 'attempts_per_ticket',
                'leaderboard_visibility', 'winner_selection_method',
@@ -830,7 +836,7 @@ async def update_contest_full(contest_id: str, payload: dict, request: Request):
                 updates[k] = int(v)
             except (TypeError, ValueError):
                 continue
-        elif k in {'free_postal_entry_available', 'jackpot', 'featured'}:
+        elif k in {'free_postal_entry_available', 'jackpot', 'featured', 'public_coming_soon'}:
             updates[k] = bool(v)
         elif k == 'skill_question' and isinstance(v, dict):
             if all(x in v for x in ('q', 'options', 'answer')):
@@ -845,6 +851,14 @@ async def update_contest_full(contest_id: str, payload: dict, request: Request):
                 updates[k] = val
         else:
             updates[k] = v
+    # Coming Soon must never be live.
+    if updates.get('public_coming_soon') is True:
+        updates['status'] = 'draft'
+
+    # Going live automatically clears Coming Soon.
+    if updates.get('status') == 'live':
+        updates['public_coming_soon'] = False
+
     if not updates:
         raise HTTPException(status_code=400, detail='No valid fields to update')
     r = await db.contests.update_one({'contest_id': contest_id}, {'$set': updates})

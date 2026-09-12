@@ -23,6 +23,7 @@ def _to_public(c: dict) -> dict:
         'jackpot': c.get('jackpot', False),
         'featured': c.get('featured', False),
         'status': c.get('status', 'live'),
+        'public_coming_soon': bool(c.get('public_coming_soon', False)),
         'skill_question_q': sq.get('q'),
         'skill_question_options': sq.get('options', []),
         'game_type': c.get('game_type'),
@@ -116,6 +117,12 @@ async def verify_skill(slug: str, payload: dict):
     if not doc:
         raise HTTPException(status_code=404, detail='Contest not found')
 
+    if doc.get('status') != 'live' or doc.get('public_coming_soon') is True:
+        raise HTTPException(
+            status_code=409,
+            detail='This competition is coming soon and is not open for play yet',
+        )
+
     # Preferred path: signed challenge token (dynamic questions).
     token = (payload or {}).get('challenge_token')
     if token:
@@ -140,10 +147,24 @@ async def issue_skill_challenge(slug: str):
     db = get_db()
     doc = await db.contests.find_one(
         {'slug': slug},
-        {'_id': 0, 'contest_id': 1, 'skill_question_type': 1, 'skill_question_difficulty': 1},
+        {
+            '_id': 0,
+            'contest_id': 1,
+            'status': 1,
+            'public_coming_soon': 1,
+            'skill_question_type': 1,
+            'skill_question_difficulty': 1,
+        },
     )
     if not doc:
         raise HTTPException(status_code=404, detail='Contest not found')
+
+    if doc.get('status') != 'live' or doc.get('public_coming_soon') is True:
+        raise HTTPException(
+            status_code=409,
+            detail='This competition is coming soon and is not open for play yet',
+        )
+
     op = doc.get('skill_question_type') or 'addition'
     diff = doc.get('skill_question_difficulty') or 'easy'
     ch = build_challenge(doc['contest_id'], op=op, difficulty=diff)
