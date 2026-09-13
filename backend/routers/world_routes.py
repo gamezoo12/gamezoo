@@ -19,6 +19,13 @@ import secrets
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Request
+
+from world.season1 import SEASON_1_CHAMPIONSHIP_COUNT
+
+from services.world_championship_schedule import (
+    championship_window,
+    level_unlock_at,
+)
 from pydantic import BaseModel, Field
 
 from auth import get_current_user, require_admin
@@ -43,7 +50,7 @@ admin_router = APIRouter(
 
 
 WORLD_SEASON_ID = "season-1"
-WORLD_CONTEST_COUNT = 50
+WORLD_CONTEST_COUNT = SEASON_1_CHAMPIONSHIP_COUNT
 WORLD_DEFAULT_CURRENCY = "GBP"
 
 # Champion prize distribution.
@@ -163,15 +170,16 @@ class WorldContestUpdate(BaseModel):
 
 
 class ActivateWorldContestInput(BaseModel):
+    # Season 1 launches only from Championship 1.
+    # Championships 2-100 are controlled automatically
+    # by the authoritative Season scheduler.
     contest_number: int = Field(
-        ...,
+        default=1,
         ge=1,
-        le=WORLD_CONTEST_COUNT,
+        le=1,
     )
 
     start_at: datetime
-    end_at: datetime
-
 
 class ChampionPrizeUpdate(BaseModel):
     amount: int = Field(
@@ -756,7 +764,7 @@ async def world_public_leaderboard(
 @admin_router.post("/seed")
 async def seed_world_engine(request: Request):
     """
-    Creates the 50 contest HOLDERS and 50 personal prize stages.
+    Creates the 100 contest HOLDERS and 100 personal prize stages.
 
     IMPORTANT:
     - Does NOT activate a contest.
@@ -766,7 +774,7 @@ async def seed_world_engine(request: Request):
 
     Contest 1 is pre-configured with Number Sequence because that is
     the first game currently being built.
-    Contests 2-50 remain unconfigured until admin assigns their games.
+    Contests 2-100 remain unconfigured until admin assigns their games.
     """
     admin = await require_admin(request)
     db = get_db()
@@ -794,7 +802,7 @@ async def seed_world_engine(request: Request):
                 if number == 1
                 else {}
             ),
-            "winner_count": None,
+            "winner_count": CHAMPION_WINNER_COUNT,
             "status": "draft",
             "start_at": None,
             "end_at": None,
@@ -1182,20 +1190,67 @@ async def activate_admin_world_contest(
     admin = await require_admin(request)
     db = get_db()
 
-    if body.end_at <= body.start_at:
+    if int(1 or 1) != 1:
         raise HTTPException(
             status_code=400,
             detail=(
-                "Contest end time must be "
-                "after start time."
+                "Season 1 must be launched from "
+                "Championship 1."
             ),
         )
+
+    season_start_at = body.start_at
+
+    if season_start_at.tzinfo is None:
+        season_start_at = season_start_at.replace(
+            tzinfo=timezone.utc
+        )
+
+    season_start_at = season_start_at.astimezone(
+        timezone.utc
+    )
+
+    first_window = championship_window(
+        season_start_at,
+        1,
+    )
+
+    # Season 1 schedule is defined by Europe/London calendar days.
+    # Admin may choose the launch DATE, but the launch time is
+    # authoritative UK local midnight.
+    if (
+        ensure_utc(season_start_at)
+        != first_window["start_at"]
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code":
+                    "WORLD_SEASON_START_MUST_BE_UK_MIDNIGHT",
+
+                "message":
+                    (
+                        "Season 1 must start at 00:00 "
+                        "Europe/London."
+                    ),
+
+                "authoritative_start_at":
+                    first_window[
+                        "start_at"
+                    ].isoformat(),
+            },
+        )
+
+
+    authoritative_end_at = first_window[
+        "champion_closes_at"
+    ]
 
     contest = await db.world_global_contests.find_one(
         {
             "season_id": WORLD_SEASON_ID,
             "contest_number":
-                body.contest_number,
+                1,
         }
     )
 
@@ -1274,10 +1329,10 @@ async def activate_admin_world_contest(
         contest.get("end_at")
     )
     incoming_start = _ensure_aware_datetime(
-        body.start_at
+        season_start_at
     )
     incoming_end = _ensure_aware_datetime(
-        body.end_at
+        authoritative_end_at
     )
 
     already_live = (
@@ -1311,7 +1366,7 @@ async def activate_admin_world_contest(
             "season_id": WORLD_SEASON_ID,
             "status": "active",
             "contest_number": {
-                "$ne": body.contest_number
+                "$ne": 1
             },
         },
         {
@@ -1328,13 +1383,13 @@ async def activate_admin_world_contest(
         {
             "season_id": WORLD_SEASON_ID,
             "contest_number":
-                body.contest_number,
+                1,
         },
         {
             "$set": {
                 "status": "active",
-                "start_at": body.start_at,
-                "end_at": body.end_at,
+                "start_at": season_start_at,
+                "end_at": authoritative_end_at,
                 "activated_at": now,
                 "updated_at": now,
                 "updated_by":
@@ -1350,8 +1405,18 @@ async def activate_admin_world_contest(
         {
             "$set": {
                 "season_id": WORLD_SEASON_ID,
+
+                # Authoritative start for the complete
+                # 100-Championship Season calendar.
+                "season_start_at":
+                    season_start_at,
+
+                "season_schedule_version":
+                    1,
+
                 "contest_number":
-                    body.contest_number,
+                    1,
+
                 "updated_at": now,
                 "updated_by":
                     admin.get("user_id"),
@@ -1377,9 +1442,9 @@ async def activate_admin_world_contest(
                     admin.get("user_id"),
                 "season_id": WORLD_SEASON_ID,
                 "contest_number":
-                    body.contest_number,
-                "start_at": body.start_at,
-                "end_at": body.end_at,
+                    1,
+                "start_at": season_start_at,
+                "end_at": authoritative_end_at,
                 "at": now,
             }
         )
@@ -1388,7 +1453,7 @@ async def activate_admin_world_contest(
         {
             "season_id": WORLD_SEASON_ID,
             "contest_number":
-                body.contest_number,
+                1,
         },
         {
             "_id": 0,
@@ -1806,7 +1871,7 @@ def _default_world_level_config(
         "unlock_after_days":
             max(
                 0,
-                (level - 1) * 2,
+                (level - 1),
             ),
     }
 
@@ -2051,7 +2116,7 @@ def _validate_world_level_config(
         unlock_after_days = int(
             item.get(
                 "unlock_after_days",
-                (level - 1) * 2,
+                (level - 1),
             )
         )
 
@@ -2552,11 +2617,9 @@ async def _world_unlock_context(
         ),
     )
 
-    unlock_at = (
-        start_at
-        + timedelta(
-            days=unlock_after_days
-        )
+    unlock_at = level_unlock_at(
+        start_at,
+        unlock_after_days,
     )
 
     scheduled_time_available = (
@@ -2930,6 +2993,9 @@ async def _free_world_progress(
         if "champion_ready" not in progress:
             patch["champion_ready"] = False
 
+        if "season_complete" not in progress:
+            patch["season_complete"] = False
+
         if "token_unlocked_levels" not in progress:
             patch["token_unlocked_levels"] = []
 
@@ -2964,6 +3030,7 @@ async def _free_world_progress(
 
         "champion_stage": 1,
         "champion_ready": False,
+        "season_complete": False,
 
         # Token unlock bypasses only the scheduled TIME gate.
         # It never marks a level completed.
@@ -3953,6 +4020,7 @@ async def free_world_state(
             "completed_levels": [],
             "champion_stage": 1,
             "champion_ready": False,
+            "season_complete": False,
         }
 
     current_level = max(
@@ -4075,6 +4143,14 @@ async def free_world_state(
                 bool(
                     progress.get(
                         "champion_ready",
+                        False,
+                    )
+                ),
+
+            "season_complete":
+                bool(
+                    progress.get(
+                        "season_complete",
                         False,
                     )
                 ),
@@ -9738,7 +9814,7 @@ async def settle_admin_world_contest(
     Explicit admin settlement action.
 
     Real production endpoint accepts only seeded
-    Champion Contest numbers 1-50.
+    Champion Contest numbers 1-100.
     """
 
     admin = await require_admin(
@@ -9824,10 +9900,16 @@ async def continue_after_champion(
             },
         )
 
-    latest_contest = await db.world_global_contests.find_one(
+    # The user may advance only when THEIR matching global
+    # Championship has closed. A later closed Championship must
+    # never unlock an earlier personal Champion stage.
+    stage_contest = await db.world_global_contests.find_one(
         {
             "season_id":
                 WORLD_SEASON_ID,
+
+            "contest_number":
+                champion_stage,
 
             "status": {
                 "$in": [
@@ -9840,12 +9922,9 @@ async def continue_after_champion(
         {
             "_id": 0,
         },
-        sort=[
-            ("contest_number", -1),
-        ],
     )
 
-    if not latest_contest:
+    if not stage_contest:
         raise HTTPException(
             status_code=409,
             detail={
@@ -9854,26 +9933,136 @@ async def continue_after_champion(
 
                 "message":
                     (
-                        "The Champion prize period "
+                        "Your current Champion stage "
                         "has not closed yet."
                     ),
+
+                "champion_stage":
+                    champion_stage,
             },
         )
 
-    next_stage = min(
-        WORLD_CONTEST_COUNT,
-        champion_stage + 1,
-    )
-
     now = _utcnow()
 
-    await db.world_progress.update_one(
+    # -------------------------------------------------------
+    # FINAL CHAMPIONSHIP
+    # -------------------------------------------------------
+    #
+    # Stage 100 has no Stage 101. Completing the final
+    # Champion period completes Season 1 and must NOT reset
+    # the player back to Stage 100 / Level 1.
+    # -------------------------------------------------------
+
+    if champion_stage >= WORLD_CONTEST_COUNT:
+        result = await db.world_progress.update_one(
+            {
+                "season_id":
+                    WORLD_SEASON_ID,
+
+                "user_id":
+                    user["user_id"],
+
+                "champion_stage":
+                    champion_stage,
+
+                "champion_ready":
+                    True,
+            },
+            {
+                "$set": {
+                    "champion_stage":
+                        WORLD_CONTEST_COUNT,
+
+                    "champion_ready":
+                        False,
+
+                    "season_complete":
+                        True,
+
+                    "season_completed_at":
+                        now,
+
+                    "updated_at":
+                        now,
+                }
+            },
+        )
+
+        if result.modified_count == 0:
+            refreshed = await db.world_progress.find_one(
+                {
+                    "season_id":
+                        WORLD_SEASON_ID,
+
+                    "user_id":
+                        user["user_id"],
+                }
+            )
+
+            if not (
+                refreshed
+                and bool(
+                    refreshed.get(
+                        "season_complete",
+                        False,
+                    )
+                )
+            ):
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "code":
+                            "CHAMPION_PROGRESS_CHANGED",
+
+                        "message":
+                            (
+                                "Champion progression changed "
+                                "while completing the Season. "
+                                "Refresh and try again."
+                            ),
+                    },
+                )
+
+        return {
+            "continued":
+                True,
+
+            "season_complete":
+                True,
+
+            "previous_champion_stage":
+                champion_stage,
+
+            "champion_stage":
+                WORLD_CONTEST_COUNT,
+
+            "prize_required_to_continue":
+                False,
+
+            "participation_required_to_continue":
+                False,
+
+            "qualification_required_to_continue":
+                False,
+        }
+
+    next_stage = champion_stage + 1
+
+    result = await db.world_progress.update_one(
         {
             "season_id":
                 WORLD_SEASON_ID,
 
             "user_id":
                 user["user_id"],
+
+            # Atomic progression guard prevents two concurrent
+            # Continue requests from advancing two stages.
+            "champion_stage":
+                champion_stage,
+
+            "champion_ready":
+                True,
         },
         {
             "$set": {
@@ -9883,10 +10072,11 @@ async def continue_after_champion(
                 "champion_ready":
                     False,
 
-                # New Championship starts from its
-                # next normal progression segment.
-                # Current Royal Village renderer still
-                # displays its local 1-10 map.
+                "season_complete":
+                    False,
+
+                # New Championship starts from Level 1 of its
+                # own 10-level normal progression.
                 "current_level":
                     1,
 
@@ -9898,13 +10088,36 @@ async def continue_after_champion(
 
                 "updated_at":
                     now,
-            }
+            },
+
+            "$unset": {
+                "season_completed_at":
+                    "",
+            },
         },
     )
+
+    if result.modified_count != 1:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code":
+                    "CHAMPION_PROGRESS_CHANGED",
+
+                "message":
+                    (
+                        "Champion progression changed while "
+                        "continuing. Refresh and try again."
+                    ),
+            },
+        )
 
     return {
         "continued":
             True,
+
+        "season_complete":
+            False,
 
         "previous_champion_stage":
             champion_stage,

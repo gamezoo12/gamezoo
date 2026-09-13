@@ -32,8 +32,6 @@ const EMPTY_EDIT = {
   name: '',
   game_id: '',
   winner_count: 5,
-  start_at: '',
-  end_at: '',
   admin_notes: '',
 
   levels_config: [],
@@ -289,15 +287,6 @@ export default function FreeWorldAdmin() {
         selectedContest
           .winner_count ?? 5,
 
-      start_at:
-        localInputValue(
-          selectedContest.start_at
-        ),
-
-      end_at:
-        localInputValue(
-          selectedContest.end_at
-        ),
 
       admin_notes:
         selectedContest
@@ -383,24 +372,8 @@ export default function FreeWorldAdmin() {
               {}
             ),
 
-            time_limit_seconds:
-              Number(
-                edit
-                  .champion_config
-                  ?.time_limit_seconds ||
-                75,
-              ),
           },
 
-          start_at:
-            isoValue(
-              edit.start_at
-            ),
-
-          end_at:
-            isoValue(
-              edit.end_at
-            ),
 
           admin_notes:
             edit.admin_notes,
@@ -426,106 +399,7 @@ export default function FreeWorldAdmin() {
     }
   };
 
-  const activate = async () => {
-    if (!selectedContest) return;
 
-    const startAt =
-      isoValue(edit.start_at);
-
-    const endAt =
-      isoValue(edit.end_at);
-
-    if (!startAt || !endAt) {
-      toast({
-        title:
-          'Start and end time required',
-      });
-      return;
-    }
-
-    if (
-      !window.confirm(
-        `Activate Champion Contest ${selectedContest.contest_number}? Any other active Free World contest will be closed.`
-      )
-    ) {
-      return;
-    }
-
-    setBusy(true);
-
-    try {
-      /*
-       * Save core configuration first.
-       * Backend refuses active-contest editing,
-       * so activation happens only afterwards.
-       */
-      await worldAdminAPI.updateContest(
-        selectedContest.contest_number,
-        {
-          name:
-            edit.name.trim(),
-
-          game_id:
-            edit.game_id.trim() ||
-            null,
-
-          winner_count: 5,
-
-          levels_config:
-            edit.levels_config,
-
-          champion_config:
-            edit.champion_config,
-
-          game_config: {
-            ...(
-              edit
-                .champion_config
-                ?.game_config ||
-              {}
-            ),
-
-            time_limit_seconds:
-              Number(
-                edit
-                  .champion_config
-                  ?.time_limit_seconds ||
-                75,
-              ),
-          },
-
-          admin_notes:
-            edit.admin_notes,
-        }
-      );
-
-      await worldAdminAPI.activate({
-        contest_number:
-          selectedContest
-            .contest_number,
-
-        start_at: startAt,
-        end_at: endAt,
-      });
-
-      toast({
-        title:
-          `Champion Contest ${selectedContest.contest_number} activated`,
-      });
-
-      await load();
-    } catch (error) {
-      toast({
-        title:
-          'Activation failed',
-        description:
-          error?.response?.data?.detail ||
-          'Champion Contest was not activated.',
-      });
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const deactivate = async () => {
     if (
@@ -713,8 +587,14 @@ export default function FreeWorldAdmin() {
       </div>
 
       <SeasonLaunchPanel
-        seasonId={seasonId}
-        contest={selectedContest}
+        contest={
+          contests.find(
+            row =>
+              Number(
+                row.contest_number
+              ) === 1
+          ) || null
+        }
         serverTime={serverTime}
         busy={busy}
         onLaunched={load}
@@ -724,7 +604,7 @@ export default function FreeWorldAdmin() {
         <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
           <div className="p-4 border-b border-slate-100">
             <h2 className="font-extrabold text-slate-900">
-              50 Champion Contests
+              100 Champion Contests
             </h2>
 
             <p className="text-xs text-slate-500 mt-1">
@@ -883,35 +763,9 @@ export default function FreeWorldAdmin() {
 
                 <div />
 
-                <Field label="Start">
-                  <input
-                    type="datetime-local"
-                    value={edit.start_at}
-                    onChange={e =>
-                      setEdit(current => ({
-                        ...current,
-                        start_at:
-                          e.target.value,
-                      }))
-                    }
-                    className="admin-input"
-                  />
-                </Field>
 
-                <Field label="End">
-                  <input
-                    type="datetime-local"
-                    value={edit.end_at}
-                    onChange={e =>
-                      setEdit(current => ({
-                        ...current,
-                        end_at:
-                          e.target.value,
-                      }))
-                    }
-                    className="admin-input"
-                  />
-                </Field>
+
+
               </div>
 
               <Field
@@ -953,14 +807,7 @@ export default function FreeWorldAdmin() {
                       Save
                     </Button>
 
-                    <Button
-                      onClick={activate}
-                      disabled={busy}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                    >
-                      <Play className="w-4 h-4 mr-1" />
-                      Activate
-                    </Button>
+
                   </>
                 )}
               </div>
@@ -1285,7 +1132,6 @@ function Stat({
  * ======================================================== */
 
 const LONDON_TZ = 'Europe/London';
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 function londonOffsetMs(utcMs) {
   const dtf = new Intl.DateTimeFormat('en-GB', {
@@ -1449,8 +1295,450 @@ const LAUNCH_BADGE = {
   ENDED: 'bg-slate-300 text-slate-700',
 };
 
+
+// ==========================================================
+// FREE WORLD SEASON 1 CALENDAR
+//
+// 100 Championships
+// 10 normal levels per Championship
+//
+// Day 0  = Level 1
+// Day 1  = Level 2
+// Day 2  = Level 3
+// Day 3  = Level 4
+// Day 4  = Level 5
+// Day 5  = Level 6
+// Day 6  = Level 7
+// Day 7  = Level 8
+// Day 8  = Level 9
+// Day 9  = Level 10
+// Day 10 = Champion opens at 00:00 Europe/London
+// Day 11 = Champion closes at 22:00 Europe/London
+// Day 12 = next Championship starts at 00:00 Europe/London
+//
+// Calendar dates are converted through Europe/London so the
+// schedule remains midnight-based through BST/GMT changes.
+// ==========================================================
+
+const CHAMPIONSHIP_CYCLE_DAYS = 12;
+const CHAMPION_OPEN_DAY = 10;
+const CHAMPION_CLOSE_DAY = 11;
+const CHAMPION_CLOSE_TIME = '22:00';
+
+function addCalendarDays(dateStr, days) {
+  if (!dateStr) return '';
+
+  const [year, month, day] = dateStr
+    .split('-')
+    .map(Number);
+
+  if (!year || !month || !day) return '';
+
+  const date = new Date(
+    Date.UTC(year, month - 1, day)
+  );
+
+  date.setUTCDate(
+    date.getUTCDate() + Number(days || 0)
+  );
+
+  return [
+    date.getUTCFullYear(),
+    String(date.getUTCMonth() + 1).padStart(2, '0'),
+    String(date.getUTCDate()).padStart(2, '0'),
+  ].join('-');
+}
+
+function buildSeasonChampionshipSchedule(startIso) {
+  if (!startIso) return [];
+
+  const seasonStart =
+    londonPartsFromIso(startIso);
+
+  if (!seasonStart?.date) return [];
+
+  return Array.from(
+    { length: SEASON_CHAMPIONSHIP_COUNT },
+    (_, index) => {
+      const championshipNumber = index + 1;
+
+      const cycleStartOffset =
+        index * CHAMPIONSHIP_CYCLE_DAYS;
+
+      const championshipStartDate =
+        addCalendarDays(
+          seasonStart.date,
+          cycleStartOffset
+        );
+
+      const levels = Array.from(
+        {
+          length:
+            SEASON_LEVELS_PER_CHAMPIONSHIP,
+        },
+        (_, levelIndex) => {
+          const level = levelIndex + 1;
+
+          const levelDate =
+            addCalendarDays(
+              championshipStartDate,
+              levelIndex
+            );
+
+          return {
+            level,
+            globalLevel:
+              index *
+                SEASON_LEVELS_PER_CHAMPIONSHIP +
+              level,
+
+            opensAt:
+              londonWallToUtcIso(
+                levelDate,
+                '00:00'
+              ),
+          };
+        }
+      );
+
+      const championOpenDate =
+        addCalendarDays(
+          championshipStartDate,
+          CHAMPION_OPEN_DAY
+        );
+
+      const championCloseDate =
+        addCalendarDays(
+          championshipStartDate,
+          CHAMPION_CLOSE_DAY
+        );
+
+      const nextStartDate =
+        addCalendarDays(
+          championshipStartDate,
+          CHAMPIONSHIP_CYCLE_DAYS
+        );
+
+      return {
+        championshipNumber,
+        levels,
+
+        startsAt:
+          levels[0]?.opensAt || null,
+
+        championOpensAt:
+          londonWallToUtcIso(
+            championOpenDate,
+            '00:00'
+          ),
+
+        championClosesAt:
+          londonWallToUtcIso(
+            championCloseDate,
+            CHAMPION_CLOSE_TIME
+          ),
+
+        nextChampionshipAt:
+          championshipNumber <
+          SEASON_CHAMPIONSHIP_COUNT
+            ? londonWallToUtcIso(
+                nextStartDate,
+                '00:00'
+              )
+            : null,
+      };
+    }
+  );
+}
+
+function seasonScheduleStatus(
+  row,
+  serverNow
+) {
+  if (!row?.startsAt) return 'WAITING';
+
+  const now = Number(serverNow || 0);
+
+  const start =
+    new Date(row.startsAt).getTime();
+
+  const championOpen =
+    new Date(
+      row.championOpensAt
+    ).getTime();
+
+  const championClose =
+    new Date(
+      row.championClosesAt
+    ).getTime();
+
+  if (now < start) {
+    return 'SCHEDULED';
+  }
+
+  if (
+    now >= championOpen &&
+    now < championClose
+  ) {
+    return 'CHAMPION LIVE';
+  }
+
+  if (now >= championClose) {
+    return 'COMPLETE';
+  }
+
+  return 'LEVELS LIVE';
+}
+
+function SeasonChampionshipSchedule({
+  startIso,
+  serverNow,
+}) {
+  const [scheduleSearch, setScheduleSearch] =
+    useState('');
+
+  const schedule = useMemo(
+    () =>
+      buildSeasonChampionshipSchedule(
+        startIso
+      ),
+    [startIso]
+  );
+
+  const filteredSchedule =
+    useMemo(() => {
+      const query =
+        scheduleSearch.trim();
+
+      if (!query) return schedule;
+
+      const number =
+        Number(
+          query.replace(/\D/g, '')
+        );
+
+      if (!number) return schedule;
+
+      return schedule.filter(
+        row =>
+          row.championshipNumber ===
+          number
+      );
+    }, [schedule, scheduleSearch]);
+
+  if (!startIso) {
+    return (
+      <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5">
+        <div className="font-bold text-slate-900">
+          100 Championship schedule
+        </div>
+
+        <div className="text-sm text-slate-500 mt-1">
+          Choose the Season start date to
+          preview all 100 Championships.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="mt-6 rounded-2xl border border-slate-200 overflow-hidden"
+      data-testid="season-championship-schedule"
+    >
+      <div className="p-4 sm:p-5 bg-slate-50 border-b border-slate-200">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div>
+            <div className="font-display font-extrabold text-xl text-slate-900">
+              Season Championship Schedule
+            </div>
+
+            <div className="text-sm text-slate-500 mt-1">
+              100 Championships | 1,000 normal
+              levels | 100 Champion stages
+            </div>
+          </div>
+
+          <input
+            type="text"
+            value={scheduleSearch}
+            onChange={event =>
+              setScheduleSearch(
+                event.target.value
+              )
+            }
+            placeholder="Find Championship #"
+            className="admin-input lg:max-w-[230px]"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+          <div className="bg-white border border-slate-200 rounded-xl p-3">
+            <div className="text-[11px] uppercase font-bold text-slate-500">
+              Championships
+            </div>
+
+            <div className="font-display font-extrabold text-xl">
+              100
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-xl p-3">
+            <div className="text-[11px] uppercase font-bold text-slate-500">
+              Levels
+            </div>
+
+            <div className="font-display font-extrabold text-xl">
+              1,000
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-xl p-3">
+            <div className="text-[11px] uppercase font-bold text-slate-500">
+              Cycle
+            </div>
+
+            <div className="font-display font-extrabold text-xl">
+              12 days
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-xl p-3">
+            <div className="text-[11px] uppercase font-bold text-slate-500">
+              Champion window
+            </div>
+
+            <div className="font-display font-extrabold text-xl">
+              46 hours
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-h-[620px] overflow-auto">
+        <table className="w-full text-sm min-w-[980px]">
+          <thead className="bg-white sticky top-0 z-10 border-b border-slate-200">
+            <tr>
+              <th className="text-left p-3">
+                Championship
+              </th>
+
+              <th className="text-left p-3">
+                Level 1
+              </th>
+
+              <th className="text-left p-3">
+                Level 10
+              </th>
+
+              <th className="text-left p-3">
+                Champion opens
+              </th>
+
+              <th className="text-left p-3">
+                Champion closes
+              </th>
+
+              <th className="text-left p-3">
+                Next
+              </th>
+
+              <th className="text-left p-3">
+                Status
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {filteredSchedule.map(row => {
+              const status =
+                seasonScheduleStatus(
+                  row,
+                  serverNow
+                );
+
+              return (
+                <tr
+                  key={
+                    row.championshipNumber
+                  }
+                  className="border-t border-slate-100 hover:bg-slate-50"
+                >
+                  <td className="p-3 font-extrabold">
+                    Championship{' '}
+                    {row.championshipNumber}
+                  </td>
+
+                  <td className="p-3 whitespace-nowrap">
+                    {formatLondon(
+                      row.levels[0]
+                        ?.opensAt
+                    )}
+                  </td>
+
+                  <td className="p-3 whitespace-nowrap">
+                    {formatLondon(
+                      row.levels[9]
+                        ?.opensAt
+                    )}
+                  </td>
+
+                  <td className="p-3 whitespace-nowrap font-semibold text-violet-700">
+                    {formatLondon(
+                      row.championOpensAt
+                    )}
+                  </td>
+
+                  <td className="p-3 whitespace-nowrap font-semibold text-rose-700">
+                    {formatLondon(
+                      row.championClosesAt
+                    )}
+                  </td>
+
+                  <td className="p-3 whitespace-nowrap">
+                    {row.nextChampionshipAt
+                      ? formatLondon(
+                          row.nextChampionshipAt
+                        )
+                      : 'Season complete'}
+                  </td>
+
+                  <td className="p-3">
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-[10px] uppercase font-extrabold ${
+                        status ===
+                        'CHAMPION LIVE'
+                          ? 'bg-violet-100 text-violet-700'
+                          : status ===
+                            'LEVELS LIVE'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : status ===
+                            'COMPLETE'
+                          ? 'bg-slate-200 text-slate-600'
+                          : 'bg-amber-100 text-amber-700'
+                      }`}
+                    >
+                      {status}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="px-4 py-3 bg-amber-50 border-t border-amber-100 text-xs text-amber-800">
+        All displayed times use Europe/London.
+        Champion stages close at 22:00 on Day 11.
+        The next Championship starts at 00:00
+        on Day 12.
+      </div>
+    </div>
+  );
+}
+
 function SeasonLaunchPanel({
-  seasonId,
   contest,
   serverTime,
   busy,
@@ -1460,286 +1748,273 @@ function SeasonLaunchPanel({
 
   const [startDate, setStartDate] =
     useState('');
+
   const [startTime, setStartTime] =
-    useState('00:00');
-  const [endDate, setEndDate] = useState('');
-  const [endTime, setEndTime] =
     useState('00:00');
 
   const [showConfirm, setShowConfirm] =
     useState(false);
+
   const [launchBusy, setLaunchBusy] =
     useState(false);
 
-  // Server-authoritative clock reference. We anchor to the
-  // server time reported at load and only tick locally for
-  // display, so browser clock skew cannot drift the display.
   const [serverOffset, setServerOffset] =
     useState(0);
-  const [nowMs, setNowMs] = useState(() =>
-    Date.now()
-  );
+
+  const [nowMs, setNowMs] =
+    useState(() => Date.now());
 
   useEffect(() => {
-    if (serverTime) {
-      const parsed = new Date(
-        serverTime
-      ).getTime();
+    if (!serverTime) {
+      return;
+    }
 
-      if (!Number.isNaN(parsed)) {
-        setServerOffset(
-          parsed - Date.now()
-        );
-      }
+    const parsed =
+      new Date(serverTime).getTime();
+
+    if (!Number.isNaN(parsed)) {
+      setServerOffset(
+        parsed - Date.now()
+      );
     }
   }, [serverTime]);
 
   useEffect(() => {
-    const id = window.setInterval(() => {
-      setNowMs(Date.now());
-    }, 1000);
+    const timer =
+      window.setInterval(
+        () => {
+          setNowMs(Date.now());
+        },
+        1000
+      );
 
-    return () =>
-      window.clearInterval(id);
+    return () => {
+      window.clearInterval(timer);
+    };
   }, []);
 
-  const serverNow = nowMs + serverOffset;
+  const serverNow =
+    nowMs + serverOffset;
 
-  // Prefill from the currently stored schedule (if any).
+
+  // ----------------------------------------------------------
+  // Persisted Season start.
+  //
+  // Championship 1 is only the authoritative holder used to
+  // store the Season start. Championships 2-100 are activated
+  // automatically by the scheduler.
+  // ----------------------------------------------------------
+
   useEffect(() => {
-    if (contest?.start_at) {
-      const parts = londonPartsFromIso(
-        contest.start_at
-      );
-      setStartDate(parts.date);
-      setStartTime(parts.time || '00:00');
-    }
-
-    if (contest?.end_at) {
-      const parts = londonPartsFromIso(
-        contest.end_at
-      );
-      setEndDate(parts.date);
-      setEndTime(parts.time || '00:00');
-    }
-  }, [
-    contest?.contest_number,
-    contest?.start_at,
-    contest?.end_at,
-  ]);
-
-  const status = useMemo(() => {
-    if (
-      !contest ||
-      contest.status !== 'active' ||
-      !contest.start_at
-    ) {
-      return 'NOT LAUNCHED';
-    }
-
-    const startMs = new Date(
-      contest.start_at
-    ).getTime();
-    const endMs = contest.end_at
-      ? new Date(contest.end_at).getTime()
-      : null;
-
-    if (serverNow < startMs) {
-      return 'SCHEDULED';
-    }
-
-    if (endMs !== null && serverNow >= endMs) {
-      return 'ENDED';
-    }
-
-    return 'LIVE';
-  }, [contest, serverNow]);
-
-  const liveSchedule = useMemo(() => {
-    if (
-      !contest ||
-      contest.status !== 'active' ||
-      !contest.start_at ||
-      status === 'NOT LAUNCHED'
-    ) {
-      return null;
-    }
-
-    const startMs = new Date(
-      contest.start_at
-    ).getTime();
-
-    // The selected/active contest represents one Championship of the
-    // 100-Championship season. Championship k spans global levels
-    // (k-1)*10+1 .. k*10 (see backend/world/season1.py). We only
-    // REPRESENT this mapping; we do not change progression.
-    const championshipNumber = Math.min(
-      SEASON_CHAMPIONSHIP_COUNT,
-      Math.max(
-        1,
-        Number(contest.contest_number) || 1
-      )
-    );
-
-    const globalLevelBase =
-      (championshipNumber - 1) *
-      SEASON_LEVELS_PER_CHAMPIONSHIP;
-
-    if (serverNow < startMs) {
-      return {
-        championshipNumber,
-        currentLevel: 0,
-        globalLevel: 0,
-        nextUnlockMs: startMs,
-        remainingMs: startMs - serverNow,
-        label: 'Season starts in',
-      };
-    }
-
-    // Derive the schedule from the contest's ACTUAL per-level
-    // unlock_after_days config (server-authoritative offsets),
-    // rather than assuming any fixed window length.
-    const levels = Array.isArray(
-      contest.levels_config
-    )
-      ? contest.levels_config
-      : [];
-
-    const schedule = levels
-      .map(lv => ({
-        level: Number(lv.level) || 0,
-        unlockMs:
-          startMs +
-          (Number(lv.unlock_after_days) ||
-            0) *
-            DAY_MS,
-      }))
-      .sort(
-        (a, b) => a.unlockMs - b.unlockMs
-      );
-
-    let currentLevel = 1;
-    let nextUnlockMs = null;
-
-    schedule.forEach(item => {
-      if (item.unlockMs <= serverNow) {
-        if (item.level > currentLevel) {
-          currentLevel = item.level;
-        }
-      } else if (nextUnlockMs === null) {
-        nextUnlockMs = item.unlockMs;
-      }
-    });
-
-    if (nextUnlockMs === null) {
-      return {
-        championshipNumber,
-        currentLevel,
-        globalLevel:
-          globalLevelBase + currentLevel,
-        nextUnlockMs: null,
-        remainingMs: 0,
-        label: 'All levels unlocked',
-      };
-    }
-
-    return {
-      championshipNumber,
-      currentLevel,
-      globalLevel:
-        globalLevelBase + currentLevel,
-      nextUnlockMs,
-      remainingMs: Math.max(
-        0,
-        nextUnlockMs - serverNow
-      ),
-      label: 'Next level unlocks in',
-    };
-  }, [contest, serverNow, status]);
-
-  const startIso = londonWallToUtcIso(
-    startDate,
-    startTime
-  );
-  const endIso = londonWallToUtcIso(
-    endDate,
-    endTime
-  );
-
-  const validRange =
-    startIso &&
-    endIso &&
-    new Date(endIso).getTime() >
-      new Date(startIso).getTime();
-
-  const openConfirm = () => {
-    if (!contest) {
-      toast({
-        title:
-          'Select a contest holder first',
-        description:
-          'Choose the Champion Contest to launch below.',
-      });
+    if (!contest?.start_at) {
       return;
     }
 
-    if (!validRange) {
+    const parts =
+      londonPartsFromIso(
+        contest.start_at
+      );
+
+    setStartDate(
+      parts?.date || ''
+    );
+
+    setStartTime(
+      parts?.time || '00:00'
+    );
+  }, [
+    contest?.start_at,
+  ]);
+
+
+  // ----------------------------------------------------------
+  // Proposed Admin start.
+  // ----------------------------------------------------------
+
+  const startIso =
+    londonWallToUtcIso(
+      startDate,
+      startTime
+    );
+
+  const validStart =
+    Boolean(
+      startIso &&
+      !Number.isNaN(
+        new Date(
+          startIso
+        ).getTime()
+      )
+    );
+
+
+  // ----------------------------------------------------------
+  // Persisted full-Season schedule for status calculation.
+  // ----------------------------------------------------------
+
+  const persistedSchedule =
+    useMemo(
+      () =>
+        contest?.start_at
+          ? buildSeasonChampionshipSchedule(
+              contest.start_at
+            )
+          : [],
+      [
+        contest?.start_at,
+      ]
+    );
+
+  const persistedSeasonEnd =
+    persistedSchedule.length
+      ? persistedSchedule[
+          persistedSchedule.length - 1
+        ]?.championClosesAt
+      : null;
+
+
+  // ----------------------------------------------------------
+  // Status uses only persisted server schedule.
+  // ----------------------------------------------------------
+
+  const status =
+    useMemo(() => {
+      if (!contest?.start_at) {
+        return 'NOT LAUNCHED';
+      }
+
+      const persistedStartMs =
+        new Date(
+          contest.start_at
+        ).getTime();
+
+      const persistedEndMs =
+        persistedSeasonEnd
+          ? new Date(
+              persistedSeasonEnd
+            ).getTime()
+          : null;
+
+      if (
+        serverNow <
+        persistedStartMs
+      ) {
+        return 'SCHEDULED';
+      }
+
+      if (
+        persistedEndMs !== null &&
+        serverNow >= persistedEndMs
+      ) {
+        return 'ENDED';
+      }
+
+      return 'LIVE';
+    }, [
+      contest?.start_at,
+      persistedSeasonEnd,
+      serverNow,
+    ]);
+
+
+  // Admin may reschedule only before the Season becomes live.
+  const isLocked =
+    status === 'LIVE' ||
+    status === 'ENDED';
+
+  const badge =
+    LAUNCH_BADGE[status] ||
+    LAUNCH_BADGE[
+      'NOT LAUNCHED'
+    ];
+
+
+  // ----------------------------------------------------------
+  // Preview uses currently selected Admin start.
+  // ----------------------------------------------------------
+
+  const previewStartIso =
+    validStart
+      ? startIso
+      : contest?.start_at ||
+        null;
+
+
+  const openConfirm = () => {
+    if (!validStart) {
       toast({
-        title: 'Check the launch window',
+        title:
+          'Choose the Season start',
+
         description:
-          'Pick a start and an end, with end after start.',
+          'Select a valid Season 1 start date and time in Europe/London.',
       });
+
+      return;
+    }
+
+    if (isLocked) {
       return;
     }
 
     setShowConfirm(true);
   };
 
-  const confirmLaunch = async () => {
-    if (launchBusy || !contest) return;
 
-    setLaunchBusy(true);
+  const confirmLaunch =
+    async () => {
+      if (
+        launchBusy ||
+        busy ||
+        !validStart ||
+        isLocked
+      ) {
+        return;
+      }
 
-    try {
-      const response =
-        await worldAdminAPI.activate({
-          contest_number:
-            contest.contest_number,
-          start_at: startIso,
-          end_at: endIso,
+      setLaunchBusy(true);
+
+      try {
+        const response =
+          await worldAdminAPI.activate({
+            contest_number: 1,
+            start_at: startIso,
+          });
+
+        toast({
+          title:
+            response?.launched
+              ? 'Free World Season 1 scheduled'
+              : 'Season schedule unchanged',
+
+          description:
+            `Season starts ${formatLondon(
+              startIso
+            )}`,
         });
 
-      toast({
-        title: response?.launched
-          ? `Season launch scheduled for Contest #${contest.contest_number}`
-          : 'Season schedule unchanged',
-        description: `Start: ${formatLondon(
-          startIso
-        )}`,
-      });
+        setShowConfirm(false);
 
-      setShowConfirm(false);
-      await onLaunched?.();
-    } catch (error) {
-      toast({
-        title: 'Season launch failed',
-        description:
-          error?.response?.data?.detail ||
-          'The season was not launched.',
-      });
-    } finally {
-      setLaunchBusy(false);
-    }
-  };
+        await onLaunched?.();
 
-  const badge =
-    LAUNCH_BADGE[status] ||
-    LAUNCH_BADGE['NOT LAUNCHED'];
+      } catch (error) {
+        toast({
+          title:
+            'Season launch failed',
 
-  const isLocked = status === 'LIVE';
+          description:
+            error?.response?.data?.detail ||
+            'The Season was not launched.',
+        });
+
+      } finally {
+        setLaunchBusy(false);
+      }
+    };
+
 
   return (
-    <div
+    <section
       className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm"
       data-testid="season-launch-panel"
     >
@@ -1747,17 +2022,18 @@ function SeasonLaunchPanel({
         <div>
           <div className="flex items-center gap-2 text-[#6C2BFF] font-extrabold uppercase tracking-widest text-xs">
             <Crown className="w-4 h-4" />
-            Free World Season
+
+            Free World
           </div>
 
           <h2 className="font-display font-extrabold text-2xl text-slate-900 mt-1">
-            {seasonId
-              ? `Season ${seasonId}`
-              : 'Season'}
-            {contest
-              ? ` · Contest #${contest.contest_number}`
-              : ''}
+            Season 1
           </h2>
+
+          <p className="text-sm text-slate-500 mt-1">
+            One start date controls all
+            100 Championships automatically.
+          </p>
         </div>
 
         <span
@@ -1768,375 +2044,208 @@ function SeasonLaunchPanel({
         </span>
       </div>
 
-      {/* Fixed Season 1 architecture: 100 Championships,
-          1,000 numbered levels, 100 Champion/Prize stages. */}
-      <div
-        className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4"
-        data-testid="season-totals"
-      >
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-          <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
-            Total Championships
+
+      <div className="grid sm:grid-cols-4 gap-3 mt-5">
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            Championships
           </div>
-          <div
-            className="font-display font-extrabold text-2xl text-slate-900 mt-1"
-            data-testid="season-total-championships"
-          >
-            {SEASON_CHAMPIONSHIP_COUNT}
+
+          <div className="font-display font-extrabold text-xl text-slate-900 mt-1">
+            100
           </div>
         </div>
 
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-          <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
-            Total Numbered Levels
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            Normal levels
           </div>
-          <div
-            className="font-display font-extrabold text-2xl text-slate-900 mt-1"
-            data-testid="season-total-levels"
-          >
-            {SEASON_TOTAL_LEVELS.toLocaleString()}
+
+          <div className="font-display font-extrabold text-xl text-slate-900 mt-1">
+            1,000
           </div>
         </div>
 
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-          <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
-            Champion / Prize Stages
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            Champion stages
           </div>
-          <div
-            className="font-display font-extrabold text-2xl text-slate-900 mt-1"
-            data-testid="season-champion-stages"
-          >
-            {SEASON_CHAMPION_STAGES}
+
+          <div className="font-display font-extrabold text-xl text-slate-900 mt-1">
+            100
           </div>
         </div>
 
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-          <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
-            Season Start
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            Cycle
           </div>
-          <div
-            className="font-semibold text-sm text-slate-900 mt-1"
-            data-testid="season-start-display"
-          >
-            {contest?.start_at
-              ? formatLondon(contest.start_at)
-              : 'Not launched'}
+
+          <div className="font-display font-extrabold text-xl text-slate-900 mt-1">
+            12 days
           </div>
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-4 mt-4">
-        <div className="space-y-2">
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
-            Launch date (Europe/London)
-          </label>
 
-          <div className="flex gap-2">
-            <input
-              type="date"
-              data-testid="season-start-date"
-              value={startDate}
-              disabled={isLocked || busy}
-              onChange={e =>
-                setStartDate(e.target.value)
-              }
-              className="flex-1 border border-slate-300 rounded-xl px-3 py-2 text-sm"
-            />
+      <div className="mt-5">
+        <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+          Season starts - Europe/London
+        </label>
 
-            <input
-              type="time"
-              data-testid="season-start-time"
-              value={startTime}
-              disabled={isLocked || busy}
-              onChange={e =>
-                setStartTime(e.target.value)
-              }
-              className="w-28 border border-slate-300 rounded-xl px-3 py-2 text-sm"
-            />
-          </div>
+        <div className="flex flex-col sm:flex-row gap-2 mt-2">
+          <input
+            type="date"
+            data-testid="season-start-date"
+            value={startDate}
+            disabled={
+              busy ||
+              launchBusy ||
+              isLocked
+            }
+            onChange={event =>
+              setStartDate(
+                event.target.value
+              )
+            }
+            className="border border-slate-300 rounded-xl px-3 py-2 text-sm"
+          />
 
-          <p className="text-xs text-slate-500">
-            {startIso
-              ? formatLondon(startIso)
-              : 'Suggested launch time 00:00.'}
-          </p>
+          <input
+            type="time"
+            data-testid="season-start-time"
+            value={startTime}
+            disabled={
+              busy ||
+              launchBusy ||
+              isLocked
+            }
+            onChange={event =>
+              setStartTime(
+                event.target.value
+              )
+            }
+            className="border border-slate-300 rounded-xl px-3 py-2 text-sm"
+          />
         </div>
 
-        <div className="space-y-2">
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
-            End date (Europe/London)
-          </label>
-
-          <div className="flex gap-2">
-            <input
-              type="date"
-              data-testid="season-end-date"
-              value={endDate}
-              disabled={isLocked || busy}
-              onChange={e =>
-                setEndDate(e.target.value)
-              }
-              className="flex-1 border border-slate-300 rounded-xl px-3 py-2 text-sm"
-            />
-
-            <input
-              type="time"
-              data-testid="season-end-time"
-              value={endTime}
-              disabled={isLocked || busy}
-              onChange={e =>
-                setEndTime(e.target.value)
-              }
-              className="w-28 border border-slate-300 rounded-xl px-3 py-2 text-sm"
-            />
-          </div>
-
-          <p className="text-xs text-slate-500">
-            {endIso
-              ? formatLondon(endIso)
-              : 'Select the season end.'}
-          </p>
-        </div>
+        <p className="text-xs text-slate-500 mt-2">
+          {validStart
+            ? formatLondon(startIso)
+            : 'Choose the Season 1 launch date and time.'}
+        </p>
       </div>
 
-      {status === 'SCHEDULED' && liveSchedule && (
-        <div
-          className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-4"
-          data-testid="season-scheduled"
-        >
-          <div className="text-sm font-extrabold uppercase tracking-wider text-amber-700">
-            {seasonId
-              ? `Season ${seasonId}`
-              : 'Season'}{' '}
-            — Scheduled
-          </div>
 
-          <div className="grid sm:grid-cols-3 gap-3 mt-3">
-            <div>
-              <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
-                Starts in
-              </div>
-              <div
-                className="font-display font-extrabold text-2xl text-amber-700 mt-1 tabular-nums"
-                data-testid="season-starts-in"
-              >
-                {formatDaysClock(
-                  liveSchedule.remainingMs
-                )}
-              </div>
-              <div className="text-[10px] text-slate-400 mt-0.5">
-                DD:HH:MM:SS
-              </div>
-            </div>
-
-            <div>
-              <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
-                Start
-              </div>
-              <div className="font-semibold text-sm text-slate-900 mt-1">
-                {formatLondon(
-                  contest.start_at
-                )}
-              </div>
-            </div>
-
-            <div>
-              <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
-                Timezone
-              </div>
-              <div className="font-semibold text-sm text-slate-900 mt-1">
-                Europe/London
-              </div>
-            </div>
-          </div>
-        </div>
+      {previewStartIso && (
+        <SeasonChampionshipSchedule
+          startIso={
+            previewStartIso
+          }
+          serverNow={
+            serverNow
+          }
+        />
       )}
 
-      {status === 'LIVE' && liveSchedule && (
-        <div
-          className="mt-4 bg-emerald-50 border border-emerald-200 rounded-xl p-4"
-          data-testid="season-live-schedule"
-        >
-          <div className="text-sm font-extrabold uppercase tracking-wider text-emerald-700">
-            {seasonId
-              ? `Season ${seasonId}`
-              : 'Season'}{' '}
-            — Live
-          </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-3">
-            <div>
-              <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
-                Current Championship
-              </div>
-              <div
-                className="font-display font-extrabold text-xl text-slate-900 mt-1"
-                data-testid="season-current-championship"
-              >
-                {liveSchedule.championshipNumber}{' '}
-                / {SEASON_CHAMPIONSHIP_COUNT}
-              </div>
-            </div>
-
-            <div>
-              <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
-                Current Global Level
-              </div>
-              <div
-                className="font-display font-extrabold text-xl text-slate-900 mt-1"
-                data-testid="season-global-level"
-              >
-                {liveSchedule.globalLevel} /{' '}
-                {SEASON_TOTAL_LEVELS.toLocaleString()}
-              </div>
-            </div>
-
-            <div>
-              <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
-                Current Championship Level
-              </div>
-              <div
-                className="font-display font-extrabold text-xl text-slate-900 mt-1"
-                data-testid="season-championship-level"
-              >
-                {liveSchedule.currentLevel} /{' '}
-                {SEASON_LEVELS_PER_CHAMPIONSHIP}
-              </div>
-            </div>
-
-            <div>
-              <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
-                Next Unlock
-              </div>
-              <div className="font-semibold text-sm text-slate-900 mt-1">
-                {liveSchedule.nextUnlockMs
-                  ? formatLondon(
-                      new Date(
-                        liveSchedule.nextUnlockMs
-                      ).toISOString()
-                    )
-                  : '—'}
-              </div>
-            </div>
-
-            <div>
-              <div className="text-xs uppercase tracking-wider text-slate-500 font-bold">
-                {liveSchedule.nextUnlockMs
-                  ? 'Time Remaining'
-                  : 'Status'}
-              </div>
-              <div
-                className="font-display font-extrabold text-xl text-emerald-700 mt-1 tabular-nums"
-                data-testid="season-remaining"
-              >
-                {liveSchedule.nextUnlockMs
-                  ? formatDaysClock(
-                      liveSchedule.remainingMs
-                    )
-                  : 'All levels unlocked'}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="mt-4 flex flex-wrap items-center gap-3">
+      <div className="mt-5 flex flex-wrap items-center gap-3">
         <Button
           data-testid="season-launch-btn"
-          onClick={openConfirm}
+          onClick={
+            openConfirm
+          }
           disabled={
             busy ||
             launchBusy ||
-            !contest ||
-            !validRange ||
+            !validStart ||
             isLocked
           }
           className="bg-[#6C2BFF] hover:bg-[#5a20e0] text-white"
         >
           <Play className="w-4 h-4 mr-1" />
+
           {status === 'NOT LAUNCHED'
-            ? 'Launch season'
+            ? 'Launch Season 1'
             : status === 'SCHEDULED'
-            ? 'Reschedule launch'
-            : 'Season live'}
+            ? 'Reschedule Season 1'
+            : status === 'LIVE'
+            ? 'Season 1 Live'
+            : 'Season 1 Ended'}
         </Button>
 
         {isLocked && (
           <span className="text-xs text-slate-500">
-            A live season start time is locked.
-            Close the active contest to change it.
+            Season schedule is locked
+            after the Season starts.
           </span>
         )}
       </div>
 
+
       {showConfirm && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-[10070] flex items-center justify-center bg-black/40 p-4"
           data-testid="season-confirm-modal"
         >
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <h3 className="font-display font-extrabold text-xl text-slate-900">
-              Launch Free World{' '}
-              {seasonId
-                ? `Season ${seasonId}`
-                : 'Season'}
-              ?
+              Confirm Season 1 launch
             </h3>
 
-            <div className="mt-4 space-y-2 text-sm text-slate-700">
-              <div>
-                <span className="font-bold">
-                  Contest:
-                </span>{' '}
-                #{contest?.contest_number}
+            <p className="text-sm text-slate-600 mt-3">
+              This one start time generates
+              the complete schedule for all
+              100 Championships.
+            </p>
+
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Season starts
               </div>
-              <div>
-                <span className="font-bold">
-                  Start:
-                </span>{' '}
-                {formatLondon(startIso)}
+
+              <div className="font-bold text-slate-900 mt-1">
+                {formatLondon(
+                  startIso
+                )}
               </div>
-              <div>
-                <span className="font-bold">
-                  End:
-                </span>{' '}
-                {formatLondon(endIso)}
+
+              <div className="text-xs text-slate-500 mt-1">
+                Europe/London
               </div>
             </div>
 
-            <p className="mt-4 text-xs text-slate-500">
-              All users will use this global
-              schedule. Each level unlocks in
-              exact 24-hour windows from the
-              start time.
-            </p>
-
-            <div className="mt-6 flex justify-end gap-3">
+            <div className="mt-5 flex justify-end gap-2">
               <Button
                 variant="outline"
-                data-testid="season-cancel-btn"
+                disabled={
+                  launchBusy
+                }
                 onClick={() =>
                   setShowConfirm(false)
                 }
-                disabled={launchBusy}
               >
                 Cancel
               </Button>
 
               <Button
-                data-testid="season-confirm-btn"
-                onClick={confirmLaunch}
-                disabled={launchBusy}
+                data-testid="season-confirm-launch-btn"
+                disabled={
+                  launchBusy
+                }
+                onClick={
+                  confirmLaunch
+                }
                 className="bg-[#6C2BFF] hover:bg-[#5a20e0] text-white"
               >
                 {launchBusy
-                  ? 'Launching…'
+                  ? 'Launching...'
                   : 'Confirm launch'}
               </Button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </section>
   );
 }
