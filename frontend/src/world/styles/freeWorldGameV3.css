@@ -1907,3 +1907,160 @@
   from { opacity: 0; transform: translateY(16px) scale(.96); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
+
+
+/* FREE WORLD V3 MOBILE STABILITY PATCH */
+
+html:has(.fwv3-overlay),
+body:has(.fwv3-overlay) {
+  overflow: hidden;
+}
+
+.fwv3-overlay {
+  inset: 56px 0 0;
+  overscroll-behavior: contain;
+}
+
+.fwv3-bars {
+  height: 30px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.fwv3-bars > span {
+  display: block;
+  width: 5px;
+  border-radius: 999px;
+  background: #6724c7;
+}
+
+.fwv3-bars > span:nth-child(1) {
+  height: 9px;
+}
+
+.fwv3-bars > span:nth-child(2) {
+  height: 15px;
+}
+
+.fwv3-bars > span:nth-child(3) {
+  height: 22px;
+}
+
+.fwv3-bars > span:nth-child(4) {
+  height: 29px;
+}
+
+@media (min-width: 640px) {
+  .fwv3-overlay {
+    inset: 64px 0 0;
+  }
+}
+
+@media (min-width: 768px) {
+  .fwv3-overlay {
+    inset: 70px 0 0;
+  }
+}
+
+@media (max-width: 639px) {
+
+  .fwv3-overlay {
+    padding:
+      8px
+      8px
+      max(12px, env(safe-area-inset-bottom));
+  }
+
+  .fwv3-card {
+    width: calc(100vw - 16px);
+    padding: 14px 12px;
+    border-radius: 18px;
+  }
+
+  .fwv3-close {
+    top: 8px;
+    right: 8px;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+  }
+
+  .fwv3-entry-header {
+    margin-bottom: 10px;
+    padding: 2px 42px 0;
+  }
+
+  .fwv3-entry-header h1 {
+    font-size: 28px;
+    line-height: 1;
+    letter-spacing: -0.035em;
+  }
+
+  .fwv3-entry-header strong {
+    margin-top: 5px;
+    font-size: 16px;
+  }
+
+  .fwv3-game-banner {
+    min-height: 88px;
+    gap: 12px;
+    padding: 10px;
+    border-radius: 14px;
+  }
+
+  .fwv3-number-icon {
+    grid-template-columns:
+      repeat(2, 28px);
+    gap: 2px;
+  }
+
+  .fwv3-number-icon span {
+    height: 28px;
+    font-size: 17px;
+    border-radius: 6px;
+  }
+
+  .fwv3-game-banner-copy > span {
+    font-size: 11px;
+  }
+
+  .fwv3-game-banner-copy h2 {
+    font-size: 20px;
+    line-height: 1.05;
+  }
+}
+
+
+/* FREE WORLD V3 MOBILE HARD NO-SCROLL */
+
+@media (max-width: 639px) {
+
+  .fwv3-overlay {
+    overflow: hidden !important;
+    overflow-y: hidden !important;
+    overflow-x: hidden !important;
+
+    height: calc(100dvh - 56px);
+    max-height: calc(100dvh - 56px);
+
+    overscroll-behavior: none;
+    touch-action: manipulation;
+  }
+
+  .fwv3-entry-overlay {
+    overflow: hidden !important;
+  }
+
+  .fwv3-card {
+    max-height: 100%;
+    overflow: hidden;
+  }
+
+  .fwv3-entry-card {
+    max-height: 100%;
+    overflow: hidden;
+  }
+}

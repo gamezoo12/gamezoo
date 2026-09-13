@@ -149,7 +149,7 @@ export default function FreeWorldNumberSequenceV3({
       ? null
       : Number(
           level
-            ?.time_limit_seconds ?? 25,
+            ?.time_limit_seconds ?? 60,
         );
 
   const initialAttempts =
@@ -1280,16 +1280,16 @@ if (
               }
             </h1>
 
-            <strong>
-              {
-                championMode
-                  ? (
-                      championMeta?.name ||
-                      'CHAMPION ARENA'
-                    )
-                  : `LEVEL ${selectedLevel?.level}`
-              }
-            </strong>
+            {
+              championMode && (
+                <strong>
+                  {
+                    championMeta?.name ||
+                    'CHAMPION ARENA'
+                  }
+                </strong>
+              )
+            }
 
           </header>
 
@@ -1357,8 +1357,14 @@ if (
 
             <article>
 
-              <div className="fwv3-bars">
-                â–‚â–„â–†â–ˆ
+              <div
+                className="fwv3-bars"
+                aria-hidden="true"
+              >
+                <span />
+                <span />
+                <span />
+                <span />
               </div>
 
               <div>

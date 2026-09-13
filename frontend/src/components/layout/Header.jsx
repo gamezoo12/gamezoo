@@ -251,12 +251,19 @@ const minimalWorldHeader =
  }
  return (
  <>
- <header className="sticky top-0 z-40" data-testid="site-header">
+ <header
+ className={
+  isFreeWorldHeader
+   ? "!fixed !top-0 !left-0 !right-0 !z-[10060]"
+   : "sticky top-0 z-40"
+ }
+ data-testid="site-header"
+>
  <div style={{ background: 'linear-gradient(180deg, #0B0D1F 0%, #161433 100%)' }} className="border-b border-white/5">
  <div className="max-w-7xl mx-auto flex items-center justify-between px-3 sm:px-4 lg:px-8 h-14 sm:h-16 md:h-[70px] gap-2">
  <Link to="/" className="shrink-0 flex items-center" data-testid="header-logo">
  {/* Mobile (below 640px): show full wordmark; ≥sm/≥lg keep existing sizes exactly */}
- <span className="sm:hidden"><PrizeLeagueLogo size={36} emblemOnly={isFreeWorldHeader} /></span>
+ <span className="sm:hidden"><PrizeLeagueLogo size={36} /></span>
  <span className="hidden sm:inline lg:hidden"><PrizeLeagueLogo size={44} /></span>
  <span className="hidden lg:inline"><PrizeLeagueLogo size={60} /></span>
  </Link>

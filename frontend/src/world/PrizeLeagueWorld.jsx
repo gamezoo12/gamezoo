@@ -140,7 +140,7 @@ export default function PrizeLeagueWorld() {
                 'number_sequence',
 
               time_limit_seconds:
-                25,
+                60,
 
               game_config: {
                 target_number: 20,
