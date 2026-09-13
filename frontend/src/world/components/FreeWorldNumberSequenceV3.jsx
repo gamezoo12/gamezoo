@@ -19,6 +19,7 @@ import {
 
 import {
   worldAPI,
+  worldContestAPI,
   walletAPI,
 } from '../../lib/api';
 
@@ -115,6 +116,8 @@ export default function FreeWorldNumberSequenceV3({
   selectedLevel,
   levelData,
   guestMode = false,
+  championMode = false,
+  championMeta = null,
   onClose,
   onFinished,
 }) {
@@ -128,11 +131,26 @@ export default function FreeWorldNumberSequenceV3({
         ?.target_number || 20,
     );
 
+  const timerMode =
+    championMode
+      ? 'stopwatch'
+      : String(
+          level
+            ?.game_config
+            ?.timer_mode ||
+          'countdown',
+        ).toLowerCase();
+
+  const isStopwatch =
+    timerMode === 'stopwatch';
+
   const timeLimitSeconds =
-    Number(
-      level
-        ?.time_limit_seconds || 25,
-    );
+    isStopwatch
+      ? null
+      : Number(
+          level
+            ?.time_limit_seconds ?? 25,
+        );
 
   const initialAttempts =
     level?.attempts || {};
@@ -322,13 +340,17 @@ export default function FreeWorldNumberSequenceV3({
 
 
   useEffect(() => {
-    if (guestMode) {
+    if (
+      guestMode ||
+      championMode
+    ) {
       return;
     }
 
     refreshAttemptSummary();
   }, [
     guestMode,
+    championMode,
     refreshAttemptSummary,
   ]);
 
@@ -381,7 +403,9 @@ export default function FreeWorldNumberSequenceV3({
       performance.now();
 
     const limitMs =
-      timeLimitSeconds * 1000;
+      isStopwatch
+        ? null
+        : timeLimitSeconds * 1000;
 
     setDemoElapsedMs(0);
 
@@ -390,19 +414,22 @@ export default function FreeWorldNumberSequenceV3({
     const tick =
       (now) => {
         const elapsed =
-          Math.min(
-            limitMs,
-            Math.max(
-              0,
-              now - startedAt,
-            ),
+          Math.max(
+            0,
+            now - startedAt,
           );
 
         setDemoElapsedMs(
-          elapsed,
+          isStopwatch
+            ? elapsed
+            : Math.min(
+                limitMs,
+                elapsed,
+              ),
         );
 
         if (
+          !isStopwatch &&
           elapsed >= limitMs
         ) {
           if (
@@ -437,6 +464,7 @@ export default function FreeWorldNumberSequenceV3({
     };
   }, [
     demoStarted,
+    isStopwatch,
     stage,
     timeLimitSeconds,
   ]);
@@ -489,7 +517,10 @@ export default function FreeWorldNumberSequenceV3({
     async () => {
       if (
         busy ||
-        freeAttempts < 1
+        (
+          !championMode &&
+          freeAttempts < 1
+        )
       ) {
         return;
       }
@@ -539,12 +570,15 @@ export default function FreeWorldNumberSequenceV3({
 
       try {
         const response =
-          await worldAPI
-            .startSession(
-              Number(
-                selectedLevel?.level,
-              ),
-            );
+          championMode
+            ? await worldContestAPI
+                .startChampionSession()
+            : await worldAPI
+                .startSession(
+                  Number(
+                    selectedLevel?.level,
+                  ),
+                );
 
         if (
           !mountedRef.current
@@ -555,6 +589,16 @@ export default function FreeWorldNumberSequenceV3({
         setSession(
           response,
         );
+
+        if (
+          championMode &&
+          response?.attempts
+        ) {
+          setAttemptSummary({
+            attempts:
+              response.attempts,
+          });
+        }
 
         setOfficialNext(1);
         setOfficialTaps([]);
@@ -635,10 +679,15 @@ export default function FreeWorldNumberSequenceV3({
           }
 
           const response =
-            await worldAPI
-              .beginSession(
-                session?.session_id,
-              );
+            championMode
+              ? await worldContestAPI
+                  .beginChampionSession(
+                    session?.session_id,
+                  )
+              : await worldAPI
+                  .beginSession(
+                    session?.session_id,
+                  );
 if (
             cancelled ||
             !mountedRef.current
@@ -690,6 +739,7 @@ if (
   }, [
     countdown,
     guestMode,
+    championMode,
     session?.session_id,
     stage,
   ]);
@@ -768,22 +818,39 @@ if (
         }
 
         const response =
-            await worldAPI
-              .submitSession({
-                session_id:
-                  session.session_id,
+          championMode
+            ? await worldContestAPI
+                .submitChampionSession({
+                  session_id:
+                    session.session_id,
 
-                duration_ms:
-                  durationMs,
+                  duration_ms:
+                    durationMs,
 
-                solved:
-                  Boolean(
-                    solved,
-                  ),
+                  solved:
+                    Boolean(
+                      solved,
+                    ),
 
-                taps:
-                  taps || [],
-              });
+                  taps:
+                    taps || [],
+                })
+            : await worldAPI
+                .submitSession({
+                  session_id:
+                    session.session_id,
+
+                  duration_ms:
+                    durationMs,
+
+                  solved:
+                    Boolean(
+                      solved,
+                    ),
+
+                  taps:
+                    taps || [],
+                });
 
           if (
             !mountedRef.current
@@ -795,24 +862,37 @@ if (
             response,
           );
 
-          try {
-            const summary =
-              await worldAPI
-                .attemptSummary(
-                  Number(
-                    selectedLevel?.level,
-                  ),
-                );
-
+          if (
+            championMode
+          ) {
             if (
-              mountedRef.current
+              response?.attempts
             ) {
-              setAttemptSummary(
-                summary,
-              );
+              setAttemptSummary({
+                attempts:
+                  response.attempts,
+              });
             }
-          } catch (summaryError) {
-            // Supplemental only.
+          } else {
+            try {
+              const summary =
+                await worldAPI
+                  .attemptSummary(
+                    Number(
+                      selectedLevel?.level,
+                    ),
+                  );
+
+              if (
+                mountedRef.current
+              ) {
+                setAttemptSummary(
+                  summary,
+                );
+              }
+            } catch (summaryError) {
+              // Supplemental only.
+            }
           }
 
           setStage(
@@ -842,6 +922,7 @@ if (
       },
       [
         guestMode,
+        championMode,
         selectedLevel?.level,
         session,
       ],
@@ -861,11 +942,13 @@ if (
     }
 
     const limitMs =
-      Number(
-        session
-          ?.time_limit_seconds ||
-        timeLimitSeconds,
-      ) * 1000;
+      isStopwatch
+        ? null
+        : Number(
+            session
+              ?.time_limit_seconds ??
+            timeLimitSeconds,
+          ) * 1000;
 
     let frameId = 0;
 
@@ -875,20 +958,23 @@ if (
           Math.max(
             0,
             now -
-            Number(
-              begunAtRef.current ||
-              now,
-            ),
+              Number(
+                begunAtRef.current ||
+                now,
+              ),
           );
 
         setOfficialElapsedMs(
-          Math.min(
-            limitMs,
-            elapsed,
-          ),
+          isStopwatch
+            ? elapsed
+            : Math.min(
+                limitMs,
+                elapsed,
+              ),
         );
 
         if (
+          !isStopwatch &&
           elapsed >= limitMs
         ) {
           submitOfficial({
@@ -921,6 +1007,7 @@ if (
     };
   }, [
     officialTaps,
+    isStopwatch,
     session?.time_limit_seconds,
     stage,
     submitOfficial,
@@ -1110,6 +1197,37 @@ if (
         );
 
 
+  const demoDisplayMs =
+    isStopwatch
+      ? demoElapsedMs
+      : Math.max(
+          0,
+          (
+            Number(
+              timeLimitSeconds || 0,
+            ) * 1000
+          ) -
+          demoElapsedMs,
+        );
+
+
+  const officialDisplayMs =
+    isStopwatch
+      ? officialElapsedMs
+      : Math.max(
+          0,
+          (
+            Number(
+              session
+                ?.time_limit_seconds ??
+              timeLimitSeconds ??
+              0,
+            ) * 1000
+          ) -
+          officialElapsedMs,
+        );
+
+
   const attemptUsed =
     Math.max(
       1,
@@ -1155,14 +1273,21 @@ if (
           <header className="fwv3-entry-header">
 
             <h1>
-              LEVEL {
-                selectedLevel?.level
+              {
+                championMode
+                  ? 'CHAMPION LEVEL'
+                  : `LEVEL ${selectedLevel?.level}`
               }
             </h1>
 
             <strong>
-              LEVEL {
-                selectedLevel?.level
+              {
+                championMode
+                  ? (
+                      championMeta?.name ||
+                      'CHAMPION ARENA'
+                    )
+                  : `LEVEL ${selectedLevel?.level}`
               }
             </strong>
 
@@ -1210,11 +1335,19 @@ if (
                 </span>
 
                 <strong>
-                  {timeLimitSeconds}
+                  {
+                    isStopwatch
+                      ? 'NO LIMIT'
+                      : timeLimitSeconds
+                  }
                 </strong>
 
                 <small>
-                  SECONDS
+                  {
+                    isStopwatch
+                      ? 'STOPWATCH'
+                      : 'SECONDS'
+                  }
                 </small>
 
               </div>
@@ -1277,10 +1410,18 @@ if (
             <Info />
 
             <p>
-              Pass the skill challenge
-              to progress to the next
-              destination. Retries never
-              unlock levels automatically.
+              {
+                championMode
+                  ? (
+                      'Complete 1 to 20 as fast as possible. ' +
+                      'There is no countdown failure limit. ' +
+                      'Your verified server time determines your ranking.'
+                    )
+                  : (
+                      'Pass the skill challenge to progress to the next ' +
+                      'destination. Retries never unlock levels automatically.'
+                    )
+              }
             </p>
 
           </section>
@@ -1385,7 +1526,7 @@ if (
             <strong>
               {
                 formatElapsed(
-                  demoElapsedMs,
+                  demoDisplayMs,
                 )
               }
             </strong>
@@ -1575,16 +1716,24 @@ if (
 
             <div>
               <span>
-                BEST VERIFIED TIME
+                {
+                  championMode
+                    ? 'CHAMPION MODE'
+                    : 'BEST VERIFIED TIME'
+                }
               </span>
 
               <strong>
                 {
-                  attemptSummary?.best_verified_time_ms
-                    ? formatElapsed(
-                        attemptSummary.best_verified_time_ms,
+                  championMode
+                    ? 'FASTEST WINS'
+                    : (
+                        attemptSummary?.best_verified_time_ms
+                          ? formatElapsed(
+                              attemptSummary.best_verified_time_ms,
+                            )
+                          : '--:--.---'
                       )
-                    : '--:--.---'
                 }
               </strong>
             </div>
@@ -1630,7 +1779,10 @@ if (
               className="fwv3-button fwv3-button-primary"
               disabled={
                 busy ||
-                freeAttempts < 1
+                (
+                  !championMode &&
+                  freeAttempts < 1
+                )
               }
               onClick={
                 prepareOfficial
@@ -1644,6 +1796,7 @@ if (
 
 
           {
+            !championMode &&
             freeAttempts < 1 && (
               <div className="fwv3-error">
                 No free attempt is
@@ -1728,7 +1881,11 @@ if (
         <section className="fwv3-card fwv3-play-card">
 
           <div className="fwv3-mode-label">
-            OFFICIAL ATTEMPT
+            {
+              championMode
+                ? 'CHAMPION RUN'
+                : 'OFFICIAL ATTEMPT'
+            }
           </div>
 
 
@@ -1739,7 +1896,7 @@ if (
             <strong>
               {
                 formatElapsed(
-                  officialElapsedMs,
+                  officialDisplayMs,
                 )
               }
             </strong>
@@ -1748,7 +1905,11 @@ if (
 
 
           <div className="fwv3-timer-caption">
-            OFFICIAL ATTEMPT - COUNTS AS ATTEMPT
+            {
+              championMode
+                ? 'CHAMPION STOPWATCH - FASTEST VERIFIED TIME WINS'
+                : 'OFFICIAL ATTEMPT - COUNTS AS ATTEMPT'
+            }
           </div>
 
 
@@ -1921,8 +2082,16 @@ if (
           <p className="fwv3-result-message">
             {
               success
-                ? 'You completed the sequence.'
-                : 'The sequence was not completed in time.'
+                  ? (
+                      championMode
+                        ? 'Verified Champion time submitted to the leaderboard.'
+                        : 'You completed the sequence.'
+                    )
+                  : (
+                      championMode
+                        ? 'This Champion run was not verified as complete.'
+                        : 'The sequence was not completed in time.'
+                    )
             }
           </p>
 
@@ -2033,8 +2202,11 @@ if (
                   resultFreeAttempts
                 } FREE
               </button>
-            ) : resultAttempts
-                ?.token_retry_available ? (
+            ) : (
+              !championMode &&
+              resultAttempts
+                ?.token_retry_available
+            ) ? (
               <button
                 type="button"
                 className="fwv3-button fwv3-button-primary fwv3-full"

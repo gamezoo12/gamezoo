@@ -1609,152 +1609,122 @@ ROYAL_VILLAGE_LEVELS = {
         "arena": 1,
         "location_name": "Village Gate",
         "game_id": "number_sequence",
-        "game_config": {
-            "target_number": 20,
-        },
-        "time_limit_seconds": 25,
+        "game_config": {"target_number": 20},
+        "time_limit_seconds": 60,
         "initial_free_attempts": 3,
-        "refresh_attempts": 0,
+        "refresh_attempts": 1,
         "refresh_hours": 24,
         "token_retry_enabled": True,
     },
-
     2: {
         "level": 2,
         "arena": 1,
         "location_name": "Market Square",
         "game_id": "number_sequence",
-        "game_config": {
-            "target_number": 25,
-        },
-        "time_limit_seconds": 27,
+        "game_config": {"target_number": 20},
+        "time_limit_seconds": 55,
         "initial_free_attempts": 3,
-        "refresh_attempts": 0,
+        "refresh_attempts": 1,
         "refresh_hours": 24,
         "token_retry_enabled": True,
     },
-
     3: {
         "level": 3,
         "arena": 1,
         "location_name": "Royal Farm",
         "game_id": "number_sequence",
-        "game_config": {
-            "target_number": 30,
-        },
-        "time_limit_seconds": 30,
+        "game_config": {"target_number": 20},
+        "time_limit_seconds": 50,
         "initial_free_attempts": 3,
-        "refresh_attempts": 0,
+        "refresh_attempts": 1,
         "refresh_hours": 24,
         "token_retry_enabled": True,
     },
-
     4: {
         "level": 4,
         "arena": 1,
         "location_name": "Riverside Trail",
         "game_id": "number_sequence",
-        "game_config": {
-            "target_number": 35,
-        },
-        "time_limit_seconds": 32,
+        "game_config": {"target_number": 20},
+        "time_limit_seconds": 45,
         "initial_free_attempts": 3,
-        "refresh_attempts": 0,
+        "refresh_attempts": 1,
         "refresh_hours": 24,
         "token_retry_enabled": True,
     },
-
     5: {
         "level": 5,
         "arena": 1,
         "location_name": "King's Bridge",
         "game_id": "number_sequence",
-        "game_config": {
-            "target_number": 40,
-        },
-        "time_limit_seconds": 35,
+        "game_config": {"target_number": 20},
+        "time_limit_seconds": 40,
         "initial_free_attempts": 3,
-        "refresh_attempts": 0,
+        "refresh_attempts": 1,
         "refresh_hours": 24,
         "token_retry_enabled": True,
     },
-
     6: {
         "level": 6,
         "arena": 1,
         "location_name": "Whispering Woods",
         "game_id": "number_sequence",
-        "game_config": {
-            "target_number": 45,
-        },
-        "time_limit_seconds": 38,
-        "initial_free_attempts": 1,
-        "refresh_attempts": 0,
+        "game_config": {"target_number": 20},
+        "time_limit_seconds": 35,
+        "initial_free_attempts": 3,
+        "refresh_attempts": 1,
         "refresh_hours": 24,
         "token_retry_enabled": True,
     },
-
     7: {
         "level": 7,
         "arena": 1,
         "location_name": "Ancient Ruins",
         "game_id": "number_sequence",
-        "game_config": {
-            "target_number": 50,
-        },
-        "time_limit_seconds": 42,
-        "initial_free_attempts": 1,
-        "refresh_attempts": 0,
+        "game_config": {"target_number": 20},
+        "time_limit_seconds": 30,
+        "initial_free_attempts": 3,
+        "refresh_attempts": 1,
         "refresh_hours": 24,
         "token_retry_enabled": True,
     },
-
     8: {
         "level": 8,
         "arena": 1,
         "location_name": "Watchtower Pass",
         "game_id": "number_sequence",
-        "game_config": {
-            "target_number": 60,
-        },
-        "time_limit_seconds": 48,
-        "initial_free_attempts": 1,
-        "refresh_attempts": 0,
+        "game_config": {"target_number": 20},
+        "time_limit_seconds": 25,
+        "initial_free_attempts": 3,
+        "refresh_attempts": 1,
         "refresh_hours": 24,
         "token_retry_enabled": True,
     },
-
     9: {
         "level": 9,
         "arena": 1,
         "location_name": "Castle Crossing",
         "game_id": "number_sequence",
-        "game_config": {
-            "target_number": 75,
-        },
-        "time_limit_seconds": 55,
-        "initial_free_attempts": 1,
-        "refresh_attempts": 0,
+        "game_config": {"target_number": 20},
+        "time_limit_seconds": 20,
+        "initial_free_attempts": 3,
+        "refresh_attempts": 1,
         "refresh_hours": 24,
         "token_retry_enabled": True,
     },
-
     10: {
         "level": 10,
         "arena": 1,
         "location_name": "Royal Gate",
         "game_id": "number_sequence",
-        "game_config": {
-            "target_number": 90,
-        },
-        "time_limit_seconds": 65,
-        "initial_free_attempts": 1,
-        "refresh_attempts": 0,
+        "game_config": {"target_number": 20},
+        "time_limit_seconds": 18,
+        "initial_free_attempts": 3,
+        "refresh_attempts": 1,
         "refresh_hours": 24,
         "token_retry_enabled": True,
     },
 }
-
 
 ROYAL_VILLAGE_CHAMPION = {
     "arena": 1,
@@ -1762,9 +1732,12 @@ ROYAL_VILLAGE_CHAMPION = {
     "name": "Champion Arena I",
     "game_id": "number_sequence",
     "game_config": {
-        "target_number": 100,
+        "target_number": 20,
+        "timer_mode": "stopwatch",
     },
-    "time_limit_seconds": 75,
+    # Champion uses fastest verified completion.
+    # There is no countdown failure limit.
+    "time_limit_seconds": None,
 }
 
 
@@ -1823,7 +1796,7 @@ def _default_world_level_config(
             1,
 
         "token_unlock_enabled":
-            True,
+            False,
 
         "token_unlock_cost":
             1,
@@ -1869,11 +1842,9 @@ def _default_world_champion_config() -> dict:
             ),
 
         "time_limit_seconds":
-            int(
-                ROYAL_VILLAGE_CHAMPION[
-                    "time_limit_seconds"
-                ]
-            ),
+            ROYAL_VILLAGE_CHAMPION[
+                "time_limit_seconds"
+            ],
 
         "move_limit":
             None,
@@ -2132,10 +2103,11 @@ def _validate_world_level_config(
                 "initial_free_attempts":
                     free_attempts,
 
-                # No automatic free refresh in the
-                # current revised attempt model.
+                # Free World V2:
+                # after the initial attempts are exhausted,
+                # one free attempt refreshes every 24 hours.
                 "refresh_attempts":
-                    0,
+                    1,
 
                 "refresh_hours":
                     24,
@@ -2167,13 +2139,10 @@ def _validate_world_level_config(
                 "token_retry_cost":
                     retry_cost,
 
+                # Tokens may purchase retries only.
+                # They can never unlock or skip progression.
                 "token_unlock_enabled":
-                    bool(
-                        item.get(
-                            "token_unlock_enabled",
-                            True,
-                        )
-                    ),
+                    False,
 
                 "token_unlock_cost":
                     unlock_cost,
@@ -2238,24 +2207,61 @@ def _validate_world_champion_config(
             ),
         )
 
-    time_limit = int(
-        raw.get(
-            "time_limit_seconds",
-            75,
+    timer_mode = str(
+        game_config.get(
+            "timer_mode",
+            "countdown",
         )
-    )
+        or "countdown"
+    ).strip().lower()
 
-    if (
-        time_limit < 5
-        or time_limit > 1800
-    ):
+    if timer_mode not in {
+        "countdown",
+        "stopwatch",
+    }:
         raise HTTPException(
             status_code=400,
             detail=(
-                "Champion time limit must be "
-                "5â€“1800 seconds."
+                "Champion timer_mode must be "
+                "'countdown' or 'stopwatch'."
             ),
         )
+
+    if timer_mode == "stopwatch":
+        time_limit = None
+    else:
+        raw_time_limit = raw.get(
+            "time_limit_seconds",
+            75,
+        )
+
+        if raw_time_limit is None:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Countdown Champion requires "
+                    "time_limit_seconds."
+                ),
+            )
+
+        time_limit = int(raw_time_limit)
+
+        if (
+            time_limit < 5
+            or time_limit > 1800
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Champion time limit must be "
+                    "5-1800 seconds."
+                ),
+            )
+
+    game_config = {
+        **game_config,
+        "timer_mode": timer_mode,
+    }
 
     move_limit = raw.get(
         "move_limit"
@@ -5617,28 +5623,26 @@ async def champion_session_start(
         ) or {}
     )
 
-    target = int(
-        game_config.get(
-            "target_number",
-            100,
-        )
-    )
+    # Champion V2 reuses the exact same Number Sequence game.
+    target = 20
 
-    # Champion Number Sequence stays 1â€“100.
-    target = max(
-        5,
-        min(
-            100,
-            target,
-        ),
-    )
-
-    time_limit_seconds = int(
+    timer_mode = str(
         game_config.get(
-            "time_limit_seconds",
-            75,
+            "timer_mode",
+            "stopwatch",
         )
-    )
+        or "stopwatch"
+    ).strip().lower()
+
+    if timer_mode == "stopwatch":
+        time_limit_seconds = None
+    else:
+        time_limit_seconds = int(
+            game_config.get(
+                "time_limit_seconds",
+                75,
+            )
+        )
 
     numbers = _secure_shuffle_numbers(
         target
@@ -5700,6 +5704,9 @@ async def champion_session_start(
 
         "challenge_numbers":
             numbers,
+
+        "timer_mode":
+            timer_mode,
 
         "time_limit_seconds":
             time_limit_seconds,
@@ -5763,6 +5770,9 @@ async def champion_session_start(
             "numbers":
                 numbers,
         },
+
+        "timer_mode":
+            timer_mode,
 
         "time_limit_seconds":
             time_limit_seconds,
@@ -5830,11 +5840,23 @@ async def champion_session_begin(
                     )
                 ),
 
+            "timer_mode":
+                session.get(
+                    "timer_mode",
+                    "stopwatch",
+                ),
+
             "time_limit_seconds":
-                int(
-                    session[
+                (
+                    int(
+                        session[
+                            "time_limit_seconds"
+                        ]
+                    )
+                    if session.get(
                         "time_limit_seconds"
-                    ]
+                    ) is not None
+                    else None
                 ),
         }
 
@@ -5936,11 +5958,23 @@ async def champion_session_begin(
         "begun_at":
             now.isoformat(),
 
+        "timer_mode":
+            session.get(
+                "timer_mode",
+                "stopwatch",
+            ),
+
         "time_limit_seconds":
-            int(
-                session[
+            (
+                int(
+                    session[
+                        "time_limit_seconds"
+                    ]
+                )
+                if session.get(
                     "time_limit_seconds"
-                ]
+                ) is not None
+                else None
             ),
 
         "attempts_remaining":
@@ -6053,14 +6087,13 @@ async def champion_session_submit(
         ]
     )
 
-    time_limit_ms = (
-        int(
-            session[
-                "time_limit_seconds"
-            ]
+    timer_mode = str(
+        session.get(
+            "timer_mode",
+            "stopwatch",
         )
-        * 1000
-    )
+        or "stopwatch"
+    ).strip().lower()
 
     expected_taps = list(
         range(
@@ -6074,36 +6107,68 @@ async def champion_session_submit(
         == expected_taps
     )
 
-    submitted_in_time = (
-        body.duration_ms
-        <= time_limit_ms
-    )
+    if timer_mode == "stopwatch":
+        # No Champion countdown.
+        # Backend elapsed time is authoritative.
+        submitted_in_time = True
+        server_in_time = True
 
-    server_in_time = (
-        server_elapsed_ms
-        <= (
-            time_limit_ms
-            + 5000
+        passed = bool(
+            body.solved
+            and sequence_valid
         )
-    )
 
-    passed = bool(
-        body.solved
-        and sequence_valid
-        and submitted_in_time
-        and server_in_time
-    )
+        # Every verified 1 -> 20 completion receives the same score.
+        # Leaderboard then ranks duration_ms ascending.
+        score = target if passed else 0
 
-    # Higher is better.
-    score = (
-        max(
-            0,
-            time_limit_ms
-            - body.duration_ms,
+        authoritative_duration_ms = (
+            server_elapsed_ms
         )
-        if passed
-        else 0
-    )
+
+    else:
+        time_limit_ms = (
+            int(
+                session[
+                    "time_limit_seconds"
+                ]
+            )
+            * 1000
+        )
+
+        submitted_in_time = (
+            server_elapsed_ms
+            <= time_limit_ms
+        )
+
+        server_in_time = (
+            server_elapsed_ms
+            <= (
+                time_limit_ms
+                + 5000
+            )
+        )
+
+        passed = bool(
+            body.solved
+            and sequence_valid
+            and submitted_in_time
+            and server_in_time
+        )
+
+        score = (
+            max(
+                0,
+                time_limit_ms
+                - server_elapsed_ms,
+            )
+            if passed
+            else 0
+        )
+
+        authoritative_duration_ms = (
+            server_elapsed_ms
+        )
 
     accuracy = (
         1.0
@@ -6138,6 +6203,9 @@ async def champion_session_submit(
                     now,
 
                 "duration_ms":
+                    authoritative_duration_ms,
+
+                "client_duration_ms":
                     body.duration_ms,
 
                 "server_elapsed_ms":
@@ -6285,7 +6353,7 @@ async def champion_session_submit(
                 score,
 
             "duration_ms":
-                body.duration_ms,
+                authoritative_duration_ms,
 
             "accuracy":
                 accuracy,
@@ -6340,7 +6408,7 @@ async def champion_session_submit(
                         -1,
                     )
                 )
-                and body.duration_ms
+                and authoritative_duration_ms
                 < int(
                     existing_best.get(
                         "duration_ms",
@@ -6356,7 +6424,7 @@ async def champion_session_submit(
                         -1,
                     )
                 )
-                and body.duration_ms
+                and authoritative_duration_ms
                 == int(
                     existing_best.get(
                         "duration_ms",
@@ -6417,7 +6485,7 @@ async def champion_session_submit(
 
                             "duration_ms": {
                                 "$gt":
-                                    body.duration_ms
+                                    authoritative_duration_ms
                             },
                         },
 
@@ -6426,7 +6494,7 @@ async def champion_session_submit(
                                 score,
 
                             "duration_ms":
-                                body.duration_ms,
+                authoritative_duration_ms,
 
                             "submitted_at": {
                                 "$gt":
@@ -6468,7 +6536,7 @@ async def champion_session_submit(
             score,
 
         "duration_ms":
-            body.duration_ms,
+                authoritative_duration_ms,
 
         "verification": {
             "sequence_valid":

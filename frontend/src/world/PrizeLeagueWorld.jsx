@@ -69,6 +69,9 @@ export default function PrizeLeagueWorld() {
   const [gameFlowOpen, setGameFlowOpen] =
     useState(false);
 
+  const [championMode, setChampionMode] =
+    useState(false);
+
 
   const [
     showWorldLeaderboard,
@@ -82,6 +85,8 @@ export default function PrizeLeagueWorld() {
       if (!Number.isInteger(level)) {
         return;
       }
+
+      setChampionMode(false);
 
       setSelectedLevel({
         level,
@@ -190,7 +195,137 @@ export default function PrizeLeagueWorld() {
         onLevelSelect,
       );
     };
-  }, []);
+  }, [
+    navigate,
+    user,
+  ]);
+
+
+  useEffect(() => {
+    const onChampionSelect =
+      async (event) => {
+
+        if (!user) {
+          navigate('/login');
+          return;
+        }
+
+        setLevelBusy(true);
+        setLevelError('');
+        setGameFlowOpen(false);
+
+        try {
+          const state =
+            await worldAPI.state();
+
+          const champion =
+            state?.champion || {};
+
+          if (
+            champion?.unlocked !== true
+          ) {
+            setLevelError(
+              'Complete Level 10 before entering the Champion Level.',
+            );
+
+            return;
+          }
+
+          const detail =
+            event?.detail || {};
+
+          setChampionMode(true);
+
+          setSelectedLevel({
+            level: 10,
+            champion: true,
+
+            championshipNumber:
+              Number(
+                detail
+                  ?.championshipNumber ||
+                state?.progress
+                  ?.champion_stage ||
+                1,
+              ),
+
+            name:
+              detail?.name ||
+              champion?.name ||
+              'Champion Arena',
+          });
+
+          setLevelData({
+            champion_mode: true,
+
+            level: {
+              ...champion,
+
+              game_id:
+                'number_sequence',
+
+              game_config: {
+                ...(champion
+                  ?.game_config || {}),
+
+                target_number:
+                  20,
+
+                timer_mode:
+                  'stopwatch',
+              },
+
+              time_limit_seconds:
+                null,
+
+              demo_enabled:
+                champion
+                  ?.demo_enabled !== false,
+
+              demo_skippable:
+                champion
+                  ?.demo_skippable !== false,
+            },
+          });
+
+          setGameFlowOpen(true);
+
+        } catch (error) {
+          const raw =
+            error
+              ?.response
+              ?.data
+              ?.detail;
+
+          setLevelError(
+            typeof raw === 'string'
+              ? raw
+              : raw?.message ||
+                raw?.msg ||
+                'Champion Level is currently unavailable.',
+          );
+
+        } finally {
+          setLevelBusy(false);
+        }
+      };
+
+    window.addEventListener(
+      'pl-world-champion-select',
+      onChampionSelect,
+    );
+
+    return () => {
+      window.removeEventListener(
+        'pl-world-champion-select',
+        onChampionSelect,
+      );
+    };
+  }, [
+    navigate,
+    user,
+  ]);
+
 
   if (loading) {
     return (
@@ -536,13 +671,16 @@ export default function PrizeLeagueWorld() {
           <FreeWorldNumberSequence
             selectedLevel={selectedLevel}
             levelData={levelData}
+            championMode={championMode}
+            championMeta={selectedLevel}
             guestMode={
               !user &&
               Number(selectedLevel?.level) === 1
             }
-            onClose={() =>
-              setGameFlowOpen(false)
-            }
+            onClose={() => {
+              setGameFlowOpen(false);
+              setChampionMode(false);
+            }}
             onFinished={async () => {
               try {
                 const refreshed =
