@@ -43,7 +43,13 @@ def _sanitize_db_name(raw: str | None) -> str:
 
 
 _mongo_url = os.environ['MONGO_URL']
-_client = AsyncIOMotorClient(_mongo_url)
+# Fail fast instead of hanging ~30s per op when Mongo is briefly slow or
+# unreachable. Keeps background bootstrap and scheduler ticks from piling up.
+_client = AsyncIOMotorClient(
+    _mongo_url,
+    serverSelectionTimeoutMS=8000,
+    connectTimeoutMS=8000,
+)
 _db = _client[_sanitize_db_name(os.environ.get('DB_NAME'))]
 
 

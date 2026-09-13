@@ -1,0 +1,40 @@
+{
+  "summary": "Backend-only regression testing for K8s deployment startup fix (iter37). Verified /health & /ready respond quickly at the pod level (used by K8s readiness probe), lifespan startup no longer blocks on DB, and background tasks (core indexes, scheduler, world engine, legal seed) run without blocking. All 7 targeted tests passed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_startup_fix_iter37.py",
+    "/app/test_reports/pytest/iter37_startup_fix.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py has grown very large; several @app.on_event('startup') handlers should be consolidated into a single asynccontextmanager lifespan for FastAPI (on_event is deprecated). Not a bug but worth refactoring.",
+    "Fire-and-forget asyncio.create_task without keeping a reference risks tasks being garbage collected. Consider storing them on app.state to prevent silent cancellation."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_startup_fix_iter37.py (new)"
+  ],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "n/a (skipped per request)"},
+  "test_credentials": "none — empty DB by design; 401 on non-existent login is expected and verified",
+  "seed_data_creation": "None. Per instructions no seed/migration/reset performed.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Startup deployment fix verified. GET /health and /ready must be probed at http://127.0.0.1:8001 (pod-local) — external ingress maps root path to frontend, so /health via REACT_APP_BACKEND_URL returns the SPA HTML (not a bug; K8s readiness probe hits pod directly). All /api/* routes verified via external URL. Backend logs show 'Application startup complete' emitted before '[startup] core indexes ensured (11/11)', confirming lifespan is non-blocking.",
+  "verification_evidence": {
+    "test_health_fast": "200 {\"status\":\"ok\"} in <5ms locally",
+    "test_ready_fast_no_db": "200 {\"status\":\"ready\"} in <5ms locally",
+    "test_api_root": "200 {'service':'gamezoo','status':'ok'}",
+    "test_world_state": "200",
+    "test_diagnostics_db": "200 ping_ok=true, users_count present (empty DB)",
+    "test_auth_login_nonexistent_returns_401": "401 with detail 'Invalid email or password'",
+    "test_route_count": "openapi paths verified, >=150 operations registered",
+    "startup_logs": "'Application startup complete' emitted, then '[startup] core indexes ensured (11/11)' and 'scheduler started; interval=60s' logged shortly after — confirms background task pattern works"
+  }
+}
