@@ -25,6 +25,7 @@ from world.season1 import SEASON_1_CHAMPIONSHIP_COUNT
 from services.world_championship_schedule import (
     championship_window,
     level_unlock_at,
+    ensure_utc,
 )
 from pydantic import BaseModel, Field
 
