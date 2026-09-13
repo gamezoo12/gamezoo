@@ -6,7 +6,7 @@ from pathlib import Path
 
 import requests
 
-BASE = 'https://contest-arena-16.preview.emergentagent.com'
+BASE = 'https://import-verify-6.preview.emergentagent.com'
 CID = 'c_5c85d1c66ba2'
 SLUG = 'bug34-checkout-play-route-1785608154-7777b0'
 OUT = Path('/app/test_reports/bug_iter34_checkout_probe.json')

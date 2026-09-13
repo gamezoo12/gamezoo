@@ -32,7 +32,18 @@ export default function Header() {
  const [pendingKnown, setPendingKnown] = useState(true);
  const { pathname } = useLocation();
  const { user, logout } = useAuth();
+const minimalWorldHeader =
+   pathname === '/' ||
+   pathname === '/choose-world' ||
+   pathname === '/login';
+
+ const isLoginHeader =
+   pathname === '/login';
+
+ const isFreeWorldHeader =
+   pathname === '/world';
  const profileRef = useRef(null);
+ const freeProfileRef = useRef(null);
 
  // Cart badge
  useEffect(() => {
@@ -53,7 +64,8 @@ export default function Header() {
  const load = () => walletAPI.me().then(w => setBalance(w.balance)).catch(() => {});
  load();
  const t = setInterval(load, 30000);
- return () => clearInterval(t);
+ window.addEventListener('pl-world-progress-refresh', load);
+ return () => { clearInterval(t); window.removeEventListener('pl-world-progress-refresh', load); };
  }, [user, pathname]);
 
  // Pending draws (mobile badge)
@@ -108,7 +120,7 @@ export default function Header() {
 
  // Close profile dropdown on outside click
  useEffect(() => {
- const onDown = (e) => { if (profileRef.current && !profileRef.current.contains(e.target)) setProfileOpen(false); };
+ const onDown = (e) => { const inReal = profileRef.current && profileRef.current.contains(e.target); const inFree = freeProfileRef.current && freeProfileRef.current.contains(e.target); if (!inReal && !inFree) setProfileOpen(false); };
  document.addEventListener('mousedown', onDown);
  return () => document.removeEventListener('mousedown', onDown);
  }, []);
@@ -130,10 +142,123 @@ export default function Header() {
  const isActive = (href) => href === '/' ? pathname === '/' : pathname.startsWith(href);
 
  const badgeText = pendingDrawCount > 99 ? '99+' : String(pendingDrawCount);
+ if (minimalWorldHeader) {
+  return (
+   <header
+    className="sticky top-0 z-50"
+    data-testid="site-header"
+   >
+    <div
+     className="border-b border-white/10"
+     style={{
+      background:
+       'linear-gradient(180deg, #0B0D1F 0%, #161433 100%)',
+     }}
+    >
+     <div className="max-w-7xl mx-auto flex items-center justify-between px-3 sm:px-4 lg:px-8 h-14 sm:h-16 md:h-[70px] gap-3">
 
+      <Link
+       to="/"
+       className="shrink-0 flex items-center"
+       aria-label="Prize League"
+       data-testid="header-logo"
+      >
+       <span className="sm:hidden">
+        <PrizeLeagueLogo size={36} />
+       </span>
+
+       <span className="hidden sm:inline lg:hidden">
+        <PrizeLeagueLogo size={44} />
+       </span>
+
+       <span className="hidden lg:inline">
+        <PrizeLeagueLogo size={60} />
+       </span>
+      </Link>
+
+      {isLoginHeader ? (
+       <>
+        <div className="flex items-center gap-2 sm:gap-3 ml-auto">
+
+         <Link
+          to="/paid-leagues"
+          className="inline-flex items-center justify-center rounded-full border border-[#FFD54A]/40 bg-[#FFD54A]/10 px-3 sm:px-4 py-2 text-[#FFD54A] text-[11px] sm:text-sm font-extrabold tracking-wide hover:bg-[#FFD54A]/20 transition"
+          data-testid="login-header-real-world"
+         >
+          REAL WORLD
+         </Link>
+
+         <Link
+          to="/world"
+          className="inline-flex items-center justify-center rounded-full border border-[#8B5CFF]/50 bg-[#8B5CFF]/10 px-3 sm:px-4 py-2 text-white text-[11px] sm:text-sm font-extrabold tracking-wide hover:bg-[#8B5CFF]/20 transition"
+          data-testid="login-header-free-world"
+         >
+          FREE WORLD
+         </Link>
+
+         <div
+          className="inline-flex items-center gap-2 px-2 sm:px-3 py-2 text-white"
+          data-testid="login-header-signin"
+         >
+          <User className="w-5 h-5" />
+          <span className="hidden sm:inline text-sm font-semibold">
+           SIGN IN
+          </span>
+         </div>
+
+        </div>
+       </>
+      ) : (
+       <>
+        {!user ? (
+         <Link
+          to="/login"
+          className="inline-flex items-center gap-2 rounded-full border border-[#FFD54A]/45 bg-[#FFD54A]/10 px-3 sm:px-4 py-2 text-[#FFD54A] transition hover:bg-[#FFD54A]/20"
+          aria-label="Sign up"
+          data-testid="world-header-signup"
+         >
+          <User className="w-5 h-5" />
+
+          <span className="text-xs sm:text-sm font-extrabold tracking-wide">
+           SIGN UP
+          </span>
+         </Link>
+        ) : (
+         <Link
+          to="/my-account"
+          className="inline-flex items-center gap-2 rounded-full px-2 sm:px-3 py-1.5 transition hover:bg-white/10"
+          aria-label="My account"
+          data-testid="world-header-account"
+         >
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#8B5CFF] to-[#6C2BFF] text-white text-xs font-bold flex items-center justify-center ring-2 ring-white/20">
+           {(user.name || user.email || 'U')
+            .slice(0, 1)
+            .toUpperCase()}
+          </div>
+
+          <span className="hidden sm:inline text-sm font-semibold text-white">
+           My Account
+          </span>
+         </Link>
+        )}
+       </>
+      )}
+
+     </div>
+    </div>
+   </header>
+  );
+ }
  return (
  <>
- <header className="sticky top-0 z-40" data-testid="site-header">
+ <header
+ className={
+  isFreeWorldHeader
+   ? "!fixed !top-0 !left-0 !right-0 !z-[10060]"
+   : "sticky top-0 z-40"
+ }
+ data-testid="site-header"
+>
  <div style={{ background: 'linear-gradient(180deg, #0B0D1F 0%, #161433 100%)' }} className="border-b border-white/5">
  <div className="max-w-7xl mx-auto flex items-center justify-between px-3 sm:px-4 lg:px-8 h-14 sm:h-16 md:h-[70px] gap-2">
  <Link to="/" className="shrink-0 flex items-center" data-testid="header-logo">
@@ -143,8 +268,28 @@ export default function Header() {
  <span className="hidden lg:inline"><PrizeLeagueLogo size={60} /></span>
  </Link>
 
+ {isFreeWorldHeader && (
+  <div
+    data-testid="world-header-prize"
+    className="absolute left-[53%] -translate-x-1/2 whitespace-nowrap pointer-events-none z-10"
+  >
+    <strong
+      className="block text-[23px] sm:text-[28px] md:text-[32px] leading-none font-black tracking-[-0.03em] text-white"
+      style={{
+        WebkitTextFillColor: '#FFFFFF',
+        color: '#FFFFFF',
+        WebkitTextStroke: '0.25px rgba(255,213,74,0.95)',
+        textShadow:
+          '0 0 1px #FFFFFF, 0 0 4px rgba(255,213,74,0.90), 0 0 8px rgba(255,190,0,0.45)',
+      }}
+    >
+      £257,500
+    </strong>
+  </div>
+)}
+
  {/* Desktop nav */}
- <nav className="hidden lg:flex items-center gap-8" aria-label="Main">
+ <nav className={isFreeWorldHeader ? "hidden" : "hidden lg:flex items-center gap-8"} aria-label="Main">
  {NAV.map((l) => (
  <Link
  key={l.href}
@@ -163,7 +308,7 @@ export default function Header() {
  <Link
  to="/my-account/wallet"
  data-testid="header-wallet-chip"
- className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[#FFD54A] text-xs font-bold transition"
+ className={isFreeWorldHeader ? "hidden" : "hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[#FFD54A] text-xs font-bold transition"}
  title="Your token balance"
  >
  <WalletIcon className="w-3.5 h-3.5" />
@@ -172,6 +317,7 @@ export default function Header() {
  )}
 
  {/* Free World — tablet/mobile quick access */}
+{!isFreeWorldHeader && (
 <Link
   to="/world"
   data-testid="mobile-header-free-world"
@@ -179,18 +325,19 @@ export default function Header() {
 >
   FREE WORLD
 </Link>
+)}
 
 {/* Desktop notifications kept unchanged */}
- <span className="hidden sm:inline-flex"><NotificationsBell /></span>
+ <span className={isFreeWorldHeader ? "hidden" : "hidden sm:inline-flex"}><NotificationsBell /></span>
 
  {/* Draw Centre icon — desktop only kept unchanged */}
- <Link to="/draw-centre" className="hidden md:inline-flex relative p-2 rounded-lg hover:bg-white/5" aria-label="Draw centre" data-testid="header-draw-centre">
+ <Link to="/draw-centre" className={isFreeWorldHeader ? "hidden" : "hidden md:inline-flex relative p-2 rounded-lg hover:bg-white/5"} aria-label="Draw centre" data-testid="header-draw-centre">
  <Trophy className="w-5 h-5 text-[#FFD54A]" />
  </Link>
 
  {/* Mobile-only: trophy with pending badge */}
  {user && (
- <Link to="/draw-centre" className="sm:hidden relative p-2 rounded-lg" aria-label="Draw centre" data-testid="mobile-header-draw-centre">
+ <Link to="/draw-centre" className={isFreeWorldHeader ? "hidden" : "sm:hidden relative p-2 rounded-lg"} aria-label="Draw centre" data-testid="mobile-header-draw-centre">
  <Trophy className="w-6 h-6 text-[#FFD54A]" />
  {pendingKnown && pendingDrawCount > 0 && (
  <span className="absolute -top-1 -right-1 bg-[#FFD54A] text-slate-900 text-[10px] font-bold rounded-full h-4 min-w-[16px] flex items-center justify-center px-1">{badgeText}</span>
@@ -199,20 +346,20 @@ export default function Header() {
  )}
 
  {/* Cart — hidden on mobile per spec; desktop unchanged in appearance */}
- <Link to="/cart" className="hidden sm:inline-flex relative p-2 rounded-lg hover:bg-white/5" aria-label="Cart" data-testid="header-cart">
+ <Link to="/cart" className={isFreeWorldHeader ? "hidden" : "hidden sm:inline-flex relative p-2 rounded-lg hover:bg-white/5"} aria-label="Cart" data-testid="header-cart">
  <ShoppingCart className="w-5 h-5 text-white/85" />
  {cartCount > 0 && <span className="absolute -top-1 -right-1 bg-[#FFD54A] text-slate-900 text-[10px] font-bold rounded-full h-4 min-w-[16px] flex items-center justify-center px-1">{cartCount}</span>}
  </Link>
 
  {/* Mobile-only coin balance (no wallet icon) */}
  {user && (
- <div className="sm:hidden text-[#FFD54A] text-sm font-bold px-2" data-testid="mobile-coin-balance">
+ <div className={isFreeWorldHeader ? "hidden" : "sm:hidden text-[#FFD54A] text-sm font-bold px-2"} data-testid="mobile-coin-balance">
  {balance === null ? '… 🪙' : `${tokenCount(balance)} 🪙`}
  </div>
  )}
 
  {/* Compact gold PLAY button — desktop/tablet kept unchanged (hidden on mobile) */}
- <Link to="/competitions" className="hidden sm:inline-flex" data-testid="header-play-btn">
+ <Link to="/competitions" className={isFreeWorldHeader ? "hidden" : "hidden sm:inline-flex"} data-testid="header-play-btn">
  <button className="pl-btn-gold h-9 px-3 md:px-4 rounded-full font-extrabold text-xs md:text-sm">
  PLAY <span className="hidden md:inline">NOW</span>
  </button>
@@ -223,13 +370,16 @@ export default function Header() {
  {/* Mobile-only Sign in icon */}
  <Link
  to="/login"
- className="sm:hidden p-2 rounded-lg hover:bg-white/5"
+ className={isFreeWorldHeader
+  ? "hidden"
+  : "sm:hidden p-2 rounded-lg hover:bg-white/5"
+}
  aria-label="Sign in"
  data-testid="mobile-signin-icon"
  >
  <User className="w-5 h-5 text-white/85" />
  </Link>
- <Link to="/login" className="hidden sm:inline-flex" data-testid="header-signin">
+ <Link to="/login" className={isFreeWorldHeader ? "hidden" : "hidden sm:inline-flex"} data-testid="header-signin">
  <Button variant="ghost" size="sm" className="text-white/90 hover:text-white hover:bg-white/10">
  <User className="w-4 h-4 mr-1" /> Sign in
  </Button>
@@ -240,7 +390,7 @@ export default function Header() {
  {/* Mobile-only profile avatar → jumps to My Account (first-letter only) */}
  <Link
  to="/my-account"
- className="sm:hidden"
+ className={isFreeWorldHeader ? "hidden" : "sm:hidden"}
  aria-label="My account"
  data-testid="mobile-profile-icon"
  >
@@ -249,7 +399,7 @@ export default function Header() {
  </div>
  </Link>
 
- <div ref={profileRef} className="relative hidden sm:block">
+ <div ref={profileRef} className={isFreeWorldHeader ? "hidden" : "relative hidden sm:block"}>
  <button
  onClick={() => setProfileOpen(v => !v)}
  data-testid="header-profile-btn"
@@ -297,9 +447,116 @@ export default function Header() {
  </>
  )}
 
+
+ {/* Free World auth control */}
+ {isFreeWorldHeader && user && (
+   <Link
+     to="/my-account/wallet"
+     data-testid="free-world-token-balance"
+     className="inline-flex items-center gap-1.5 rounded-full border border-[#FFD54A]/60 bg-gradient-to-b from-[#1a1140] to-[#0a0b1a] px-2.5 py-1.5 text-[#FFDD42] shadow-[0_0_12px_rgba(255,202,31,0.25)] hover:border-[#FFE680] hover:shadow-[0_0_18px_rgba(255,202,31,0.4)] transition whitespace-nowrap"
+     title="Your token balance"
+   >
+     <span className="text-[13px] leading-none" aria-hidden="true">🪙</span>
+     <span className="text-[13px] sm:text-sm font-black leading-none" data-testid="free-world-token-balance-value">
+       {balance === null ? '…' : tokenCount(balance)}
+     </span>
+     <span className="hidden sm:inline text-[8px] font-black tracking-wider text-[#fff3a1] leading-none">TOKENS</span>
+   </Link>
+ )}
+
+ {/* Free World auth control */}
+ {isFreeWorldHeader && (
+   <div
+     ref={freeProfileRef}
+     className="relative"
+     data-testid="free-world-auth-control"
+   >
+     {!user ? (
+       <Link
+         to="/login"
+         data-testid="free-world-signup"
+         className="inline-flex items-center gap-1.5 rounded-full border border-white/20 px-2.5 py-1.5 text-white hover:bg-white/10 transition whitespace-nowrap"
+         aria-label="Sign up"
+       >
+         <User className="w-4 h-4 text-white/90" />
+
+         <span className="text-[10px] sm:text-xs font-bold">
+           SIGN UP
+         </span>
+       </Link>
+     ) : (
+       <>
+         <button
+           type="button"
+           onClick={() =>
+             setProfileOpen(
+               value => !value
+             )
+           }
+           data-testid="free-world-profile"
+           className="inline-flex items-center gap-1.5 rounded-full border border-white/20 px-2 py-1.5 text-white hover:bg-white/10 transition"
+           aria-label="Profile"
+         >
+           <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#8B5CFF] to-[#6C2BFF] text-white text-[10px] font-bold flex items-center justify-center ring-1 ring-white/20">
+             {(user.name || user.email || 'U')
+               .slice(0, 1)
+               .toUpperCase()}
+           </div>
+
+           <span className="hidden sm:inline text-[9px] sm:text-xs font-bold">
+             PROFILE
+           </span>
+
+           <ChevronDown
+             className={`hidden sm:block w-3 h-3 text-white/70 transition-transform ${
+               profileOpen
+                 ? 'rotate-180'
+                 : ''
+             }`}
+           />
+         </button>
+
+         {profileOpen && (
+           <div
+             className="absolute right-0 mt-2 w-48 rounded-xl overflow-hidden shadow-2xl border border-white/10 z-[9999]"
+             style={{
+               background: '#161433',
+             }}
+             data-testid="free-world-profile-menu"
+           >
+             <Link
+               to="/my-account"
+               onClick={() =>
+                 setProfileOpen(false)
+               }
+               className="flex items-center gap-3 px-4 py-3 text-sm text-white/85 hover:bg-white/5 hover:text-white transition"
+             >
+               <User className="w-4 h-4 text-white/60" />
+
+               My Profile
+             </Link>
+
+             <div className="border-t border-white/10">
+               <button
+                 type="button"
+                 onClick={askLogout}
+                 data-testid="free-world-signout"
+                 className="w-full flex items-center gap-3 px-4 py-3 text-sm text-rose-300 hover:bg-rose-500/10 hover:text-rose-200 transition"
+               >
+                 <LogOut className="w-4 h-4" />
+
+                 Sign Out
+               </button>
+             </div>
+           </div>
+         )}
+       </>
+     )}
+   </div>
+ )}
  {/* Mobile burger */}
  <button
- className="lg:hidden p-2 text-white"
+ className={isFreeWorldHeader ? "hidden" : "lg:hidden p-2 text-white"}
  onClick={() => setOpen(!open)}
  aria-label={open ? 'Close menu' : 'Open menu'}
  data-testid="mobile-menu-toggle"
@@ -310,7 +567,7 @@ export default function Header() {
  </div>
  </div>
 
- <AnnouncementTicker />
+ {!isFreeWorldHeader && <AnnouncementTicker />}
  </header>
 
  {/* Mobile drawer */}

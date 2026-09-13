@@ -30,7 +30,7 @@ def _backend_url() -> str:
         for line in env_path.read_text().splitlines():
             if line.startswith('REACT_APP_BACKEND_URL='):
                 return line.split('=', 1)[1].strip().strip('"').rstrip('/')
-    return os.environ.get('REACT_APP_BACKEND_URL', 'https://contest-arena-16.preview.emergentagent.com').rstrip('/')
+    return os.environ.get('REACT_APP_BACKEND_URL', 'https://import-verify-6.preview.emergentagent.com').rstrip('/')
 
 
 BASE = _backend_url()

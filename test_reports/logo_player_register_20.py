@@ -4,7 +4,7 @@ import time
 import urllib.request
 from pathlib import Path
 
-BASE = 'https://contest-arena-16.preview.emergentagent.com/api'
+BASE = 'https://import-verify-6.preview.emergentagent.com/api'
 email = f'e2e_logo_{int(time.time())}@test.com'
 payload = {
     'email': email,

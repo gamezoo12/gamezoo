@@ -6,7 +6,7 @@ export default function WorldSelector() {
   const navigate = useNavigate();
 
   const enterPaid = () => {
-    navigate('/');
+    navigate('/paid-leagues');
   };
 
   const enterFree = () => {

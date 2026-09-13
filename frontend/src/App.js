@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import './App.css';
 import { Toaster } from './components/ui/toaster';
+import { Toaster as SonnerToaster } from './components/ui/sonner';
 import { AuthProvider } from './context/AuthContext';
 import TermsGate from './components/TermsGate';
 
@@ -74,7 +75,10 @@ function AppRouter() {
   return (
     <Routes>
       <Route element={<PublicLayout />}>
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={<WorldSelector />} />
+        <Route path="/choose-world" element={<WorldSelector />} />
+        <Route path="/world" element={<PrizeLeagueWorld />} />
+        <Route path="/paid-leagues" element={<Home />} />
         <Route path="/competitions" element={<Competitions />} />
         <Route path="/competition/:slug" element={<CompetitionDetail />} />
         <Route path="/results/:slug" element={<WinnersReveal />} />
@@ -104,13 +108,11 @@ function AppRouter() {
         <Route path="/mobile-terms" element={<MobileTermsPage />} />
       </Route>
 
-      <Route path="/choose-world" element={<WorldSelector />} />
-      <Route path="/world" element={<PrizeLeagueWorld />} />
       <Route path="/world-preview" element={<WorldPreview />} />
 
       <Route path="/admin/login" element={<AdminLogin />} />
 
-      {/* Emergent Google OAuth redirects here with #session_id=â€¦ in the URL.
+      {/* Emergent Google OAuth redirects here with #session_id=… in the URL.
           The hash-intercept at the top of AppRouter also matches, but keeping
           a dedicated route avoids any 404 flash before the intercept runs. */}
       <Route path="/auth-callback" element={<AuthCallback />} />
@@ -157,6 +159,7 @@ function App() {
           <AppRouter />
           <TermsGate />
           <Toaster />
+          <SonnerToaster position="top-center" richColors closeButton />
         </BrowserRouter>
       </AuthProvider>
     </div>

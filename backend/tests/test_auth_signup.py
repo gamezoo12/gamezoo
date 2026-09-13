@@ -17,7 +17,7 @@ import uuid
 import requests
 import pytest
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://contest-arena-16.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://import-verify-6.preview.emergentagent.com').rstrip('/')
 API = f"{BASE_URL}/api"
 OTP = '000000'
 
@@ -234,7 +234,7 @@ class TestGoogleFinalizeAuth:
 # --- CORS preflight + credentialed origin echo ------------------------------
 class TestCors:
     def test_preflight_echoes_origin_and_allows_credentials(self):
-        origin = 'https://contest-arena-16.preview.emergentagent.com'
+        origin = 'https://import-verify-6.preview.emergentagent.com'
         r = requests.options(
             f"{API}/auth/me",
             headers={
@@ -248,7 +248,7 @@ class TestCors:
         assert r.headers.get('Access-Control-Allow-Credentials', '').lower() == 'true'
 
     def test_actual_request_echoes_origin(self):
-        origin = 'https://contest-arena-16.preview.emergentagent.com'
+        origin = 'https://import-verify-6.preview.emergentagent.com'
         r = requests.get(f"{API}/", headers={'Origin': origin}, timeout=10)
         assert r.status_code == 200
         assert r.headers.get('Access-Control-Allow-Origin') == origin

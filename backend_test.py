@@ -8,7 +8,7 @@ import sys
 from datetime import datetime
 
 # Base URL from frontend/.env
-BASE_URL = "https://contest-arena-16.preview.emergentagent.com/api"
+BASE_URL = "https://import-verify-6.preview.emergentagent.com/api"
 
 # Admin credentials (seeded)
 ADMIN_EMAIL = "bachanta8@gmail.com"

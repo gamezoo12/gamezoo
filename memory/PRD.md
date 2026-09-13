@@ -29,6 +29,14 @@ Skill-based sweepstakes web app (rebranded **GameZoo → Prize League** on 2026-
 - [x] Header session UX (visible Sign out + wallet balance chip)
 - [x] Prominent multi-path logout (header/admin/production/mobile) — all 4 verified working
 
+
+## Free World Token System + Avatar/Timer (2026-09-07)
+- **Token flows (retry + early unlock)** — tokens = wallet coin balance. Backend endpoints (unchanged, already existed): `POST /api/world/token/retry/reserve` and `POST /api/world/token/unlock/reserve`. Both idempotent (single charge on double-click/refresh/two-tabs). Early unlock ONLY skips a level's scheduled TIME lock — never progression; requires previous level completed (Levels 2-10). Backend rules NOT weakened.
+- **Token UX (frontend)**: Free World header shows native token chip (`Header.jsx`, `data-testid=free-world-token-balance`, listens for `pl-world-progress-refresh`). Early-unlock confirmation modal (`WorldCanvas.jsx`) + retry confirmation modal (`FreeWorldNumberSequenceV3.jsx`) — each shows cost / current balance / remaining balance, Cancel/Confirm, insufficient → "Not enough tokens" + Top Up Wallet (`/my-account/wallet`). sonner toasts ("Level unlocked" / "Retry unlocked", real cost + balance). Tested iteration_35 (backend 100%) + iteration_36 (frontend 100% core).
+- **Avatar + timer fix** (`WorldCanvas.jsx`): progression avatar (`data-testid=free-world-avatar`) is ALWAYS visible for a started user (root cause fixed: `journeyStarted` now set true for returning users so avatar no longer disappears on refresh). Avatar sits AT the immediate-next playable level, or WAITS on the black road (~42% between last completed level and the locked one) when it's time-locked. Only the immediate-next progression level shows a countdown + early-unlock control; all further locked levels show no timer. Buying an early unlock does NOT advance progression. Post-unlock `/login` flash removed (no longer auto-opens the game).
+- **Free World header parity + mobile** (`Header.jsx`): fixed Profile/Sign Out menu (was broken — missing outside-click ref; now uses `freeProfileRef`). Mobile Free World header compacted to token number + profile icon only (TOKENS/PROFILE labels + chevron hidden < sm); emblem-only logo on mobile to stop logo/pot overlap. Desktop unchanged.
+- Test scenario seed: `backend/scripts/seed_token_test_scenario.py` (activates Free World contest #1 open-now; player1=350 tokens/L1 done/L2 time-locked; player_broke=0 tokens/L1 done).
+
 ## 2026-08-01 · Iteration 37 — Fix Post-Checkout Blank Page (P0 Root Cause)
 Bug testing agent report `iter33` identified the ACTUAL root cause of the "white blank page after buying tickets":
 - `App.js` defines route `/play/:contestId/:ticketId` (BOTH params required).

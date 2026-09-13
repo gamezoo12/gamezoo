@@ -1,5 +1,5 @@
 {
-  "base_url": "https://contest-arena-16.preview.emergentagent.com",
+  "base_url": "https://import-verify-6.preview.emergentagent.com",
   "asset_url": "https://customer-assets.emergentagent.com/job_contest-arena-16/artifacts/t9zu926h_image.png",
   "files": {
     "local_logo": {
@@ -22,7 +22,7 @@
   },
   "network": {
     "served_logo_v3": {
-      "url": "https://contest-arena-16.preview.emergentagent.com/logo.png?v=3",
+      "url": "https://import-verify-6.preview.emergentagent.com/logo.png?v=3",
       "status": 200,
       "size": 2203469,
       "md5": "8271193d33c5b9382cce1a6dabdcdbe5",
@@ -34,7 +34,7 @@
       }
     },
     "served_logo_plain": {
-      "url": "https://contest-arena-16.preview.emergentagent.com/logo.png",
+      "url": "https://import-verify-6.preview.emergentagent.com/logo.png",
       "status": 200,
       "size": 2203469,
       "md5": "8271193d33c5b9382cce1a6dabdcdbe5",

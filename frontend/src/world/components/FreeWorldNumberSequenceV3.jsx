@@ -19,7 +19,13 @@ import {
 
 import {
   worldAPI,
+  worldContestAPI,
+  walletAPI,
 } from '../../lib/api';
+
+import { toast } from 'sonner';
+
+import { useNavigate } from 'react-router-dom';
 
 import '../styles/freeWorldGameV3.css';
 
@@ -109,6 +115,9 @@ function getErrorMessage(
 export default function FreeWorldNumberSequenceV3({
   selectedLevel,
   levelData,
+  guestMode = false,
+  championMode = false,
+  championMeta = null,
   onClose,
   onFinished,
 }) {
@@ -122,11 +131,26 @@ export default function FreeWorldNumberSequenceV3({
         ?.target_number || 20,
     );
 
+  const timerMode =
+    championMode
+      ? 'stopwatch'
+      : String(
+          level
+            ?.game_config
+            ?.timer_mode ||
+          'countdown',
+        ).toLowerCase();
+
+  const isStopwatch =
+    timerMode === 'stopwatch';
+
   const timeLimitSeconds =
-    Number(
-      level
-        ?.time_limit_seconds || 25,
-    );
+    isStopwatch
+      ? null
+      : Number(
+          level
+            ?.time_limit_seconds ?? 60,
+        );
 
   const initialAttempts =
     level?.attempts || {};
@@ -195,6 +219,41 @@ export default function FreeWorldNumberSequenceV3({
 
   const [error, setError] =
     useState('');
+
+  const [
+    retryConfirmOpen,
+    setRetryConfirmOpen,
+  ] = useState(false);
+
+  const [walletBalance, setWalletBalance] =
+    useState(null);
+
+  const navigate = useNavigate();
+
+  const loadBalance =
+    useCallback(() => {
+      if (guestMode) {
+        return;
+      }
+
+      walletAPI
+        .me()
+        .then((wallet) => {
+          if (mountedRef.current) {
+            setWalletBalance(
+              Number(
+                wallet?.tokens ??
+                  Math.round(
+                    Number(
+                      wallet?.balance ?? 0,
+                    ),
+                  ),
+              ),
+            );
+          }
+        })
+        .catch(() => {});
+    }, [guestMode]);
 
 
   const mountedRef =
@@ -281,8 +340,17 @@ export default function FreeWorldNumberSequenceV3({
 
 
   useEffect(() => {
+    if (
+      guestMode ||
+      championMode
+    ) {
+      return;
+    }
+
     refreshAttemptSummary();
   }, [
+    guestMode,
+    championMode,
     refreshAttemptSummary,
   ]);
 
@@ -335,7 +403,9 @@ export default function FreeWorldNumberSequenceV3({
       performance.now();
 
     const limitMs =
-      timeLimitSeconds * 1000;
+      isStopwatch
+        ? null
+        : timeLimitSeconds * 1000;
 
     setDemoElapsedMs(0);
 
@@ -344,19 +414,22 @@ export default function FreeWorldNumberSequenceV3({
     const tick =
       (now) => {
         const elapsed =
-          Math.min(
-            limitMs,
-            Math.max(
-              0,
-              now - startedAt,
-            ),
+          Math.max(
+            0,
+            now - startedAt,
           );
 
         setDemoElapsedMs(
-          elapsed,
+          isStopwatch
+            ? elapsed
+            : Math.min(
+                limitMs,
+                elapsed,
+              ),
         );
 
         if (
+          !isStopwatch &&
           elapsed >= limitMs
         ) {
           if (
@@ -391,6 +464,7 @@ export default function FreeWorldNumberSequenceV3({
     };
   }, [
     demoStarted,
+    isStopwatch,
     stage,
     timeLimitSeconds,
   ]);
@@ -443,7 +517,10 @@ export default function FreeWorldNumberSequenceV3({
     async () => {
       if (
         busy ||
-        freeAttempts < 1
+        (
+          !championMode &&
+          freeAttempts < 1
+        )
       ) {
         return;
       }
@@ -451,14 +528,57 @@ export default function FreeWorldNumberSequenceV3({
       setBusy(true);
       setError('');
 
+      if (guestMode) {
+        setSession({
+          session_id: 'guest-level-1',
+
+          time_limit_seconds:
+            timeLimitSeconds,
+
+          game_config: {
+            target_number:
+              target,
+
+            numbers:
+              shuffle(
+                Array.from(
+                  {
+                    length:
+                      Math.max(
+                        5,
+                        target,
+                      ),
+                  },
+                  (_, index) =>
+                    index + 1,
+                ),
+              ),
+          },
+        });
+
+        setOfficialNext(1);
+        setOfficialTaps([]);
+        setOfficialElapsedMs(0);
+        setCountdown(3);
+
+        setStage('countdown');
+        setBusy(false);
+
+        return;
+      }
+
+
       try {
         const response =
-          await worldAPI
-            .startSession(
-              Number(
-                selectedLevel?.level,
-              ),
-            );
+          championMode
+            ? await worldContestAPI
+                .startChampionSession()
+            : await worldAPI
+                .startSession(
+                  Number(
+                    selectedLevel?.level,
+                  ),
+                );
 
         if (
           !mountedRef.current
@@ -469,6 +589,16 @@ export default function FreeWorldNumberSequenceV3({
         setSession(
           response,
         );
+
+        if (
+          championMode &&
+          response?.attempts
+        ) {
+          setAttemptSummary({
+            attempts:
+              response.attempts,
+          });
+        }
 
         setOfficialNext(1);
         setOfficialTaps([]);
@@ -534,13 +664,31 @@ export default function FreeWorldNumberSequenceV3({
         setError('');
 
         try {
-          const response =
-            await worldAPI
-              .beginSession(
-                session?.session_id,
-              );
+          if (guestMode) {
 
-          if (
+            begunAtRef.current =
+              performance.now();
+
+            setOfficialElapsedMs(0);
+
+            setStage(
+              'official',
+            );
+
+            return;
+          }
+
+          const response =
+            championMode
+              ? await worldContestAPI
+                  .beginChampionSession(
+                    session?.session_id,
+                  )
+              : await worldAPI
+                  .beginSession(
+                    session?.session_id,
+                  );
+if (
             cancelled ||
             !mountedRef.current
           ) {
@@ -590,6 +738,8 @@ export default function FreeWorldNumberSequenceV3({
     };
   }, [
     countdown,
+    guestMode,
+    championMode,
     session?.session_id,
     stage,
   ]);
@@ -630,23 +780,77 @@ export default function FreeWorldNumberSequenceV3({
           );
 
         try {
-          const response =
-            await worldAPI
-              .submitSession({
-                session_id:
-                  session.session_id,
+          if (guestMode) {
 
-                duration_ms:
-                  durationMs,
+          window.localStorage.setItem(
+            'pl_guest_level_1_attempt_used',
+            '1',
+          );
 
-                solved:
-                  Boolean(
-                    solved,
-                  ),
+          setResult({
+            guest: true,
 
-                taps:
-                  taps || [],
-              });
+            solved:
+              Boolean(solved),
+
+            duration_ms:
+              durationMs,
+
+            message:
+              solved
+                ? 'Great first run. Sign up to continue.'
+                : 'Your free Level 1 try is complete. Sign up to continue.',
+          });
+
+          setStage(
+            'result',
+          );
+
+          window.setTimeout(
+            () => {
+              window.location.href =
+                '/login';
+            },
+            1500,
+          );
+
+          return;
+        }
+
+        const response =
+          championMode
+            ? await worldContestAPI
+                .submitChampionSession({
+                  session_id:
+                    session.session_id,
+
+                  duration_ms:
+                    durationMs,
+
+                  solved:
+                    Boolean(
+                      solved,
+                    ),
+
+                  taps:
+                    taps || [],
+                })
+            : await worldAPI
+                .submitSession({
+                  session_id:
+                    session.session_id,
+
+                  duration_ms:
+                    durationMs,
+
+                  solved:
+                    Boolean(
+                      solved,
+                    ),
+
+                  taps:
+                    taps || [],
+                });
 
           if (
             !mountedRef.current
@@ -658,24 +862,37 @@ export default function FreeWorldNumberSequenceV3({
             response,
           );
 
-          try {
-            const summary =
-              await worldAPI
-                .attemptSummary(
-                  Number(
-                    selectedLevel?.level,
-                  ),
-                );
-
+          if (
+            championMode
+          ) {
             if (
-              mountedRef.current
+              response?.attempts
             ) {
-              setAttemptSummary(
-                summary,
-              );
+              setAttemptSummary({
+                attempts:
+                  response.attempts,
+              });
             }
-          } catch (summaryError) {
-            // Supplemental only.
+          } else {
+            try {
+              const summary =
+                await worldAPI
+                  .attemptSummary(
+                    Number(
+                      selectedLevel?.level,
+                    ),
+                  );
+
+              if (
+                mountedRef.current
+              ) {
+                setAttemptSummary(
+                  summary,
+                );
+              }
+            } catch (summaryError) {
+              // Supplemental only.
+            }
           }
 
           setStage(
@@ -704,6 +921,8 @@ export default function FreeWorldNumberSequenceV3({
         }
       },
       [
+        guestMode,
+        championMode,
         selectedLevel?.level,
         session,
       ],
@@ -723,11 +942,13 @@ export default function FreeWorldNumberSequenceV3({
     }
 
     const limitMs =
-      Number(
-        session
-          ?.time_limit_seconds ||
-        timeLimitSeconds,
-      ) * 1000;
+      isStopwatch
+        ? null
+        : Number(
+            session
+              ?.time_limit_seconds ??
+            timeLimitSeconds,
+          ) * 1000;
 
     let frameId = 0;
 
@@ -737,20 +958,23 @@ export default function FreeWorldNumberSequenceV3({
           Math.max(
             0,
             now -
-            Number(
-              begunAtRef.current ||
-              now,
-            ),
+              Number(
+                begunAtRef.current ||
+                now,
+              ),
           );
 
         setOfficialElapsedMs(
-          Math.min(
-            limitMs,
-            elapsed,
-          ),
+          isStopwatch
+            ? elapsed
+            : Math.min(
+                limitMs,
+                elapsed,
+              ),
         );
 
         if (
+          !isStopwatch &&
           elapsed >= limitMs
         ) {
           submitOfficial({
@@ -783,6 +1007,7 @@ export default function FreeWorldNumberSequenceV3({
     };
   }, [
     officialTaps,
+    isStopwatch,
     session?.time_limit_seconds,
     stage,
     submitOfficial,
@@ -850,6 +1075,8 @@ export default function FreeWorldNumberSequenceV3({
   /*
    * Real backend token retry reservation.
    * No frontend fake token deduction.
+   * Backend reservation/idempotency guarantees a single charge
+   * even on double-click, refresh mid-request or multiple tabs.
    */
   const retryWithToken =
     async () => {
@@ -863,27 +1090,59 @@ export default function FreeWorldNumberSequenceV3({
       setError('');
 
       try {
-        await worldAPI
-          .reserveTokenRetry(
-            Number(
-              selectedLevel?.level,
-            ),
-          );
+        const response =
+          await worldAPI
+            .reserveTokenRetry(
+              Number(
+                selectedLevel?.level,
+              ),
+            );
 
         await refreshAttemptSummary();
 
-        if (
-          mountedRef.current
-        ) {
+        const cost = Number(
+          response?.token_cost ??
+            resultAttempts?.token_retry_cost ??
+            1,
+        );
+
+        const remaining = Number(
+          response?.tokens_remaining ?? 0,
+        );
+
+        if (mountedRef.current) {
+          setWalletBalance(remaining);
+          setRetryConfirmOpen(false);
+
+          toast.success('Retry unlocked', {
+            description:
+              `${cost} Tokens used \u2022 ${remaining} remaining`,
+          });
+
+          window.dispatchEvent(
+            new CustomEvent(
+              'pl-world-progress-refresh',
+            ),
+          );
+
           retryFree();
         }
       } catch (requestError) {
-        setError(
+        const message =
           getErrorMessage(
             requestError,
             'Unable to reserve a token retry.',
-          ),
-        );
+          );
+
+        if (mountedRef.current) {
+          setError(message);
+          setRetryConfirmOpen(false);
+          loadBalance();
+
+          toast.error('Retry not applied', {
+            description: message,
+          });
+        }
       } finally {
         if (
           mountedRef.current
@@ -907,6 +1166,12 @@ export default function FreeWorldNumberSequenceV3({
     result?.attempts ||
     attempts;
 
+  const retryCost =
+    Number(
+      resultAttempts
+        ?.token_retry_cost ?? 1,
+    );
+
 
   const resultFreeAttempts =
     Number(
@@ -929,6 +1194,37 @@ export default function FreeWorldNumberSequenceV3({
       : Math.min(
           target,
           officialTaps.length,
+        );
+
+
+  const demoDisplayMs =
+    isStopwatch
+      ? demoElapsedMs
+      : Math.max(
+          0,
+          (
+            Number(
+              timeLimitSeconds || 0,
+            ) * 1000
+          ) -
+          demoElapsedMs,
+        );
+
+
+  const officialDisplayMs =
+    isStopwatch
+      ? officialElapsedMs
+      : Math.max(
+          0,
+          (
+            Number(
+              session
+                ?.time_limit_seconds ??
+              timeLimitSeconds ??
+              0,
+            ) * 1000
+          ) -
+          officialElapsedMs,
         );
 
 
@@ -977,16 +1273,23 @@ export default function FreeWorldNumberSequenceV3({
           <header className="fwv3-entry-header">
 
             <h1>
-              LEVEL {
-                selectedLevel?.level
+              {
+                championMode
+                  ? 'CHAMPION LEVEL'
+                  : `LEVEL ${selectedLevel?.level}`
               }
             </h1>
 
-            <strong>
-              LEVEL {
-                selectedLevel?.level
-              }
-            </strong>
+            {
+              championMode && (
+                <strong>
+                  {
+                    championMeta?.name ||
+                    'CHAMPION ARENA'
+                  }
+                </strong>
+              )
+            }
 
           </header>
 
@@ -1032,11 +1335,19 @@ export default function FreeWorldNumberSequenceV3({
                 </span>
 
                 <strong>
-                  {timeLimitSeconds}
+                  {
+                    isStopwatch
+                      ? 'NO LIMIT'
+                      : timeLimitSeconds
+                  }
                 </strong>
 
                 <small>
-                  SECONDS
+                  {
+                    isStopwatch
+                      ? 'STOPWATCH'
+                      : 'SECONDS'
+                  }
                 </small>
 
               </div>
@@ -1046,8 +1357,14 @@ export default function FreeWorldNumberSequenceV3({
 
             <article>
 
-              <div className="fwv3-bars">
-                ▂▄▆█
+              <div
+                className="fwv3-bars"
+                aria-hidden="true"
+              >
+                <span />
+                <span />
+                <span />
+                <span />
               </div>
 
               <div>
@@ -1099,10 +1416,18 @@ export default function FreeWorldNumberSequenceV3({
             <Info />
 
             <p>
-              Pass the skill challenge
-              to progress to the next
-              destination. Retries never
-              unlock levels automatically.
+              {
+                championMode
+                  ? (
+                      'Complete 1 to 20 as fast as possible. ' +
+                      'There is no countdown failure limit. ' +
+                      'Your verified server time determines your ranking.'
+                    )
+                  : (
+                      'Pass the skill challenge to progress to the next ' +
+                      'destination. Retries never unlock levels automatically.'
+                    )
+              }
             </p>
 
           </section>
@@ -1207,7 +1532,7 @@ export default function FreeWorldNumberSequenceV3({
             <strong>
               {
                 formatElapsed(
-                  demoElapsedMs,
+                  demoDisplayMs,
                 )
               }
             </strong>
@@ -1397,16 +1722,24 @@ export default function FreeWorldNumberSequenceV3({
 
             <div>
               <span>
-                BEST VERIFIED TIME
+                {
+                  championMode
+                    ? 'CHAMPION MODE'
+                    : 'BEST VERIFIED TIME'
+                }
               </span>
 
               <strong>
                 {
-                  attemptSummary?.best_verified_time_ms
-                    ? formatElapsed(
-                        attemptSummary.best_verified_time_ms,
+                  championMode
+                    ? 'FASTEST WINS'
+                    : (
+                        attemptSummary?.best_verified_time_ms
+                          ? formatElapsed(
+                              attemptSummary.best_verified_time_ms,
+                            )
+                          : '--:--.---'
                       )
-                    : '--:--.---'
                 }
               </strong>
             </div>
@@ -1452,7 +1785,10 @@ export default function FreeWorldNumberSequenceV3({
               className="fwv3-button fwv3-button-primary"
               disabled={
                 busy ||
-                freeAttempts < 1
+                (
+                  !championMode &&
+                  freeAttempts < 1
+                )
               }
               onClick={
                 prepareOfficial
@@ -1466,6 +1802,7 @@ export default function FreeWorldNumberSequenceV3({
 
 
           {
+            !championMode &&
             freeAttempts < 1 && (
               <div className="fwv3-error">
                 No free attempt is
@@ -1550,7 +1887,11 @@ export default function FreeWorldNumberSequenceV3({
         <section className="fwv3-card fwv3-play-card">
 
           <div className="fwv3-mode-label">
-            OFFICIAL ATTEMPT
+            {
+              championMode
+                ? 'CHAMPION RUN'
+                : 'OFFICIAL ATTEMPT'
+            }
           </div>
 
 
@@ -1561,7 +1902,7 @@ export default function FreeWorldNumberSequenceV3({
             <strong>
               {
                 formatElapsed(
-                  officialElapsedMs,
+                  officialDisplayMs,
                 )
               }
             </strong>
@@ -1570,7 +1911,11 @@ export default function FreeWorldNumberSequenceV3({
 
 
           <div className="fwv3-timer-caption">
-            OFFICIAL ATTEMPT - COUNTS AS ATTEMPT
+            {
+              championMode
+                ? 'CHAMPION STOPWATCH - FASTEST VERIFIED TIME WINS'
+                : 'OFFICIAL ATTEMPT - COUNTS AS ATTEMPT'
+            }
           </div>
 
 
@@ -1743,8 +2088,16 @@ export default function FreeWorldNumberSequenceV3({
           <p className="fwv3-result-message">
             {
               success
-                ? 'You completed the sequence.'
-                : 'The sequence was not completed in time.'
+                  ? (
+                      championMode
+                        ? 'Verified Champion time submitted to the leaderboard.'
+                        : 'You completed the sequence.'
+                    )
+                  : (
+                      championMode
+                        ? 'This Champion run was not verified as complete.'
+                        : 'The sequence was not completed in time.'
+                    )
             }
           </p>
 
@@ -1855,17 +2208,34 @@ export default function FreeWorldNumberSequenceV3({
                   resultFreeAttempts
                 } FREE
               </button>
-            ) : resultAttempts
-                ?.token_retry_available ? (
+            ) : (
+              !championMode &&
+              resultAttempts
+                ?.token_retry_available
+            ) ? (
               <button
                 type="button"
                 className="fwv3-button fwv3-button-primary fwv3-full"
+                data-testid="retry-with-tokens-button"
                 disabled={busy}
-                onClick={
-                  retryWithToken
-                }
+                onClick={() => {
+                  loadBalance();
+                  setRetryConfirmOpen(true);
+                }}
               >
-                RETRY NOW - 1 TOKEN
+                RETRY WITH TOKENS - {
+                  Number(
+                    resultAttempts
+                      ?.token_retry_cost ?? 1,
+                  )
+                } {
+                  Number(
+                    resultAttempts
+                      ?.token_retry_cost ?? 1,
+                  ) === 1
+                    ? 'TOKEN'
+                    : 'TOKENS'
+                }
               </button>
             ) : null
           }
@@ -1920,6 +2290,134 @@ export default function FreeWorldNumberSequenceV3({
               </div>
             )
           }
+
+          {retryConfirmOpen && (
+            <div
+              className="fwv3-token-modal-backdrop"
+              data-testid="retry-confirm-modal"
+              onClick={() => {
+                if (!busy) {
+                  setRetryConfirmOpen(false);
+                }
+              }}
+            >
+              <section
+                className="fwv3-token-modal"
+                onClick={(event) =>
+                  event.stopPropagation()
+                }
+              >
+                <div className="fwv3-token-modal-kicker">
+                  RETRY WITH TOKENS
+                </div>
+
+                <h3>
+                  {selectedLevel?.name ||
+                    `Level ${selectedLevel?.level}`}
+                </h3>
+
+                <p className="fwv3-token-modal-lead">
+                  You have used all your free attempts.
+                  Spend tokens to play this level again.
+                </p>
+
+                <div className="fwv3-token-modal-rows">
+                  <div>
+                    <span>Token cost</span>
+                    <strong data-testid="retry-cost">
+                      {retryCost} 🪙
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>Current balance</span>
+                    <strong data-testid="retry-current-balance">
+                      {walletBalance === null
+                        ? '…'
+                        : `${walletBalance} 🪙`}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>Remaining balance</span>
+                    <strong data-testid="retry-remaining-balance">
+                      {walletBalance === null
+                        ? '…'
+                        : `${Math.max(
+                            0,
+                            walletBalance -
+                              retryCost,
+                          )} 🪙`}
+                    </strong>
+                  </div>
+                </div>
+
+                {walletBalance !== null &&
+                walletBalance < retryCost ? (
+                  <>
+                    <div
+                      className="fwv3-token-modal-insufficient"
+                      data-testid="retry-insufficient"
+                    >
+                      Not enough tokens
+                    </div>
+
+                    <div className="fwv3-token-modal-actions">
+                      <button
+                        type="button"
+                        className="fwv3-button fwv3-button-outline"
+                        data-testid="retry-cancel"
+                        onClick={() =>
+                          setRetryConfirmOpen(false)
+                        }
+                      >
+                        Cancel
+                      </button>
+
+                      <button
+                        type="button"
+                        className="fwv3-button fwv3-button-primary"
+                        data-testid="retry-topup"
+                        onClick={() =>
+                          navigate(
+                            '/my-account/wallet',
+                          )
+                        }
+                      >
+                        Top Up Wallet
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="fwv3-token-modal-actions">
+                    <button
+                      type="button"
+                      className="fwv3-button fwv3-button-outline"
+                      data-testid="retry-cancel"
+                      disabled={busy}
+                      onClick={() =>
+                        setRetryConfirmOpen(false)
+                      }
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      type="button"
+                      className="fwv3-button fwv3-button-primary"
+                      data-testid="retry-confirm"
+                      disabled={busy}
+                      onClick={retryWithToken}
+                    >
+                      {busy
+                        ? 'Please wait…'
+                        : 'Confirm'}
+                    </button>
+                  </div>
+                )}
+              </section>
+            </div>
+          )}
 
         </section>
 

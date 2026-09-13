@@ -12,10 +12,23 @@ export default function CompetitionCard({ c }) {
   const { user } = useAuth();
   const joined = useJoinedContestIds(user);
 
+  const isComingSoon =
+    c?.public_coming_soon === true ||
+    c?.comingSoon === true ||
+    String(c?.tag || '').trim().toLowerCase() === 'coming soon';
+
   useEffect(() => {
-    const timer = setInterval(() => setT(countdown(c.endDate)), 1000);
+    if (isComingSoon) {
+      return undefined;
+    }
+
+    const timer = setInterval(
+      () => setT(countdown(c.endDate)),
+      1000
+    );
+
     return () => clearInterval(timer);
-  }, [c.endDate]);
+  }, [c.endDate, isComingSoon]);
 
   const pct = percent(c.ticketsSold, c.ticketsTotal);
   const contestId = c.id || c.contest_id;
@@ -38,6 +51,73 @@ export default function CompetitionCard({ c }) {
       // Non-critical analytics call.
     }
   };
+  if (isComingSoon) {
+    return (
+      <article
+        className="group block overflow-hidden rounded-md bg-[#161433] shadow-sm"
+        data-testid={`competition-coming-soon-${contestId}`}
+      >
+        <div className="relative aspect-[2/1] overflow-hidden bg-gradient-to-br from-[#161433] via-[#32116b] to-[#6C2BFF]">
+
+          {c.image ? (
+            <img
+              src={resolveMediaUrl(c.image)}
+              alt={c.title}
+              loading="lazy"
+              onError={useFallbackImage}
+              className="block h-full w-full object-cover object-center"
+            />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="text-center text-white/75">
+                <div className="text-4xl">🏆</div>
+
+                <div className="mt-2 text-[9px] font-black uppercase tracking-[0.18em]">
+                  Image coming soon
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-transparent" />
+
+          <div className="absolute left-3 top-3">
+            <span className="inline-flex rounded-full border border-[#FFD54A]/70 bg-black/75 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#FFD54A]">
+              Coming Soon
+            </span>
+          </div>
+
+          <div className="absolute bottom-3 left-3 right-3">
+
+            <div className="text-[9px] font-black uppercase tracking-[0.16em] text-[#FFD54A]">
+              Prize Competition
+            </div>
+
+            <h3 className="mt-1 truncate font-display text-sm font-extrabold text-white">
+              {c.title}
+            </h3>
+
+          </div>
+        </div>
+
+        <div className="bg-white px-3 py-3">
+
+          <p className="min-h-[40px] text-xs leading-5 text-slate-500">
+            {c.subtitle ||
+              'Competition details, prize information and entry information will be announced soon.'}
+          </p>
+
+          <div
+            className="mt-3 flex h-9 items-center justify-center rounded-md border border-[#FFD54A]/60 bg-[#FFD54A]/10 text-[11px] font-black uppercase tracking-[0.14em] text-slate-800"
+            data-testid={`coming-soon-label-${contestId}`}
+          >
+            Coming Soon
+          </div>
+
+        </div>
+      </article>
+    );
+  }
 
   return (
     <Link

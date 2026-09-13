@@ -1,5 +1,4 @@
 import {
-  Navigate,
   useNavigate,
 } from 'react-router-dom';
 
@@ -12,7 +11,6 @@ import {
   ArrowLeft,
   Crown,
   Home,
-  Map,
   Minus,
   Plus,
   Trophy,
@@ -33,7 +31,6 @@ import {
 
 import WorldCanvas
   from './components/WorldCanvas';
-
 
 import FreeWorldLeaderboard
   from './components/FreeWorldLeaderboard';import FreeWorldNumberSequence
@@ -72,6 +69,9 @@ export default function PrizeLeagueWorld() {
   const [gameFlowOpen, setGameFlowOpen] =
     useState(false);
 
+  const [championMode, setChampionMode] =
+    useState(false);
+
 
   const [
     showWorldLeaderboard,
@@ -86,6 +86,8 @@ export default function PrizeLeagueWorld() {
         return;
       }
 
+      setChampionMode(false);
+
       setSelectedLevel({
         level,
         name:
@@ -99,6 +101,68 @@ export default function PrizeLeagueWorld() {
       setLevelBusy(true);
 
       try {
+
+        /*
+         * Logged-out visitors may try Level 1 once.
+         *
+         * This is intentionally NOT server progression:
+         * - no wallet credit
+         * - no leaderboard entry
+         * - no level unlock
+         *
+         * Account is required immediately after the guest try.
+         */
+        if (!user) {
+
+          if (level !== 1) {
+            navigate('/login');
+            return;
+          }
+
+          const guestAttemptUsed =
+            window.localStorage.getItem(
+              'pl_guest_level_1_attempt_used'
+            ) === '1';
+
+          if (guestAttemptUsed) {
+            navigate('/login');
+            return;
+          }
+
+          setLevelData({
+            guest_mode: true,
+
+            level: {
+              level: 1,
+              name: 'Level 1',
+
+              game_id:
+                'number_sequence',
+
+              time_limit_seconds:
+                60,
+
+              game_config: {
+                target_number: 20,
+              },
+
+              demo_enabled:
+                true,
+
+              demo_skippable:
+                false,
+
+              attempts: {
+                free_attempts_available: 1,
+                next_free_attempt_at: null,
+              },
+            },
+          });
+
+          setGameFlowOpen(true);
+          return;
+        }
+
         const response =
           await worldAPI.level(level);
 
@@ -131,7 +195,137 @@ export default function PrizeLeagueWorld() {
         onLevelSelect,
       );
     };
-  }, []);
+  }, [
+    navigate,
+    user,
+  ]);
+
+
+  useEffect(() => {
+    const onChampionSelect =
+      async (event) => {
+
+        if (!user) {
+          navigate('/login');
+          return;
+        }
+
+        setLevelBusy(true);
+        setLevelError('');
+        setGameFlowOpen(false);
+
+        try {
+          const state =
+            await worldAPI.state();
+
+          const champion =
+            state?.champion || {};
+
+          if (
+            champion?.unlocked !== true
+          ) {
+            setLevelError(
+              'Complete Level 10 before entering the Champion Level.',
+            );
+
+            return;
+          }
+
+          const detail =
+            event?.detail || {};
+
+          setChampionMode(true);
+
+          setSelectedLevel({
+            level: 10,
+            champion: true,
+
+            championshipNumber:
+              Number(
+                detail
+                  ?.championshipNumber ||
+                state?.progress
+                  ?.champion_stage ||
+                1,
+              ),
+
+            name:
+              detail?.name ||
+              champion?.name ||
+              'Champion Arena',
+          });
+
+          setLevelData({
+            champion_mode: true,
+
+            level: {
+              ...champion,
+
+              game_id:
+                'number_sequence',
+
+              game_config: {
+                ...(champion
+                  ?.game_config || {}),
+
+                target_number:
+                  20,
+
+                timer_mode:
+                  'stopwatch',
+              },
+
+              time_limit_seconds:
+                null,
+
+              demo_enabled:
+                champion
+                  ?.demo_enabled !== false,
+
+              demo_skippable:
+                champion
+                  ?.demo_skippable !== false,
+            },
+          });
+
+          setGameFlowOpen(true);
+
+        } catch (error) {
+          const raw =
+            error
+              ?.response
+              ?.data
+              ?.detail;
+
+          setLevelError(
+            typeof raw === 'string'
+              ? raw
+              : raw?.message ||
+                raw?.msg ||
+                'Champion Level is currently unavailable.',
+          );
+
+        } finally {
+          setLevelBusy(false);
+        }
+      };
+
+    window.addEventListener(
+      'pl-world-champion-select',
+      onChampionSelect,
+    );
+
+    return () => {
+      window.removeEventListener(
+        'pl-world-champion-select',
+        onChampionSelect,
+      );
+    };
+  }, [
+    navigate,
+    user,
+  ]);
+
 
   if (loading) {
     return (
@@ -143,21 +337,9 @@ export default function PrizeLeagueWorld() {
         </div>
 
         <div className="pl-world-loading-subtitle">
-          Preparing Prize League Worldâ€¦
+          Preparing Prize League World…
         </div>
       </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <Navigate
-        to="/login"
-        replace
-        state={{
-          from: '/world',
-        }}
-      />
     );
   }
 
@@ -168,72 +350,53 @@ export default function PrizeLeagueWorld() {
 
       <div className="pl-world-vignette" />
 
-      {/* Top mobile game HUD */}
-      <header className="pl-world-mobile-header">
+      <div
+        className="pl-world-promo-ticker pl-world-promo-ticker-top"
+        aria-label="Prize League Free World information"
+      >
+        <div className="pl-world-promo-track">
 
-        <motion.button
-          type="button"
-          className="pl-world-icon-button"
-          onClick={() =>
-            navigate(-1)
-          }
-          whileTap={{
-            scale: 0.92,
-          }}
-          aria-label="Leave Prize League World"
-        >
-          <ArrowLeft size={21} />
-        </motion.button>
+          <span>1,000 LEVELS</span>
+          <b aria-hidden="true">&bull;</b>
 
-        <motion.div
-          className="pl-world-mobile-brand"
-          initial={{
-            y: -20,
-            opacity: 0,
-          }}
-          animate={{
-            y: 0,
-            opacity: 1,
-          }}
-        >
-          <Crown size={18} />
+          <span>100 CHAMPIONSHIPS</span>
+          <b aria-hidden="true">&bull;</b>
 
-          <div>
-            <span>
-              SEASON 1
-            </span>
+          <span>
+            UP TO {'\u00A3'}257,500 IN PRIZES
+          </span>
+          <b aria-hidden="true">&bull;</b>
 
-            <strong>
-              Prize League World
-            </strong>
-          </div>
-        </motion.div>
+          <span>PLAY</span>
+          <b aria-hidden="true">&bull;</b>
 
-        <motion.div
-          className="pl-world-mobile-prize pl-world-prize-pulse"
-          initial={{
-            y: -20,
-            opacity: 0,
-          }}
-          animate={{
-            y: 0,
-            opacity: 1,
-          }}
-        >
-          <Trophy size={17} />
+          <span>COMPETE</span>
+          <b aria-hidden="true">&bull;</b>
 
-          <div>
-            <span>
-              UP TO
-            </span>
+          <span>WIN</span>
+          <b aria-hidden="true">&bull;</b>
 
-            <strong>
-              Â£127,500
-            </strong>
-          </div>
-        </motion.div>
+          <span>1,000 LEVELS</span>
+          <b aria-hidden="true">&bull;</b>
 
-      </header>
+          <span>100 CHAMPIONSHIPS</span>
+          <b aria-hidden="true">&bull;</b>
+
+          <span>
+            UP TO {'\u00A3'}257,500 IN PRIZES
+          </span>
+          <b aria-hidden="true">&bull;</b>
+
+          <span>PLAY</span>
+          <b aria-hidden="true">&bull;</b>
+
+          <span>COMPETE</span>
+          <b aria-hidden="true">&bull;</b>
+
+          <span>WIN</span>
+
+        </div>
+      </div>
 
 
       {/* Zoom tools */}
@@ -275,7 +438,7 @@ export default function PrizeLeagueWorld() {
           <Minus size={20} />
         </button>
       </motion.div>
-      {/* Prize League primary navigation */}
+      {/* Prize League Free World navigation */}
       <nav
         className="pl-world-primary-nav"
         aria-label="Prize League World navigation"
@@ -292,31 +455,29 @@ export default function PrizeLeagueWorld() {
             setShowWorldLeaderboard(false);
 
             dispatchWorldEvent(
-              'pl-world-start'
+              'pl-world-home'
             );
           }}
         >
-          <Home size={20} />
+          <Home size={19} />
 
           <span>
             HOME
           </span>
         </button>
 
-
         <button
           type="button"
           onClick={() =>
-            navigate('/')
+            navigate('/paid-leagues')
           }
         >
-          <Crown size={20} />
+          <Crown size={19} />
 
           <span>
             PAID CONTESTS
           </span>
         </button>
-
 
         <button
           type="button"
@@ -329,7 +490,7 @@ export default function PrizeLeagueWorld() {
             setShowWorldLeaderboard(true)
           }
         >
-          <Trophy size={20} />
+          <Trophy size={19} />
 
           <span>
             LEADERBOARD
@@ -338,7 +499,7 @@ export default function PrizeLeagueWorld() {
 
       </nav>
 <div className="pl-world-touch-hint">
-        Drag to explore â€¢ Pinch to zoom
+        Drag to explore • Pinch to zoom
       </div>
 
       <AnimatePresence>
@@ -380,7 +541,7 @@ export default function PrizeLeagueWorld() {
                   setSelectedLevel(null)
                 }
               >
-                Ã—
+                ×
               </button>
 
               <div className="pl-world-level-kicker">
@@ -397,7 +558,7 @@ export default function PrizeLeagueWorld() {
 
               {levelBusy && (
                 <div className="pl-world-level-loading">
-                  Loading levelâ€¦
+                  Loading level…
                 </div>
               )}
 
@@ -440,7 +601,7 @@ export default function PrizeLeagueWorld() {
                         </span>
 
                         <strong>
-                          1 â†’ {levelData.level?.game_config?.target_number}
+                          1 → {levelData.level?.game_config?.target_number}
                         </strong>
                       </div>
 
@@ -510,9 +671,16 @@ export default function PrizeLeagueWorld() {
           <FreeWorldNumberSequence
             selectedLevel={selectedLevel}
             levelData={levelData}
-            onClose={() =>
-              setGameFlowOpen(false)
+            championMode={championMode}
+            championMeta={selectedLevel}
+            guestMode={
+              !user &&
+              Number(selectedLevel?.level) === 1
             }
+            onClose={() => {
+              setGameFlowOpen(false);
+              setChampionMode(false);
+            }}
             onFinished={async () => {
               try {
                 const refreshed =

@@ -32,7 +32,7 @@ sys.path.insert(0, str(BACKEND))
 from auth import create_jwt, hash_password  # noqa: E402
 
 
-API_BASE = os.environ.get('REACT_APP_BACKEND_URL') or 'https://contest-arena-16.preview.emergentagent.com'
+API_BASE = os.environ.get('REACT_APP_BACKEND_URL') or 'https://import-verify-6.preview.emergentagent.com'
 SUPER_EMAIL = 'bachanta8@gmail.com'
 SUPER_PASSWORD = 'Herts@910022'
 

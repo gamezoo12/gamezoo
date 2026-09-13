@@ -2774,3 +2774,1828 @@
 
   font-size: 8px;
 }
+
+
+/* ============================================================
+   FREE WORLD FINAL FIXED HUD 2026
+   ============================================================ */
+
+/*
+ * Hide the old header rendered inside the 2D map.
+ * The map itself and all level/progression logic remain untouched.
+ */
+.pl-world-page .pl2d-world-header-final {
+  display: none !important;
+}
+
+
+/* ------------------------------------------------------------
+   TOP HUD
+   ------------------------------------------------------------ */
+
+.pl-world-page .pl-world-final-hud {
+  position: fixed !important;
+
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+
+  z-index: 90 !important;
+
+  width: 100%;
+
+  min-height: 72px;
+
+  display: grid !important;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto
+    auto;
+
+  align-items: center;
+
+  gap: 12px;
+
+  padding:
+    8px
+    16px !important;
+
+  margin: 0 !important;
+
+  border-bottom:
+    1px solid
+    rgba(255, 213, 74, 0.28);
+
+  background:
+    linear-gradient(
+      180deg,
+      #070a1a 0%,
+      #10132c 100%
+    );
+
+  box-shadow:
+    0 8px 24px
+    rgba(0, 0, 0, 0.34);
+}
+
+
+/* ------------------------------------------------------------
+   REAL PRIZE LEAGUE LOGO / TITLE
+   ------------------------------------------------------------ */
+
+.pl-world-page .pl-world-final-brand {
+  min-width: 0 !important;
+
+  padding: 0 !important;
+
+  border: 0 !important;
+
+  background: transparent !important;
+
+  box-shadow: none !important;
+}
+
+.pl-world-page
+.pl-world-final-brand
+[data-testid="prizeleague-logo-wrap"] {
+  gap: 7px !important;
+}
+
+.pl-world-page
+.pl-world-final-brand
+[data-testid="prizeleague-logo"] {
+  width: 44px !important;
+  height: 44px !important;
+}
+
+.pl-world-page
+.pl-world-final-brand
+[data-testid="prizeleague-wordmark"] {
+  font-size: 18px !important;
+
+  letter-spacing: 0.06em !important;
+}
+
+
+/* ------------------------------------------------------------
+   PRIZE
+   ------------------------------------------------------------ */
+
+.pl-world-page .pl-world-final-prize {
+  min-width: 142px !important;
+
+  min-height: 50px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  padding:
+    5px
+    16px !important;
+
+  border:
+    2px solid
+    rgba(255, 215, 51, 0.92) !important;
+
+  border-radius:
+    16px !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(35, 22, 82, 0.97),
+      rgba(11, 12, 32, 0.98)
+    ) !important;
+
+  box-shadow:
+    0 0 18px
+    rgba(255, 211, 48, 0.19) !important;
+}
+
+.pl-world-page .pl-world-final-prize > div {
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  line-height: 1;
+}
+
+.pl-world-page .pl-world-final-prize span {
+  margin-bottom: 4px;
+
+  color:
+    rgba(255, 255, 255, 0.84);
+
+  font-size: 8px !important;
+
+  font-weight: 900;
+
+  letter-spacing: 0.11em;
+}
+
+.pl-world-page .pl-world-final-prize strong {
+  color: #ffd943;
+
+  font-size: 20px !important;
+
+  font-weight: 1000;
+
+  line-height: 1;
+
+  text-shadow:
+    0 0 12px
+    rgba(255, 211, 48, 0.36);
+}
+
+
+/* ------------------------------------------------------------
+   SMALL LOGIN / PROFILE
+   ------------------------------------------------------------ */
+
+.pl-world-page .pl-world-profile-login {
+  min-width: 74px;
+
+  height: 34px;
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 6px;
+
+  padding:
+    0
+    10px;
+
+  border:
+    1px solid
+    rgba(255, 213, 74, 0.48);
+
+  border-radius:
+    999px;
+
+  background:
+    rgba(8, 10, 27, 0.88);
+
+  color: #ffffff;
+
+  cursor: pointer;
+
+  font-family:
+    Inter,
+    system-ui,
+    sans-serif;
+
+  font-size: 10px;
+
+  font-weight: 900;
+
+  letter-spacing: 0.04em;
+
+  white-space: nowrap;
+}
+
+.pl-world-page .pl-world-profile-login:hover {
+  background:
+    rgba(255, 213, 74, 0.11);
+
+  border-color:
+    rgba(255, 213, 74, 0.82);
+}
+
+.pl-world-page .pl-world-profile-avatar {
+  width: 20px;
+  height: 20px;
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  flex: 0 0 20px;
+
+  border-radius: 50%;
+
+  background:
+    linear-gradient(
+      135deg,
+      #8b5cff,
+      #5522d6
+    );
+
+  color: #ffffff;
+
+  font-size: 9px;
+
+  font-weight: 1000;
+}
+
+
+/* ------------------------------------------------------------
+   TOP SCROLLING INFO BAR
+   ------------------------------------------------------------ */
+
+.pl-world-page .pl-world-promo-ticker-top {
+  display: block !important;
+
+  pointer-events: none;
+
+  position: fixed !important;
+
+  z-index: 89 !important;
+
+  top: 72px !important;
+  bottom: auto !important;
+
+  left: 0 !important;
+  right: 0 !important;
+
+  transform: none !important;
+
+  width: 100% !important;
+
+  overflow: hidden;
+
+  border: 0 !important;
+
+  border-top:
+    1px solid
+    rgba(128, 72, 255, 0.45) !important;
+
+  border-bottom:
+    1px solid
+    rgba(255, 213, 74, 0.35) !important;
+
+  border-radius: 0 !important;
+
+  background:
+    linear-gradient(
+      90deg,
+      #25114c,
+      #5320a0,
+      #2d145b
+    ) !important;
+
+  box-shadow:
+    0 5px 15px
+    rgba(0, 0, 0, 0.28);
+
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.pl-world-page
+.pl-world-promo-ticker-top
+.pl-world-promo-track {
+  min-height: 32px;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 18px;
+
+  padding:
+    7px
+    16px !important;
+
+  color: #ffffff;
+
+  font-size: 10px !important;
+
+  font-weight: 900;
+
+  letter-spacing: 0.04em;
+
+  animation-duration: 22s !important;
+}
+
+.pl-world-page
+.pl-world-promo-ticker-top
+.pl-world-promo-track b {
+  color: #ffd943;
+
+  font-size: 13px;
+}
+
+
+/* ------------------------------------------------------------
+   FINAL THREE BUTTON NAV
+   ------------------------------------------------------------ */
+
+.pl-world-page .pl-world-primary-nav {
+  position: fixed !important;
+
+  z-index: 91 !important;
+
+  left: 8px !important;
+  right: 8px !important;
+  bottom:
+    max(
+      8px,
+      env(safe-area-inset-bottom)
+    ) !important;
+
+  width: auto !important;
+
+  display: grid !important;
+
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(0, 1fr)
+    );
+
+  gap: 6px;
+
+  padding: 6px;
+
+  border:
+    1px solid
+    rgba(129, 75, 255, 0.42);
+
+  border-radius: 16px;
+
+  background:
+    rgba(6, 8, 25, 0.94);
+
+  box-shadow:
+    0 10px 28px
+    rgba(0, 0, 0, 0.42);
+
+  backdrop-filter:
+    blur(12px);
+
+  -webkit-backdrop-filter:
+    blur(12px);
+}
+
+.pl-world-page
+.pl-world-primary-nav
+button {
+  min-width: 0;
+
+  min-height: 60px;
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 2px;
+
+  padding:
+    6px
+    4px;
+
+  border:
+    1px solid
+    rgba(131, 70, 255, 0.65);
+
+  border-radius: 12px;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(31, 13, 68, 0.96),
+      rgba(9, 10, 30, 0.98)
+    );
+
+  color: #ffffff;
+
+  cursor: pointer;
+}
+
+.pl-world-page
+.pl-world-primary-nav
+button.is-active {
+  border-color: #ffd943;
+
+  color: #ffd943;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(72, 55, 10, 0.88),
+      rgba(17, 15, 17, 0.98)
+    );
+
+  box-shadow:
+    inset 0 0 14px
+    rgba(255, 217, 67, 0.13),
+    0 0 12px
+    rgba(255, 217, 67, 0.12);
+}
+
+.pl-world-page
+.pl-world-primary-nav
+button span {
+  font-size: 9px !important;
+
+  font-weight: 1000;
+
+  line-height: 1.1;
+
+  white-space: nowrap;
+}
+
+.pl-world-page
+.pl-world-primary-nav
+button small {
+  color:
+    rgba(255, 255, 255, 0.55);
+
+  font-size: 6px;
+
+  font-weight: 900;
+
+  letter-spacing: 0.04em;
+
+  white-space: nowrap;
+}
+
+.pl-world-page
+.pl-world-primary-nav
+button.is-active small {
+  color:
+    rgba(255, 217, 67, 0.82);
+}
+
+
+/* Remove old helper text from the clean final UI. */
+.pl-world-page .pl-world-touch-hint {
+  display: none !important;
+}
+
+
+/* ------------------------------------------------------------
+   MOBILE
+   ------------------------------------------------------------ */
+
+@media (max-width: 760px) {
+
+  .pl-world-page .pl-world-final-hud {
+    min-height: 64px;
+
+    grid-template-columns:
+      minmax(0, 1fr)
+      auto
+      auto;
+
+    gap: 6px;
+
+    padding:
+      max(
+        6px,
+        env(safe-area-inset-top)
+      )
+      8px
+      6px !important;
+  }
+
+  .pl-world-page
+  .pl-world-final-brand
+  [data-testid="prizeleague-logo"] {
+    width: 34px !important;
+    height: 34px !important;
+  }
+
+  .pl-world-page
+  .pl-world-final-brand
+  [data-testid="prizeleague-wordmark"] {
+    font-size: 13px !important;
+
+    letter-spacing:
+      0.035em !important;
+  }
+
+  .pl-world-page .pl-world-final-prize {
+    min-width: 104px !important;
+
+    min-height: 42px;
+
+    padding:
+      4px
+      8px !important;
+
+    border-radius:
+      12px !important;
+  }
+
+  .pl-world-page .pl-world-final-prize span {
+    font-size: 6px !important;
+  }
+
+  .pl-world-page .pl-world-final-prize strong {
+    font-size: 15px !important;
+  }
+
+  .pl-world-page .pl-world-profile-login {
+    min-width: 55px;
+
+    height: 29px;
+
+    gap: 4px;
+
+    padding:
+      0
+      7px;
+
+    font-size: 8px;
+  }
+
+  .pl-world-page .pl-world-profile-login svg {
+    width: 13px;
+    height: 13px;
+  }
+
+  .pl-world-page .pl-world-profile-avatar {
+    width: 17px;
+    height: 17px;
+
+    flex-basis: 17px;
+
+    font-size: 7px;
+  }
+
+  .pl-world-page .pl-world-promo-ticker-top {
+    top: 64px !important;
+  }
+
+  .pl-world-page
+  .pl-world-promo-ticker-top
+  .pl-world-promo-track {
+    min-height: 28px;
+
+    gap: 14px;
+
+    padding:
+      6px
+      10px !important;
+
+    font-size: 8px !important;
+  }
+
+  .pl-world-page .pl-world-primary-nav {
+    left: 6px !important;
+    right: 6px !important;
+
+    gap: 5px;
+
+    padding: 5px;
+  }
+
+  .pl-world-page
+  .pl-world-primary-nav
+  button {
+    min-height: 56px;
+
+    padding:
+      5px
+      2px;
+  }
+
+  .pl-world-page
+  .pl-world-primary-nav
+  button span {
+    font-size: 8px !important;
+  }
+
+  .pl-world-page
+  .pl-world-primary-nav
+  button small {
+    font-size: 5.5px;
+  }
+
+}
+
+
+@media (max-width: 380px) {
+
+  .pl-world-page
+  .pl-world-final-brand
+  [data-testid="prizeleague-wordmark"] {
+    font-size: 11px !important;
+  }
+
+  .pl-world-page .pl-world-final-prize {
+    min-width: 92px !important;
+  }
+
+  .pl-world-page .pl-world-final-prize strong {
+    font-size: 13px !important;
+  }
+
+  .pl-world-page .pl-world-profile-login {
+    min-width: 46px;
+
+    padding:
+      0
+      5px;
+  }
+
+  .pl-world-page
+  .pl-world-profile-login
+  > span:last-child {
+    display: none;
+  }
+
+}
+
+/* ============================================================
+   FREE WORLD REAL HEADER MATCH V2
+   Exact PrizeLeagueLogo component used by main site/login.
+   ============================================================ */
+
+.pl-world-page .pl-world-final-hud {
+  position: fixed !important;
+
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+
+  z-index: 100 !important;
+
+  width: 100% !important;
+  height: 58px !important;
+  min-height: 58px !important;
+
+  display: flex !important;
+
+  flex-direction: row !important;
+
+  align-items: center !important;
+
+  justify-content: space-between !important;
+
+  gap: 8px !important;
+
+  padding:
+    5px
+    8px !important;
+
+  overflow: hidden !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      #080b1d 0%,
+      #10132c 100%
+    ) !important;
+
+  border-bottom:
+    1px solid
+    rgba(255, 215, 62, 0.7) !important;
+}
+
+
+/* ============================================================
+   PRIZE LEAGUE TITLE
+   SAME COMPONENT AS REAL WORLD + LOGIN
+   ============================================================ */
+
+.pl-world-page .pl-world-final-brand {
+  flex:
+    1
+    1
+    auto !important;
+
+  min-width: 0 !important;
+
+  width: auto !important;
+
+  display: flex !important;
+
+  align-items: center !important;
+
+  justify-content: flex-start !important;
+
+  padding: 0 !important;
+
+  margin: 0 !important;
+
+  border: 0 !important;
+
+  background: transparent !important;
+
+  box-shadow: none !important;
+
+  overflow: hidden !important;
+}
+
+
+/*
+ * Prevent the real Prize League title component
+ * from breaking onto multiple lines.
+ */
+.pl-world-page
+.pl-world-final-brand
+* {
+  white-space: nowrap !important;
+}
+
+
+.pl-world-page
+.pl-world-final-brand
+[data-testid="prizeleague-logo-wrap"] {
+  display: flex !important;
+
+  flex-direction: row !important;
+
+  align-items: center !important;
+
+  flex-wrap: nowrap !important;
+
+  gap: 5px !important;
+
+  width: auto !important;
+
+  max-width: 100% !important;
+}
+
+
+.pl-world-page
+.pl-world-final-brand
+[data-testid="prizeleague-logo"] {
+  width: 34px !important;
+  height: 34px !important;
+
+  flex:
+    0
+    0
+    34px !important;
+
+  object-fit: contain !important;
+}
+
+
+.pl-world-page
+.pl-world-final-brand
+[data-testid="prizeleague-wordmark"] {
+  width: auto !important;
+
+  max-width: none !important;
+
+  display: inline-block !important;
+
+  overflow: visible !important;
+
+  text-overflow: clip !important;
+
+  white-space: nowrap !important;
+
+  font-size: 13px !important;
+
+  line-height: 1 !important;
+
+  letter-spacing:
+    0.025em !important;
+}
+
+
+/* ============================================================
+   PRIZE - ONE LINE
+   UP TO SMALL / AMOUNT LARGE
+   ============================================================ */
+
+.pl-world-page .pl-world-final-prize {
+  flex:
+    0
+    0
+    auto !important;
+
+  width: auto !important;
+
+  min-width: 0 !important;
+
+  min-height: 0 !important;
+
+  height: 38px !important;
+
+  display: flex !important;
+
+  align-items: center !important;
+
+  justify-content: center !important;
+
+  padding:
+    3px
+    8px !important;
+
+  margin: 0 !important;
+
+  border:
+    1px solid
+    rgba(255, 215, 55, 0.85) !important;
+
+  border-radius:
+    10px !important;
+
+  white-space:
+    nowrap !important;
+
+  background:
+    #111126 !important;
+}
+
+
+.pl-world-page
+.pl-world-final-prize
+> div {
+  display: flex !important;
+
+  flex-direction: row !important;
+
+  align-items: baseline !important;
+
+  justify-content: center !important;
+
+  gap: 4px !important;
+
+  white-space: nowrap !important;
+}
+
+
+.pl-world-page
+.pl-world-final-prize
+span {
+  margin: 0 !important;
+
+  padding: 0 !important;
+
+  font-size: 5px !important;
+
+  line-height: 1 !important;
+
+  font-weight: 900 !important;
+
+  letter-spacing:
+    0.06em !important;
+
+  color:
+    rgba(
+      255,
+      255,
+      255,
+      0.8
+    ) !important;
+
+  white-space: nowrap !important;
+}
+
+
+.pl-world-page
+.pl-world-final-prize
+strong {
+  margin: 0 !important;
+
+  padding: 0 !important;
+
+  font-size: 14px !important;
+
+  line-height: 1 !important;
+
+  font-weight: 1000 !important;
+
+  color: #ffd83d !important;
+
+  white-space: nowrap !important;
+
+  text-shadow:
+    0
+    0
+    7px
+    rgba(
+      255,
+      216,
+      61,
+      0.32
+    ) !important;
+}
+
+
+/* ============================================================
+   SMALL LOGIN / PROFILE
+   ============================================================ */
+
+.pl-world-page
+.pl-world-profile-login {
+  flex:
+    0
+    0
+    auto !important;
+
+  min-width: 0 !important;
+
+  width: auto !important;
+
+  height: 28px !important;
+
+  display: flex !important;
+
+  align-items: center !important;
+
+  justify-content: center !important;
+
+  gap: 3px !important;
+
+  padding:
+    0
+    6px !important;
+
+  margin: 0 !important;
+
+  border:
+    1px solid
+    rgba(
+      255,
+      215,
+      55,
+      0.48
+    ) !important;
+
+  border-radius:
+    999px !important;
+
+  font-size:
+    7px !important;
+
+  line-height:
+    1 !important;
+
+  white-space:
+    nowrap !important;
+}
+
+
+.pl-world-page
+.pl-world-profile-login
+svg {
+  width: 11px !important;
+
+  height: 11px !important;
+
+  flex:
+    0
+    0
+    11px !important;
+}
+
+
+/* ============================================================
+   TICKER DIRECTLY BELOW HEADER
+   ============================================================ */
+
+.pl-world-page
+.pl-world-promo-ticker-top {
+  top: 58px !important;
+
+  height: 25px !important;
+
+  min-height: 25px !important;
+}
+
+
+.pl-world-page
+.pl-world-promo-ticker-top
+.pl-world-promo-track {
+  min-height: 25px !important;
+
+  height: 25px !important;
+
+  padding:
+    4px
+    9px !important;
+
+  gap:
+    13px !important;
+
+  font-size:
+    7px !important;
+
+  line-height:
+    1 !important;
+}
+
+
+/* ============================================================
+   BOTTOM NAV - SIMPLE 3 BUTTONS
+   ============================================================ */
+
+.pl-world-page
+.pl-world-primary-nav {
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(0, 1fr)
+    ) !important;
+
+  min-height:
+    54px !important;
+}
+
+
+.pl-world-page
+.pl-world-primary-nav
+button {
+  min-height:
+    48px !important;
+
+  gap:
+    3px !important;
+
+  padding:
+    5px
+    2px !important;
+}
+
+
+.pl-world-page
+.pl-world-primary-nav
+button span {
+  font-size:
+    7px !important;
+
+  font-weight:
+    1000 !important;
+
+  white-space:
+    nowrap !important;
+}
+
+
+.pl-world-page
+.pl-world-primary-nav
+button small {
+  display:
+    none !important;
+}
+
+
+/* ============================================================
+   SMALL MOBILE
+   ============================================================ */
+
+@media (max-width: 420px) {
+
+  .pl-world-page
+  .pl-world-final-hud {
+    gap:
+      4px !important;
+
+    padding:
+      5px
+      5px !important;
+  }
+
+
+  .pl-world-page
+  .pl-world-final-brand
+  [data-testid="prizeleague-logo"] {
+    width:
+      30px !important;
+
+    height:
+      30px !important;
+
+    flex-basis:
+      30px !important;
+  }
+
+
+  .pl-world-page
+  .pl-world-final-brand
+  [data-testid="prizeleague-wordmark"] {
+    font-size:
+      11px !important;
+
+    letter-spacing:
+      0.01em !important;
+  }
+
+
+  .pl-world-page
+  .pl-world-final-prize {
+    height:
+      34px !important;
+
+    padding:
+      2px
+      5px !important;
+  }
+
+
+  .pl-world-page
+  .pl-world-final-prize
+  span {
+    font-size:
+      4.5px !important;
+  }
+
+
+  .pl-world-page
+  .pl-world-final-prize
+  strong {
+    font-size:
+      12px !important;
+  }
+
+
+  .pl-world-page
+  .pl-world-profile-login {
+    height:
+      26px !important;
+
+    padding:
+      0
+      5px !important;
+
+    font-size:
+      6px !important;
+  }
+
+}
+
+
+/* ============================================================
+   EXTRA SMALL MOBILE
+   ============================================================ */
+
+@media (max-width: 350px) {
+
+  .pl-world-page
+  .pl-world-final-brand
+  [data-testid="prizeleague-wordmark"] {
+    font-size:
+      9px !important;
+  }
+
+
+  .pl-world-page
+  .pl-world-final-prize
+  strong {
+    font-size:
+      10px !important;
+  }
+
+
+  .pl-world-page
+  .pl-world-profile-login
+  > span:last-child {
+    display:
+      none !important;
+  }
+
+}
+
+
+/* ============================================================
+   FREE WORLD SINGLE HEADER FINAL V3
+   ============================================================ */
+
+
+/* ------------------------------------------------------------
+   TOP HEADER - ONE ROW ONLY
+   ------------------------------------------------------------ */
+
+.pl-world-page .pl-world-final-hud {
+  height: 64px !important;
+  min-height: 64px !important;
+
+  display: grid !important;
+
+  grid-template-columns:
+    minmax(150px, 1fr)
+    auto
+    auto !important;
+
+  align-items: center !important;
+
+  column-gap: 7px !important;
+
+  padding:
+    5px
+    8px !important;
+
+  overflow: visible !important;
+}
+
+
+/* ------------------------------------------------------------
+   PRIZE LEAGUE LOGO + TITLE
+   ------------------------------------------------------------ */
+
+.pl-world-page .pl-world-final-brand {
+  width: 100% !important;
+
+  min-width: 0 !important;
+
+  display: flex !important;
+
+  align-items: center !important;
+
+  justify-content: flex-start !important;
+
+  overflow: visible !important;
+}
+
+
+.pl-world-page
+.pl-world-final-brand
+a,
+.pl-world-page
+.pl-world-final-brand
+div {
+  flex-wrap: nowrap !important;
+
+  white-space: nowrap !important;
+}
+
+
+.pl-world-page
+.pl-world-final-brand
+img {
+  width: 38px !important;
+
+  height: 38px !important;
+
+  max-width: 38px !important;
+
+  flex:
+    0
+    0
+    38px !important;
+
+  object-fit: contain !important;
+}
+
+
+/*
+ * Real Prize League title text.
+ * Keep exactly one line.
+ */
+.pl-world-page
+.pl-world-final-brand
+strong,
+.pl-world-page
+.pl-world-final-brand
+span {
+  white-space: nowrap !important;
+
+  overflow: visible !important;
+
+  text-overflow: clip !important;
+}
+
+
+.pl-world-page
+.pl-world-final-brand
+strong {
+  font-size: 16px !important;
+
+  line-height: 1 !important;
+
+  letter-spacing:
+    0.02em !important;
+}
+
+
+/* ------------------------------------------------------------
+   PRIZE BOX
+   UP TO small + amount large, same line
+   ------------------------------------------------------------ */
+
+.pl-world-page .pl-world-final-prize {
+  width: auto !important;
+
+  min-width: 102px !important;
+
+  height: 38px !important;
+
+  flex:
+    0
+    0
+    auto !important;
+
+  padding:
+    3px
+    7px !important;
+}
+
+
+.pl-world-page
+.pl-world-final-prize
+> div {
+  display: flex !important;
+
+  flex-direction: row !important;
+
+  align-items: baseline !important;
+
+  justify-content: center !important;
+
+  gap: 3px !important;
+
+  white-space: nowrap !important;
+}
+
+
+.pl-world-page
+.pl-world-final-prize
+span {
+  font-size: 5px !important;
+
+  line-height: 1 !important;
+
+  margin: 0 !important;
+}
+
+
+.pl-world-page
+.pl-world-final-prize
+strong {
+  font-size: 15px !important;
+
+  line-height: 1 !important;
+
+  margin: 0 !important;
+
+  white-space: nowrap !important;
+}
+
+
+/* ------------------------------------------------------------
+   LOGIN / PROFILE
+   ------------------------------------------------------------ */
+
+.pl-world-page .pl-world-profile-login {
+  width: auto !important;
+
+  min-width: 42px !important;
+
+  height: 27px !important;
+
+  flex:
+    0
+    0
+    auto !important;
+
+  padding:
+    0
+    5px !important;
+
+  gap: 3px !important;
+
+  font-size: 6px !important;
+}
+
+
+.pl-world-page .pl-world-profile-login svg {
+  width: 10px !important;
+
+  height: 10px !important;
+}
+
+
+/* ------------------------------------------------------------
+   TICKER DIRECTLY UNDER HEADER
+   ------------------------------------------------------------ */
+
+.pl-world-page .pl-world-promo-ticker-top {
+  top: 64px !important;
+
+  height: 27px !important;
+
+  min-height: 27px !important;
+}
+
+
+.pl-world-page
+.pl-world-promo-ticker-top
+.pl-world-promo-track {
+  height: 27px !important;
+
+  min-height: 27px !important;
+
+  padding:
+    4px
+    10px !important;
+
+  font-size: 7px !important;
+}
+
+
+/* ------------------------------------------------------------
+   HIDE OLD WORLDCANVAS HEADER + OLD WORLDCANVAS BOTTOM BAR
+   Keep level map itself completely intact.
+   ------------------------------------------------------------ */
+
+.pl-world-page .pl2d-world-header,
+.pl-world-page .pl2d-world-header-final {
+  display: none !important;
+}
+
+
+/*
+ * Old embedded map footer/navigation variants.
+ */
+.pl-world-page .pl2d-bottom-nav,
+.pl-world-page .pl2d-bottom-bar,
+.pl-world-page .pl2d-world-nav,
+.pl-world-page .pl2d-world-footer,
+.pl-world-page .pl2d-mobile-nav {
+  display: none !important;
+}
+
+
+/* ------------------------------------------------------------
+   OUR ONLY BOTTOM NAVIGATION
+   ------------------------------------------------------------ */
+
+.pl-world-page .pl-world-primary-nav {
+  display: grid !important;
+
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(0, 1fr)
+    ) !important;
+
+  position: fixed !important;
+
+  left: 6px !important;
+  right: 6px !important;
+
+  bottom:
+    max(
+      7px,
+      env(safe-area-inset-bottom)
+    ) !important;
+
+  z-index: 120 !important;
+
+  width: auto !important;
+
+  padding: 5px !important;
+
+  gap: 5px !important;
+}
+
+
+.pl-world-page
+.pl-world-primary-nav
+button {
+  min-height: 51px !important;
+
+  display: flex !important;
+
+  flex-direction: column !important;
+
+  justify-content: center !important;
+
+  align-items: center !important;
+
+  gap: 3px !important;
+}
+
+
+.pl-world-page
+.pl-world-primary-nav
+button span {
+  font-size: 7px !important;
+
+  font-weight: 900 !important;
+
+  line-height: 1 !important;
+}
+
+
+.pl-world-page
+.pl-world-primary-nav
+button small {
+  display: none !important;
+}
+
+
+/* ------------------------------------------------------------
+   400px MOBILE
+   ------------------------------------------------------------ */
+
+@media (max-width: 420px) {
+
+  .pl-world-page .pl-world-final-hud {
+    grid-template-columns:
+      minmax(132px, 1fr)
+      auto
+      auto !important;
+
+    column-gap:
+      4px !important;
+
+    padding:
+      4px
+      5px !important;
+  }
+
+
+  .pl-world-page
+  .pl-world-final-brand
+  img {
+    width:
+      31px !important;
+
+    height:
+      31px !important;
+
+    max-width:
+      31px !important;
+
+    flex-basis:
+      31px !important;
+  }
+
+
+  .pl-world-page
+  .pl-world-final-brand
+  strong {
+    font-size:
+      14px !important;
+  }
+
+
+  .pl-world-page
+  .pl-world-final-prize {
+    min-width:
+      91px !important;
+
+    height:
+      34px !important;
+
+    padding:
+      2px
+      5px !important;
+  }
+
+
+  .pl-world-page
+  .pl-world-final-prize
+  span {
+    font-size:
+      4px !important;
+  }
+
+
+  .pl-world-page
+  .pl-world-final-prize
+  strong {
+    font-size:
+      13px !important;
+  }
+
+
+  .pl-world-page
+  .pl-world-profile-login {
+    min-width:
+      38px !important;
+
+    height:
+      25px !important;
+
+    padding:
+      0
+      4px !important;
+
+    font-size:
+      6px !important;
+  }
+
+}
+
+
+/* ============================================================
+   FREE WORLD SHARED HEADER AND POSITION V4
+   ============================================================ */
+
+/*
+ * The real PublicLayout Header is now the ONLY Free World header.
+ */
+.pl-world-final-hud {
+  display: none !important;
+}
+
+
+/*
+ * World ticker sits directly beneath the real shared header.
+ */
+.pl-world-page .pl-world-promo-ticker-top {
+  top: 56px !important;
+  z-index: 39 !important;
+}
+
+
+/*
+ * Never show Level 1000 while waiting for backend progress
+ * and initial scroll positioning.
+ */
+.pl2d-viewport.is-positioning {
+  visibility: hidden !important;
+}
+
+.pl2d-viewport.is-position-ready {
+  visibility: visible !important;
+}
+
+
+/*
+ * Never animate automatic initial repositioning.
+ */
+.pl2d-viewport {
+  scroll-behavior: auto !important;
+}
+
+
+/*
+ * The old internal 2D world header remains disabled.
+ */
+.pl-world-page .pl2d-world-header,
+.pl-world-page .pl2d-world-header-final {
+  display: none !important;
+}
+
+
+@media (min-width: 640px) {
+
+  .pl-world-page .pl-world-promo-ticker-top {
+    top: 64px !important;
+  }
+
+}
+
+
+@media (min-width: 768px) {
+
+  .pl-world-page .pl-world-promo-ticker-top {
+    top: 70px !important;
+  }
+
+}
+
+
+/* ============================================================
+   FREE WORLD BELOW REAL HEADER V5
+   Real Paid Leagues Header stays above Free World.
+   ============================================================ */
+
+
+/*
+ * Original Free World was:
+ *
+ * position: fixed;
+ * inset: 0;
+ * z-index: 1000;
+ *
+ * That covered the real PublicLayout / Paid Leagues header.
+ *
+ * Free World must begin BELOW the shared header.
+ */
+.pl-world-page {
+  position: fixed !important;
+
+  top: 56px !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  left: 0 !important;
+
+  inset: 56px 0 0 0 !important;
+
+  z-index: 30 !important;
+
+  overflow: hidden !important;
+}
+
+
+/*
+ * Keep the real shared header above the Free World.
+ */
+body [data-testid="site-header"] {
+  position: relative;
+
+  z-index: 100 !important;
+}
+
+
+/*
+ * Free World ticker belongs immediately below
+ * the actual Paid Leagues header.
+ */
+.pl-world-page .pl-world-promo-ticker-top {
+  position: fixed !important;
+
+  top: 56px !important;
+
+  z-index: 35 !important;
+}
+
+
+/*
+ * Ensure the map itself does not overlap the ticker.
+ */
+.pl-world-page .pl2d-viewport {
+  height: 100% !important;
+}
+
+
+/* ============================================================
+   TABLET HEADER HEIGHT
+   ============================================================ */
+
+@media (min-width: 640px) {
+
+  .pl-world-page {
+    top: 64px !important;
+
+    inset:
+      64px
+      0
+      0
+      0 !important;
+  }
+
+  .pl-world-page .pl-world-promo-ticker-top {
+    top:
+      64px !important;
+  }
+
+}
+
+
+/* ============================================================
+   DESKTOP HEADER HEIGHT
+   ============================================================ */
+
+@media (min-width: 768px) {
+
+  .pl-world-page {
+    top: 70px !important;
+
+    inset:
+      70px
+      0
+      0
+      0 !important;
+  }
+
+  .pl-world-page .pl-world-promo-ticker-top {
+    top:
+      70px !important;
+  }
+
+}

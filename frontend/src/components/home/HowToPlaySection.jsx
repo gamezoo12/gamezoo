@@ -29,14 +29,14 @@ const STEPS = [
   {
     n: 3,
     title: 'Answer the skill question',
-    text: 'A quick maths problem — get it right and your ticket is valid for the draw.',
+    text: 'Complete the skill requirement correctly so your entry qualifies under the published competition rules.',
     img: 'https://images.pexels.com/photos/5905902/pexels-photo-5905902.jpeg?auto=compress&cs=tinysrgb&h=600&w=600',
     alt: 'Focused adult solving a maths problem on a phone',
   },
   {
     n: 4,
-    title: 'Winner announced live',
-    text: 'Live draws on our Production channel. Cash paid in 24 hours, prizes shipped free.',
+    title: 'Winner confirmed',
+    text: 'The result is verified under the published competition rules and the successful winner is contacted after verification.',
     img: 'https://images.pexels.com/photos/7414284/pexels-photo-7414284.jpeg?auto=compress&cs=tinysrgb&h=600&w=600',
     alt: 'Happy adult celebrating a win on their phone with confetti',
   },

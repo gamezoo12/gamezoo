@@ -16,7 +16,7 @@ CONTEST_TITLE = "BUG34 UI Checkout Route 1785608389"
 CONTEST_IMAGE = "https://images.pexels.com/photos/928187/pexels-photo-928187.jpeg?auto=compress&cs=tinysrgb&h=650&w=940"
 ADMIN_EMAIL = "bachanta8@gmail.com"
 ADMIN_PASSWORD = "Herts@910022"
-BASE_URL = "https://contest-arena-16.preview.emergentagent.com"
+BASE_URL = "https://import-verify-6.preview.emergentagent.com"
 
 
 def url(path: str) -> str:

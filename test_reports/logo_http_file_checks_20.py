@@ -5,7 +5,7 @@ import os
 import urllib.request
 from pathlib import Path
 
-BASE_URL = os.environ.get('TEST_BASE_URL', 'https://contest-arena-16.preview.emergentagent.com')
+BASE_URL = os.environ.get('TEST_BASE_URL', 'https://import-verify-6.preview.emergentagent.com')
 ASSET_URL = 'https://customer-assets.emergentagent.com/job_contest-arena-16/artifacts/t9zu926h_image.png'
 OUT_DIR = Path('/app/test_reports/logo_evidence')
 OUT_DIR.mkdir(parents=True, exist_ok=True)
