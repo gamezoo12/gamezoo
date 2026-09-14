@@ -210,6 +210,25 @@ export default function FreeWorldAdmin() {
     }
   };
 
+  const cancelSchedule = async () => {
+    if (!window.confirm('Cancel the scheduled Season 1? It has not gone live yet.')) return;
+    setLaunching(true);
+    try {
+      await worldAdminAPI.deactivate();
+      toast({ title: 'Schedule cancelled' });
+      await loadCore();
+    } catch (e) {
+      const d = e?.response?.data?.detail;
+      toast({
+        title: 'Cancel failed',
+        description: (typeof d === 'string' ? d : d?.message) || 'Please retry.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLaunching(false);
+    }
+  };
+
   return (
     <div className="space-y-6" data-testid="free-world-admin">
       {/* Header */}
@@ -273,14 +292,31 @@ export default function FreeWorldAdmin() {
               LAUNCH / SCHEDULE FREE WORLD SEASON
             </Button>
           ) : (
-            <div className="inline-flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3"
-              data-testid="season-scheduled-banner">
-              <span className="font-black text-emerald-800 uppercase tracking-wide text-sm">
-                Season 1 {seasonStatus === 'LIVE' ? 'Live' : 'Scheduled'}
-              </span>
-              <span className="text-sm text-emerald-700">
-                {ukDate(c1?.start_at)}
-              </span>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="inline-flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3"
+                data-testid="season-scheduled-banner">
+                <span className="font-black text-emerald-800 uppercase tracking-wide text-sm">
+                  Season 1 {seasonStatus === 'LIVE' ? 'Live' : 'Scheduled'}
+                </span>
+                <span className="text-sm text-emerald-700">
+                  {ukDate(c1?.start_at)}
+                </span>
+              </div>
+              {seasonStatus === 'SCHEDULED' && (
+                <>
+                  <Button variant="outline" onClick={() => setLaunchOpen(true)}
+                    data-testid="reschedule-season-button">
+                    Reschedule
+                  </Button>
+                  <Button variant="outline"
+                    className="text-rose-600 border-rose-200 hover:bg-rose-50"
+                    disabled={launching}
+                    onClick={cancelSchedule}
+                    data-testid="cancel-schedule-button">
+                    Cancel schedule
+                  </Button>
+                </>
+              )}
             </div>
           )}
         </div>

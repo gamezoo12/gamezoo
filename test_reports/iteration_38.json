@@ -1,0 +1,44 @@
+{
+  "summary": "Iter38 read-only verification of Admin Free World 4-section page, new admin endpoints, EditContestDialog Real/Coming-Soon toggle, and light regression. All 7 backend tests pass and all UI data-testids render correctly. No mutations performed (no launch/reschedule/cancel/save).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": [
+    {"screen": "Admin FreeWorld / Users filter selects", "issues": ["React hydration warning: <span> rendered as child of <option> due to dev-time x-ve-dynamic wrappers on <option value={n}>. Non-blocking in preview; check that production build does not inject these wrappers."]}
+  ]},
+  "test_report_links": ["/app/backend/tests/test_iter38_free_world_admin.py", "/app/test_reports/pytest/iter38.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "FreeWorldAdmin.jsx: hydration warning around <option> element with dynamic value={n} - option children should be plain strings, not wrapped spans; ensure no ve-dev wrappers leak into option text in production build.",
+    "Backend /api/admin/world/season-schedule and /api/admin/world/users correctly enforce auth (401 without token) and expose only safe user fields."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter38_free_world_admin.py"],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100% (all data-testids render; toggle behavior correct)"},
+  "test_credentials": "Admin bachanta8@gmail.com / Herts@910022 (super_admin). Seed users: player1@example.com, player_broke@example.com, bachanta8@gmail.com.",
+  "seed_data_creation": "None - strictly read-only verification.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Season 1 remains SCHEDULED at 15 Sep 2026 00:00 Europe/London with 100 championships. FreeWorldAdmin at /admin/free-world; contest editor uses New button on /admin/competitions. Do not click reschedule submit / cancel schedule / launch / save contest.",
+  "verified_flows": {
+    "backend": [
+      "POST /api/auth/login -> 200, role super_admin, token issued",
+      "GET /health -> 200; GET /ready -> 200",
+      "GET /api/admin/world/season-schedule (no auth) -> 401",
+      "GET /api/admin/world/season-schedule (admin) -> 200, scheduled=true, 100 championships, C1 status=scheduled",
+      "GET /api/admin/world/users (no auth) -> 401",
+      "GET /api/admin/world/users (admin) -> 200, no password/token/kyc fields, paginated"
+    ],
+    "frontend": [
+      "/admin/free-world renders data-testid free-world-admin",
+      "4 sections present: section-season-control, section-current-championship, section-season-schedule, section-free-world-users",
+      "season-status text = SCHEDULED",
+      "season-scheduled-banner + reschedule-season-button + cancel-schedule-button visible",
+      "launch-season-button NOT rendered while scheduled",
+      "season-schedule-table renders with schedule-row-1 (15 Sept 2026) and schedule-row-100 (16 Dec 2029) both visible in Europe/London dates",
+      "users-table with users-search, users-filter-level/completed/champion, users-prev/next/page/total all visible",
+      "Clicking a user row opens user-detail-drawer; drawer-close closes it",
+      "EditContestDialog: contest-mode-toggle with contest-mode-real (selected by default) and contest-mode-coming-soon visible",
+      "COMING SOON mode shows only Title + Competition Image (contest-image-input, Upload image button)",
+      "REAL CONTEST mode shows full form (Prize amount, Ticket price, Number of tickets, End date, Entry Mode, Attempts, Leaderboard, Winner selection, Skill game section)",
+      "Regression: homepage, /competitions, /world (guest), /wallet, /admin all load 200"
+    ]
+  }
+}
