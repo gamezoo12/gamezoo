@@ -300,6 +300,14 @@ export const worldAdminAPI = {
         },
       },
     ).then(r => r.data),
+
+  seasonSchedule: (previewStart) =>
+    api.get('/admin/world/season-schedule', {
+      params: previewStart ? { preview_start: previewStart } : {},
+    }).then(r => r.data),
+
+  users: (params = {}) =>
+    api.get('/admin/world/users', { params }).then(r => r.data),
 };
 
 export const worldAPI = {

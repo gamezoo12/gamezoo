@@ -197,10 +197,26 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
         <DialogHeader><DialogTitle>{isCreate ? 'Create new contest' : 'Edit contest'}</DialogTitle></DialogHeader>
 
         <div className="space-y-4 py-3">
+          {/* Contest mode selector */}
+          <div className="grid grid-cols-2 gap-2" data-testid="contest-mode-toggle">
+            <button type="button" onClick={() => upd('public_coming_soon', false)}
+              data-testid="contest-mode-real"
+              className={`rounded-xl border-2 px-4 py-3 text-sm font-extrabold ${!form.public_coming_soon ? 'border-[#6C2BFF] bg-[#6C2BFF]/5 text-[#6C2BFF]' : 'border-slate-200 text-slate-500'}`}>
+              REAL CONTEST
+            </button>
+            <button type="button" onClick={() => upd('public_coming_soon', true)}
+              data-testid="contest-mode-coming-soon"
+              className={`rounded-xl border-2 px-4 py-3 text-sm font-extrabold ${form.public_coming_soon ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-slate-200 text-slate-500'}`}>
+              COMING SOON
+            </button>
+          </div>
+
           <div>
             <Label>Title</Label>
             <Input value={form.title || ''} onChange={e => upd('title', e.target.value)} />
           </div>
+
+          {!form.public_coming_soon && (<>
           <div>
             <Label>Subtitle</Label>
             <Input value={form.subtitle || ''} onChange={e => upd('subtitle', e.target.value)} />
@@ -396,6 +412,8 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
             </select>
           </div>
 
+          </>)}
+
           <div>
             <Label>Competition Image</Label>
             <input
@@ -466,6 +484,8 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
               </div>
             </details>
           </div>
+
+          {!form.public_coming_soon && (<>
           <div className="flex flex-wrap items-center gap-4">
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!form.jackpot} onChange={e => upd('jackpot', e.target.checked)} /> Featured Prize</label>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!form.featured} onChange={e => upd('featured', e.target.checked)} /> Featured</label>
@@ -647,6 +667,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
               <div className="mt-3"><InstantWinComposer contestId={contest.contest_id} /></div>
             </details>
           )}
+          </>)}
         </div>
 
         <DialogFooter>

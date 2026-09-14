@@ -1649,6 +1649,217 @@ async def admin_world_entries(
     }
 
 
+@admin_router.get("/season-schedule")
+async def admin_world_season_schedule(
+    request: Request,
+    preview_start: Optional[str] = None,
+):
+    """Read-only. Derive the full 100-championship schedule from the
+    authoritative season start using championship_window(). Never mutates.
+    If the season is scheduled, its start is used; otherwise an optional
+    ?preview_start=<ISO> lets the admin preview a prospective launch date.
+    All datetimes are returned as UTC ISO; the admin UI renders Europe/London.
+    """
+    await require_admin(request)
+    db = get_db()
+
+    now = _utcnow()
+
+    setting = await db.world_settings.find_one(
+        {"_id": "active_global_contest", "season_id": WORLD_SEASON_ID}
+    )
+    scheduled_start = _ensure_aware_datetime(
+        (setting or {}).get("season_start_at")
+    )
+
+    season_start = scheduled_start
+    source = "scheduled" if scheduled_start else None
+
+    if season_start is None and preview_start:
+        try:
+            parsed = datetime.fromisoformat(
+                preview_start.replace("Z", "+00:00")
+            )
+            season_start = ensure_utc(parsed)
+            source = "preview"
+        except Exception:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid preview_start timestamp.",
+            )
+
+    if season_start is None:
+        return {
+            "season_id": WORLD_SEASON_ID,
+            "scheduled": False,
+            "source": None,
+            "season_start_at": None,
+            "server_time": _serialize_datetime(now),
+            "championship_count": WORLD_CONTEST_COUNT,
+            "championships": [],
+        }
+
+    championships = []
+    for number in range(1, WORLD_CONTEST_COUNT + 1):
+        w = championship_window(season_start, number)
+        start_at = ensure_utc(w["start_at"])
+        close_at = ensure_utc(w["champion_closes_at"])
+        next_start = w.get("next_start_at")
+        next_start = ensure_utc(next_start) if next_start else None
+        level_unlocks = w.get("level_unlocks") or []
+
+        if now < start_at:
+            status = "scheduled"
+        elif now >= close_at:
+            status = "completed"
+        else:
+            status = "live"
+
+        championships.append({
+            "championship_number": number,
+            "start_at": _serialize_datetime(start_at),
+            "l1_start": _serialize_datetime(
+                ensure_utc(level_unlocks[0]) if level_unlocks else start_at
+            ),
+            "l10_start": _serialize_datetime(
+                ensure_utc(level_unlocks[9])
+                if len(level_unlocks) >= 10 else None
+            ),
+            "champion_opens_at": _serialize_datetime(
+                ensure_utc(w["champion_opens_at"])
+            ),
+            "champion_closes_at": _serialize_datetime(close_at),
+            "next_start_at": _serialize_datetime(next_start),
+            "status": status,
+        })
+
+    active = await _active_contest(db)
+
+    return {
+        "season_id": WORLD_SEASON_ID,
+        "scheduled": source == "scheduled",
+        "source": source,
+        "season_start_at": _serialize_datetime(season_start),
+        "server_time": _serialize_datetime(now),
+        "championship_count": WORLD_CONTEST_COUNT,
+        "active_championship_number": (
+            active.get("contest_number") if active else None
+        ),
+        "championships": championships,
+    }
+
+
+@admin_router.get("/users")
+async def admin_world_users(
+    request: Request,
+    page: int = 1,
+    page_size: int = 25,
+    search: Optional[str] = None,
+    level: Optional[int] = None,
+    championship: Optional[int] = None,
+    completed: Optional[bool] = None,
+    champion: Optional[bool] = None,
+    qualified: Optional[bool] = None,
+):
+    """Read-only, server-side paginated Free World user progress for admin
+    monitoring. Reuses world_progress + users. Exposes only safe fields —
+    never passwords, tokens, or KYC. Performs NO mutation.
+    """
+    await require_admin(request)
+    db = get_db()
+
+    page = max(1, int(page))
+    page_size = max(1, min(int(page_size), 100))
+
+    query: dict[str, Any] = {"season_id": WORLD_SEASON_ID}
+
+    if level is not None:
+        query["current_level"] = int(level)
+    if championship is not None:
+        query["champion_stage"] = int(championship)
+    if champion is True:
+        query["champion_ready"] = True
+    if qualified is True:
+        query["qualified"] = True
+
+    # Text search resolves against users, then constrains progress by user_id.
+    if search:
+        term = search.strip()
+        user_matches = await db.users.find(
+            {
+                "$or": [
+                    {"email": {"$regex": term, "$options": "i"}},
+                    {"name": {"$regex": term, "$options": "i"}},
+                    {"public_id": {"$regex": term, "$options": "i"}},
+                    {"user_id": term},
+                ]
+            },
+            {"_id": 0, "user_id": 1},
+        ).to_list(500)
+        ids = [u["user_id"] for u in user_matches]
+        query["user_id"] = {"$in": ids or ["__none__"]}
+
+    total = await db.world_progress.count_documents(query)
+
+    rows = await db.world_progress.find(
+        query, {"_id": 0}
+    ).sort("updated_at", -1).skip(
+        (page - 1) * page_size
+    ).to_list(page_size)
+
+    user_ids = [r.get("user_id") for r in rows if r.get("user_id")]
+    users_map: dict[str, dict] = {}
+    if user_ids:
+        for u in await db.users.find(
+            {"user_id": {"$in": user_ids}},
+            {"_id": 0, "user_id": 1, "name": 1, "email": 1, "public_id": 1},
+        ).to_list(len(user_ids)):
+            users_map[u["user_id"]] = u
+
+    active = await _active_contest(db)
+    active_number = active.get("contest_number") if active else None
+
+    items = []
+    for r in rows:
+        u = users_map.get(r.get("user_id"), {})
+        completed_levels = [int(x) for x in (r.get("completed_levels") or [])]
+        is_completed = len(completed_levels) >= 10
+        if completed is True and not is_completed:
+            continue
+        if completed is False and is_completed:
+            continue
+        items.append({
+            "user_id": r.get("user_id"),
+            "public_id": u.get("public_id"),
+            "name": u.get("name") or u.get("display_name"),
+            "email": u.get("email"),
+            "current_championship": active_number,
+            "champion_stage": int(r.get("champion_stage") or 1),
+            "current_level": int(r.get("current_level") or 1),
+            "highest_unlocked_level": int(
+                r.get("highest_unlocked_level") or 1
+            ),
+            "completed_levels": completed_levels,
+            "completed_count": len(completed_levels),
+            "all_levels_completed": is_completed,
+            "champion_ready": bool(r.get("champion_ready")),
+            "qualified": bool(r.get("qualified")),
+            "winner_status": r.get("winner_status"),
+            "last_activity": _serialize_datetime(r.get("updated_at")),
+        })
+
+    return {
+        "season_id": WORLD_SEASON_ID,
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+        "total_pages": max(1, (total + page_size - 1) // page_size),
+        "server_time": _serialize_datetime(_utcnow()),
+        "items": items,
+    }
+
+
+
 # ===========================================================================
 # FREE WORLD PROGRESSION LEVELS Ã¢â‚¬â€ ROYAL VILLAGE
 # ===========================================================================
