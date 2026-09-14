@@ -60,7 +60,7 @@ class TestReferralFlow:
     def test_complete_referral_grants_tickets(self, alice, bob):
         # Bob calls /complete
         r = requests.post(f'{BASE_URL}/api/referrals/complete', headers=_auth(bob['token']), timeout=30)
-        # It may return 200 with tickets granted, OR 404 if no live sub-£5 contest exists.
+        # It may return 200 with tickets granted, OR 404 if no live sub-Â£5 contest exists.
         # For a robust test, accept both but check the referral flip.
         assert r.status_code in (200, 404), r.text
         if r.status_code == 200:
@@ -82,8 +82,8 @@ class TestReferralFlow:
 
 
 # ---------------------------------------------------------------------------
-# Fallback branch: if NO live contest with price<=£5 exists, /complete must
-# still succeed and credit £5 to BOTH the referrer and the referred user's
+# Fallback branch: if NO live contest with price<=Â£5 exists, /complete must
+# still succeed and credit Â£5 to BOTH the referrer and the referred user's
 # wallet (kind='referral_bonus').
 # ---------------------------------------------------------------------------
 ADMIN_EMAIL = 'bachanta8@gmail.com'
@@ -100,7 +100,7 @@ def admin_token():
 
 @pytest.fixture(scope='class')
 def hide_cheap_contests(admin_token):
-    """Temporarily pause all live contests with price<=£5 so the fallback branch is exercised."""
+    """Temporarily pause all live contests with price<=Â£5 so the fallback branch is exercised."""
     # Find all live contests price<=5 via admin listing
     r = requests.get(f'{BASE_URL}/api/admin/contests', headers=_auth(admin_token), timeout=30)
     assert r.status_code == 200, r.text
@@ -111,9 +111,9 @@ def hide_cheap_contests(admin_token):
             resp = requests.post(f'{BASE_URL}/api/admin/contests/{c["contest_id"]}/pause', headers=_auth(admin_token), timeout=30)
             if resp.status_code == 200:
                 paused_ids.append(c['contest_id'])
-    # Also create a fresh live contest with price=£10 to ensure at least one live contest exists
+    # Also create a fresh live contest with price=Â£10 to ensure at least one live contest exists
     payload = {
-        'title': 'TEST Fallback Contest £10',
+        'title': 'TEST Fallback Contest Â£10',
         'category': 'prize-draws',
         'price': 10.0,
         'tickets_total': 100,
@@ -135,7 +135,7 @@ def hide_cheap_contests(admin_token):
 
 
 class TestReferralFallback:
-    """When no live contest ≤£5 exists, /complete should credit £5 to both parties."""
+    """When no live contest â‰¤Â£5 exists, /complete should credit Â£5 to both parties."""
 
     def test_fallback_credits_both_wallets(self, hide_cheap_contests):
         # Register referrer
@@ -164,7 +164,7 @@ class TestReferralFallback:
         ref_bal_before = float(w_ref_before.get('balance', 0))
         ed_bal_before = float(w_ed_before.get('balance', 0))
 
-        # Call complete — with no live contest ≤ £5, fallback should credit £5 to both
+        # Call complete â€” with no live contest â‰¤ Â£5, fallback should credit Â£5 to both
         cmp = requests.post(f'{BASE_URL}/api/referrals/complete', headers=_auth(ed_token), timeout=30)
         assert cmp.status_code == 200, f'Expected 200 with fallback credit, got {cmp.status_code}: {cmp.text}'
         body = cmp.json()
@@ -185,6 +185,6 @@ class TestReferralFallback:
         txs_ref = requests.get(f'{BASE_URL}/api/wallet/transactions', headers=_auth(ref_token), timeout=30).json()['transactions']
         txs_ed = requests.get(f'{BASE_URL}/api/wallet/transactions', headers=_auth(ed_token), timeout=30).json()['transactions']
         assert any(t['kind'] == 'referral_bonus' and float(t['amount']) == 5.0 for t in txs_ref), \
-            f'Referrer wallet has no referral_bonus tx of £5: {txs_ref}'
+            f'Referrer wallet has no referral_bonus tx of Â£5: {txs_ref}'
         assert any(t['kind'] == 'referral_bonus' and float(t['amount']) == 5.0 for t in txs_ed), \
-            f'Referred wallet has no referral_bonus tx of £5: {txs_ed}'
+            f'Referred wallet has no referral_bonus tx of Â£5: {txs_ed}'

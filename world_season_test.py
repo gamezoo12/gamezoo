@@ -19,7 +19,7 @@ ADMIN_PASSWORD = "Herts@910022"
 
 def log_test(test_name, status, details=""):
     """Log test result"""
-    symbol = "✅" if status == "PASS" else "❌"
+    symbol = "âœ…" if status == "PASS" else "âŒ"
     print(f"\n{symbol} Test {test_name}: {status}")
     if details:
         print(f"   {details}")
@@ -45,7 +45,7 @@ def main():
     audit_count_after = None
     
     # ========================================================================
-    # TEST a) Login as super_admin → get Bearer token
+    # TEST a) Login as super_admin â†’ get Bearer token
     # ========================================================================
     try:
         print("\n[TEST a] Admin Login")
@@ -124,7 +124,7 @@ def main():
                 needs_config.append("winner_count (must be 5)")
             
             if needs_config:
-                print(f"   ⚠️  Contest #1 needs configuration: {', '.join(needs_config)}")
+                print(f"   âš ï¸  Contest #1 needs configuration: {', '.join(needs_config)}")
                 print("   Applying minimal required config...")
                 
                 # Set winner_count to 5
@@ -202,7 +202,7 @@ def main():
         return
     
     # ========================================================================
-    # TEST d) Re-POST activate with SAME start_at/end_at → no-op
+    # TEST d) Re-POST activate with SAME start_at/end_at â†’ no-op
     # ========================================================================
     try:
         print("\n[TEST d] Re-activate with SAME start_at/end_at (no-op)")
@@ -289,7 +289,7 @@ def main():
         return
     
     # ========================================================================
-    # TEST g) Auth: POST activate WITHOUT token → 401/403
+    # TEST g) Auth: POST activate WITHOUT token â†’ 401/403
     # ========================================================================
     try:
         print("\n[TEST g] Activate without auth token")
@@ -356,9 +356,9 @@ def main():
                 
                 # Expected unlock_at = S + (level-1) * 2 days (based on default unlock_after_days)
                 # But the implementation uses unlock_after_days from config
-                # Level 1: unlock_after_days = 0 → S + 0 days = S
-                # Level 2: unlock_after_days = 2 → S + 2 days = S + 48h
-                # Level 3: unlock_after_days = 4 → S + 4 days = S + 96h
+                # Level 1: unlock_after_days = 0 â†’ S + 0 days = S
+                # Level 2: unlock_after_days = 2 â†’ S + 2 days = S + 48h
+                # Level 3: unlock_after_days = 4 â†’ S + 4 days = S + 96h
                 
                 # Wait, the review request says "exact 24h schedule" and expects:
                 # levels[0].unlock_at == S
@@ -419,9 +419,9 @@ def main():
         )
         
         if response.status_code == 200:
-            print("   ✓ Contest #1 is now LIVE (start_at in past)")
+            print("   âœ“ Contest #1 is now LIVE (start_at in past)")
             
-            # Now try to activate with a DIFFERENT start_at → expect 409
+            # Now try to activate with a DIFFERENT start_at â†’ expect 409
             different_start_at = now - timedelta(minutes=30)
             different_end_at = now + timedelta(days=10)
             
@@ -445,7 +445,7 @@ def main():
             else:
                 log_test("i.1", "FAIL", f"Expected 409, got HTTP {response.status_code}")
             
-            # Re-submit the SAME start_at while live → expect 200 no-op
+            # Re-submit the SAME start_at while live â†’ expect 200 no-op
             print("   Re-submitting SAME start_at while LIVE (should be no-op)...")
             
             # First, get the current contest state to see what's stored
@@ -512,12 +512,12 @@ def main():
         )
         
         if response.status_code == 200:
-            print("   ✓ Season deactivated successfully")
+            print("   âœ“ Season deactivated successfully")
         else:
-            print(f"   ⚠️  Failed to deactivate: HTTP {response.status_code}")
+            print(f"   âš ï¸  Failed to deactivate: HTTP {response.status_code}")
             
     except Exception as e:
-        print(f"   ⚠️  Cleanup exception: {str(e)}")
+        print(f"   âš ï¸  Cleanup exception: {str(e)}")
     
     # ========================================================================
     # SUMMARY
@@ -527,17 +527,17 @@ def main():
     print("=" * 80)
     print("\nAll tests executed. Review results above.")
     print("\nKey verifications:")
-    print("  ✓ Admin authentication working")
-    print("  ✓ Seed and configuration working")
-    print("  ✓ Activation with future start_at working")
-    print("  ✓ Idempotent no-op re-launch working (no duplicate audit)")
-    print("  ✓ Reschedule while SCHEDULED allowed")
-    print("  ✓ Audit log entry created on real launch")
-    print("  ✓ Auth required for admin endpoints")
-    print("  ✓ Schedule unlock_at and seconds_until_unlock present")
-    print("  ✓ 409 returned when trying to shift LIVE season")
-    print("  ✓ No-op re-launch while LIVE working")
-    print("  ✓ Season deactivated (cleanup)")
+    print("  âœ“ Admin authentication working")
+    print("  âœ“ Seed and configuration working")
+    print("  âœ“ Activation with future start_at working")
+    print("  âœ“ Idempotent no-op re-launch working (no duplicate audit)")
+    print("  âœ“ Reschedule while SCHEDULED allowed")
+    print("  âœ“ Audit log entry created on real launch")
+    print("  âœ“ Auth required for admin endpoints")
+    print("  âœ“ Schedule unlock_at and seconds_until_unlock present")
+    print("  âœ“ 409 returned when trying to shift LIVE season")
+    print("  âœ“ No-op re-launch while LIVE working")
+    print("  âœ“ Season deactivated (cleanup)")
 
 if __name__ == "__main__":
     main()

@@ -7,7 +7,7 @@ Adds coverage for:
 - /api/users/notifications        (list + mark-read)
 - Background scheduler (60s tick) auto-draws overdue live contests + creates winner + notification
 
-Uses pymongo (sync driver) for direct DB seed/cleanup — the backend server itself
+Uses pymongo (sync driver) for direct DB seed/cleanup â€” the backend server itself
 uses motor asynchronously; there is no client-loop conflict on the test side.
 """
 import os

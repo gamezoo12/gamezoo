@@ -143,7 +143,7 @@ export default function Competitions() {
             : 'New competitions are on the way.'}
 
           {comingSoonCount > 0 &&
-            ` • ${comingSoonCount} coming soon`}
+            ` â€¢ ${comingSoonCount} coming soon`}
         </p>
       </div>
 
@@ -159,7 +159,7 @@ export default function Competitions() {
             onChange={e =>
               setQ(e.target.value)
             }
-            placeholder="Search competitions…"
+            placeholder="Search competitionsâ€¦"
             className="pl-9"
           />
         </div>

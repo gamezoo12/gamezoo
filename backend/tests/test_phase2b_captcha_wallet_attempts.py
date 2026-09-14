@@ -1,11 +1,11 @@
 """Phase 2B backend tests.
 
 Covers:
-  - GET  /api/config/turnstile         → returns enabled + site_key
-  - POST /api/games/captcha/verify      → 401 without auth; auth → challenge_token issued (TEST secret always passes)
-  - POST /api/payments/wallet-topup/custom → min £5 / max £1000 validation + happy path (session_id + checkout_url)
-  - POST /api/payments/wallet-topup/checkout (legacy)  → still works
-  - Attempts-per-ticket enforcement (2 tickets × 3 apt = 6 attempts allowed; 7th rejected)
+  - GET  /api/config/turnstile         â†’ returns enabled + site_key
+  - POST /api/games/captcha/verify      â†’ 401 without auth; auth â†’ challenge_token issued (TEST secret always passes)
+  - POST /api/payments/wallet-topup/custom â†’ min Â£5 / max Â£1000 validation + happy path (session_id + checkout_url)
+  - POST /api/payments/wallet-topup/checkout (legacy)  â†’ still works
+  - Attempts-per-ticket enforcement (2 tickets Ã— 3 apt = 6 attempts allowed; 7th rejected)
   - GET  /api/orders/my-games returns tickets_owned + attempts_per_ticket + attempts_remaining
 """
 import os
@@ -154,7 +154,7 @@ class TestWalletTopup:
 
 
 # =========================================================================
-# Attempts-per-ticket enforcement (2 tickets × 3 apt = 6 attempts)
+# Attempts-per-ticket enforcement (2 tickets Ã— 3 apt = 6 attempts)
 # =========================================================================
 class TestAttemptsPerTicket:
     def _create_skill_game_contest(self, admin_tok, apt=3):
@@ -210,7 +210,7 @@ class TestAttemptsPerTicket:
         user_id = data['user']['user_id']
         headers = {'Authorization': f'Bearer {user_tok}'}
 
-        # Fund the wallet via the MOCKED player top-up route (min £10 for legacy endpoint).
+        # Fund the wallet via the MOCKED player top-up route (min Â£10 for legacy endpoint).
         r = requests.post(
             f"{API}/wallet/topup",
             json={'amount': 10.0},
@@ -225,7 +225,7 @@ class TestAttemptsPerTicket:
             headers=headers, timeout=15,
         )
         assert r.status_code == 200, r.text
-        # Fetch my tickets — grab the first one to use as ticket_id
+        # Fetch my tickets â€” grab the first one to use as ticket_id
         r = requests.get(f"{API}/orders/my-tickets", headers=headers, timeout=10)
         assert r.status_code == 200
         tickets = [t for t in r.json() if t['contest_id'] == cid]

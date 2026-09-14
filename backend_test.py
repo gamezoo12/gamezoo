@@ -17,10 +17,10 @@ ADMIN_PASSWORD = "Herts@910022"
 # QBANK for skill answers (from seed.py)
 QBANK = [
     ('What is 12 + 7?', ['17', '19', '21', '23'], '19', 'math'),
-    ('What is 8 × 6?', ['42', '46', '48', '54'], '48', 'math'),
-    ('What is 100 ÷ 4?', ['20', '25', '30', '40'], '25', 'math'),
+    ('What is 8 Ã— 6?', ['42', '46', '48', '54'], '48', 'math'),
+    ('What is 100 Ã· 4?', ['20', '25', '30', '40'], '25', 'math'),
     ('What is 15 - 8?', ['5', '6', '7', '8'], '7', 'math'),
-    ('What is 9 × 9?', ['72', '81', '89', '99'], '81', 'math'),
+    ('What is 9 Ã— 9?', ['72', '81', '89', '99'], '81', 'math'),
     ('Capital city of France?', ['Rome', 'Madrid', 'Paris', 'Berlin'], 'Paris', 'trivia'),
     ('Which planet is closest to the Sun?', ['Venus', 'Mercury', 'Earth', 'Mars'], 'Mercury', 'trivia'),
     ('How many continents are there?', ['5', '6', '7', '8'], '7', 'trivia'),
@@ -56,7 +56,7 @@ results = {
 def log_test(test_num, description, passed, details=""):
     """Log test result."""
     results['total'] += 1
-    status = "✅ PASS" if passed else "❌ FAIL"
+    status = "âœ… PASS" if passed else "âŒ FAIL"
     print(f"\n{status} | Test {test_num}: {description}")
     if details:
         print(f"   Details: {details}")
@@ -260,16 +260,16 @@ def test_6_verify_skill():
         if resp.status_code == 200:
             data = resp.json()
             if data.get('correct') == False:
-                print("✓ Wrong answer correctly rejected")
+                print("âœ“ Wrong answer correctly rejected")
                 wrong_test_passed = True
             else:
-                print("✗ Wrong answer incorrectly accepted")
+                print("âœ— Wrong answer incorrectly accepted")
                 wrong_test_passed = False
         else:
-            print(f"✗ Unexpected status for wrong answer: {resp.status_code}")
+            print(f"âœ— Unexpected status for wrong answer: {resp.status_code}")
             wrong_test_passed = False
     except Exception as e:
-        print(f"✗ Exception with wrong answer: {str(e)}")
+        print(f"âœ— Exception with wrong answer: {str(e)}")
         wrong_test_passed = False
     
     # Test with correct answer
@@ -282,16 +282,16 @@ def test_6_verify_skill():
         if resp.status_code == 200:
             data = resp.json()
             if data.get('correct') == True:
-                print("✓ Correct answer accepted")
+                print("âœ“ Correct answer accepted")
                 correct_test_passed = True
             else:
-                print("✗ Correct answer incorrectly rejected")
+                print("âœ— Correct answer incorrectly rejected")
                 correct_test_passed = False
         else:
-            print(f"✗ Unexpected status for correct answer: {resp.status_code}")
+            print(f"âœ— Unexpected status for correct answer: {resp.status_code}")
             correct_test_passed = False
     except Exception as e:
-        print(f"✗ Exception with correct answer: {str(e)}")
+        print(f"âœ— Exception with correct answer: {str(e)}")
         correct_test_passed = False
     
     if wrong_test_passed and correct_test_passed:
@@ -348,13 +348,13 @@ def test_7_checkout(user_token):
         print(f"Wrong answer checkout - Response: {resp.text[:300]}")
         
         if resp.status_code == 400:
-            print("✓ Checkout with wrong answer correctly rejected (400)")
+            print("âœ“ Checkout with wrong answer correctly rejected (400)")
             wrong_checkout_passed = True
         else:
-            print(f"✗ Expected 400 for wrong answer, got {resp.status_code}")
+            print(f"âœ— Expected 400 for wrong answer, got {resp.status_code}")
             wrong_checkout_passed = False
     except Exception as e:
-        print(f"✗ Exception with wrong answer checkout: {str(e)}")
+        print(f"âœ— Exception with wrong answer checkout: {str(e)}")
         wrong_checkout_passed = False
     
     # Test 7b: Correct skill answer
@@ -375,7 +375,7 @@ def test_7_checkout(user_token):
         if resp.status_code == 200:
             data = resp.json()
             if 'order_id' in data and 'tickets' in data:
-                print(f"✓ Checkout successful: order_id={data['order_id']}, tickets={data['tickets']}")
+                print(f"âœ“ Checkout successful: order_id={data['order_id']}, tickets={data['tickets']}")
                 correct_checkout_passed = True
                 order_id = data['order_id']
                 
@@ -384,17 +384,17 @@ def test_7_checkout(user_token):
                 if resp2.status_code == 200:
                     updated_contest = resp2.json()
                     tickets_sold = updated_contest.get('tickets_sold', 0)
-                    print(f"✓ Tickets sold after purchase: {tickets_sold}")
+                    print(f"âœ“ Tickets sold after purchase: {tickets_sold}")
             else:
-                print("✗ Checkout response missing order_id or tickets")
+                print("âœ— Checkout response missing order_id or tickets")
                 correct_checkout_passed = False
                 order_id = None
         else:
-            print(f"✗ Expected 200 for correct answer, got {resp.status_code}")
+            print(f"âœ— Expected 200 for correct answer, got {resp.status_code}")
             correct_checkout_passed = False
             order_id = None
     except Exception as e:
-        print(f"✗ Exception with correct answer checkout: {str(e)}")
+        print(f"âœ— Exception with correct answer checkout: {str(e)}")
         correct_checkout_passed = False
         order_id = None
     
@@ -428,13 +428,13 @@ def test_8_admin_stats(user_token, admin_token):
         print(f"Without admin token - Response: {resp.text[:200]}")
         
         if resp.status_code == 403 or resp.status_code == 401:
-            print("✓ Non-admin correctly denied (403/401)")
+            print("âœ“ Non-admin correctly denied (403/401)")
             no_admin_passed = True
         else:
-            print(f"✗ Expected 403/401 without admin, got {resp.status_code}")
+            print(f"âœ— Expected 403/401 without admin, got {resp.status_code}")
             no_admin_passed = False
     except Exception as e:
-        print(f"✗ Exception without admin token: {str(e)}")
+        print(f"âœ— Exception without admin token: {str(e)}")
         no_admin_passed = False
     
     # Test with admin token (should be 200)
@@ -451,16 +451,16 @@ def test_8_admin_stats(user_token, admin_token):
         if resp.status_code == 200:
             data = resp.json()
             if 'users' in data and 'contests' in data:
-                print(f"✓ Admin stats retrieved: {data}")
+                print(f"âœ“ Admin stats retrieved: {data}")
                 with_admin_passed = True
             else:
-                print("✗ Admin stats response missing expected fields")
+                print("âœ— Admin stats response missing expected fields")
                 with_admin_passed = False
         else:
-            print(f"✗ Expected 200 with admin token, got {resp.status_code}")
+            print(f"âœ— Expected 200 with admin token, got {resp.status_code}")
             with_admin_passed = False
     except Exception as e:
-        print(f"✗ Exception with admin token: {str(e)}")
+        print(f"âœ— Exception with admin token: {str(e)}")
         with_admin_passed = False
     
     if no_admin_passed and with_admin_passed:
@@ -498,16 +498,16 @@ def test_9_admin_draw(admin_token, contest_id_with_tickets):
             print(f"Draw without tickets - Response: {resp.text[:200]}")
             
             if resp.status_code == 400:
-                print("✓ Draw without tickets correctly rejected (400)")
+                print("âœ“ Draw without tickets correctly rejected (400)")
                 no_tickets_passed = True
             else:
-                print(f"✗ Expected 400 for no tickets, got {resp.status_code}")
+                print(f"âœ— Expected 400 for no tickets, got {resp.status_code}")
                 no_tickets_passed = False
         else:
-            print("✗ Could not fetch contest-50")
+            print("âœ— Could not fetch contest-50")
             no_tickets_passed = False
     except Exception as e:
-        print(f"✗ Exception testing draw without tickets: {str(e)}")
+        print(f"âœ— Exception testing draw without tickets: {str(e)}")
         no_tickets_passed = False
     
     # Test 9b: Draw on contest with tickets (should succeed)
@@ -524,16 +524,16 @@ def test_9_admin_draw(admin_token, contest_id_with_tickets):
             data = resp.json()
             if 'winner' in data:
                 winner = data['winner']
-                print(f"✓ Winner drawn: {winner}")
+                print(f"âœ“ Winner drawn: {winner}")
                 with_tickets_passed = True
             else:
-                print("✗ Draw response missing 'winner'")
+                print("âœ— Draw response missing 'winner'")
                 with_tickets_passed = False
         else:
-            print(f"✗ Expected 200 for draw with tickets, got {resp.status_code}")
+            print(f"âœ— Expected 200 for draw with tickets, got {resp.status_code}")
             with_tickets_passed = False
     except Exception as e:
-        print(f"✗ Exception testing draw with tickets: {str(e)}")
+        print(f"âœ— Exception testing draw with tickets: {str(e)}")
         with_tickets_passed = False
     
     if no_tickets_passed and with_tickets_passed:
@@ -579,13 +579,13 @@ def test_emergent_google_session():
         print(f"Without header - Response: {resp.text[:200]}")
         
         if resp.status_code == 400:
-            print("✓ Missing X-Session-ID correctly rejected (400)")
+            print("âœ“ Missing X-Session-ID correctly rejected (400)")
             no_header_passed = True
         else:
-            print(f"✗ Expected 400 without header, got {resp.status_code}")
+            print(f"âœ— Expected 400 without header, got {resp.status_code}")
             no_header_passed = False
     except Exception as e:
-        print(f"✗ Exception without header: {str(e)}")
+        print(f"âœ— Exception without header: {str(e)}")
         no_header_passed = False
     
     # Test with bogus X-Session-ID (should be 401)
@@ -596,19 +596,19 @@ def test_emergent_google_session():
         print(f"With bogus header - Response: {resp.text[:200]}")
         
         if resp.status_code == 401:
-            print("✓ Bogus X-Session-ID correctly rejected (401)")
+            print("âœ“ Bogus X-Session-ID correctly rejected (401)")
             bogus_header_passed = True
         else:
-            print(f"✗ Expected 401 with bogus header, got {resp.status_code}")
+            print(f"âœ— Expected 401 with bogus header, got {resp.status_code}")
             bogus_header_passed = False
     except Exception as e:
-        print(f"✗ Exception with bogus header: {str(e)}")
+        print(f"âœ— Exception with bogus header: {str(e)}")
         bogus_header_passed = False
     
     if no_header_passed and bogus_header_passed:
-        print("\n✅ Emergent Google session endpoint behaves correctly")
+        print("\nâœ… Emergent Google session endpoint behaves correctly")
     else:
-        print("\n⚠️ Emergent Google session endpoint has issues")
+        print("\nâš ï¸ Emergent Google session endpoint has issues")
 
 def main():
     """Run all tests in sequence."""
@@ -644,14 +644,14 @@ def main():
     print("="*80)
     
     if results['passed']:
-        print("\n✅ PASSED TESTS:")
+        print("\nâœ… PASSED TESTS:")
         for test in results['passed']:
-            print(f"  • {test}")
+            print(f"  â€¢ {test}")
     
     if results['failed']:
-        print("\n❌ FAILED TESTS:")
+        print("\nâŒ FAILED TESTS:")
         for test in results['failed']:
-            print(f"  • {test}")
+            print(f"  â€¢ {test}")
     
     print("\n" + "="*80)
     

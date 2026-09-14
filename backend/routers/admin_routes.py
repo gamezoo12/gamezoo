@@ -631,7 +631,7 @@ async def update_user(user_id: str, payload: dict, request: Request):
 # NOTE: /users/{user_id}/suspend and /users/{user_id}/unsuspend were previously
 # defined here. They have been moved to routers/user360_routes.py so they can
 # require admin password re-authentication + emit audit_log rows. Do NOT
-# re-add duplicates here — FastAPI matches routes in registration order and
+# re-add duplicates here â€” FastAPI matches routes in registration order and
 # duplicates silently shadow the secure handlers.
 
 
@@ -664,7 +664,7 @@ async def all_orders(request: Request):
 
 @router.post('/orders/{order_id}/refund')
 async def refund_order(order_id: str, request: Request):
-    # Refunds move real money — restrict to admin/super_admin only.
+    # Refunds move real money â€” restrict to admin/super_admin only.
     # support/operator staff never touch refunds.
     await _require_role(request, ['admin', 'super_admin'])
     from deps import get_db
@@ -679,7 +679,7 @@ async def refund_order(order_id: str, request: Request):
     # Credit the buyer's wallet back BEFORE mutating inventory so an
     # accidental double-refund attempt can't remove tickets twice. The
     # idempotency guard above (status == 'refunded') keeps this safe on
-    # retries — we only ever credit money once per order.
+    # retries â€” we only ever credit money once per order.
     total_to_refund = float(o.get('total', 0) or 0)
     if total_to_refund > 0 and o.get('method') == 'wallet':
         await _apply_tx(
@@ -725,7 +725,7 @@ async def create_contest_api(payload: dict, request: Request):
     from models import Contest, SkillQuestion
     db = get_db()
 
-    # Skill question is now OPTIONAL — modern contests use the dynamic engine
+    # Skill question is now OPTIONAL â€” modern contests use the dynamic engine
     # (skill_question_type + skill_question_difficulty) which auto-generates a
     # fresh problem per visitor. A static block is only required for legacy
     # trivia/word questions.
@@ -763,7 +763,7 @@ async def create_contest_api(payload: dict, request: Request):
         contest = Contest(
             slug=slug,
             title=title,
-            subtitle=payload.get('subtitle') or f"£{int(prize_amount)} cash prize",
+            subtitle=payload.get('subtitle') or f"Â£{int(prize_amount)} cash prize",
             category=category,
             tag=payload.get('tag') or tag_map.get(category, 'Prize Draws'),
             price=float(payload.get('price') or 1),
@@ -777,7 +777,7 @@ async def create_contest_api(payload: dict, request: Request):
                 q=sk['q'], options=list(sk['options']), answer=sk['answer'],
                 type=sk.get('type', 'trivia'),
             ) if has_static else SkillQuestion(
-                # Placeholder — never rendered to public because dynamic engine
+                # Placeholder â€” never rendered to public because dynamic engine
                 # supersedes it. Kept because the Contest model requires it.
                 q='Dynamic', options=['auto'], answer='auto', type='dynamic',
             ),
@@ -787,6 +787,12 @@ async def create_contest_api(payload: dict, request: Request):
         raise HTTPException(status_code=400, detail=f'Invalid contest data: {e}')
 
     doc = contest.model_dump()
+
+    doc['public_coming_soon'] = (
+        bool(payload.get('public_coming_soon', False))
+        and doc.get('status') == 'draft'
+    )
+
     if sqt:
         doc['skill_question_type'] = sqt
         doc['skill_question_difficulty'] = sqd or 'easy'
@@ -801,7 +807,7 @@ async def update_contest_full(contest_id: str, payload: dict, request: Request):
     from deps import get_db
     db = get_db()
     allowed = {'title', 'subtitle', 'category', 'tag', 'image', 'price', 'tickets_total',
-               'prize_amount', 'end_date', 'jackpot', 'featured', 'status', 'skill_question',
+               'prize_amount', 'end_date', 'jackpot', 'featured', 'status', 'public_coming_soon', 'skill_question',
                'skill_question_type', 'skill_question_difficulty',
                'game_type', 'game_config', 'entry_mode', 'max_attempts', 'attempts_per_ticket',
                'leaderboard_visibility', 'winner_selection_method',
@@ -830,7 +836,7 @@ async def update_contest_full(contest_id: str, payload: dict, request: Request):
                 updates[k] = int(v)
             except (TypeError, ValueError):
                 continue
-        elif k in {'free_postal_entry_available', 'jackpot', 'featured'}:
+        elif k in {'free_postal_entry_available', 'jackpot', 'featured', 'public_coming_soon'}:
             updates[k] = bool(v)
         elif k == 'skill_question' and isinstance(v, dict):
             if all(x in v for x in ('q', 'options', 'answer')):
@@ -845,6 +851,14 @@ async def update_contest_full(contest_id: str, payload: dict, request: Request):
                 updates[k] = val
         else:
             updates[k] = v
+    # Coming Soon must never be live.
+    if updates.get('public_coming_soon') is True:
+        updates['status'] = 'draft'
+
+    # Going live automatically clears Coming Soon.
+    if updates.get('status') == 'live':
+        updates['public_coming_soon'] = False
+
     if not updates:
         raise HTTPException(status_code=400, detail='No valid fields to update')
     r = await db.contests.update_one({'contest_id': contest_id}, {'$set': updates})
@@ -893,8 +907,8 @@ async def mark_paid(winner_id: str, request: Request):
 @router.post('/contests/bulk/launch')
 async def bulk_launch_contests(request: Request, payload: dict | None = None):
     """Launch multiple contests at once. Optional filter:
-    - only_games=true → only contests with game_type set
-    - category=<slug> → only contests in that category
+    - only_games=true â†’ only contests with game_type set
+    - category=<slug> â†’ only contests in that category
     - status_from='draft'|'live'|'all' (default 'draft')
     Returns count of contests updated.
     """
@@ -1028,24 +1042,24 @@ async def reject_kyc(kyc_id: str, payload: dict, request: Request):
 
 @router.post('/system/wipe-demo-data')
 async def wipe_demo_data(payload: dict, request: Request):
-    """DESTRUCTIVE — deletes all test/demo data and resets counters so the
+    """DESTRUCTIVE â€” deletes all test/demo data and resets counters so the
     platform is production-clean. Preserves:
-      • the calling super admin (their own account is never touched)
-      • all other users with role in ('admin', 'super_admin', 'operator', 'support')
-      • legal documents, company settings, counters
+      â€¢ the calling super admin (their own account is never touched)
+      â€¢ all other users with role in ('admin', 'super_admin', 'operator', 'support')
+      â€¢ legal documents, company settings, counters
 
     Wipes:
-      • orders, tickets, wallet_tx, payment_transactions, audit logs,
+      â€¢ orders, tickets, wallet_tx, payment_transactions, audit logs,
         notifications, referrals, support cases, contests, contest_draws,
         game_scores, instant_win_configs, instant_win_reveals, kyc,
         leaderboard_entries, meera_log, postal_entries, user_sessions, winners
-      • every user with role 'user' (regular players — demo accounts)
-      • every wallet not belonging to a preserved user
+      â€¢ every user with role 'user' (regular players â€” demo accounts)
+      â€¢ every wallet not belonging to a preserved user
 
     Requires:
-      • super_admin role
-      • password re-confirmation (payload['password'])
-      • confirmation phrase (payload['confirm'] == 'WIPE DEMO DATA')
+      â€¢ super_admin role
+      â€¢ password re-confirmation (payload['password'])
+      â€¢ confirmation phrase (payload['confirm'] == 'WIPE DEMO DATA')
     """
     user = await get_current_user(request)
     if user.get('role') != 'super_admin':
@@ -1080,7 +1094,7 @@ async def wipe_demo_data(payload: dict, request: Request):
     if dr.deleted_count:
         report['users'] = dr.deleted_count
 
-    # Reset every preserved staff wallet to £0 and wipe every other wallet.
+    # Reset every preserved staff wallet to Â£0 and wipe every other wallet.
     wr = await db.wallets.delete_many({'user_id': {'$nin': preserved_ids}})
     if wr.deleted_count:
         report['wallets_deleted'] = wr.deleted_count
@@ -1091,10 +1105,10 @@ async def wipe_demo_data(payload: dict, request: Request):
 
     # Backfill missing public_ids on preserved staff and reset the counter
     # correctly. This is subtle because staff can be a mix of:
-    #   • super admin (always gets PL10000)
-    #   • existing staff who ALREADY have a PLxxxxx (keep as-is, count towards
+    #   â€¢ super admin (always gets PL10000)
+    #   â€¢ existing staff who ALREADY have a PLxxxxx (keep as-is, count towards
     #     the next-signup counter)
-    #   • existing staff with NO public_id (assign the smallest unused id)
+    #   â€¢ existing staff with NO public_id (assign the smallest unused id)
     _PREFIX = 'PL'
     _START = 10000
 
@@ -1113,7 +1127,7 @@ async def wipe_demo_data(payload: dict, request: Request):
         if n is not None:
             used.add(n)
 
-    # Super admin ALWAYS gets PL10000 (overwrite any other id it may hold —
+    # Super admin ALWAYS gets PL10000 (overwrite any other id it may hold â€”
     # PL10000 is the reserved super-admin marker).
     sa = await db.users.find_one({'role': 'super_admin'}, {'user_id': 1, 'public_id': 1})
     if sa:
@@ -1150,7 +1164,7 @@ async def wipe_demo_data(payload: dict, request: Request):
     )
 
     # Log the wipe itself in a fresh admin_audit row so ops can always
-    # answer "who wiped and when?" — inserted AFTER the wipe loop so it
+    # answer "who wiped and when?" â€” inserted AFTER the wipe loop so it
     # survives (the loop just cleared admin_audit as well).
     await db.admin_audit.insert_one({
         'action': 'wipe_demo_data',

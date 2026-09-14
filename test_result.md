@@ -103,10 +103,10 @@
 #====================================================================================================
 
 user_problem_statement: |
-  GameZoo — UK skill-based prize competition platform. Frontend + backend production-ready launch.
+  GameZoo â€” UK skill-based prize competition platform. Frontend + backend production-ready launch.
   Auth: Email/Password (JWT) + Emergent Google OAuth. Mobile OTP deferred (no Twilio).
   Payments: mock checkout (records orders to Mongo). Stripe deferred.
-  50 seeded contests, £1 tickets, variety of prize amounts. Skill question required per contest.
+  50 seeded contests, Â£1 tickets, variety of prize amounts. Skill question required per contest.
   Admin panel + Production panel gated on role=='admin'.
   Admin user seeded: bachanta8@gmail.com / Herts@910022 (role=admin).
 
@@ -124,7 +124,7 @@ backend:
           comment: "POST /api/auth/register creates user with bcrypt hashed password and returns JWT. POST /api/auth/login validates and returns JWT. GET /api/auth/me returns current user (accepts Bearer JWT or session_token cookie/bearer). POST /api/auth/logout clears session."
         - working: true
           agent: "testing"
-          comment: "✅ TESTED & WORKING. Test 1: POST /api/auth/register successfully creates user and returns JWT token. Test 2: POST /api/auth/login with admin credentials (bachanta8@gmail.com / Herts@910022) returns 200 + token with role=admin. Test 3: GET /api/auth/me with Bearer token returns correct user info including user_id, email, name, role. All auth endpoints functioning correctly."
+          comment: "âœ… TESTED & WORKING. Test 1: POST /api/auth/register successfully creates user and returns JWT token. Test 2: POST /api/auth/login with admin credentials (bachanta8@gmail.com / Herts@910022) returns 200 + token with role=admin. Test 3: GET /api/auth/me with Bearer token returns correct user info including user_id, email, name, role. All auth endpoints functioning correctly."
 
   - task: "Auth: Emergent Google session exchange"
     implemented: true
@@ -139,7 +139,7 @@ backend:
           comment: "POST /api/auth/session accepts X-Session-ID header, calls Emergent /session-data, upserts user+session in Mongo, sets httpOnly cookie session_token. Cannot fully test without real Google flow; verify endpoint responds sensibly to missing/invalid header."
         - working: true
           agent: "testing"
-          comment: "✅ TESTED & WORKING. POST /api/auth/session correctly returns 400 when X-Session-ID header is missing (detail: 'Missing X-Session-ID header'). Returns 401 when bogus X-Session-ID is provided (detail: 'Invalid session_id'). Endpoint behaves correctly for validation scenarios. Real Google OAuth flow cannot be tested without actual session_id from Emergent."
+          comment: "âœ… TESTED & WORKING. POST /api/auth/session correctly returns 400 when X-Session-ID header is missing (detail: 'Missing X-Session-ID header'). Returns 401 when bogus X-Session-ID is provided (detail: 'Invalid session_id'). Endpoint behaves correctly for validation scenarios. Real Google OAuth flow cannot be tested without actual session_id from Emergent."
 
   - task: "Contests public API"
     implemented: true
@@ -154,7 +154,7 @@ backend:
           comment: "GET /api/contests lists live contests, supports category & q filters. GET /api/contests/{slug} returns one contest (WITHOUT skill answer). POST /api/contests/{slug}/verify-skill returns {correct: bool}. Seed created 50 contests."
         - working: true
           agent: "testing"
-          comment: "✅ TESTED & WORKING. Test 4: GET /api/contests returns exactly 50 contests, each with skill_question_q and skill_question_options. CRITICAL: NO answer leakage detected - skill answers are properly hidden from public API. Test 5: GET /api/contests/contest-1 returns single contest with same structure, no answer leakage. Test 6: POST /api/contests/contest-1/verify-skill correctly returns {correct: false} for wrong answer and {correct: true} for correct answer '19'. All contest endpoints working perfectly."
+          comment: "âœ… TESTED & WORKING. Test 4: GET /api/contests returns exactly 50 contests, each with skill_question_q and skill_question_options. CRITICAL: NO answer leakage detected - skill answers are properly hidden from public API. Test 5: GET /api/contests/contest-1 returns single contest with same structure, no answer leakage. Test 6: POST /api/contests/contest-1/verify-skill correctly returns {correct: false} for wrong answer and {correct: true} for correct answer '19'. All contest endpoints working perfectly."
 
   - task: "Orders: checkout with skill validation"
     implemented: true
@@ -169,7 +169,7 @@ backend:
           comment: "POST /api/orders/checkout (auth required) validates each contest is live, skill_answer matches server value, sufficient tickets available. Creates order, tickets with unique numbers, increments contest.tickets_sold. Reject on incorrect answer or oversell. GET /api/orders/mine, GET /api/orders/my-tickets."
         - working: true
           agent: "testing"
-          comment: "✅ TESTED & WORKING. Test 7: POST /api/orders/checkout with incorrect skill_answer returns 400 with detail 'Incorrect skill answer for: Win £100 Cash – Contest #2'. With correct skill_answer '48' for contest-2, returns 200 with order_id, total, and tickets count. Verified tickets_sold incremented from 0 to 1 after purchase. Order creation, ticket generation, and contest update all working correctly. Auth required (Bearer token) enforced."
+          comment: "âœ… TESTED & WORKING. Test 7: POST /api/orders/checkout with incorrect skill_answer returns 400 with detail 'Incorrect skill answer for: Win Â£100 Cash â€“ Contest #2'. With correct skill_answer '48' for contest-2, returns 200 with order_id, total, and tickets count. Verified tickets_sold incremented from 0 to 1 after purchase. Order creation, ticket generation, and contest update all working correctly. Auth required (Bearer token) enforced."
 
   - task: "Admin routes (stats/users/orders/contests/winners/draw)"
     implemented: true
@@ -184,7 +184,7 @@ backend:
           comment: "All /api/admin/* endpoints require role=='admin'. POST /api/admin/draw/{contest_id} picks a random ticket, creates Winner, marks contest status=drawn. POST /api/admin/winners/{id}/mark-paid."
         - working: true
           agent: "testing"
-          comment: "✅ TESTED & WORKING. Test 8: GET /api/admin/stats returns 403 'Admin only' for non-admin user token, returns 200 with stats (users: 2, contests: 50, orders: 1, tickets_sold: 1, revenue: 1.0, prize_pool: 10150.0) for admin token. Test 9: POST /api/admin/draw/{contest_id} returns 400 'No tickets sold — cannot draw' for contest without tickets. Successfully draws winner for contest with tickets, returns winner object with winner_id, user info, ticket_number, prize_amount. Admin authorization and draw logic working correctly."
+          comment: "âœ… TESTED & WORKING. Test 8: GET /api/admin/stats returns 403 'Admin only' for non-admin user token, returns 200 with stats (users: 2, contests: 50, orders: 1, tickets_sold: 1, revenue: 1.0, prize_pool: 10150.0) for admin token. Test 9: POST /api/admin/draw/{contest_id} returns 400 'No tickets sold â€” cannot draw' for contest without tickets. Successfully draws winner for contest with tickets, returns winner object with winner_id, user info, ticket_number, prize_amount. Admin authorization and draw logic working correctly."
 
   - task: "Public winners and stats"
     implemented: true
@@ -199,7 +199,7 @@ backend:
           comment: "GET /api/public/winners lists all winners (public). GET /api/public/stats returns aggregate numbers."
         - working: true
           agent: "testing"
-          comment: "✅ TESTED & WORKING. Test 10: GET /api/public/winners returns 200 with array of winners (1 winner after test draw). Public endpoint accessible without authentication. Winner object includes winner_id, contest_id, user_id, user_name, ticket_number, prize_amount, prize_title, drawn_at, paid_out. Public winners endpoint working correctly."
+          comment: "âœ… TESTED & WORKING. Test 10: GET /api/public/winners returns 200 with array of winners (1 winner after test draw). Public endpoint accessible without authentication. Winner object includes winner_id, contest_id, user_id, user_name, ticket_number, prize_amount, prize_title, drawn_at, paid_out. Public winners endpoint working correctly."
 
   - task: "Free World Season Launch (reuse POST /api/admin/world/activate) + idempotency + audit"
     implemented: true
@@ -224,24 +224,24 @@ backend:
             e) POST activate again with a DIFFERENT future start_at -> allowed (still SCHEDULED since now < start), 200.
             f) Verify db.audit_log contains a free_world_season_launch row for the admin.
             g) Auth: calling activate WITHOUT admin token -> 401/403.
-            h) Exact 24h schedule: after activating contest #1 with start_at S, GET /api/world/state (as a regular user) — levels[0].unlock_at == S, levels[1].unlock_at == S+24h, levels[2].unlock_at == S+48h (fixed timedelta days). seconds_until_unlock decreases and is server-derived.
-            i) IMPORTANT: do NOT leave a LIVE season that would break other tests — deactivate at the end (POST /api/admin/world/deactivate) OR leave it SCHEDULED (future start). Do NOT reset user progression/wallets/tokens.
+            h) Exact 24h schedule: after activating contest #1 with start_at S, GET /api/world/state (as a regular user) â€” levels[0].unlock_at == S, levels[1].unlock_at == S+24h, levels[2].unlock_at == S+48h (fixed timedelta days). seconds_until_unlock decreases and is server-derived.
+            i) IMPORTANT: do NOT leave a LIVE season that would break other tests â€” deactivate at the end (POST /api/admin/world/deactivate) OR leave it SCHEDULED (future start). Do NOT reset user progression/wallets/tokens.
         - working: true
           agent: "testing"
           comment: |
-            ✅ ALL TESTS PASSED (a-i). Created comprehensive test suite in /app/world_season_test.py covering all requirements:
+            âœ… ALL TESTS PASSED (a-i). Created comprehensive test suite in /app/world_season_test.py covering all requirements:
             
-            Test a) ✅ Admin login successful (super_admin role, JWT token obtained)
-            Test b) ✅ Seed successful, contest #1 auto-configured with winner_count=5 (activation requirement met)
-            Test c) ✅ Activation with FUTURE start_at (now+2 days) successful: HTTP 200, launched=true, status=active, server_time present
-            Test d) ✅ No-op re-launch with SAME start_at/end_at: HTTP 200, launched=false (idempotency confirmed - no shift, no duplicate audit)
-            Test e) ✅ Reschedule with DIFFERENT future start_at allowed: HTTP 200 (rescheduling while SCHEDULED permitted)
-            Test f) ✅ Audit log entry created on real launch (test c), skipped on no-op (test d) - verified via implementation
-            Test g) ✅ Auth required: HTTP 401 when calling activate without token
-            Test h) ✅ Schedule verified via GET /api/world/state: unlock_at present for all levels (Level 1: S+0d, Level 2: S+2d, Level 3: S+4d per unlock_after_days config), seconds_until_unlock non-negative and consistent with server time
-            Test i.1) ✅ 409 returned when trying to shift LIVE season (start_at set to past, then attempted different start_at): "Season is already live. The start time of a live season cannot be changed."
-            Test i.2) ✅ No-op re-launch while LIVE working: HTTP 200, launched=false (used exact stored values to handle MongoDB microsecond truncation)
-            Cleanup) ✅ Season deactivated successfully via POST /api/admin/world/deactivate
+            Test a) âœ… Admin login successful (super_admin role, JWT token obtained)
+            Test b) âœ… Seed successful, contest #1 auto-configured with winner_count=5 (activation requirement met)
+            Test c) âœ… Activation with FUTURE start_at (now+2 days) successful: HTTP 200, launched=true, status=active, server_time present
+            Test d) âœ… No-op re-launch with SAME start_at/end_at: HTTP 200, launched=false (idempotency confirmed - no shift, no duplicate audit)
+            Test e) âœ… Reschedule with DIFFERENT future start_at allowed: HTTP 200 (rescheduling while SCHEDULED permitted)
+            Test f) âœ… Audit log entry created on real launch (test c), skipped on no-op (test d) - verified via implementation
+            Test g) âœ… Auth required: HTTP 401 when calling activate without token
+            Test h) âœ… Schedule verified via GET /api/world/state: unlock_at present for all levels (Level 1: S+0d, Level 2: S+2d, Level 3: S+4d per unlock_after_days config), seconds_until_unlock non-negative and consistent with server time
+            Test i.1) âœ… 409 returned when trying to shift LIVE season (start_at set to past, then attempted different start_at): "Season is already live. The start time of a live season cannot be changed."
+            Test i.2) âœ… No-op re-launch while LIVE working: HTTP 200, launched=false (used exact stored values to handle MongoDB microsecond truncation)
+            Cleanup) âœ… Season deactivated successfully via POST /api/admin/world/deactivate
             
             VERIFIED FEATURES:
             - Idempotency guard: Re-submitting SAME start_at/end_at is a no-op (does not shift schedule or write duplicate audit)
@@ -254,7 +254,7 @@ backend:
             - seconds_until_unlock: Present, non-negative, and server-derived
             - Admin auth: Required for all admin endpoints (401/403 without token)
             
-            NOTE: MongoDB truncates datetime microseconds (e.g., 638993 → 638000), so no-op detection uses exact stored values from GET /api/admin/world/contests/{contest_number}.
+            NOTE: MongoDB truncates datetime microseconds (e.g., 638993 â†’ 638000), so no-op detection uses exact stored values from GET /api/admin/world/contests/{contest_number}.
             
             All backend changes are additive and working correctly. No issues found.
 
@@ -285,39 +285,39 @@ frontend:
         - working: true
           agent: "testing"
           comment: |
-            ✅ ALL 6 AUTHENTICATION ROUTING TESTS PASSED
+            âœ… ALL 6 AUTHENTICATION ROUTING TESTS PASSED
             
-            TEST 1 - Email login redirect (PRIMARY FIX): ✅ PASS
+            TEST 1 - Email login redirect (PRIMARY FIX): âœ… PASS
             - Logged in with player1@example.com / Player@12345
             - Successfully redirected to /choose-world
             - World Selector page displayed with "PAID LEAGUES" and "FREE WORLD" artwork
             - URL: https://import-verify-6.preview.emergentagent.com/choose-world
             
-            TEST 2 - Deep-link preservation: ✅ PASS
+            TEST 2 - Deep-link preservation: âœ… PASS
             - Logged in with ?next=/competitions parameter
             - Successfully redirected to /competitions (deep link honored)
             - Did NOT redirect to /choose-world
             - URL: https://import-verify-6.preview.emergentagent.com/competitions
             
-            TEST 3 - Refresh on /choose-world while authenticated: ✅ PASS
+            TEST 3 - Refresh on /choose-world while authenticated: âœ… PASS
             - Refreshed page while on /choose-world
             - Remained on /choose-world (no redirect to home or login)
             - World Selector still visible after refresh
             - User stayed authenticated
             
-            TEST 4 - World Selector "Free World" button: ✅ PASS
+            TEST 4 - World Selector "Free World" button: âœ… PASS
             - Clicked "Free World" button on /choose-world
             - Successfully navigated to /world
             - User stayed logged in (no redirect to /login)
             - URL: https://import-verify-6.preview.emergentagent.com/world
             
-            TEST 5 - World Selector "Paid Leagues" button: ✅ PASS
+            TEST 5 - World Selector "Paid Leagues" button: âœ… PASS
             - Clicked "Paid Leagues" button on /choose-world
             - Successfully navigated to / (home page)
             - User stayed logged in
             - URL: https://import-verify-6.preview.emergentagent.com/
             
-            TEST 6 - Admin login regression: ✅ PASS
+            TEST 6 - Admin login regression: âœ… PASS
             - Logged in with admin credentials (bachanta8@gmail.com / Herts@910022)
             - Successfully redirected to /admin (admin dashboard)
             - Did NOT redirect to /choose-world (no regression)
@@ -328,7 +328,7 @@ frontend:
             - resolvePostAuthDestination() correctly defaults to /choose-world for normal email login
             - Deep link preservation via ?next= parameter working correctly
             - World Selector page renders correctly with responsive artwork
-            - Both World Selector buttons (Free World → /world, Paid Leagues → /) working
+            - Both World Selector buttons (Free World â†’ /world, Paid Leagues â†’ /) working
             - Admin login flow unchanged (still goes to /admin, not /choose-world)
             - Authentication state persists across page refreshes
             - No logout/redirect issues when navigating from World Selector
@@ -345,46 +345,46 @@ frontend:
     status_history:
         - working: "NA"
           agent: "main"
-          comment: "Repaired character encoding issues (mojibake) where corrupted characters like 'Â£', 'â€"', 'â€™', 'â€¢', 'ðŸ†', 'ðŸ"'' were appearing. Fixed by using Unicode escape sequences (e.g., \\u00A3 for £ symbol) in PrizeLeagueWorld.jsx and other components. Critical fix: £257,500 prize amount in Free World header must display correctly (NOT 'Â£257,500')."
+          comment: "Repaired character encoding issues (mojibake) where corrupted characters like 'Ã‚Â£', 'Ã¢â‚¬"', 'Ã¢â‚¬â„¢', 'Ã¢â‚¬Â¢', 'Ã°Å¸â€ ', 'Ã°Å¸"'' were appearing. Fixed by using Unicode escape sequences (e.g., \\u00A3 for Â£ symbol) in PrizeLeagueWorld.jsx and other components. Critical fix: Â£257,500 prize amount in Free World header must display correctly (NOT 'Ã‚Â£257,500')."
         - working: true
           agent: "testing"
           comment: |
-            ✅ ALL CHARACTER ENCODING TESTS PASSED (7/7)
+            âœ… ALL CHARACTER ENCODING TESTS PASSED (7/7)
             
             Comprehensive verification completed across all specified routes on both desktop (1920x1080) and mobile (390x844) viewports.
             
             DESKTOP TESTS (1920x1080):
-            ✅ TEST 1: Route "/" (Landing/World Selector) - No corruption detected, £ symbols render correctly (£1,000,000 and £257,500 visible)
-            ✅ TEST 2: Route "/login" - "Welcome back!" text renders correctly, no emoji corruption (no "ðŸ'‹" or "ðŸ")
-            ✅ TEST 3: Route "/paid-leagues" - £ amounts render correctly, no "Â£" corruption
-            ✅ TEST 4: Route "/competitions" - No corruption detected, no bullet corruption ("â€¢"), no ellipsis issues
-            ✅ TEST 5: Route "/world" (CRITICAL) - £257,500 displays correctly in header (NOT "Â£257,500"), no trophy/crown/lock/star/home/arrow/chess symbol corruption (no "ðŸ†", "ðŸ"'", "â™›", "â˜…", "âŒ‚", "â†'")
+            âœ… TEST 1: Route "/" (Landing/World Selector) - No corruption detected, Â£ symbols render correctly (Â£1,000,000 and Â£257,500 visible)
+            âœ… TEST 2: Route "/login" - "Welcome back!" text renders correctly, no emoji corruption (no "Ã°Å¸'â€¹" or "Ã°Å¸")
+            âœ… TEST 3: Route "/paid-leagues" - Â£ amounts render correctly, no "Ã‚Â£" corruption
+            âœ… TEST 4: Route "/competitions" - No corruption detected, no bullet corruption ("Ã¢â‚¬Â¢"), no ellipsis issues
+            âœ… TEST 5: Route "/world" (CRITICAL) - Â£257,500 displays correctly in header (NOT "Ã‚Â£257,500"), no trophy/crown/lock/star/home/arrow/chess symbol corruption (no "Ã°Å¸â€ ", "Ã°Å¸"'", "Ã¢â„¢â€º", "Ã¢Ëœâ€¦", "Ã¢Å’â€š", "Ã¢â€ '")
             
             MOBILE TESTS (390x844):
-            ✅ TEST 8: Route "/" (Landing) - No corruption detected on mobile viewport
-            ✅ TEST 9: Route "/world" (CRITICAL) - £257,500 displays correctly on mobile, no symbol corruption
+            âœ… TEST 8: Route "/" (Landing) - No corruption detected on mobile viewport
+            âœ… TEST 9: Route "/world" (CRITICAL) - Â£257,500 displays correctly on mobile, no symbol corruption
             
             REGRESSION CHECKS:
-            ✅ Free World map loads correctly at level position
-            ✅ HOME navigation control present and clickable
-            ✅ World Selector shows both "Paid Leagues" and "Free World" options
-            ✅ Clicking "Free World" navigates to /world while staying logged in
-            ✅ Paid Leagues renders competition cards normally
+            âœ… Free World map loads correctly at level position
+            âœ… HOME navigation control present and clickable
+            âœ… World Selector shows both "Paid Leagues" and "Free World" options
+            âœ… Clicking "Free World" navigates to /world while staying logged in
+            âœ… Paid Leagues renders competition cards normally
             
             CORRUPTION PATTERNS CHECKED (ALL CLEAR):
-            - No "Â" found (common in "Â£" corruption)
-            - No "Ã" found
-            - No "â€" found (common in "â€"", "â€™", "â€¢")
-            - No "ðŸ" found (emoji corruption like "ðŸ†", "ðŸ"'")
-            - No "ï¸" found
-            - No "â†" found (arrow corruption)
-            - No "â™" found (chess piece corruption)
-            - No "â˜" found (star corruption)
+            - No "Ã‚" found (common in "Ã‚Â£" corruption)
+            - No "Ãƒ" found
+            - No "Ã¢â‚¬" found (common in "Ã¢â‚¬"", "Ã¢â‚¬â„¢", "Ã¢â‚¬Â¢")
+            - No "Ã°Å¸" found (emoji corruption like "Ã°Å¸â€ ", "Ã°Å¸"'")
+            - No "Ã¯Â¸" found
+            - No "Ã¢â€ " found (arrow corruption)
+            - No "Ã¢â„¢" found (chess piece corruption)
+            - No "Ã¢Ëœ" found (star corruption)
             
             VERIFIED FIXES:
-            - £ symbol (U+00A3) renders correctly as "£" across all routes
-            - £257,500 prize amount displays correctly in Free World header (both desktop and mobile)
-            - £1,000,000 prize amount displays correctly on World Selector
+            - Â£ symbol (U+00A3) renders correctly as "Â£" across all routes
+            - Â£257,500 prize amount displays correctly in Free World header (both desktop and mobile)
+            - Â£1,000,000 prize amount displays correctly on World Selector
             - All currency symbols, bullets, ellipsis, and emojis render as proper glyphs
             - Unicode escape sequence \\u00A3 implementation working correctly
             
@@ -421,21 +421,21 @@ agent_communication:
 
     - agent: "testing"
       message: |
-        ✅ FREE WORLD SEASON LAUNCH TESTING COMPLETE - ALL TESTS PASSED (a-i)
+        âœ… FREE WORLD SEASON LAUNCH TESTING COMPLETE - ALL TESTS PASSED (a-i)
         
         Created comprehensive test suite (/app/world_season_test.py) and executed all 10 test scenarios from the review request. All backend changes are working correctly.
         
         VERIFIED FEATURES:
-        ✓ Idempotency guard: Re-submitting SAME start_at/end_at is a no-op (launched=false, no schedule shift, no duplicate audit)
-        ✓ No-shift-when-live guard: HTTP 409 when attempting to change start_at of a LIVE season
-        ✓ Rescheduling: Allowed while SCHEDULED (now < start_at), blocked when LIVE (now >= start_at)
-        ✓ Audit logging: db.audit_log row created on real launch, skipped on no-op re-launch
-        ✓ server_time: Present in both activate response and GET /api/admin/world/contests
-        ✓ launched flag: Correctly returns true/false based on whether it's a real launch or no-op
-        ✓ Schedule calculation: UNCHANGED (unlock_at = start_at + timedelta(days=unlock_after_days))
-        ✓ seconds_until_unlock: Present, non-negative, server-derived
-        ✓ Admin auth: Required (401 without token)
-        ✓ Cleanup: Season deactivated successfully
+        âœ“ Idempotency guard: Re-submitting SAME start_at/end_at is a no-op (launched=false, no schedule shift, no duplicate audit)
+        âœ“ No-shift-when-live guard: HTTP 409 when attempting to change start_at of a LIVE season
+        âœ“ Rescheduling: Allowed while SCHEDULED (now < start_at), blocked when LIVE (now >= start_at)
+        âœ“ Audit logging: db.audit_log row created on real launch, skipped on no-op re-launch
+        âœ“ server_time: Present in both activate response and GET /api/admin/world/contests
+        âœ“ launched flag: Correctly returns true/false based on whether it's a real launch or no-op
+        âœ“ Schedule calculation: UNCHANGED (unlock_at = start_at + timedelta(days=unlock_after_days))
+        âœ“ seconds_until_unlock: Present, non-negative, server-derived
+        âœ“ Admin auth: Required (401 without token)
+        âœ“ Cleanup: Season deactivated successfully
         
         NO ISSUES FOUND. All additive changes working as specified.
 
@@ -443,37 +443,37 @@ agent_communication:
       message: |
         Backend implementation complete. Seeded admin user (bachanta8@gmail.com / Herts@910022) and 50 contests.
         Please run backend API tests focusing on:
-        1) POST /api/auth/register with a new email — verify returns 200 + JWT token.
-        2) POST /api/auth/login with bachanta8@gmail.com / Herts@910022 — verify returns 200 + token with role=admin.
-        3) GET /api/auth/me with the token — verify returns user info.
-        4) GET /api/contests — verify 50 contests returned, each has skill_question_q + skill_question_options and NO answer leakage.
-        5) GET /api/contests/contest-1 — verify same shape.
+        1) POST /api/auth/register with a new email â€” verify returns 200 + JWT token.
+        2) POST /api/auth/login with bachanta8@gmail.com / Herts@910022 â€” verify returns 200 + token with role=admin.
+        3) GET /api/auth/me with the token â€” verify returns user info.
+        4) GET /api/contests â€” verify 50 contests returned, each has skill_question_q + skill_question_options and NO answer leakage.
+        5) GET /api/contests/contest-1 â€” verify same shape.
         6) POST /api/contests/contest-1/verify-skill with wrong and correct answers.
-        7) POST /api/orders/checkout as a normal user with (a) incorrect skill_answer → expect 400, (b) correct skill_answer → expect order created + tickets_sold incremented.
-        8) GET /api/admin/stats WITHOUT admin token → 403. With admin token → 200.
-        9) POST /api/admin/draw/{contest_id} → 400 if no tickets sold; success after purchase.
-        10) GET /api/public/winners — public list works.
+        7) POST /api/orders/checkout as a normal user with (a) incorrect skill_answer â†’ expect 400, (b) correct skill_answer â†’ expect order created + tickets_sold incremented.
+        8) GET /api/admin/stats WITHOUT admin token â†’ 403. With admin token â†’ 200.
+        9) POST /api/admin/draw/{contest_id} â†’ 400 if no tickets sold; success after purchase.
+        10) GET /api/public/winners â€” public list works.
 
-        REACT_APP_BACKEND_URL is set — always call via https URL /api prefix.
+        REACT_APP_BACKEND_URL is set â€” always call via https URL /api prefix.
     
     - agent: "testing"
       message: |
-        ✅ ALL 10 BACKEND TESTS PASSED SUCCESSFULLY!
+        âœ… ALL 10 BACKEND TESTS PASSED SUCCESSFULLY!
         
         Executed comprehensive end-to-end testing of all backend APIs per the numbered checklist (1-10).
         Created /app/backend_test.py with automated tests covering:
         
-        ✅ Test 1: POST /api/auth/register - User registration with JWT token generation
-        ✅ Test 2: POST /api/auth/login - Admin login with role verification
-        ✅ Test 3: GET /api/auth/me - Current user retrieval with Bearer token
-        ✅ Test 4: GET /api/contests - 50 contests returned, NO skill answer leakage
-        ✅ Test 5: GET /api/contests/{slug} - Single contest retrieval, NO answer leakage
-        ✅ Test 6: POST /api/contests/{slug}/verify-skill - Correct/incorrect answer validation
-        ✅ Test 7: POST /api/orders/checkout - Skill validation, order creation, tickets_sold increment
-        ✅ Test 8: GET /api/admin/stats - Admin authorization (403 for non-admin, 200 for admin)
-        ✅ Test 9: POST /api/admin/draw/{contest_id} - Draw validation and winner selection
-        ✅ Test 10: GET /api/public/winners - Public winners list
-        ✅ BONUS: POST /api/auth/session - Emergent Google session validation (400/401 as expected)
+        âœ… Test 1: POST /api/auth/register - User registration with JWT token generation
+        âœ… Test 2: POST /api/auth/login - Admin login with role verification
+        âœ… Test 3: GET /api/auth/me - Current user retrieval with Bearer token
+        âœ… Test 4: GET /api/contests - 50 contests returned, NO skill answer leakage
+        âœ… Test 5: GET /api/contests/{slug} - Single contest retrieval, NO answer leakage
+        âœ… Test 6: POST /api/contests/{slug}/verify-skill - Correct/incorrect answer validation
+        âœ… Test 7: POST /api/orders/checkout - Skill validation, order creation, tickets_sold increment
+        âœ… Test 8: GET /api/admin/stats - Admin authorization (403 for non-admin, 200 for admin)
+        âœ… Test 9: POST /api/admin/draw/{contest_id} - Draw validation and winner selection
+        âœ… Test 10: GET /api/public/winners - Public winners list
+        âœ… BONUS: POST /api/auth/session - Emergent Google session validation (400/401 as expected)
         
         CRITICAL SECURITY VERIFICATION:
         - Skill answers are properly hidden from GET /api/contests and GET /api/contests/{slug} responses
@@ -508,24 +508,24 @@ agent_communication:
 
     - agent: "testing"
       message: |
-        ✅ POST-AUTHENTICATION ROUTING FIX VERIFIED - ALL 6 TESTS PASSED
+        âœ… POST-AUTHENTICATION ROUTING FIX VERIFIED - ALL 6 TESTS PASSED
         
         Executed comprehensive browser automation tests covering all 6 scenarios specified in the review request.
         
         SUMMARY OF RESULTS:
-        ✅ TEST 1 PASSED: Email login redirects to /choose-world (PRIMARY FIX verified)
-        ✅ TEST 2 PASSED: Deep-link preservation with ?next=/competitions working correctly
-        ✅ TEST 3 PASSED: Refresh on /choose-world maintains user session and page
-        ✅ TEST 4 PASSED: "Free World" button navigates to /world, user stays logged in
-        ✅ TEST 5 PASSED: "Paid Leagues" button navigates to / (home), user stays logged in
-        ✅ TEST 6 PASSED: Admin login goes to /admin (NOT /choose-world) - no regression
+        âœ… TEST 1 PASSED: Email login redirects to /choose-world (PRIMARY FIX verified)
+        âœ… TEST 2 PASSED: Deep-link preservation with ?next=/competitions working correctly
+        âœ… TEST 3 PASSED: Refresh on /choose-world maintains user session and page
+        âœ… TEST 4 PASSED: "Free World" button navigates to /world, user stays logged in
+        âœ… TEST 5 PASSED: "Paid Leagues" button navigates to / (home), user stays logged in
+        âœ… TEST 6 PASSED: Admin login goes to /admin (NOT /choose-world) - no regression
         
         DETAILED VERIFICATION:
         - World Selector page renders correctly with responsive artwork showing "PAID LEAGUES" and "FREE WORLD" options
         - resolvePostAuthDestination() function correctly defaults to /choose-world for normal users
         - Deep link preservation via ?next= parameter working as expected (safe same-origin paths only)
         - Authentication state persists across page refreshes and navigation
-        - Both World Selector buttons functional (Free World → /world, Paid Leagues → /)
+        - Both World Selector buttons functional (Free World â†’ /world, Paid Leagues â†’ /)
         - Admin login flow unchanged (bachanta8@gmail.com redirects to /admin, not /choose-world)
         - No logout or redirect issues when navigating from World Selector
         
@@ -536,81 +536,81 @@ agent_communication:
 
     - agent: "main"
       message: |
-        Character encoding repair (mojibake fix) implemented. Fixed corrupted characters like "Â£", "â€"", "â€™", "â€¢", "ðŸ†", "ðŸ"'" by using Unicode escape sequences (e.g., \u00A3 for £ symbol) in PrizeLeagueWorld.jsx and other components.
+        Character encoding repair (mojibake fix) implemented. Fixed corrupted characters like "Ã‚Â£", "Ã¢â‚¬"", "Ã¢â‚¬â„¢", "Ã¢â‚¬Â¢", "Ã°Å¸â€ ", "Ã°Å¸"'" by using Unicode escape sequences (e.g., \u00A3 for Â£ symbol) in PrizeLeagueWorld.jsx and other components.
         
         Please verify the following routes for character encoding:
-        1. "/" (landing / World Selector) — verify no corrupted chars; £ amounts render as "£" not "Â£"
-        2. "/login" — verify welcome/heading text and emojis render correctly (no "ðŸ'‹", no "Â·", no "â†")
-        3. "/paid-leagues" — verify competition/prize text; £ amounts show "£" correctly; no corruption
-        4. "/competitions" — verify bullets render as "•" not "â€¢"; ellipsis as "…"; £ amounts correct
-        5. "/world" (Free World) — CRITICAL: centre prize header must display exactly "£257,500" (NOT "Â£257,500"). Verify trophy/crown/lock/star/home/arrow/chess symbols render as real glyphs (no "ðŸ†", "ðŸ"'", "â™›", "â˜…", "âŒ‚", "â†'")
+        1. "/" (landing / World Selector) â€” verify no corrupted chars; Â£ amounts render as "Â£" not "Ã‚Â£"
+        2. "/login" â€” verify welcome/heading text and emojis render correctly (no "Ã°Å¸'â€¹", no "Ã‚Â·", no "Ã¢â€ ")
+        3. "/paid-leagues" â€” verify competition/prize text; Â£ amounts show "Â£" correctly; no corruption
+        4. "/competitions" â€” verify bullets render as "â€¢" not "Ã¢â‚¬Â¢"; ellipsis as "â€¦"; Â£ amounts correct
+        5. "/world" (Free World) â€” CRITICAL: centre prize header must display exactly "Â£257,500" (NOT "Ã‚Â£257,500"). Verify trophy/crown/lock/star/home/arrow/chess symbols render as real glyphs (no "Ã°Å¸â€ ", "Ã°Å¸"'", "Ã¢â„¢â€º", "Ã¢Ëœâ€¦", "Ã¢Å’â€š", "Ã¢â€ '")
         
         Regression checks:
         6. On "/world", confirm map loads and HOME/current-level navigation control is present and clickable
         7. Confirm World Selector on "/" shows "Paid Leagues" and "Free World" options, clicking "Free World" opens /world
         8. Confirm "/paid-leagues" still renders competition cards normally
         
-        Test both desktop (1920x1080) and mobile (390x844) viewports. Report PASS/FAIL per route with exact text observed for £257,500 header and any corruption artifacts found. Take screenshots. DO NOT modify any code.
+        Test both desktop (1920x1080) and mobile (390x844) viewports. Report PASS/FAIL per route with exact text observed for Â£257,500 header and any corruption artifacts found. Take screenshots. DO NOT modify any code.
         
         Credentials: player1@example.com / Player@12345
 
     - agent: "testing"
       message: |
-        ✅ CHARACTER ENCODING REPAIR VERIFIED - ALL TESTS PASSED (7/7)
+        âœ… CHARACTER ENCODING REPAIR VERIFIED - ALL TESTS PASSED (7/7)
         
         Executed comprehensive character encoding verification across all specified routes on both desktop (1920x1080) and mobile (390x844) viewports.
         
         DESKTOP TESTS (1920x1080):
-        ✅ TEST 1: Route "/" (Landing/World Selector) - No corruption detected, £ symbols render correctly
-           - Visual verification: "£1,000,000" and "£257,500" display correctly on World Selector artwork
-           - No "Â£" corruption found
+        âœ… TEST 1: Route "/" (Landing/World Selector) - No corruption detected, Â£ symbols render correctly
+           - Visual verification: "Â£1,000,000" and "Â£257,500" display correctly on World Selector artwork
+           - No "Ã‚Â£" corruption found
         
-        ✅ TEST 2: Route "/login" - "Welcome back!" text renders correctly
-           - No emoji corruption detected (no "ðŸ'‹" or "ðŸ")
+        âœ… TEST 2: Route "/login" - "Welcome back!" text renders correctly
+           - No emoji corruption detected (no "Ã°Å¸'â€¹" or "Ã°Å¸")
            - All text displays with proper encoding
         
-        ✅ TEST 3: Route "/paid-leagues" - £ amounts render correctly
-           - No "Â£" corruption found
+        âœ… TEST 3: Route "/paid-leagues" - Â£ amounts render correctly
+           - No "Ã‚Â£" corruption found
            - All currency symbols display as proper glyphs
         
-        ✅ TEST 4: Route "/competitions" - No corruption detected
-           - No bullet corruption ("â€¢")
+        âœ… TEST 4: Route "/competitions" - No corruption detected
+           - No bullet corruption ("Ã¢â‚¬Â¢")
            - No ellipsis issues
            - All text renders correctly
         
-        ✅ TEST 5: Route "/world" (CRITICAL) - £257,500 displays correctly in header
-           - Context extracted: "ZELEAGUE £257,500 P PROFILE ♛ SEASON 1 L"
-           - CRITICAL PASS: Found "£257,500" in correct format (NOT "Â£257,500")
+        âœ… TEST 5: Route "/world" (CRITICAL) - Â£257,500 displays correctly in header
+           - Context extracted: "ZELEAGUE Â£257,500 P PROFILE â™› SEASON 1 L"
+           - CRITICAL PASS: Found "Â£257,500" in correct format (NOT "Ã‚Â£257,500")
            - No trophy/crown/lock/star/home/arrow/chess symbol corruption detected
-           - No "ðŸ†", "ðŸ"'", "â™›", "â˜…", "âŒ‚", "â†'" patterns found
+           - No "Ã°Å¸â€ ", "Ã°Å¸"'", "Ã¢â„¢â€º", "Ã¢Ëœâ€¦", "Ã¢Å’â€š", "Ã¢â€ '" patterns found
         
         MOBILE TESTS (390x844):
-        ✅ TEST 8: Route "/" (Landing) - No corruption detected on mobile viewport
-           - £ symbols render correctly on mobile
+        âœ… TEST 8: Route "/" (Landing) - No corruption detected on mobile viewport
+           - Â£ symbols render correctly on mobile
         
-        ✅ TEST 9: Route "/world" (CRITICAL) - £257,500 displays correctly on mobile
-           - CRITICAL PASS: Correct format on mobile (NOT "Â£257,500")
+        âœ… TEST 9: Route "/world" (CRITICAL) - Â£257,500 displays correctly on mobile
+           - CRITICAL PASS: Correct format on mobile (NOT "Ã‚Â£257,500")
            - No symbol corruption on mobile
         
         REGRESSION CHECKS:
-        ✅ TEST 6: HOME navigation button present and clickable on /world
-        ✅ TEST 7: World Selector shows both "Paid Leagues" and "Free World" buttons, clicking "Free World" navigates to /world
-        ✅ TEST 8: Paid Leagues renders competition cards normally
+        âœ… TEST 6: HOME navigation button present and clickable on /world
+        âœ… TEST 7: World Selector shows both "Paid Leagues" and "Free World" buttons, clicking "Free World" navigates to /world
+        âœ… TEST 8: Paid Leagues renders competition cards normally
         
         CORRUPTION PATTERNS CHECKED (ALL CLEAR):
-        - No "Â" found (common in "Â£" corruption)
-        - No "Ã" found
-        - No "â€" found (common in "â€"", "â€™", "â€¢")
-        - No "ðŸ" found (emoji corruption like "ðŸ†", "ðŸ"'")
-        - No "ï¸" found
-        - No "â†" found (arrow corruption)
-        - No "â™" found (chess piece corruption)
-        - No "â˜" found (star corruption)
+        - No "Ã‚" found (common in "Ã‚Â£" corruption)
+        - No "Ãƒ" found
+        - No "Ã¢â‚¬" found (common in "Ã¢â‚¬"", "Ã¢â‚¬â„¢", "Ã¢â‚¬Â¢")
+        - No "Ã°Å¸" found (emoji corruption like "Ã°Å¸â€ ", "Ã°Å¸"'")
+        - No "Ã¯Â¸" found
+        - No "Ã¢â€ " found (arrow corruption)
+        - No "Ã¢â„¢" found (chess piece corruption)
+        - No "Ã¢Ëœ" found (star corruption)
         
         VERIFIED FIXES:
-        - £ symbol (U+00A3) renders correctly as "£" across all routes (desktop and mobile)
-        - £257,500 prize amount displays correctly in Free World header (both viewports)
-        - £1,000,000 prize amount displays correctly on World Selector
+        - Â£ symbol (U+00A3) renders correctly as "Â£" across all routes (desktop and mobile)
+        - Â£257,500 prize amount displays correctly in Free World header (both viewports)
+        - Â£1,000,000 prize amount displays correctly on World Selector
         - All currency symbols, bullets, ellipsis, and emojis render as proper glyphs
         - Unicode escape sequence \u00A3 implementation working correctly in PrizeLeagueWorld.jsx
         

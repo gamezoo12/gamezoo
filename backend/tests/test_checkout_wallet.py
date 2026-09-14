@@ -70,7 +70,7 @@ class TestCheckoutWallet:
         r = requests.post(f'{BASE_URL}/api/wallet/topup', json={'amount': 25}, headers=_auth(fresh_user['token']), timeout=30)
         assert r.status_code == 200
         assert r.json()['balance'] == 25.0
-        # checkout 1x£1
+        # checkout 1xÂ£1
         r2 = requests.post(
             f'{BASE_URL}/api/orders/checkout',
             json={'items': [{'contest_id': live_cheap_contest['contest_id'], 'qty': 1, 'skill_answer': '4'}]},

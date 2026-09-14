@@ -73,7 +73,7 @@ class TestRegisterHappyPath:
         assert len(u['username']) >= len('balaram02') + 2
 
     def test_username_uniqueness_increments(self):
-        # Two users, same first name + same DOB day → NN increments
+        # Two users, same first name + same DOB day â†’ NN increments
         p1 = _reg_payload(name='Balaram TestA', dob='1999-08-02', email=_fresh_email('a'))
         p2 = _reg_payload(name='Balaram TestB', dob='1998-08-02', email=_fresh_email('b'))
         r1 = requests.post(f"{API}/auth/register", json=p1, timeout=30)
@@ -118,7 +118,7 @@ class TestRegisterRejections:
     def test_reject_wrong_otp(self):
         p = _reg_payload(otp_code='123456')
         r = requests.post(f"{API}/auth/register", json=p, timeout=30)
-        # Should NOT be 500. Wrong OTP with bypass mismatched → hits Twilio → 400 or (rarely) 400 from Twilio invalid.
+        # Should NOT be 500. Wrong OTP with bypass mismatched â†’ hits Twilio â†’ 400 or (rarely) 400 from Twilio invalid.
         assert r.status_code == 400, r.text
         detail = r.json().get('detail', '').lower()
         assert 'code' in detail or 'invalid' in detail or 'expired' in detail

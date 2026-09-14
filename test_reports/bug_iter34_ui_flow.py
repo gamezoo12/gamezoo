@@ -24,15 +24,15 @@ def url(path: str) -> str:
 
 
 def parse_answer(question: str) -> int:
-    match = re.search(r"(-?\d+)\s*([+\-−×x*÷/])\s*(-?\d+)\s*=", question)
+    match = re.search(r"(-?\d+)\s*([+\-âˆ’Ã—x*Ã·/])\s*(-?\d+)\s*=", question)
     if not match:
         raise AssertionError(f"Could not parse skill question: {question!r}")
     a, op, b = int(match.group(1)), match.group(2), int(match.group(3))
     if op == "+":
         return a + b
-    if op in ("-", "−"):
+    if op in ("-", "âˆ’"):
         return a - b
-    if op in ("×", "x", "*"):
+    if op in ("Ã—", "x", "*"):
         return a * b
     return a // b
 
@@ -73,7 +73,7 @@ async def run(page):
         await page.wait_for_function(
             """(cid) => {
                 const el = document.querySelector(`[data-testid="skill-inline-${cid}"]`);
-                return el && /\d+\s*[+−×÷-]\s*\d+\s*=/.test(el.textContent || '');
+                return el && /\d+\s*[+âˆ’Ã—Ã·-]\s*\d+\s*=/.test(el.textContent || '');
             }""",
             arg=CONTEST_ID,
             timeout=15000,

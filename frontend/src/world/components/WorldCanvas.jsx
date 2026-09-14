@@ -221,11 +221,11 @@ function championLevelName(championshipNumber) {
 
 /*
  * UI DISPLAY progression:
- * Champion 1 = £100
- * Champion 2 = £150
- * Champion 3 = £200
+ * Champion 1 = Â£100
+ * Champion 2 = Â£150
+ * Champion 3 = Â£200
  * ...
- * Champion 100 = £5,050
+ * Champion 100 = Â£5,050
  *
  * This does NOT modify wallet/settlement logic.
  */
@@ -401,8 +401,8 @@ function ChampionshipPrizePopup({
 
       <strong>
         {revealed
-          ? `£${amount}`
-          : '🔒 PRIZE LOCKED'}
+          ? `Â£${amount}`
+          : 'ðŸ”’ PRIZE LOCKED'}
       </strong>
 
       <span>
@@ -649,7 +649,7 @@ function ChampionshipSection({
       return;
     }
 
-    // Playable level → open the game (existing behaviour).
+    // Playable level â†’ open the game (existing behaviour).
     if (
       levelState?.available &&
       !levelState?.completed
@@ -733,7 +733,7 @@ function ChampionshipSection({
     );
 
   /*
-   * PROGRESSION AVATAR POSITION (visual only — backend stays
+   * PROGRESSION AVATAR POSITION (visual only â€” backend stays
    * authoritative for progress). Rendered once, on the road,
    * for the current championship after the journey has begun.
    *
@@ -780,7 +780,7 @@ function ChampionshipSection({
           ];
 
         // Deterministic point ON the black road between the
-        // completed level and the locked one. No sideways nudge —
+        // completed level and the locked one. No sideways nudge â€”
         // the avatar must stay on the path. Positioned a bit below
         // the midpoint so it sits clear of the locked level's
         // timer / early-unlock labels that hang down toward it.
@@ -1069,7 +1069,7 @@ function ChampionshipSection({
 
                   <span className="pl1000-special-node">
                     <span className="pl1000-champion-crown">
-                      ♛
+                      â™›
                     </span>
 
                     <b>
@@ -1209,7 +1209,7 @@ function ChampionshipSection({
               >
                 <span className="pl1000-node">
                   {completed
-                    ? '✓'
+                    ? 'âœ“'
                     : globalLevel}
                 </span>
 
@@ -1219,7 +1219,7 @@ function ChampionshipSection({
 
                 {locked && (
                   <span className="pl1000-lock">
-                    🔒
+                    ðŸ”’
                   </span>
                 )}
 
@@ -1305,7 +1305,7 @@ function ChampionshipSection({
         </small>
 
         <span>
-          LEVELS {startLevel}–{endLevel}
+          LEVELS {startLevel}â€“{endLevel}
         </span>
       </div>
     </section>
@@ -1354,7 +1354,7 @@ function SeasonStart({
         </span>
 
         <p>
-          1,000 Levels • 100 Championships • One Journey
+          1,000 Levels â€¢ 100 Championships â€¢ One Journey
         </p>
       </div>
 
@@ -1474,13 +1474,13 @@ function SeasonStart({
         }}
       >
         <span className="pl2d-button-star">
-          ★
+          â˜…
         </span>
 
         START YOUR JOURNEY
 
         <span className="pl2d-button-arrow">
-          ↑
+          â†‘
         </span>
       </button>
 
@@ -1503,7 +1503,7 @@ function SeasonFinish() {
   return (
     <div className="pl2d-season-finish">
       <div className="pl2d-finish-crown">
-        ♛
+        â™›
       </div>
 
       <div className="pl2d-finish-title">
@@ -1511,7 +1511,7 @@ function SeasonFinish() {
       </div>
 
       <div className="pl2d-finish-subtitle">
-        LEVEL 1000 • GRAND CHAMPION
+        LEVEL 1000 â€¢ GRAND CHAMPION
       </div>
 
     </div>
@@ -2498,7 +2498,7 @@ export default function WorldCanvas({
 
       {stateLoading && (
         <div className="pl2d-progress-status">
-          Loading your position…
+          Loading your positionâ€¦
         </div>
       )}
 
@@ -2654,7 +2654,7 @@ export default function WorldCanvas({
             className="pl2d-token-icon"
             aria-hidden="true"
           >
-            ⌂
+            âŒ‚
           </span>
 
           <strong>
@@ -2688,7 +2688,7 @@ export default function WorldCanvas({
             className="pl2d-token-icon"
             aria-hidden="true"
           >
-            ♛
+            â™›
           </span>
 
           <strong>
@@ -2722,7 +2722,7 @@ export default function WorldCanvas({
             className="pl2d-token-icon"
             aria-hidden="true"
           >
-            ♜
+            â™œ
           </span>
 
           <strong>
@@ -2761,7 +2761,7 @@ export default function WorldCanvas({
 
             <p className="pl2d-token-modal-lead">
               Skip the wait and open this level now.
-              Your progress rules stay the same — this
+              Your progress rules stay the same â€” this
               only removes the countdown timer.
             </p>
 
@@ -2781,7 +2781,7 @@ export default function WorldCanvas({
               <div>
                 <span>Token cost</span>
                 <strong data-testid="early-unlock-cost">
-                  {unlockModal.cost} 🪙
+                  {unlockModal.cost} ðŸª™
                 </strong>
               </div>
 
@@ -2789,8 +2789,8 @@ export default function WorldCanvas({
                 <span>Current balance</span>
                 <strong data-testid="early-unlock-current-balance">
                   {walletBalance === null
-                    ? '…'
-                    : `${walletBalance} 🪙`}
+                    ? 'â€¦'
+                    : `${walletBalance} ðŸª™`}
                 </strong>
               </div>
 
@@ -2798,12 +2798,12 @@ export default function WorldCanvas({
                 <span>Balance after unlock</span>
                 <strong data-testid="early-unlock-remaining-balance">
                   {walletBalance === null
-                    ? '…'
+                    ? 'â€¦'
                     : `${Math.max(
                         0,
                         walletBalance -
                           unlockModal.cost,
-                      )} 🪙`}
+                      )} ðŸª™`}
                 </strong>
               </div>
             </div>
@@ -2866,7 +2866,7 @@ export default function WorldCanvas({
                   onClick={confirmEarlyUnlock}
                 >
                   {unlockBusy
-                    ? 'Unlocking…'
+                    ? 'Unlockingâ€¦'
                     : 'Unlock Now'}
                 </button>
               </div>

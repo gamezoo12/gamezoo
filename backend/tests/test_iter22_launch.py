@@ -85,9 +85,9 @@ NEW_FIELDS_SAMPLE = {
     'skill_instructions': 'Answer the question',
     'eligibility': 'UK 18+',
     'max_tickets_per_user': 25,
-    'prize_details': '£100 cash',
+    'prize_details': 'Â£100 cash',
     'num_prizes': 1,
-    'prize_values': '["£100"]',
+    'prize_values': '["Â£100"]',
     'winner_method': 'Highest score',
     'scoring_method': 'points',
     'tiebreak_method': 'accuracy then duration',
@@ -218,7 +218,7 @@ class TestLeaderboardEndpoint:
         assert 'leaderboard' not in d, 'Old {leaderboard:[]} contract still present'
 
     def test_global_leaderboard_still_works(self):
-        """Global leaderboard was NOT removed — still returns {leaderboard:[...]}"""
+        """Global leaderboard was NOT removed â€” still returns {leaderboard:[...]}"""
         # Try the path per code registration (public_router prefix /api + /leaderboard/global)
         r = requests.get(f'{BASE_URL}/api/leaderboard/global?limit=10')
         if r.status_code == 404:
@@ -233,7 +233,7 @@ class TestLeaderboardEndpoint:
 # ---------- 5. Audit log no-op skip (iter23) ----------
 class TestAuditNoOpSkip:
     def test_noop_update_does_not_write_audit(self, admin_headers):
-        """PUT with same values as current — audit_log should NOT get a new doc."""
+        """PUT with same values as current â€” audit_log should NOT get a new doc."""
         # Read current company settings
         cur = requests.get(f'{BASE_URL}/api/admin/company', headers=admin_headers).json()
         # Pick a stable string field that already has a value
@@ -274,7 +274,7 @@ class TestAuditNoOpSkip:
             after_count = len([r for r in rows if r.get('kind') == 'company_settings_update'])
             assert after_count == before_count, f'audit_log grew on no-op update: before={before_count} after={after_count}'
         else:
-            # No public audit_log endpoint — inspect DB directly
+            # No public audit_log endpoint â€” inspect DB directly
             import subprocess, json as _json
             out = subprocess.run(
                 ['python', '-c',

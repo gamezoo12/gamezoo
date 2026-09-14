@@ -19,6 +19,13 @@ import secrets
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Request
+
+from world.season1 import SEASON_1_CHAMPIONSHIP_COUNT
+
+from services.world_championship_schedule import (
+    championship_window,
+    level_unlock_at,
+)
 from pydantic import BaseModel, Field
 
 from auth import get_current_user, require_admin
@@ -43,23 +50,23 @@ admin_router = APIRouter(
 
 
 WORLD_SEASON_ID = "season-1"
-WORLD_CONTEST_COUNT = 50
+WORLD_CONTEST_COUNT = SEASON_1_CHAMPIONSHIP_COUNT
 WORLD_DEFAULT_CURRENCY = "GBP"
 
 # Champion prize distribution.
 #
 # Final payout:
-#   base rank prize Ã— PERSONAL Champion stage.
+#   base rank prize Ãƒâ€” PERSONAL Champion stage.
 #
 # Champion 1:
-#   1st Â£50
-#   2nd Â£20
-#   3rd Â£15
-#   4th Â£10
-#   5th Â£5
+#   1st Ã‚Â£50
+#   2nd Ã‚Â£20
+#   3rd Ã‚Â£15
+#   4th Ã‚Â£10
+#   5th Ã‚Â£5
 #
 # Champion 9 example:
-#   4th = Â£10 Ã— 9 = Â£90
+#   4th = Ã‚Â£10 Ãƒâ€” 9 = Ã‚Â£90
 CHAMPION_BASE_RANK_PRIZES = {
     1: 50,
     2: 20,
@@ -163,15 +170,16 @@ class WorldContestUpdate(BaseModel):
 
 
 class ActivateWorldContestInput(BaseModel):
+    # Season 1 launches only from Championship 1.
+    # Championships 2-100 are controlled automatically
+    # by the authoritative Season scheduler.
     contest_number: int = Field(
-        ...,
+        default=1,
         ge=1,
-        le=WORLD_CONTEST_COUNT,
+        le=1,
     )
 
     start_at: datetime
-    end_at: datetime
-
 
 class ChampionPrizeUpdate(BaseModel):
     amount: int = Field(
@@ -756,7 +764,7 @@ async def world_public_leaderboard(
 @admin_router.post("/seed")
 async def seed_world_engine(request: Request):
     """
-    Creates the 50 contest HOLDERS and 50 personal prize stages.
+    Creates the 100 contest HOLDERS and 100 personal prize stages.
 
     IMPORTANT:
     - Does NOT activate a contest.
@@ -766,7 +774,7 @@ async def seed_world_engine(request: Request):
 
     Contest 1 is pre-configured with Number Sequence because that is
     the first game currently being built.
-    Contests 2-50 remain unconfigured until admin assigns their games.
+    Contests 2-100 remain unconfigured until admin assigns their games.
     """
     admin = await require_admin(request)
     db = get_db()
@@ -794,7 +802,7 @@ async def seed_world_engine(request: Request):
                 if number == 1
                 else {}
             ),
-            "winner_count": None,
+            "winner_count": CHAMPION_WINNER_COUNT,
             "status": "draft",
             "start_at": None,
             "end_at": None,
@@ -911,7 +919,7 @@ async def seed_world_engine(request: Request):
             "champion_stage": number,
 
             # Locked product rule:
-            # Stage 1 = Â£100 ... Stage 50 = Â£5,000.
+            # Stage 1 = Ã‚Â£100 ... Stage 50 = Ã‚Â£5,000.
             "amount": number * 100,
             "currency":
                 WORLD_DEFAULT_CURRENCY,
@@ -1182,20 +1190,67 @@ async def activate_admin_world_contest(
     admin = await require_admin(request)
     db = get_db()
 
-    if body.end_at <= body.start_at:
+    if int(1 or 1) != 1:
         raise HTTPException(
             status_code=400,
             detail=(
-                "Contest end time must be "
-                "after start time."
+                "Season 1 must be launched from "
+                "Championship 1."
             ),
         )
+
+    season_start_at = body.start_at
+
+    if season_start_at.tzinfo is None:
+        season_start_at = season_start_at.replace(
+            tzinfo=timezone.utc
+        )
+
+    season_start_at = season_start_at.astimezone(
+        timezone.utc
+    )
+
+    first_window = championship_window(
+        season_start_at,
+        1,
+    )
+
+    # Season 1 schedule is defined by Europe/London calendar days.
+    # Admin may choose the launch DATE, but the launch time is
+    # authoritative UK local midnight.
+    if (
+        ensure_utc(season_start_at)
+        != first_window["start_at"]
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code":
+                    "WORLD_SEASON_START_MUST_BE_UK_MIDNIGHT",
+
+                "message":
+                    (
+                        "Season 1 must start at 00:00 "
+                        "Europe/London."
+                    ),
+
+                "authoritative_start_at":
+                    first_window[
+                        "start_at"
+                    ].isoformat(),
+            },
+        )
+
+
+    authoritative_end_at = first_window[
+        "champion_closes_at"
+    ]
 
     contest = await db.world_global_contests.find_one(
         {
             "season_id": WORLD_SEASON_ID,
             "contest_number":
-                body.contest_number,
+                1,
         }
     )
 
@@ -1274,10 +1329,10 @@ async def activate_admin_world_contest(
         contest.get("end_at")
     )
     incoming_start = _ensure_aware_datetime(
-        body.start_at
+        season_start_at
     )
     incoming_end = _ensure_aware_datetime(
-        body.end_at
+        authoritative_end_at
     )
 
     already_live = (
@@ -1311,7 +1366,7 @@ async def activate_admin_world_contest(
             "season_id": WORLD_SEASON_ID,
             "status": "active",
             "contest_number": {
-                "$ne": body.contest_number
+                "$ne": 1
             },
         },
         {
@@ -1328,13 +1383,13 @@ async def activate_admin_world_contest(
         {
             "season_id": WORLD_SEASON_ID,
             "contest_number":
-                body.contest_number,
+                1,
         },
         {
             "$set": {
                 "status": "active",
-                "start_at": body.start_at,
-                "end_at": body.end_at,
+                "start_at": season_start_at,
+                "end_at": authoritative_end_at,
                 "activated_at": now,
                 "updated_at": now,
                 "updated_by":
@@ -1350,8 +1405,18 @@ async def activate_admin_world_contest(
         {
             "$set": {
                 "season_id": WORLD_SEASON_ID,
+
+                # Authoritative start for the complete
+                # 100-Championship Season calendar.
+                "season_start_at":
+                    season_start_at,
+
+                "season_schedule_version":
+                    1,
+
                 "contest_number":
-                    body.contest_number,
+                    1,
+
                 "updated_at": now,
                 "updated_by":
                     admin.get("user_id"),
@@ -1377,9 +1442,9 @@ async def activate_admin_world_contest(
                     admin.get("user_id"),
                 "season_id": WORLD_SEASON_ID,
                 "contest_number":
-                    body.contest_number,
-                "start_at": body.start_at,
-                "end_at": body.end_at,
+                    1,
+                "start_at": season_start_at,
+                "end_at": authoritative_end_at,
                 "at": now,
             }
         )
@@ -1388,7 +1453,7 @@ async def activate_admin_world_contest(
         {
             "season_id": WORLD_SEASON_ID,
             "contest_number":
-                body.contest_number,
+                1,
         },
         {
             "_id": 0,
@@ -1584,7 +1649,7 @@ async def admin_world_entries(
 
 
 # ===========================================================================
-# FREE WORLD PROGRESSION LEVELS â€” ROYAL VILLAGE
+# FREE WORLD PROGRESSION LEVELS Ã¢â‚¬â€ ROYAL VILLAGE
 # ===========================================================================
 #
 # IMPORTANT:
@@ -1609,152 +1674,122 @@ ROYAL_VILLAGE_LEVELS = {
         "arena": 1,
         "location_name": "Village Gate",
         "game_id": "number_sequence",
-        "game_config": {
-            "target_number": 20,
-        },
-        "time_limit_seconds": 25,
+        "game_config": {"target_number": 20},
+        "time_limit_seconds": 60,
         "initial_free_attempts": 3,
-        "refresh_attempts": 0,
+        "refresh_attempts": 1,
         "refresh_hours": 24,
         "token_retry_enabled": True,
     },
-
     2: {
         "level": 2,
         "arena": 1,
         "location_name": "Market Square",
         "game_id": "number_sequence",
-        "game_config": {
-            "target_number": 25,
-        },
-        "time_limit_seconds": 27,
+        "game_config": {"target_number": 20},
+        "time_limit_seconds": 55,
         "initial_free_attempts": 3,
-        "refresh_attempts": 0,
+        "refresh_attempts": 1,
         "refresh_hours": 24,
         "token_retry_enabled": True,
     },
-
     3: {
         "level": 3,
         "arena": 1,
         "location_name": "Royal Farm",
         "game_id": "number_sequence",
-        "game_config": {
-            "target_number": 30,
-        },
-        "time_limit_seconds": 30,
+        "game_config": {"target_number": 20},
+        "time_limit_seconds": 50,
         "initial_free_attempts": 3,
-        "refresh_attempts": 0,
+        "refresh_attempts": 1,
         "refresh_hours": 24,
         "token_retry_enabled": True,
     },
-
     4: {
         "level": 4,
         "arena": 1,
         "location_name": "Riverside Trail",
         "game_id": "number_sequence",
-        "game_config": {
-            "target_number": 35,
-        },
-        "time_limit_seconds": 32,
+        "game_config": {"target_number": 20},
+        "time_limit_seconds": 45,
         "initial_free_attempts": 3,
-        "refresh_attempts": 0,
+        "refresh_attempts": 1,
         "refresh_hours": 24,
         "token_retry_enabled": True,
     },
-
     5: {
         "level": 5,
         "arena": 1,
         "location_name": "King's Bridge",
         "game_id": "number_sequence",
-        "game_config": {
-            "target_number": 40,
-        },
-        "time_limit_seconds": 35,
+        "game_config": {"target_number": 20},
+        "time_limit_seconds": 40,
         "initial_free_attempts": 3,
-        "refresh_attempts": 0,
+        "refresh_attempts": 1,
         "refresh_hours": 24,
         "token_retry_enabled": True,
     },
-
     6: {
         "level": 6,
         "arena": 1,
         "location_name": "Whispering Woods",
         "game_id": "number_sequence",
-        "game_config": {
-            "target_number": 45,
-        },
-        "time_limit_seconds": 38,
-        "initial_free_attempts": 1,
-        "refresh_attempts": 0,
+        "game_config": {"target_number": 20},
+        "time_limit_seconds": 35,
+        "initial_free_attempts": 3,
+        "refresh_attempts": 1,
         "refresh_hours": 24,
         "token_retry_enabled": True,
     },
-
     7: {
         "level": 7,
         "arena": 1,
         "location_name": "Ancient Ruins",
         "game_id": "number_sequence",
-        "game_config": {
-            "target_number": 50,
-        },
-        "time_limit_seconds": 42,
-        "initial_free_attempts": 1,
-        "refresh_attempts": 0,
+        "game_config": {"target_number": 20},
+        "time_limit_seconds": 30,
+        "initial_free_attempts": 3,
+        "refresh_attempts": 1,
         "refresh_hours": 24,
         "token_retry_enabled": True,
     },
-
     8: {
         "level": 8,
         "arena": 1,
         "location_name": "Watchtower Pass",
         "game_id": "number_sequence",
-        "game_config": {
-            "target_number": 60,
-        },
-        "time_limit_seconds": 48,
-        "initial_free_attempts": 1,
-        "refresh_attempts": 0,
+        "game_config": {"target_number": 20},
+        "time_limit_seconds": 25,
+        "initial_free_attempts": 3,
+        "refresh_attempts": 1,
         "refresh_hours": 24,
         "token_retry_enabled": True,
     },
-
     9: {
         "level": 9,
         "arena": 1,
         "location_name": "Castle Crossing",
         "game_id": "number_sequence",
-        "game_config": {
-            "target_number": 75,
-        },
-        "time_limit_seconds": 55,
-        "initial_free_attempts": 1,
-        "refresh_attempts": 0,
+        "game_config": {"target_number": 20},
+        "time_limit_seconds": 20,
+        "initial_free_attempts": 3,
+        "refresh_attempts": 1,
         "refresh_hours": 24,
         "token_retry_enabled": True,
     },
-
     10: {
         "level": 10,
         "arena": 1,
         "location_name": "Royal Gate",
         "game_id": "number_sequence",
-        "game_config": {
-            "target_number": 90,
-        },
-        "time_limit_seconds": 65,
-        "initial_free_attempts": 1,
-        "refresh_attempts": 0,
+        "game_config": {"target_number": 20},
+        "time_limit_seconds": 18,
+        "initial_free_attempts": 3,
+        "refresh_attempts": 1,
         "refresh_hours": 24,
         "token_retry_enabled": True,
     },
 }
-
 
 ROYAL_VILLAGE_CHAMPION = {
     "arena": 1,
@@ -1762,9 +1797,12 @@ ROYAL_VILLAGE_CHAMPION = {
     "name": "Champion Arena I",
     "game_id": "number_sequence",
     "game_config": {
-        "target_number": 100,
+        "target_number": 20,
+        "timer_mode": "stopwatch",
     },
-    "time_limit_seconds": 75,
+    # Champion uses fastest verified completion.
+    # There is no countdown failure limit.
+    "time_limit_seconds": None,
 }
 
 
@@ -1823,7 +1861,7 @@ def _default_world_level_config(
             1,
 
         "token_unlock_enabled":
-            True,
+            False,
 
         "token_unlock_cost":
             1,
@@ -1833,7 +1871,7 @@ def _default_world_level_config(
         "unlock_after_days":
             max(
                 0,
-                (level - 1) * 2,
+                (level - 1),
             ),
     }
 
@@ -1869,11 +1907,9 @@ def _default_world_champion_config() -> dict:
             ),
 
         "time_limit_seconds":
-            int(
-                ROYAL_VILLAGE_CHAMPION[
-                    "time_limit_seconds"
-                ]
-            ),
+            ROYAL_VILLAGE_CHAMPION[
+                "time_limit_seconds"
+            ],
 
         "move_limit":
             None,
@@ -1996,7 +2032,7 @@ def _validate_world_level_config(
                 status_code=400,
                 detail=(
                     f"Level {level} time limit "
-                    "must be 5â€“900 seconds."
+                    "must be 5Ã¢â‚¬â€œ900 seconds."
                 ),
             )
 
@@ -2080,7 +2116,7 @@ def _validate_world_level_config(
         unlock_after_days = int(
             item.get(
                 "unlock_after_days",
-                (level - 1) * 2,
+                (level - 1),
             )
         )
 
@@ -2132,10 +2168,11 @@ def _validate_world_level_config(
                 "initial_free_attempts":
                     free_attempts,
 
-                # No automatic free refresh in the
-                # current revised attempt model.
+                # Free World V2:
+                # after the initial attempts are exhausted,
+                # one free attempt refreshes every 24 hours.
                 "refresh_attempts":
-                    0,
+                    1,
 
                 "refresh_hours":
                     24,
@@ -2167,13 +2204,10 @@ def _validate_world_level_config(
                 "token_retry_cost":
                     retry_cost,
 
+                # Tokens may purchase retries only.
+                # They can never unlock or skip progression.
                 "token_unlock_enabled":
-                    bool(
-                        item.get(
-                            "token_unlock_enabled",
-                            True,
-                        )
-                    ),
+                    False,
 
                 "token_unlock_cost":
                     unlock_cost,
@@ -2238,24 +2272,61 @@ def _validate_world_champion_config(
             ),
         )
 
-    time_limit = int(
-        raw.get(
-            "time_limit_seconds",
-            75,
+    timer_mode = str(
+        game_config.get(
+            "timer_mode",
+            "countdown",
         )
-    )
+        or "countdown"
+    ).strip().lower()
 
-    if (
-        time_limit < 5
-        or time_limit > 1800
-    ):
+    if timer_mode not in {
+        "countdown",
+        "stopwatch",
+    }:
         raise HTTPException(
             status_code=400,
             detail=(
-                "Champion time limit must be "
-                "5â€“1800 seconds."
+                "Champion timer_mode must be "
+                "'countdown' or 'stopwatch'."
             ),
         )
+
+    if timer_mode == "stopwatch":
+        time_limit = None
+    else:
+        raw_time_limit = raw.get(
+            "time_limit_seconds",
+            75,
+        )
+
+        if raw_time_limit is None:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Countdown Champion requires "
+                    "time_limit_seconds."
+                ),
+            )
+
+        time_limit = int(raw_time_limit)
+
+        if (
+            time_limit < 5
+            or time_limit > 1800
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Champion time limit must be "
+                    "5-1800 seconds."
+                ),
+            )
+
+    game_config = {
+        **game_config,
+        "timer_mode": timer_mode,
+    }
 
     move_limit = raw.get(
         "move_limit"
@@ -2546,11 +2617,9 @@ async def _world_unlock_context(
         ),
     )
 
-    unlock_at = (
-        start_at
-        + timedelta(
-            days=unlock_after_days
-        )
+    unlock_at = level_unlock_at(
+        start_at,
+        unlock_after_days,
     )
 
     scheduled_time_available = (
@@ -2924,6 +2993,9 @@ async def _free_world_progress(
         if "champion_ready" not in progress:
             patch["champion_ready"] = False
 
+        if "season_complete" not in progress:
+            patch["season_complete"] = False
+
         if "token_unlocked_levels" not in progress:
             patch["token_unlocked_levels"] = []
 
@@ -2958,6 +3030,7 @@ async def _free_world_progress(
 
         "champion_stage": 1,
         "champion_ready": False,
+        "season_complete": False,
 
         # Token unlock bypasses only the scheduled TIME gate.
         # It never marks a level completed.
@@ -3947,6 +4020,7 @@ async def free_world_state(
             "completed_levels": [],
             "champion_stage": 1,
             "champion_ready": False,
+            "season_complete": False,
         }
 
     current_level = max(
@@ -4069,6 +4143,14 @@ async def free_world_state(
                 bool(
                     progress.get(
                         "champion_ready",
+                        False,
+                    )
+                ),
+
+            "season_complete":
+                bool(
+                    progress.get(
+                        "season_complete",
                         False,
                     )
                 ),
@@ -4883,7 +4965,7 @@ async def free_world_session_submit(
 
 
 # ===========================================================================
-# FREE WORLD â€” CHAMPION CONTEST GAMEPLAY
+# FREE WORLD Ã¢â‚¬â€ CHAMPION CONTEST GAMEPLAY
 # ===========================================================================
 #
 # GLOBAL CONTEST NUMBER:
@@ -5042,7 +5124,7 @@ async def _ensure_champion_entry(
         "season_id":
             WORLD_SEASON_ID,
 
-        # GLOBAL â€” decides game everyone plays.
+        # GLOBAL Ã¢â‚¬â€ decides game everyone plays.
         "global_contest_number":
             contest_number,
 
@@ -5617,28 +5699,26 @@ async def champion_session_start(
         ) or {}
     )
 
-    target = int(
-        game_config.get(
-            "target_number",
-            100,
-        )
-    )
+    # Champion V2 reuses the exact same Number Sequence game.
+    target = 20
 
-    # Champion Number Sequence stays 1â€“100.
-    target = max(
-        5,
-        min(
-            100,
-            target,
-        ),
-    )
-
-    time_limit_seconds = int(
+    timer_mode = str(
         game_config.get(
-            "time_limit_seconds",
-            75,
+            "timer_mode",
+            "stopwatch",
         )
-    )
+        or "stopwatch"
+    ).strip().lower()
+
+    if timer_mode == "stopwatch":
+        time_limit_seconds = None
+    else:
+        time_limit_seconds = int(
+            game_config.get(
+                "time_limit_seconds",
+                75,
+            )
+        )
 
     numbers = _secure_shuffle_numbers(
         target
@@ -5700,6 +5780,9 @@ async def champion_session_start(
 
         "challenge_numbers":
             numbers,
+
+        "timer_mode":
+            timer_mode,
 
         "time_limit_seconds":
             time_limit_seconds,
@@ -5763,6 +5846,9 @@ async def champion_session_start(
             "numbers":
                 numbers,
         },
+
+        "timer_mode":
+            timer_mode,
 
         "time_limit_seconds":
             time_limit_seconds,
@@ -5830,11 +5916,23 @@ async def champion_session_begin(
                     )
                 ),
 
+            "timer_mode":
+                session.get(
+                    "timer_mode",
+                    "stopwatch",
+                ),
+
             "time_limit_seconds":
-                int(
-                    session[
+                (
+                    int(
+                        session[
+                            "time_limit_seconds"
+                        ]
+                    )
+                    if session.get(
                         "time_limit_seconds"
-                    ]
+                    ) is not None
+                    else None
                 ),
         }
 
@@ -5936,11 +6034,23 @@ async def champion_session_begin(
         "begun_at":
             now.isoformat(),
 
+        "timer_mode":
+            session.get(
+                "timer_mode",
+                "stopwatch",
+            ),
+
         "time_limit_seconds":
-            int(
-                session[
+            (
+                int(
+                    session[
+                        "time_limit_seconds"
+                    ]
+                )
+                if session.get(
                     "time_limit_seconds"
-                ]
+                ) is not None
+                else None
             ),
 
         "attempts_remaining":
@@ -6053,14 +6163,13 @@ async def champion_session_submit(
         ]
     )
 
-    time_limit_ms = (
-        int(
-            session[
-                "time_limit_seconds"
-            ]
+    timer_mode = str(
+        session.get(
+            "timer_mode",
+            "stopwatch",
         )
-        * 1000
-    )
+        or "stopwatch"
+    ).strip().lower()
 
     expected_taps = list(
         range(
@@ -6074,36 +6183,68 @@ async def champion_session_submit(
         == expected_taps
     )
 
-    submitted_in_time = (
-        body.duration_ms
-        <= time_limit_ms
-    )
+    if timer_mode == "stopwatch":
+        # No Champion countdown.
+        # Backend elapsed time is authoritative.
+        submitted_in_time = True
+        server_in_time = True
 
-    server_in_time = (
-        server_elapsed_ms
-        <= (
-            time_limit_ms
-            + 5000
+        passed = bool(
+            body.solved
+            and sequence_valid
         )
-    )
 
-    passed = bool(
-        body.solved
-        and sequence_valid
-        and submitted_in_time
-        and server_in_time
-    )
+        # Every verified 1 -> 20 completion receives the same score.
+        # Leaderboard then ranks duration_ms ascending.
+        score = target if passed else 0
 
-    # Higher is better.
-    score = (
-        max(
-            0,
-            time_limit_ms
-            - body.duration_ms,
+        authoritative_duration_ms = (
+            server_elapsed_ms
         )
-        if passed
-        else 0
-    )
+
+    else:
+        time_limit_ms = (
+            int(
+                session[
+                    "time_limit_seconds"
+                ]
+            )
+            * 1000
+        )
+
+        submitted_in_time = (
+            server_elapsed_ms
+            <= time_limit_ms
+        )
+
+        server_in_time = (
+            server_elapsed_ms
+            <= (
+                time_limit_ms
+                + 5000
+            )
+        )
+
+        passed = bool(
+            body.solved
+            and sequence_valid
+            and submitted_in_time
+            and server_in_time
+        )
+
+        score = (
+            max(
+                0,
+                time_limit_ms
+                - server_elapsed_ms,
+            )
+            if passed
+            else 0
+        )
+
+        authoritative_duration_ms = (
+            server_elapsed_ms
+        )
 
     accuracy = (
         1.0
@@ -6138,6 +6279,9 @@ async def champion_session_submit(
                     now,
 
                 "duration_ms":
+                    authoritative_duration_ms,
+
+                "client_duration_ms":
                     body.duration_ms,
 
                 "server_elapsed_ms":
@@ -6285,7 +6429,7 @@ async def champion_session_submit(
                 score,
 
             "duration_ms":
-                body.duration_ms,
+                authoritative_duration_ms,
 
             "accuracy":
                 accuracy,
@@ -6340,7 +6484,7 @@ async def champion_session_submit(
                         -1,
                     )
                 )
-                and body.duration_ms
+                and authoritative_duration_ms
                 < int(
                     existing_best.get(
                         "duration_ms",
@@ -6356,7 +6500,7 @@ async def champion_session_submit(
                         -1,
                     )
                 )
-                and body.duration_ms
+                and authoritative_duration_ms
                 == int(
                     existing_best.get(
                         "duration_ms",
@@ -6417,7 +6561,7 @@ async def champion_session_submit(
 
                             "duration_ms": {
                                 "$gt":
-                                    body.duration_ms
+                                    authoritative_duration_ms
                             },
                         },
 
@@ -6426,7 +6570,7 @@ async def champion_session_submit(
                                 score,
 
                             "duration_ms":
-                                body.duration_ms,
+                authoritative_duration_ms,
 
                             "submitted_at": {
                                 "$gt":
@@ -6468,7 +6612,7 @@ async def champion_session_submit(
             score,
 
         "duration_ms":
-            body.duration_ms,
+                authoritative_duration_ms,
 
         "verification": {
             "sequence_valid":
@@ -6577,7 +6721,7 @@ async def champion_my_history(
 
 
 # ===========================================================================
-# PHASE 2C REVISED â€” TOKEN / BEST-TIME / CHAMPION RULES
+# PHASE 2C REVISED Ã¢â‚¬â€ TOKEN / BEST-TIME / CHAMPION RULES
 # ===========================================================================
 
 
@@ -6620,9 +6764,9 @@ def _champion_final_prize(
 ) -> int:
     """
     Example:
-      rank 4 base = Â£10
+      rank 4 base = Ã‚Â£10
       Champion 9
-      final = Â£90
+      final = Ã‚Â£90
     """
     return (
         _champion_rank_base_prize(rank)
@@ -6663,7 +6807,7 @@ async def _world_best_verified_time(
 
 
 # ===========================================================================
-# TOKEN RETRY â€” RESERVATION HOOK ONLY
+# TOKEN RETRY Ã¢â‚¬â€ RESERVATION HOOK ONLY
 # ===========================================================================
 
 
@@ -7243,7 +7387,7 @@ async def reserve_world_token_retry(
 
 
 # ===========================================================================
-# TOKEN LEVEL UNLOCK â€” RESERVATION HOOK ONLY
+# TOKEN LEVEL UNLOCK Ã¢â‚¬â€ RESERVATION HOOK ONLY
 # ===========================================================================
 
 
@@ -7365,7 +7509,7 @@ async def reserve_world_level_unlock(
             },
         )
 
-    # Tokens bypass time only â€” never progression/start/closed rules.
+    # Tokens bypass time only Ã¢â‚¬â€ never progression/start/closed rules.
     if access.get(
         "lock_reason"
     ) != "time":
@@ -7739,7 +7883,7 @@ async def free_world_level_attempt_summary(
 
 
 # ===========================================================================
-# PAID-CONTEST QUALIFICATION EVIDENCE â€” SHADOW MODE
+# PAID-CONTEST QUALIFICATION EVIDENCE Ã¢â‚¬â€ SHADOW MODE
 # ===========================================================================
 #
 # IMPORTANT:
@@ -9670,7 +9814,7 @@ async def settle_admin_world_contest(
     Explicit admin settlement action.
 
     Real production endpoint accepts only seeded
-    Champion Contest numbers 1-50.
+    Champion Contest numbers 1-100.
     """
 
     admin = await require_admin(
@@ -9756,10 +9900,16 @@ async def continue_after_champion(
             },
         )
 
-    latest_contest = await db.world_global_contests.find_one(
+    # The user may advance only when THEIR matching global
+    # Championship has closed. A later closed Championship must
+    # never unlock an earlier personal Champion stage.
+    stage_contest = await db.world_global_contests.find_one(
         {
             "season_id":
                 WORLD_SEASON_ID,
+
+            "contest_number":
+                champion_stage,
 
             "status": {
                 "$in": [
@@ -9772,12 +9922,9 @@ async def continue_after_champion(
         {
             "_id": 0,
         },
-        sort=[
-            ("contest_number", -1),
-        ],
     )
 
-    if not latest_contest:
+    if not stage_contest:
         raise HTTPException(
             status_code=409,
             detail={
@@ -9786,26 +9933,136 @@ async def continue_after_champion(
 
                 "message":
                     (
-                        "The Champion prize period "
+                        "Your current Champion stage "
                         "has not closed yet."
                     ),
+
+                "champion_stage":
+                    champion_stage,
             },
         )
 
-    next_stage = min(
-        WORLD_CONTEST_COUNT,
-        champion_stage + 1,
-    )
-
     now = _utcnow()
 
-    await db.world_progress.update_one(
+    # -------------------------------------------------------
+    # FINAL CHAMPIONSHIP
+    # -------------------------------------------------------
+    #
+    # Stage 100 has no Stage 101. Completing the final
+    # Champion period completes Season 1 and must NOT reset
+    # the player back to Stage 100 / Level 1.
+    # -------------------------------------------------------
+
+    if champion_stage >= WORLD_CONTEST_COUNT:
+        result = await db.world_progress.update_one(
+            {
+                "season_id":
+                    WORLD_SEASON_ID,
+
+                "user_id":
+                    user["user_id"],
+
+                "champion_stage":
+                    champion_stage,
+
+                "champion_ready":
+                    True,
+            },
+            {
+                "$set": {
+                    "champion_stage":
+                        WORLD_CONTEST_COUNT,
+
+                    "champion_ready":
+                        False,
+
+                    "season_complete":
+                        True,
+
+                    "season_completed_at":
+                        now,
+
+                    "updated_at":
+                        now,
+                }
+            },
+        )
+
+        if result.modified_count == 0:
+            refreshed = await db.world_progress.find_one(
+                {
+                    "season_id":
+                        WORLD_SEASON_ID,
+
+                    "user_id":
+                        user["user_id"],
+                }
+            )
+
+            if not (
+                refreshed
+                and bool(
+                    refreshed.get(
+                        "season_complete",
+                        False,
+                    )
+                )
+            ):
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "code":
+                            "CHAMPION_PROGRESS_CHANGED",
+
+                        "message":
+                            (
+                                "Champion progression changed "
+                                "while completing the Season. "
+                                "Refresh and try again."
+                            ),
+                    },
+                )
+
+        return {
+            "continued":
+                True,
+
+            "season_complete":
+                True,
+
+            "previous_champion_stage":
+                champion_stage,
+
+            "champion_stage":
+                WORLD_CONTEST_COUNT,
+
+            "prize_required_to_continue":
+                False,
+
+            "participation_required_to_continue":
+                False,
+
+            "qualification_required_to_continue":
+                False,
+        }
+
+    next_stage = champion_stage + 1
+
+    result = await db.world_progress.update_one(
         {
             "season_id":
                 WORLD_SEASON_ID,
 
             "user_id":
                 user["user_id"],
+
+            # Atomic progression guard prevents two concurrent
+            # Continue requests from advancing two stages.
+            "champion_stage":
+                champion_stage,
+
+            "champion_ready":
+                True,
         },
         {
             "$set": {
@@ -9815,10 +10072,11 @@ async def continue_after_champion(
                 "champion_ready":
                     False,
 
-                # New Championship starts from its
-                # next normal progression segment.
-                # Current Royal Village renderer still
-                # displays its local 1-10 map.
+                "season_complete":
+                    False,
+
+                # New Championship starts from Level 1 of its
+                # own 10-level normal progression.
                 "current_level":
                     1,
 
@@ -9830,13 +10088,36 @@ async def continue_after_champion(
 
                 "updated_at":
                     now,
-            }
+            },
+
+            "$unset": {
+                "season_completed_at":
+                    "",
+            },
         },
     )
+
+    if result.modified_count != 1:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code":
+                    "CHAMPION_PROGRESS_CHANGED",
+
+                "message":
+                    (
+                        "Champion progression changed while "
+                        "continuing. Refresh and try again."
+                    ),
+            },
+        )
 
     return {
         "continued":
             True,
+
+        "season_complete":
+            False,
 
         "previous_champion_stage":
             champion_stage,
@@ -9856,7 +10137,7 @@ async def continue_after_champion(
 
 
 # ===========================================================================
-# FREE WORLD â€” LEVEL ACCESS / TIMING
+# FREE WORLD Ã¢â‚¬â€ LEVEL ACCESS / TIMING
 # ===========================================================================
 
 

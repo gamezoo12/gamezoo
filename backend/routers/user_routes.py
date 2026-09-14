@@ -95,7 +95,7 @@ async def change_password(inp: PasswordChange, request: Request):
     db = get_db()
     full = await db.users.find_one({'user_id': user['user_id']})
     if not full or not full.get('password_hash'):
-        raise HTTPException(status_code=400, detail='This account uses social login — no password to change')
+        raise HTTPException(status_code=400, detail='This account uses social login â€” no password to change')
     if not verify_password(inp.current_password, full['password_hash']):
         raise HTTPException(status_code=400, detail='Current password is incorrect')
     if len(inp.new_password) < 8:
@@ -171,7 +171,7 @@ async def upload_kyc_document(request: Request, kind: str, file: UploadFile = Fi
         'created_at': datetime.now(timezone.utc),
     })
 
-    # Relative URL served (with auth) by the backend — works in deployed envs.
+    # Relative URL served (with auth) by the backend â€” works in deployed envs.
     url = f"/api/users/kyc/file/{file_id}"
     return {"url": url, "kind": kind, "size": len(data), "mime": mime}
 

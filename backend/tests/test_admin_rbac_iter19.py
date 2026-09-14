@@ -1,4 +1,4 @@
-"""Iteration 19 — Admin RBAC verification.
+"""Iteration 19 â€” Admin RBAC verification.
 
 Verifies the fix in /app/backend/auth.py require_admin() which now accepts
 role in ('admin', 'super_admin', 'operator', 'support').

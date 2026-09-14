@@ -54,15 +54,15 @@ def must(r: requests.Response, label: str, expected: tuple[int, ...] = (200,)) -
 
 
 def parse_answer(question: str) -> int:
-    m = re.search(r'(-?\d+)\s*([+\-−×x*÷/])\s*(-?\d+)\s*=', question)
+    m = re.search(r'(-?\d+)\s*([+\-âˆ’Ã—x*Ã·/])\s*(-?\d+)\s*=', question)
     if not m:
         raise AssertionError(f'Could not parse challenge question: {question!r}')
     a, op, b = int(m.group(1)), m.group(2), int(m.group(3))
     if op == '+':
         return a + b
-    if op in ('-', '−'):
+    if op in ('-', 'âˆ’'):
         return a - b
-    if op in ('×', 'x', '*'):
+    if op in ('Ã—', 'x', '*'):
         return a * b
     return a // b
 

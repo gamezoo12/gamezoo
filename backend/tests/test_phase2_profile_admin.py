@@ -143,7 +143,7 @@ def _admin_token():
 
 
 def test_admin_users_list_has_new_columns():
-    # Create a fresh user first — will appear at the top of the newest-first list.
+    # Create a fresh user first â€” will appear at the top of the newest-first list.
     p, data = _register()
     fresh_email = p['email']
     fresh_phone = data['user']['phone']
@@ -165,7 +165,7 @@ def test_admin_users_list_has_new_columns():
               'created_at', 'phone_verified', 'kyc_status', 'tickets', 'spent',
               'role'):
         assert k in me, f"admin user missing column {k}: keys={list(me.keys())}"
-    # `suspended` is optional (absent for active users) — accept either shape.
+    # `suspended` is optional (absent for active users) â€” accept either shape.
     assert me.get('suspended', False) in (True, False)
 
     assert me['phone_verified'] is True

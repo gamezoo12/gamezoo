@@ -13,9 +13,9 @@ OUT = Path('/app/test_reports/bug_iter34_checkout_probe.json')
 
 
 def ans(q):
-    m = re.search(r'(\d+)\s*([+−×÷-])\s*(\d+)\s*=', q)
+    m = re.search(r'(\d+)\s*([+âˆ’Ã—Ã·-])\s*(\d+)\s*=', q)
     a, op, b = int(m.group(1)), m.group(2), int(m.group(3))
-    return a + b if op == '+' else a - b if op in ('-', '−') else a * b if op == '×' else a // b
+    return a + b if op == '+' else a - b if op in ('-', 'âˆ’') else a * b if op == 'Ã—' else a // b
 
 
 s = requests.Session()

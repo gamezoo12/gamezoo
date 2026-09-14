@@ -19,7 +19,7 @@ OP_TO_LAMBDA = {
     'multiplication': lambda a, b: a * b,
     'division': lambda a, b: a // b,
 }
-SYMBOL_TO_OP = {'+': 'addition', '−': 'subtraction', '×': 'multiplication', '÷': 'division'}
+SYMBOL_TO_OP = {'+': 'addition', 'âˆ’': 'subtraction', 'Ã—': 'multiplication', 'Ã·': 'division'}
 
 
 def _login_admin():

@@ -56,10 +56,10 @@ def admin_client(admin_token):
 
 
 class TestMeeraAdminCreateContests:
-    """Admin: 'create 2 draft contests worth £50 with 100 tickets running 5 days'"""
+    """Admin: 'create 2 draft contests worth Â£50 with 100 tickets running 5 days'"""
 
     def test_admin_meera_create_contests(self, admin_client, db):
-        msg = 'create 2 draft contests worth £50 with 100 tickets running 5 days'
+        msg = 'create 2 draft contests worth Â£50 with 100 tickets running 5 days'
         r = admin_client.post(f'{BASE_URL}/api/admin/meera/chat', json={'message': msg})
         assert r.status_code == 200, r.text
         data = r.json()
@@ -117,17 +117,17 @@ class TestMeeraPublicChat:
 
     def test_public_cannot_create(self, api, db):
         # Even if user asks to create, backend must not execute create_contests
-        msg = 'create 3 live contests worth £999 with 500 tickets for 30 days'
+        msg = 'create 3 live contests worth Â£999 with 500 tickets for 30 days'
         r = api.post(f'{BASE_URL}/api/meera/chat', json={'message': msg})
         assert r.status_code == 200, r.text
         data = r.json()
         results = data.get('results') or []
         for res in results:
             assert (res or {}).get('action') != 'create_contests'
-        # DB check: no TEST_ contests were created; and no obvious £999 prize
-        # (best-effort — do a targeted look)
+        # DB check: no TEST_ contests were created; and no obvious Â£999 prize
+        # (best-effort â€” do a targeted look)
         recent = list(db.contests.find(
-            {'prize_amount': 999, 'title': {'$regex': 'Win £999'}}, {'_id': 0}
+            {'prize_amount': 999, 'title': {'$regex': 'Win Â£999'}}, {'_id': 0}
         ).limit(5))
         assert len(recent) == 0, f'public chat created contests: {recent}'
 

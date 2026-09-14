@@ -84,7 +84,7 @@ const minimalWorldHeader =
  // Check whether tickets include contest.status / entry_mode
  const haveStatus = tickets.some(t => t && t.contest && typeof t.contest.status === 'string');
  if (!haveStatus) {
- // Insufficient info — show trophy without badge
+ // Insufficient info â€” show trophy without badge
  setPendingKnown(false);
  setPendingDrawCount(0);
  return;
@@ -112,7 +112,7 @@ const minimalWorldHeader =
  return () => { cancelled = true; };
  }, [user]);
 
- // Mobile menu → prevent body scroll
+ // Mobile menu â†’ prevent body scroll
  useEffect(() => {
  document.body.style.overflow = open ? 'hidden' : '';
  return () => { document.body.style.overflow = ''; };
@@ -251,12 +251,19 @@ const minimalWorldHeader =
  }
  return (
  <>
- <header className="sticky top-0 z-40" data-testid="site-header">
+ <header
+ className={
+  isFreeWorldHeader
+   ? "!fixed !top-0 !left-0 !right-0 !z-[10060]"
+   : "sticky top-0 z-40"
+ }
+ data-testid="site-header"
+>
  <div style={{ background: 'linear-gradient(180deg, #0B0D1F 0%, #161433 100%)' }} className="border-b border-white/5">
  <div className="max-w-7xl mx-auto flex items-center justify-between px-3 sm:px-4 lg:px-8 h-14 sm:h-16 md:h-[70px] gap-2">
  <Link to="/" className="shrink-0 flex items-center" data-testid="header-logo">
- {/* Mobile (below 640px): show full wordmark; ≥sm/≥lg keep existing sizes exactly */}
- <span className="sm:hidden"><PrizeLeagueLogo size={36} emblemOnly={isFreeWorldHeader} /></span>
+ {/* Mobile (below 640px): show full wordmark; â‰¥sm/â‰¥lg keep existing sizes exactly */}
+ <span className="sm:hidden"><PrizeLeagueLogo size={36} /></span>
  <span className="hidden sm:inline lg:hidden"><PrizeLeagueLogo size={44} /></span>
  <span className="hidden lg:inline"><PrizeLeagueLogo size={60} /></span>
  </Link>
@@ -276,7 +283,7 @@ const minimalWorldHeader =
           '0 0 1px #FFFFFF, 0 0 4px rgba(255,213,74,0.90), 0 0 8px rgba(255,190,0,0.45)',
       }}
     >
-      £257,500
+      Â£257,500
     </strong>
   </div>
 )}
@@ -305,11 +312,11 @@ const minimalWorldHeader =
  title="Your token balance"
  >
  <WalletIcon className="w-3.5 h-3.5" />
- {balance === null ? '…' : `${tokenCount(balance)} 🪙`}
+ {balance === null ? 'â€¦' : `${tokenCount(balance)} ðŸª™`}
  </Link>
  )}
 
- {/* Free World — tablet/mobile quick access */}
+ {/* Free World â€” tablet/mobile quick access */}
 {!isFreeWorldHeader && (
 <Link
   to="/world"
@@ -323,7 +330,7 @@ const minimalWorldHeader =
 {/* Desktop notifications kept unchanged */}
  <span className={isFreeWorldHeader ? "hidden" : "hidden sm:inline-flex"}><NotificationsBell /></span>
 
- {/* Draw Centre icon — desktop only kept unchanged */}
+ {/* Draw Centre icon â€” desktop only kept unchanged */}
  <Link to="/draw-centre" className={isFreeWorldHeader ? "hidden" : "hidden md:inline-flex relative p-2 rounded-lg hover:bg-white/5"} aria-label="Draw centre" data-testid="header-draw-centre">
  <Trophy className="w-5 h-5 text-[#FFD54A]" />
  </Link>
@@ -338,7 +345,7 @@ const minimalWorldHeader =
  </Link>
  )}
 
- {/* Cart — hidden on mobile per spec; desktop unchanged in appearance */}
+ {/* Cart â€” hidden on mobile per spec; desktop unchanged in appearance */}
  <Link to="/cart" className={isFreeWorldHeader ? "hidden" : "hidden sm:inline-flex relative p-2 rounded-lg hover:bg-white/5"} aria-label="Cart" data-testid="header-cart">
  <ShoppingCart className="w-5 h-5 text-white/85" />
  {cartCount > 0 && <span className="absolute -top-1 -right-1 bg-[#FFD54A] text-slate-900 text-[10px] font-bold rounded-full h-4 min-w-[16px] flex items-center justify-center px-1">{cartCount}</span>}
@@ -347,11 +354,11 @@ const minimalWorldHeader =
  {/* Mobile-only coin balance (no wallet icon) */}
  {user && (
  <div className={isFreeWorldHeader ? "hidden" : "sm:hidden text-[#FFD54A] text-sm font-bold px-2"} data-testid="mobile-coin-balance">
- {balance === null ? '… 🪙' : `${tokenCount(balance)} 🪙`}
+ {balance === null ? 'â€¦ ðŸª™' : `${tokenCount(balance)} ðŸª™`}
  </div>
  )}
 
- {/* Compact gold PLAY button — desktop/tablet kept unchanged (hidden on mobile) */}
+ {/* Compact gold PLAY button â€” desktop/tablet kept unchanged (hidden on mobile) */}
  <Link to="/competitions" className={isFreeWorldHeader ? "hidden" : "hidden sm:inline-flex"} data-testid="header-play-btn">
  <button className="pl-btn-gold h-9 px-3 md:px-4 rounded-full font-extrabold text-xs md:text-sm">
  PLAY <span className="hidden md:inline">NOW</span>
@@ -380,7 +387,7 @@ const minimalWorldHeader =
  </>
  ) : (
  <>
- {/* Mobile-only profile avatar → jumps to My Account (first-letter only) */}
+ {/* Mobile-only profile avatar â†’ jumps to My Account (first-letter only) */}
  <Link
  to="/my-account"
  className={isFreeWorldHeader ? "hidden" : "sm:hidden"}
@@ -449,9 +456,9 @@ const minimalWorldHeader =
      className="inline-flex items-center gap-1.5 rounded-full border border-[#FFD54A]/60 bg-gradient-to-b from-[#1a1140] to-[#0a0b1a] px-2.5 py-1.5 text-[#FFDD42] shadow-[0_0_12px_rgba(255,202,31,0.25)] hover:border-[#FFE680] hover:shadow-[0_0_18px_rgba(255,202,31,0.4)] transition whitespace-nowrap"
      title="Your token balance"
    >
-     <span className="text-[13px] leading-none" aria-hidden="true">🪙</span>
+     <span className="text-[13px] leading-none" aria-hidden="true">ðŸª™</span>
      <span className="text-[13px] sm:text-sm font-black leading-none" data-testid="free-world-token-balance-value">
-       {balance === null ? '…' : tokenCount(balance)}
+       {balance === null ? 'â€¦' : tokenCount(balance)}
      </span>
      <span className="hidden sm:inline text-[8px] font-black tracking-wider text-[#fff3a1] leading-none">TOKENS</span>
    </Link>
@@ -594,22 +601,22 @@ const minimalWorldHeader =
  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#8B5CFF] to-[#6C2BFF] text-white text-xs font-bold flex items-center justify-center">{(user.name || user.email || 'U').slice(0,1).toUpperCase()}</div>
  <div className="flex-1 min-w-0">
  <div className="font-bold text-sm truncate">{user.name || user.email}</div>
- <div className="text-white/60 text-xs">My Profile →</div>
+ <div className="text-white/60 text-xs">My Profile â†’</div>
  </div>
  </Link>
 
  <Link to="/my-account/wallet" onClick={() => setOpen(false)} className="mt-3 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white" data-testid="mobile-wallet-link">
- <div className="text-[#FFD54A] font-black text-lg">{balance === null ? '…' : `${tokenCount(balance)} 🪙`}</div>
+ <div className="text-[#FFD54A] font-black text-lg">{balance === null ? 'â€¦' : `${tokenCount(balance)} ðŸª™`}</div>
  <div className="flex-1 text-sm text-white/80">Wallet</div>
  </Link>
 
  <Link to="/my-account/tickets" onClick={() => setOpen(false)} className="mt-3 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white" data-testid="mobile-tickets-link">
- <div className="w-9 h-9 rounded-full bg-white/5 text-[#6C2BFF] flex items-center justify-center font-bold">🎟</div>
+ <div className="w-9 h-9 rounded-full bg-white/5 text-[#6C2BFF] flex items-center justify-center font-bold">ðŸŽŸ</div>
  <div className="flex-1 text-sm text-white/80">My Tickets</div>
  </Link>
 
  <Link to="/my-account/games" onClick={() => setOpen(false)} className="mt-3 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white" data-testid="mobile-games-link">
- <div className="w-9 h-9 rounded-full bg-white/5 text-[#f472b6] flex items-center justify-center font-bold">🎮</div>
+ <div className="w-9 h-9 rounded-full bg-white/5 text-[#f472b6] flex items-center justify-center font-bold">ðŸŽ®</div>
  <div className="flex-1 text-sm text-white/80">My Games</div>
  </Link>
 
@@ -619,22 +626,22 @@ const minimalWorldHeader =
  </Link>
 
  <Link to="/my-account/support" onClick={() => setOpen(false)} className="mt-3 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white" data-testid="mobile-support-link">
- <div className="w-9 h-9 rounded-full bg-white/5 text-cyan-500 flex items-center justify-center">💬</div>
+ <div className="w-9 h-9 rounded-full bg-white/5 text-cyan-500 flex items-center justify-center">ðŸ’¬</div>
  <div className="flex-1 text-sm text-white/80">Support</div>
  </Link>
 
  <Link to="/my-account/policies" onClick={() => setOpen(false)} className="mt-3 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white" data-testid="mobile-policies-link">
- <div className="w-9 h-9 rounded-full bg-white/5 text-indigo-500 flex items-center justify-center">📄</div>
+ <div className="w-9 h-9 rounded-full bg-white/5 text-indigo-500 flex items-center justify-center">ðŸ“„</div>
  <div className="flex-1 text-sm text-white/80">Policies</div>
  </Link>
 
  <Link to="/my-account/preferences" onClick={() => setOpen(false)} className="mt-3 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white" data-testid="mobile-preferences-link">
- <div className="w-9 h-9 rounded-full bg-white/5 text-stone-500 flex items-center justify-center">⚙️</div>
+ <div className="w-9 h-9 rounded-full bg-white/5 text-stone-500 flex items-center justify-center">âš™ï¸</div>
  <div className="flex-1 text-sm text-white/80">Settings</div>
  </Link>
 
  <Link to="/my-account/notifications" onClick={() => setOpen(false)} className="mt-3 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white" data-testid="mobile-notifications-link">
- <div className="w-9 h-9 rounded-full bg-white/5 text-sky-500 flex items-center justify-center">🔔</div>
+ <div className="w-9 h-9 rounded-full bg-white/5 text-sky-500 flex items-center justify-center">ðŸ””</div>
  <div className="flex-1 text-sm text-white/80">Notifications</div>
  </Link>
 

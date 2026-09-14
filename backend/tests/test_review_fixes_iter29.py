@@ -19,7 +19,7 @@ BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://import-verify-6.prev
 ADMIN_EMAIL = os.environ.get("ADMIN_TEST_EMAIL", "bachanta8@gmail.com")
 ADMIN_PASSWORD = os.environ.get("ADMIN_TEST_PASSWORD", "Herts@910022")
 
-OP_TO_LAMBDA = {'+': lambda a, b: a + b, '−': lambda a, b: a - b, '×': lambda a, b: a * b, '÷': lambda a, b: a // b}
+OP_TO_LAMBDA = {'+': lambda a, b: a + b, 'âˆ’': lambda a, b: a - b, 'Ã—': lambda a, b: a * b, 'Ã·': lambda a, b: a // b}
 
 
 def _solve(question: str) -> int:
@@ -159,7 +159,7 @@ class TestHigh2RefundCreditsWallet:
         assert rr.json().get("refunded_amount") == 3.0
 
         w2 = buyer["session"].get(f"{BASE_URL}/api/wallet/me").json()
-        assert abs(w2["balance"] - 10.0) < 0.001, f"HIGH-2 REGRESSION — refund did not credit. balance={w2['balance']}"
+        assert abs(w2["balance"] - 10.0) < 0.001, f"HIGH-2 REGRESSION â€” refund did not credit. balance={w2['balance']}"
 
         # Idempotent
         rr2 = admin.post(f"{BASE_URL}/api/admin/orders/{order_id}/refund")
@@ -185,7 +185,7 @@ class TestMedium3AtomicWallet:
         for t in ts: t.join()
 
         successes = sum(1 for s in results if s == 200)
-        assert successes == 1, f"MEDIUM-3 REGRESSION — both spends succeeded: {results}"
+        assert successes == 1, f"MEDIUM-3 REGRESSION â€” both spends succeeded: {results}"
 
         w = buyer["session"].get(f"{BASE_URL}/api/wallet/me").json()
         assert w["balance"] >= 0
@@ -232,7 +232,7 @@ class TestMedium4NoOversell:
             for t in threads: t.join()
 
             successes = sum(1 for s in results if s == 200)
-            assert successes == 1, f"MEDIUM-4 REGRESSION — oversold: {results}"
+            assert successes == 1, f"MEDIUM-4 REGRESSION â€” oversold: {results}"
 
             cc = requests.get(f"{BASE_URL}/api/contests/{c['slug']}").json()
             assert cc["tickets_sold"] == 1
