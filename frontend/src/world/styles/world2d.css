@@ -10816,20 +10816,14 @@
 
 .pl1000-road-shadow {
   stroke:
-    #FFD21A !important;
+    #ffffff !important;
 
   stroke-width:
-    110 !important;
+    102 !important;
 
   filter:
     drop-shadow(
-      0 0 4px #FFF4AC
-    )
-    drop-shadow(
-      0 0 11px rgba(255,210,26,.96)
-    )
-    drop-shadow(
-      0 0 24px rgba(255,161,0,.62)
+      0 2px 3px rgba(0, 0, 0, .3)
     ) !important;
 }
 
@@ -10845,7 +10839,7 @@
 
 .pl1000-road-centre {
   stroke:
-    #FFD21A !important;
+    #ffffff !important;
 
   stroke-width:
     5 !important;
@@ -10854,10 +10848,7 @@
     18 25 !important;
 
   filter:
-    drop-shadow(
-      0 0 3px
-      rgba(255,210,26,.80)
-    ) !important;
+    none !important;
 }
 
 
