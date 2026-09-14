@@ -3954,20 +3954,14 @@
   overflow: hidden !important;
 
   background:
-    radial-gradient(
-      ellipse at 50% 13%,
-      rgba(255, 205, 92, .16),
-      transparent 27%
-    ),
     linear-gradient(
       180deg,
-      #4f82a8 0%,
-      #356f72 23%,
-      #26685d 45%,
-      #1d5a49 65%,
-      #16443a 82%,
-      #102d31 100%
-    ) !important;
+      rgba(24, 12, 46, .34) 0%,
+      rgba(20, 40, 52, .18) 50%,
+      rgba(16, 45, 49, .55) 100%
+    ),
+    url('./freeworld-entrance.jpg') center top / cover no-repeat,
+    #16443a !important;
 
   border-top:
     0 !important;
