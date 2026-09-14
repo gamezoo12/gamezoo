@@ -760,9 +760,9 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
             data-testid="contest-save-btn"
             className="bg-[#6C2BFF] hover:bg-[#4A15D9]"
           >{busy
-            ? 'Saving?'
+            ? 'Saving...'
             : uploading
-              ? 'Uploading image?'
+              ? 'Uploading image...'
               : form.public_coming_soon
                 ? 'Launch'
                 : (isCreate ? 'Create contest' : 'Save changes')}</Button>
