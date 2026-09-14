@@ -278,16 +278,16 @@ const FORMATTED_TOTAL_PRIZE_POOL =
     TOTAL_PRIZE_POOL,
   );
 const PL1000_SLOT_POSITIONS = [
-  { x: 53, bottom: 4  },  // Level 1  (road ~43 → circle to the right)
-  { x: 27, bottom: 12 },  // Level 2  (road ~36 → left)
-  { x: 41, bottom: 20 },  // Level 3  (road ~31 → right)
-  { x: 28, bottom: 28 },  // Level 4  (road ~37 → left)
-  { x: 55, bottom: 36 },  // Level 5  (road ~45 → right)
-  { x: 47, bottom: 44 },  // Level 6  (road ~57 → left)
-  { x: 74, bottom: 52 },  // Level 7  (road ~64 → right)
-  { x: 56, bottom: 60 },  // Level 8  (road ~66 → left)
-  { x: 70, bottom: 68 },  // Level 9  (road ~60 → right)
-  { x: 40, bottom: 76 },  // Level 10 (road ~50 → left)
+  { x: 57, bottom: 4  },  // Level 1  (road ~43 → beside, right)
+  { x: 22, bottom: 12 },  // Level 2  (road ~36 → beside, left)
+  { x: 45, bottom: 20 },  // Level 3  (road ~31 → beside, right)
+  { x: 23, bottom: 28 },  // Level 4  (road ~37 → beside, left)
+  { x: 59, bottom: 36 },  // Level 5  (road ~45 → beside, right)
+  { x: 43, bottom: 44 },  // Level 6  (road ~57 → beside, left)
+  { x: 78, bottom: 52 },  // Level 7  (road ~64 → beside, right)
+  { x: 52, bottom: 60 },  // Level 8  (road ~66 → beside, left)
+  { x: 74, bottom: 68 },  // Level 9  (road ~60 → beside, right)
+  { x: 36, bottom: 76 },  // Level 10 (road ~50 → beside, left)
 
   // Dedicated Champion Arena position.
   // This is NOT a numbered level.

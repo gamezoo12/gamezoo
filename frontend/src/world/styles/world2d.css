@@ -13395,6 +13395,38 @@
 
 
 /* =========================================================
+   PROGRESSION AVATAR — new colours + shape (2026 update)
+   Golden helmeted head + rounded teal/gold body capsule.
+   ========================================================= */
+.pl1000-progress-avatar .pl1000-avatar-head {
+  width: 22px !important;
+  height: 22px !important;
+  top: -3px !important;
+  border-radius: 52% 52% 50% 50% !important;
+  background:
+    radial-gradient(circle at 34% 28%, #fff4c6 0%, #ffd23a 55%, #e8a100 100%) !important;
+  border: 2px solid #6b3d00 !important;
+  box-shadow: 0 0 7px rgba(255, 205, 60, .85) !important;
+}
+
+.pl1000-progress-avatar .pl1000-avatar-body {
+  width: 34px !important;
+  height: 36px !important;
+  top: 16px !important;
+  border-radius: 18px 18px 13px 13px !important;
+  background:
+    linear-gradient(180deg, #34e3f2 0%, #12b3c9 52%, #0a7f92 100%) !important;
+  border: 2px solid #ffd54a !important;
+  color: #052e37 !important;
+  font-size: 9px !important;
+  font-weight: 1000 !important;
+  box-shadow:
+    0 3px 9px rgba(0, 0, 0, .45),
+    inset 0 2px 3px rgba(255, 255, 255, .4) !important;
+}
+
+
+/* =========================================================
    COUNTDOWN MOVED INSIDE THE LEVEL CIRCLE (2026 update)
    Only the current locked level shows it. No "UNLOCKS IN"
    text — the corner lock symbol already conveys locked.
