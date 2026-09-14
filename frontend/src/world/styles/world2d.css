@@ -13283,8 +13283,8 @@
   pointer-events: none;
 
   transition:
-    left .75s cubic-bezier(.4, 0, .2, 1),
-    bottom .75s cubic-bezier(.4, 0, .2, 1);
+    left 2.6s cubic-bezier(.45, .05, .4, 1),
+    bottom 2.6s cubic-bezier(.45, .05, .4, 1);
 }
 
 /* AT a level: stand ON the node (feet on the level), enlarged + gentle idle. */
@@ -13381,5 +13381,45 @@
   0%, 100% { transform: translateX(-50%) scale(1.45) translateY(0) rotate(0deg); }
   25%      { transform: translateX(-50%) scale(1.45) translateY(-3px) rotate(-4deg); }
   75%      { transform: translateX(-50%) scale(1.45) translateY(-3px) rotate(4deg); }
+}
+
+
+/* =========================================================
+   COUNTDOWN MOVED INSIDE THE LEVEL CIRCLE (2026 update)
+   Only the current locked level shows it. No "UNLOCKS IN"
+   text — the corner lock symbol already conveys locked.
+   ========================================================= */
+.pl1000-node {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 3px !important;
+  line-height: 1 !important;
+}
+
+.pl1000-node-num {
+  line-height: 1;
+}
+
+/* When a timer is present, shrink the number so both fit neatly. */
+.pl1000-node:has(.pl1000-node-timer) .pl1000-node-num {
+  font-size: 26px !important;
+}
+
+.pl1000-node-timer {
+  font-family: 'Courier New', ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .2px;
+  line-height: 1;
+  color: #6a3d00;
+  background: linear-gradient(180deg, #ffe98a, #ffcf35);
+  padding: 2px 7px;
+  border-radius: 999px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .8),
+    0 1px 3px rgba(0, 0, 0, .3);
+  white-space: nowrap;
 }
 

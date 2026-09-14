@@ -1233,9 +1233,22 @@ function ChampionshipSection({
                 }
               >
                 <span className="pl1000-node">
-                  {completed
-                    ? '✓'
-                    : globalLevel}
+                  <span className="pl1000-node-num">
+                    {completed
+                      ? '✓'
+                      : globalLevel}
+                  </span>
+
+                  {levelCountdown && (
+                    <span
+                      className="pl1000-node-timer"
+                      data-testid={
+                        `free-world-level-timer-${globalLevel}`
+                      }
+                    >
+                      {levelCountdown}
+                    </span>
+                  )}
                 </span>
 
                 <small>
@@ -1245,18 +1258,6 @@ function ChampionshipSection({
                 {locked && (
                   <span className="pl1000-lock">
                     🔒
-                  </span>
-                )}
-
-                {levelCountdown && (
-                  <span className="pl2d-level-timer">
-                    <b>
-                      UNLOCKS IN
-                    </b>
-
-                    <strong>
-                      {levelCountdown}
-                    </strong>
                   </span>
                 )}
 
