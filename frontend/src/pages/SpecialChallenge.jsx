@@ -38,7 +38,7 @@ export default function SpecialChallenge() {
       const r = await winningsAPI.startChallenge();
       setAttemptId(r.attempt_id);
       setAlreadyWon(r.already_rewarded);
-      setGrid(shuffle(Array.from({ length: 100 }, (_, i) => i + 1)));
+      setGrid(r.board);
       finishedRef.current = false;
       setNext(1); setSeq([]); setLeft(LIMIT); setResult(null); setPlaying(true);
     } catch (e) {

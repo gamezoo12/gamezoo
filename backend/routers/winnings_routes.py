@@ -8,6 +8,7 @@ Completely separate from token/normal/entry/payment wallets.
 
 import uuid
 import logging
+import random
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Request
@@ -23,7 +24,7 @@ admin_router = APIRouter(prefix="/api/admin/winnings", tags=["admin-winnings"])
 
 CHALLENGE_ID = "something-special-100"
 CHALLENGE_REWARD_PENCE = 5000  # £50.00 — fixed server-side, never from client
-CHALLENGE_DURATION_MS = 60_000
+CHALLENGE_DURATION_MS = 90_000
 EXPECTED_SEQUENCE = list(range(1, 101))
 CURRENCY = "GBP"
 
@@ -109,10 +110,12 @@ async def start_challenge(request: Request):
     db = get_db()
     await _ensure_indexes(db)
     attempt_id = uuid.uuid4().hex
+    board = random.SystemRandom().sample(EXPECTED_SEQUENCE, len(EXPECTED_SEQUENCE))
     await db.special_challenge_attempts.insert_one({
         "attempt_id": attempt_id,
         "challenge_id": CHALLENGE_ID,
         "user_id": user["user_id"],
+        "board": board,
         "started_at": _now(),
         "completed_at": None,
         "elapsed_ms": None,
@@ -128,6 +131,7 @@ async def start_challenge(request: Request):
         "duration_ms": CHALLENGE_DURATION_MS,
         "reward_pence": CHALLENGE_REWARD_PENCE,
         "already_rewarded": bool(already),
+        "board": board,
     }
 
 
@@ -156,7 +160,7 @@ async def complete_challenge(body: CompleteBody, request: Request):
         started = started.replace(tzinfo=timezone.utc)
     elapsed_ms = int((now - started).total_seconds() * 1000)
 
-    # Server-authoritative success: correct 1..100 order AND within 60s.
+    # Server-authoritative success: correct 1..100 order AND within 90s.
     correct = list(body.sequence) == EXPECTED_SEQUENCE
     in_time = elapsed_ms <= CHALLENGE_DURATION_MS
     success = correct and in_time
