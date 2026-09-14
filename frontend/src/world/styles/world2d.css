@@ -13290,7 +13290,7 @@
 /* AT a level: stand ON the node (feet on the level), enlarged + gentle idle. */
 .pl1000-progress-avatar.is-at-level {
   margin-bottom: 100px;
-  transform: translateX(-50%) scale(1.6);
+  transform: translateX(-50%) scale(4.8);
   transform-origin: bottom center;
   animation: pl1000AvatarIdle 2.6s ease-in-out infinite;
 }
@@ -13298,7 +13298,7 @@
 /* WAITING: sit/rest ON the road path between levels until it unlocks. */
 .pl1000-progress-avatar.is-waiting {
   margin-bottom: 34px;
-  transform: translateX(-50%) scale(1.45);
+  transform: translateX(-50%) scale(4.35);
   transform-origin: bottom center;
   animation: pl1000AvatarWait 1.8s ease-in-out infinite;
 }
@@ -13372,14 +13372,14 @@
 
 /* Standing idle at a level (scaled) */
 @keyframes pl1000AvatarIdle {
-  0%, 100% { transform: translateX(-50%) scale(1.6) translateY(0); }
-  50%      { transform: translateX(-50%) scale(1.6) translateY(-2px); }
+  0%, 100% { transform: translateX(-50%) scale(4.8) translateY(0); }
+  50%      { transform: translateX(-50%) scale(4.8) translateY(-2px); }
 }
 
 /* Waiting / resting on the road (scaled, gentle sway like tapping a foot) */
 @keyframes pl1000AvatarWait {
-  0%, 100% { transform: translateX(-50%) scale(1.45) translateY(0) rotate(0deg); }
-  25%      { transform: translateX(-50%) scale(1.45) translateY(-3px) rotate(-4deg); }
-  75%      { transform: translateX(-50%) scale(1.45) translateY(-3px) rotate(4deg); }
+  0%, 100% { transform: translateX(-50%) scale(4.35) translateY(0) rotate(0deg); }
+  25%      { transform: translateX(-50%) scale(4.35) translateY(-3px) rotate(-4deg); }
+  75%      { transform: translateX(-50%) scale(4.35) translateY(-3px) rotate(4deg); }
 }
 
