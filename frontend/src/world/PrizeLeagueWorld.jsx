@@ -338,7 +338,7 @@ export default function PrizeLeagueWorld() {
         </div>
 
         <div className="pl-world-loading-subtitle">
-          Preparing Prize League Worldâ€¦
+          Preparing Prize League World…
         </div>
       </div>
     );
@@ -349,47 +349,24 @@ export default function PrizeLeagueWorld() {
 
       <WorldCanvas />
 
-      {/* Something Special — static side surprise symbol → Winnings / £50 challenge */}
-      <motion.button
+      {/* Something Special — animated, colourful popping surprise symbol → Winnings / £50 challenge */}
+      <button
         type="button"
         onClick={() => navigate(user ? '/my-account/winnings' : '/login')}
         aria-label="Something Special — win £50"
         data-testid="something-special-fab"
-        initial={{ scale: 0, rotate: -25 }}
-        animate={{ scale: 1, rotate: 0 }}
-        transition={{ delay: 0.45, type: 'spring', stiffness: 220, damping: 14 }}
-        whileHover={{ scale: 1.08 }}
-        whileTap={{ scale: 0.94 }}
-        style={{
-          position: 'fixed',
-          right: 14,
-          top: '50%',
-          transform: 'translateY(-50%)',
-          zIndex: 45,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 3,
-          padding: '13px 11px',
-          borderRadius: 20,
-          background: 'linear-gradient(160deg,#FFE58A 0%,#FFD54A 45%,#F59E0B 100%)',
-          color: '#3b2600',
-          border: '2px solid rgba(255,255,255,0.7)',
-          boxShadow: '0 12px 34px rgba(245,158,11,0.55)',
-          cursor: 'pointer',
-          fontWeight: 900,
-        }}
+        className="pl-special-fab"
       >
-        <motion.span
-          animate={{ y: [0, -3, 0] }}
-          transition={{ repeat: Infinity, duration: 1.6, ease: 'easeInOut' }}
-          style={{ display: 'flex' }}
-        >
-          <Gift size={22} />
-        </motion.span>
-        <span style={{ fontSize: 11, letterSpacing: 0.5, lineHeight: 1 }}>{'\u00A3'}50</span>
-        <span style={{ fontSize: 8, letterSpacing: 0.8, opacity: 0.85 }}>SPECIAL</span>
-      </motion.button>
+        <span className="pl-special-fab-ring" aria-hidden="true" />
+        <span className="pl-special-fab-ring pl-special-fab-ring2" aria-hidden="true" />
+        <span className="pl-special-fab-core">
+          <span className="pl-special-fab-gift">
+            <Gift />
+          </span>
+          <span className="pl-special-fab-amount">{'\u00A3'}50</span>
+          <span className="pl-special-fab-tag">SPECIAL</span>
+        </span>
+      </button>
 
 
       <div className="pl-world-vignette" />
@@ -543,7 +520,7 @@ export default function PrizeLeagueWorld() {
 
       </nav>
 <div className="pl-world-touch-hint">
-        Drag to explore â€¢ Pinch to zoom
+        Drag to explore • Pinch to zoom
       </div>
 
       <AnimatePresence>
@@ -585,7 +562,7 @@ export default function PrizeLeagueWorld() {
                   setSelectedLevel(null)
                 }
               >
-                Ã—
+                ×
               </button>
 
               <div className="pl-world-level-kicker">
@@ -602,7 +579,7 @@ export default function PrizeLeagueWorld() {
 
               {levelBusy && (
                 <div className="pl-world-level-loading">
-                  Loading levelâ€¦
+                  Loading level…
                 </div>
               )}
 
@@ -645,7 +622,7 @@ export default function PrizeLeagueWorld() {
                         </span>
 
                         <strong>
-                          1 â†’ {levelData.level?.game_config?.target_number}
+                          1 → {levelData.level?.game_config?.target_number}
                         </strong>
                       </div>
 

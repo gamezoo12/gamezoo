@@ -22,7 +22,7 @@ const CATS = [
 // Live preview of the auto-generated skill question. Whenever admin changes
 // the operation or difficulty in the dialog we call a lightweight sample
 // generator to give a concrete "here's what your users will see" hint. The
-// actual question is generated PER-VISITOR on the backend â€” this is only a
+// actual question is generated PER-VISITOR on the backend — this is only a
 // UI preview and never leaks the answer to any real player.
 function SkillQuestionPreview({ op, difficulty }) {
   const sample = (() => {
@@ -31,19 +31,19 @@ function SkillQuestionPreview({ op, difficulty }) {
       const [lo, hi, sb] = difficulty === 'easy' ? [5, 20, 5]
         : difficulty === 'medium' ? [20, 99, 20] : [200, 999, 99];
       const a = r(lo, hi); const b = r(1, Math.min(sb, a - 1));
-      return { q: `${a} âˆ’ ${b} = ?`, ans: a - b };
+      return { q: `${a} − ${b} = ?`, ans: a - b };
     }
     if (op === 'multiplication') {
       const ranges = { easy: [[1, 10], [1, 5]], medium: [[2, 12], [2, 12]], hard: [[10, 25], [2, 12]] };
       const [[la, ha], [lb, hb]] = ranges[difficulty] || ranges.easy;
       const a = r(la, ha); const b = r(lb, hb);
-      return { q: `${a} Ã— ${b} = ?`, ans: a * b };
+      return { q: `${a} × ${b} = ?`, ans: a * b };
     }
     if (op === 'division') {
       const ranges = { easy: [[1, 5], [1, 10]], medium: [[2, 12], [2, 12]], hard: [[5, 15], [5, 20]] };
       const [[lb, hb], [lr, hr]] = ranges[difficulty] || ranges.easy;
       const b = r(lb, hb); const q = r(lr, hr);
-      return { q: `${b * q} Ã· ${b} = ?`, ans: q };
+      return { q: `${b * q} ÷ ${b} = ?`, ans: q };
     }
     const ranges = { easy: [1, 20], medium: [10, 99], hard: [100, 999] };
     const [lo, hi] = ranges[difficulty] || ranges.easy;
@@ -54,7 +54,7 @@ function SkillQuestionPreview({ op, difficulty }) {
     <div className="mt-3 rounded-xl bg-white border border-slate-200 p-3 text-sm" data-testid="skill-preview">
       <div className="text-[10px] uppercase tracking-widest text-slate-400 font-semibold">Sample question a user might see</div>
       <div className="font-mono font-bold text-slate-900 text-lg mt-1">{sample.q}</div>
-      <div className="text-xs text-slate-500 mt-1">Answer for this sample: <span className="font-mono">{sample.ans}</span> Â· Each visitor gets a different one</div>
+      <div className="text-xs text-slate-500 mt-1">Answer for this sample: <span className="font-mono">{sample.ans}</span> · Each visitor gets a different one</div>
     </div>
   );
 }
@@ -223,11 +223,11 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>Prize amount (Â£)</Label>
+              <Label>Prize amount (£)</Label>
               <Input type="number" step="0.01" value={form.prize_amount || 0} onChange={e => upd('prize_amount', e.target.value)} />
             </div>
             <div>
-              <Label>Ticket price (Â£)</Label>
+              <Label>Ticket price (£)</Label>
               <Input type="number" step="0.01" value={form.price || 0} onChange={e => upd('price', e.target.value)} />
             </div>
             <div>
@@ -384,10 +384,10 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
               data-testid="contest-game-select"
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
             >
-              <option value="">â€” None (winner picked manually) â€”</option>
+              <option value="">— None (winner picked manually) —</option>
               <optgroup label="Puzzles">
-                <option value="jigsaw_3x3">Image Jigsaw (3Ã—3)</option>
-                <option value="jigsaw_4x4">Image Jigsaw (4Ã—4)</option>
+                <option value="jigsaw_3x3">Image Jigsaw (3×3)</option>
+                <option value="jigsaw_4x4">Image Jigsaw (4×4)</option>
                 <option value="slider_puzzle">15-Slider Puzzle</option>
                 <option value="odd_one_out">Odd One Out</option>
               </optgroup>
@@ -397,7 +397,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                 <option value="pattern_repeat">Pattern Repeat</option>
               </optgroup>
               <optgroup label="Reaction">
-                <option value="number_sequence">Number Sequence 1â†’20</option>
+                <option value="number_sequence">Number Sequence 1→20</option>
                 <option value="target_tap">Target Tap</option>
                 <option value="reaction_time">Reaction Time</option>
                 <option value="whack_a_mole">Whack-a-Mole</option>
@@ -451,17 +451,17 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                   data-testid="contest-image-upload-btn"
                   className="bg-slate-900 hover:bg-slate-800 text-white"
                 >
-                  {uploading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploadingâ€¦</> : <><Upload className="w-4 h-4 mr-2" /> {form.image ? 'Replace image' : 'Upload image'}</>}
+                  {uploading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading…</> : <><Upload className="w-4 h-4 mr-2" /> {form.image ? 'Replace image' : 'Upload image'}</>}
                 </Button>
-                <div className="text-xs text-slate-500 mt-2">JPG, PNG, or WEBP Â· up to 8 MB Â· used across all contest listings automatically.</div>
+                <div className="text-xs text-slate-500 mt-2">JPG, PNG, or WEBP · up to 8 MB · used across all contest listings automatically.</div>
                 {uploadErr && <div className="text-xs text-rose-600 mt-1" data-testid="contest-image-error">{uploadErr}</div>}
               </div>
             </div>
 
             {/* Advanced: paste an external URL (kept for backwards compat) */}
             <details className="mt-3">
-              <summary className="text-xs text-slate-500 cursor-pointer hover:text-slate-700">Advanced â€” paste an external image URL instead</summary>
-              <Input value={form.image || ''} onChange={e => upd('image', e.target.value)} placeholder="https://â€¦" className="mt-2" />
+              <summary className="text-xs text-slate-500 cursor-pointer hover:text-slate-700">Advanced — paste an external image URL instead</summary>
+              <Input value={form.image || ''} onChange={e => upd('image', e.target.value)} placeholder="https://…" className="mt-2" />
               <div className="mt-2">
                 <div className="text-xs text-slate-500 mb-1">Or pick from the gallery:</div>
                 <div className="flex gap-2 flex-wrap">
@@ -516,9 +516,9 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                   data-testid="skill-op-select"
                 >
                   <option value="addition">Addition (+)</option>
-                  <option value="subtraction">Subtraction (âˆ’)</option>
-                  <option value="multiplication">Multiplication (Ã—)</option>
-                  <option value="division">Division (Ã·)</option>
+                  <option value="subtraction">Subtraction (−)</option>
+                  <option value="multiplication">Multiplication (×)</option>
+                  <option value="division">Division (÷)</option>
                 </select>
               </div>
               <div>
@@ -544,7 +544,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
           {/* ---- Extended admin fields (23 optional) ---- */}
           <details className="pt-3 border-t border-slate-100" data-testid="advanced-contest-fields">
             <summary className="cursor-pointer text-base font-semibold text-[#6C2BFF] py-2 select-none">
-              Advanced fields (contest info, T&amp;Cs, SEO, postal entry) â€” 23 fields
+              Advanced fields (contest info, T&amp;Cs, SEO, postal entry) — 23 fields
             </summary>
             <div className="grid md:grid-cols-2 gap-3 mt-3">
               <div className="md:col-span-2">
@@ -589,7 +589,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
               </div>
               <div className="md:col-span-2">
                 <Label>Prize values (breakdown)</Label>
-                <Input value={form.prize_values || ''} onChange={e => upd('prize_values', e.target.value)} placeholder="e.g. 1st Â£500 Â· 2nd Â£250 Â· 3rd Â£100" />
+                <Input value={form.prize_values || ''} onChange={e => upd('prize_values', e.target.value)} placeholder="e.g. 1st £500 · 2nd £250 · 3rd £100" />
               </div>
               <div><Label>Winner determination method</Label><Input value={form.winner_method || ''} onChange={e => upd('winner_method', e.target.value)} /></div>
               <div><Label>Scoring method</Label><Input value={form.scoring_method || ''} onChange={e => upd('scoring_method', e.target.value)} /></div>
@@ -605,9 +605,9 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
               <div>
                 <Label>Contest engine</Label>
                 <select value={form.engine_type || 'leaderboard'} onChange={e => upd('engine_type', e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" data-testid="fld-engine-type">
-                  <option value="leaderboard">Skill Leaderboard (Engine 1) â€” active</option>
-                  <option value="random_draw">Automated winner selection (Engine 2) â€” requires legal flag</option>
-                  <option value="instant_win">Instant win (Engine 3) â€” requires legal flag</option>
+                  <option value="leaderboard">Skill Leaderboard (Engine 1) — active</option>
+                  <option value="random_draw">Automated winner selection (Engine 2) — requires legal flag</option>
+                  <option value="instant_win">Instant win (Engine 3) — requires legal flag</option>
                 </select>
               </div>
               <div>
@@ -677,7 +677,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
             disabled={busy || uploading}
             data-testid="contest-save-btn"
             className="bg-[#6C2BFF] hover:bg-[#4A15D9]"
-          >{busy ? 'Savingâ€¦' : uploading ? 'Uploading imageâ€¦' : (isCreate ? 'Create contest' : 'Save changes')}</Button>
+          >{busy ? 'Saving…' : uploading ? 'Uploading image…' : (isCreate ? 'Create contest' : 'Save changes')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

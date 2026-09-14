@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 
 const NOTES = [
   { Icon: ShieldCheck,    title: 'Fair & transparent', text: 'Every winner is verified per contest rules. Competition results are verified according to the published rules.' },
-  { Icon: Trophy,         title: 'Real prizes',        text: 'From cash to gadgets to travel â€” real prizes, delivered after verification.' },
+  { Icon: Trophy,         title: 'Real prizes',        text: 'From cash to gadgets to travel — real prizes, delivered after verification.' },
   { Icon: HeartHandshake, title: 'Responsible play',   text: '18+ only. Set spend limits from your account. Free postal entry always available.' },
 ];
 

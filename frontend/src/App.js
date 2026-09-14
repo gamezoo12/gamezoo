@@ -113,7 +113,7 @@ function AppRouter() {
 
       <Route path="/admin/login" element={<AdminLogin />} />
 
-      {/* Emergent Google OAuth redirects here with #session_id=â€¦ in the URL.
+      {/* Emergent Google OAuth redirects here with #session_id=… in the URL.
           The hash-intercept at the top of AppRouter also matches, but keeping
           a dedicated route avoids any 404 flash before the intercept runs. */}
       <Route path="/auth-callback" element={<AuthCallback />} />

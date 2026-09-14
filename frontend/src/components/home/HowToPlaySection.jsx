@@ -3,7 +3,7 @@ import { Gamepad2 } from 'lucide-react';
 
 /**
  * Four-step "How to Play" section with real lifestyle photography of adults
- * â€” not coloured boxes. Each photo is a hosted Pexels URL (free-to-use,
+ * — not coloured boxes. Each photo is a hosted Pexels URL (free-to-use,
  * no attribution required) so nothing needs to ship with the frontend
  * bundle and the images can be swapped later by editing the `img` field.
  *
@@ -15,14 +15,14 @@ const STEPS = [
   {
     n: 1,
     title: 'Create your account',
-    text: 'Sign up in under a minute â€” email, a mobile number for OTP and you\'re in.',
+    text: 'Sign up in under a minute — email, a mobile number for OTP and you\'re in.',
     img: 'https://images.pexels.com/photos/3760263/pexels-photo-3760263.jpeg?auto=compress&cs=tinysrgb&h=600&w=600',
     alt: 'Smiling adult holding a phone celebrating an app sign-up',
   },
   {
     n: 2,
     title: 'Pick a contest',
-    text: 'Browse live prize contests and pick the one you fancy â€” cash, cars, tech.',
+    text: 'Browse live prize contests and pick the one you fancy — cash, cars, tech.',
     img: 'https://images.pexels.com/photos/5077055/pexels-photo-5077055.jpeg?auto=compress&cs=tinysrgb&h=600&w=600',
     alt: 'Woman browsing a phone with credit card ready to enter a contest',
   },
@@ -51,9 +51,9 @@ export default function HowToPlaySection({ compact = false }) {
         <div className="text-center max-w-2xl mx-auto mb-10 md:mb-14">
           <div className="text-xs uppercase font-bold tracking-widest text-[#6C2BFF]">Getting started</div>
           <h2 className="mt-2 font-display text-3xl md:text-5xl font-extrabold text-[#0B0D1F]">
-            How to Play â€” <span className="pl-gold-text">It&apos;s Easy!</span>
+            How to Play — <span className="pl-gold-text">It&apos;s Easy!</span>
           </h2>
-          <p className="mt-3 text-slate-600">Four simple steps to your next prize. No experience needed â€” just skill and fun.</p>
+          <p className="mt-3 text-slate-600">Four simple steps to your next prize. No experience needed — just skill and fun.</p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 md:gap-6">
@@ -71,7 +71,7 @@ export default function HowToPlaySection({ compact = false }) {
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   onError={(e) => { if (e.currentTarget.src !== FALLBACK_IMG) e.currentTarget.src = FALLBACK_IMG; }}
                 />
-                {/* Gold number badge â€” sits on top of the photo */}
+                {/* Gold number badge — sits on top of the photo */}
                 <div className="absolute top-3 left-3 w-9 h-9 rounded-full bg-[#0B0D1F] text-[#FFD54A] font-black text-sm flex items-center justify-center ring-2 ring-[#FFD54A]/80 shadow-lg">
                   {n}
                 </div>

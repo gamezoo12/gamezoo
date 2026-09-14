@@ -70,7 +70,7 @@ export default function CompetitionCard({ c }) {
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center text-white/75">
-                <div className="text-4xl">ðŸ†</div>
+                <div className="text-4xl">🏆</div>
 
                 <div className="mt-2 text-[9px] font-black uppercase tracking-[0.18em]">
                   Image coming soon

@@ -17,7 +17,7 @@ function GoogleIcon() {
  );
 }
 
-// --- Phone tab (login-only for existing users): send OTP â†’ verify â†’ JWT ---
+// --- Phone tab (login-only for existing users): send OTP → verify → JWT ---
 function PhoneLoginForm({ onLoggedIn }) {
  const [step, setStep] = useState('phone');
  const [phone, setPhone] = useState('');
@@ -58,7 +58,7 @@ function PhoneLoginForm({ onLoggedIn }) {
  <p className="text-[11px] text-slate-500 mt-1">Only for accounts that have completed OTP signup.</p>
  </div>
  <Button data-testid="phone-login-send" type="submit" disabled={busy || phone.length < 8} className="w-full h-11 pl-btn-purple text-white font-bold">
- {busy ? 'Sendingâ€¦' : 'Send OTP'}
+ {busy ? 'Sending…' : 'Send OTP'}
  </Button>
  <p className="text-[11px] text-slate-500 text-center"><Shield className="w-3 h-3 inline mr-1" /> Verified numbers only.</p>
  </form>
@@ -71,9 +71,9 @@ function PhoneLoginForm({ onLoggedIn }) {
  <p className="text-[11px] text-slate-500 mt-1">Sent to {normalizedPhone}</p>
  </div>
  <Button data-testid="phone-login-verify" type="submit" disabled={busy || code.length !== 6} className="w-full h-11 pl-btn-gold text-slate-900 font-extrabold">
- {busy ? 'Verifyingâ€¦' : 'Verify & sign in â†’'}
+ {busy ? 'Verifying…' : 'Verify & sign in →'}
  </Button>
- <button type="button" onClick={() => { setStep('phone'); setCode(''); }} className="text-xs text-slate-500 hover:text-slate-900 block mx-auto">â† Use a different number</button>
+ <button type="button" onClick={() => { setStep('phone'); setCode(''); }} className="text-xs text-slate-500 hover:text-slate-900 block mx-auto">← Use a different number</button>
  </form>
  );
 }
@@ -136,13 +136,13 @@ export default function Login() {
  const onPhoneLoggedIn = (r) => {
  if (r?.token) localStorage.setItem('gz_token', r.token);
  if (r?.user) setGoogleUser(r.user);
- toast({ title: `Welcome back, ${r?.user?.name || 'friend'} ðŸ‘‹` });
+ toast({ title: `Welcome back, ${r?.user?.name || 'friend'} 👋` });
  nav(resolvePostAuthDestination());
  };
 
  return (
  <div className="min-h-[calc(100vh-8rem)] grid lg:grid-cols-2 relative overflow-hidden bg-white" data-testid="login-page">
- {/* Left panel â€” premium purple/gold brand hero */}
+ {/* Left panel — premium purple/gold brand hero */}
  <div className="relative hidden lg:flex flex-col justify-between p-12 text-white pl-hero-bg overflow-hidden">
  <div className="absolute -top-20 -right-20 w-80 h-80 bg-[#FFD54A]/25 rounded-full blur-3xl pl-float" />
  <div className="absolute -bottom-20 -left-20 w-96 h-96 bg-[#8B5CFF]/30 rounded-full blur-3xl pl-float" style={{ animationDelay: '1s' }} />
@@ -162,7 +162,7 @@ export default function Login() {
  </div>
  <div className="flex items-center gap-3">
  <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 backdrop-blur flex items-center justify-center"><Zap className="w-5 h-5 text-[#FFD54A]" /></div>
- <div><div className="font-semibold">Free postal entry</div><div className="text-xs text-white/60">No purchase necessary Â· 18+ only</div></div>
+ <div><div className="font-semibold">Free postal entry</div><div className="text-xs text-white/60">No purchase necessary · 18+ only</div></div>
  </div>
  </div>
  </div>
@@ -234,7 +234,7 @@ export default function Login() {
  data-testid="email-submit"
  className="w-full h-11 pl-btn-gold font-extrabold text-slate-900 hover:brightness-105"
  >
- {busy ? 'Please waitâ€¦' : 'Log in â†’'}
+ {busy ? 'Please wait…' : 'Log in →'}
  </Button>
  </form>
  </TabsContent>
@@ -248,7 +248,7 @@ export default function Login() {
  By continuing you agree to our <Link to="/terms" className="underline hover:text-[#6C2BFF]">Terms</Link> and <Link to="/privacy" className="underline hover:text-[#6C2BFF]">Privacy Policy</Link>. You confirm you&apos;re 18 or older.
  </p>
  <p className="text-xs text-slate-400 text-center mt-3">
- Staff? <Link to="/admin/login" className="text-[#6C2BFF] hover:text-[#4A15D9] font-semibold">Admin sign-in â†’</Link>
+ Staff? <Link to="/admin/login" className="text-[#6C2BFF] hover:text-[#4A15D9] font-semibold">Admin sign-in →</Link>
  </p>
  </div>
  </div>
