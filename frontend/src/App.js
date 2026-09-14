@@ -61,6 +61,7 @@ import MobileTermsPage from './pages/legal/MobileTermsPage';
 import PrizeLeagueWorld from './world/PrizeLeagueWorld';
 import WorldPreview from './world/WorldPreview';
 import WorldSelector from './pages/WorldSelector';
+import SpecialChallenge from './pages/SpecialChallenge';
 
 import ProductionLayout from './components/admin/ProductionLayout';
 import LiveDrawPage from './pages/production/LiveDraw';
@@ -110,6 +111,8 @@ function AppRouter() {
       </Route>
 
       <Route path="/world-preview" element={<WorldPreview />} />
+
+      <Route path="/challenge" element={<SpecialChallenge />} />
 
       <Route path="/admin/login" element={<AdminLogin />} />
 

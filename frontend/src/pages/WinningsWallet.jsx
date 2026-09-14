@@ -1,35 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Gift, Wallet, Clock } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Gift, Wallet } from 'lucide-react';
 import { winningsAPI } from '../lib/api';
 import { Button } from '../components/ui/button';
 import { useToast } from '../hooks/use-toast';
 
 const gbp = (p) => `£${(Number(p || 0) / 100).toFixed(2)}`;
-const shuffle = (arr) => {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-};
 
 export default function WinningsWallet() {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [wallet, setWallet] = useState(null);
   const [ledger, setLedger] = useState([]);
   const [alreadyWon, setAlreadyWon] = useState(false);
-
-  // challenge state
-  const [playing, setPlaying] = useState(false);
-  const [grid, setGrid] = useState([]);
-  const [next, setNext] = useState(1);
-  const [attemptId, setAttemptId] = useState(null);
-  const [seq, setSeq] = useState([]);
-  const [left, setLeft] = useState(60);
-  const [result, setResult] = useState(null); // {result, reward_pence, already_rewarded}
-  const [busy, setBusy] = useState(false);
-  const finishedRef = useRef(false);
 
   // withdrawal
   const [wOpen, setWOpen] = useState(false);
@@ -50,51 +33,6 @@ export default function WinningsWallet() {
     } catch (e) { /* not logged in / transient */ }
   }, []);
   useEffect(() => { load(); }, [load]);
-
-  // timer
-  useEffect(() => {
-    if (!playing) return undefined;
-    if (left <= 0) { finish(seq); return undefined; }
-    const t = setTimeout(() => setLeft((s) => s - 1), 1000);
-    return () => clearTimeout(t);
-  }, [playing, left]); // eslint-disable-line
-
-  const startGame = async () => {
-    setBusy(true);
-    try {
-      const r = await winningsAPI.startChallenge();
-      setAttemptId(r.attempt_id);
-      setAlreadyWon(r.already_rewarded);
-      setGrid(shuffle(Array.from({ length: 100 }, (_, i) => i + 1)));
-      finishedRef.current = false;
-      setNext(1); setSeq([]); setLeft(60); setResult(null); setPlaying(true);
-    } catch (e) {
-      toast({ title: 'Could not start', description: 'Please log in and retry.', variant: 'destructive' });
-    } finally { setBusy(false); }
-  };
-
-  const tap = (n) => {
-    if (!playing || n !== next) return;
-    const ns = [...seq, n];
-    setSeq(ns); setNext(n + 1);
-    if (n === 100) finish(ns);
-  };
-
-  const finish = async (sequence) => {
-    if (!attemptId || finishedRef.current) return;
-    finishedRef.current = true;
-    setPlaying(false);
-    try {
-      const r = await winningsAPI.completeChallenge(attemptId, sequence);
-      setResult(r);
-      if (r.reward_pence > 0) {
-        toast({ title: 'You won £50!', description: 'Credited to your Winnings Wallet.' });
-      }
-      await load();
-    } catch (e) {
-      setResult({ result: 'fail', reward_pence: 0 });
-    }
-  };
 
   const submitWithdraw = async () => {
     const pence = Math.round(parseFloat(amount || '0') * 100);
@@ -120,7 +58,7 @@ export default function WinningsWallet() {
         </div>
         <h2 className="text-2xl font-extrabold text-slate-900 mt-1">100 Number Sequence Challenge 🎁</h2>
         <p className="text-sm text-slate-600 mt-2">
-          Complete the 100-number sequence correctly within 60 seconds to earn £50.
+          Complete the 100-number sequence correctly within 90 seconds to earn £50.
           Unlimited attempts. One £50 reward per eligible user.
         </p>
         {alreadyWon ? (
@@ -130,7 +68,7 @@ export default function WinningsWallet() {
           </div>
         ) : null}
         <Button className="mt-4 bg-amber-500 hover:bg-amber-600 text-white font-extrabold"
-          disabled={busy} onClick={startGame} data-testid="start-challenge-button">
+          onClick={() => navigate('/challenge')} data-testid="start-challenge-button">
           {alreadyWon ? 'Play again (practice)' : 'Play for £50'}
         </Button>
       </div>
@@ -161,55 +99,6 @@ export default function WinningsWallet() {
           </div>
         </div>
       </div>
-
-      {/* Challenge modal */}
-      {playing && (
-        <div className="fixed inset-0 z-50 bg-slate-900/95 p-4 overflow-auto" data-testid="challenge-screen">
-          <div className="max-w-2xl mx-auto">
-            <div className="flex items-center justify-between text-white mb-3">
-              <div className="font-extrabold">Tap 1 → 100 in order</div>
-              <div className="text-right">
-                <div className="flex items-center gap-2 font-mono font-black text-2xl text-amber-400 tabular-nums" data-testid="challenge-timer">
-                  <Clock className="w-5 h-5" /> <MsTimer running={playing} />
-                </div>
-                <div className="text-[11px] font-bold text-white/50 mt-0.5" data-testid="challenge-timeleft">
-                  60s limit · {left}s left
-                </div>
-              </div>
-            </div>
-            <div className="text-white/70 text-sm mb-3">Next: <b className="text-amber-400" data-testid="challenge-next">{next}</b></div>
-            <div className="grid grid-cols-10 gap-1.5">
-              {grid.map((n) => (
-                <button key={n} onClick={() => tap(n)} data-testid={`cell-${n}`}
-                  className={`aspect-square rounded-md text-xs font-bold ${n < next ? 'bg-emerald-500 text-white' : 'bg-white text-slate-800 hover:bg-amber-100'}`}>
-                  {n}
-                </button>
-              ))}
-            </div>
-            <Button variant="outline" className="mt-4 text-white border-white/40"
-              onClick={() => { setPlaying(false); setResult({ result: 'fail', reward_pence: 0 }); }}
-              data-testid="challenge-quit">Quit</Button>
-          </div>
-        </div>
-      )}
-
-      {/* Result */}
-      {result && !playing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" data-testid="challenge-result"
-          onClick={() => setResult(null)}>
-          <div className="bg-white rounded-2xl p-6 max-w-sm text-center" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-2xl font-extrabold">{result.result === 'success' ? 'Completed! 🎉' : 'Time / sequence missed'}</h3>
-            <p className="mt-2 text-slate-600" data-testid="result-message">
-              {result.reward_pence > 0
-                ? 'You earned £50.00 — credited to your Winnings Wallet.'
-                : result.result === 'success'
-                  ? 'Well done! You have already claimed the £50 reward (practice run — no further reward).'
-                  : 'Not this time. Unlimited attempts — try again!'}
-            </p>
-            <Button className="mt-4 w-full" onClick={() => setResult(null)} data-testid="result-close">Close</Button>
-          </div>
-        </div>
-      )}
 
       {/* Withdrawal form */}
       {wOpen && (
@@ -247,36 +136,5 @@ function Stat({ label, v, t }) {
       <div className="text-[11px] uppercase font-bold text-slate-400">{label}</div>
       <div className="font-extrabold text-slate-900" data-testid={t}>{v}</div>
     </div>
-  );
-}
-
-// Live millisecond stopwatch (self-contained rAF so it doesn't re-render the grid).
-function MsTimer({ running }) {
-  const [elapsed, setElapsed] = useState(0);
-  const startRef = useRef(null);
-  const rafRef = useRef(null);
-
-  useEffect(() => {
-    if (!running) { setElapsed(0); return undefined; }
-    startRef.current = performance.now();
-    const tick = () => {
-      setElapsed(performance.now() - startRef.current);
-      rafRef.current = requestAnimationFrame(tick);
-    };
-    rafRef.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [running]);
-
-  const total = Math.max(0, elapsed);
-  const mm = Math.floor(total / 60000);
-  const ss = Math.floor((total % 60000) / 1000);
-  const ms = Math.floor(total % 1000);
-  const pad = (n, l = 2) => String(n).padStart(l, '0');
-
-  return (
-    <span data-testid="challenge-ms-timer">
-      {pad(mm)}:{pad(ss)}
-      <span className="text-amber-300/80">.{pad(ms, 3)}</span>
-    </span>
   );
 }
