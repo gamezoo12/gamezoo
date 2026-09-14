@@ -118,6 +118,22 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
   const upd = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const save = async () => {
+    if (!String(form.title || '').trim()) {
+      toast({
+        title: 'Title required',
+        description: 'Please enter the contest title.',
+      });
+      return;
+    }
+
+    if (form.public_coming_soon && !form.image) {
+      toast({
+        title: 'Image required',
+        description: 'Please upload the Coming Soon image.',
+      });
+      return;
+    }
+
     setBusy(true);
     try {
       const payload = {
@@ -213,8 +229,110 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
 
           <div>
             <Label>Title</Label>
-            <Input value={form.title || ''} onChange={e => upd('title', e.target.value)} />
+            <Input
+              value={form.title || ''}
+              onChange={e => upd('title', e.target.value)}
+              placeholder="Enter contest title"
+              data-testid="contest-title-input"
+            />
           </div>
+
+          {form.public_coming_soon && (
+            <div
+              className="space-y-2"
+              data-testid="coming-soon-image-section"
+            >
+              <Label>Contest Image</Label>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/webp"
+                className="hidden"
+                onChange={onFileChange}
+                data-testid="coming-soon-image-input"
+              />
+
+              {!form.image ? (
+                <button
+                  type="button"
+                  onClick={onPickFile}
+                  disabled={uploading}
+                  className="flex aspect-[2/1] w-full flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 transition hover:border-[#6C2BFF] hover:bg-[#6C2BFF]/5 disabled:cursor-not-allowed disabled:opacity-60"
+                  data-testid="coming-soon-image-upload"
+                >
+                  {uploading ? (
+                    <>
+                      <Loader2 className="h-8 w-8 animate-spin text-[#6C2BFF]" />
+
+                      <span className="mt-3 text-sm font-extrabold text-slate-800">
+                        Uploading image...
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-8 w-8 text-[#6C2BFF]" />
+
+                      <span className="mt-3 text-sm font-extrabold text-slate-900">
+                        Upload Rectangle Image
+                      </span>
+
+                      <span className="mt-1 text-xs text-slate-500">
+                        Recommended 1200 ? 600
+                      </span>
+
+                      <span className="mt-1 text-[11px] text-slate-400">
+                        JPG, PNG or WEBP ? Maximum 8 MB
+                      </span>
+                    </>
+                  )}
+                </button>
+              ) : (
+                <div className="relative aspect-[2/1] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                  <img
+                    src={form.image}
+                    alt={form.title || 'Coming Soon'}
+                    className="h-full w-full object-cover object-center"
+                    data-testid="coming-soon-image-preview"
+                  />
+
+                  <div className="absolute right-0 top-0 bg-black px-3 py-1.5 text-xs font-black uppercase tracking-wide text-white">
+                    Coming Soon
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={onPickFile}
+                    disabled={uploading}
+                    className="absolute bottom-2 left-2 rounded-md bg-white px-3 py-2 text-xs font-extrabold text-slate-900 shadow"
+                    data-testid="coming-soon-change-image"
+                  >
+                    {uploading ? 'Uploading...' : 'Change Image'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={removeImage}
+                    disabled={uploading}
+                    className="absolute bottom-2 right-2 flex h-9 w-9 items-center justify-center rounded-full bg-black/80 text-white shadow hover:bg-black"
+                    aria-label="Remove image"
+                    data-testid="coming-soon-remove-image"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+
+              {uploadErr && (
+                <div
+                  className="text-xs font-semibold text-rose-600"
+                  data-testid="coming-soon-image-error"
+                >
+                  {uploadErr}
+                </div>
+              )}
+            </div>
+          )}
 
           {!form.public_coming_soon && (<>
           <div>
@@ -257,57 +375,18 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-xl border border-[#FFD54A]/40 bg-[#FFD54A]/5 p-4">
-            <label className="flex cursor-pointer items-start gap-3">
-              <input
-                type="checkbox"
-                checked={!!form.public_coming_soon}
-                onChange={e => {
-                  const checked = e.target.checked;
-                  upd('public_coming_soon', checked);
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <Label>Contest status</Label>
 
-                  if (checked) {
-                    upd('status', 'draft');
-                  }
-                }}
-                className="mt-1 h-4 w-4"
-                data-testid="contest-coming-soon-toggle"
-              />
-
-              <span>
-                <span className="block text-sm font-extrabold text-slate-900">
-                  Show publicly as Coming Soon
-                </span>
-
-                <span className="mt-1 block text-xs leading-5 text-slate-500">
-                  Displays the Coming Soon card without timer, Join,
-                  progress, ticket purchase or gameplay.
-                </span>
-              </span>
-            </label>
-
-            <div>
-              <Label>Contest status</Label>
-
-              <select
-                value={
-                  form.public_coming_soon
-                    ? 'draft'
-                    : (form.status || 'draft')
-                }
-                onChange={e => upd('status', e.target.value)}
-                disabled={!!form.public_coming_soon}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100"
-                data-testid="contest-status-select"
-              >
-                <option value="draft">Draft</option>
-                <option value="live">Live</option>
-              </select>
-
-              <div className="mt-1 text-xs text-slate-500">
-                Turn off Coming Soon, choose Live, then Save to launch.
-              </div>
-            </div>
+            <select
+              value={form.status || 'draft'}
+              onChange={e => upd('status', e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+              data-testid="contest-status-select"
+            >
+              <option value="draft">Draft</option>
+              <option value="live">Live</option>
+            </select>
           </div>
 
           {/* Entry Mode + attempts + leaderboard visibility */}
@@ -414,6 +493,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
 
           </>)}
 
+          {!form.public_coming_soon && (
           <div>
             <Label>Competition Image</Label>
             <input
@@ -484,6 +564,8 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
               </div>
             </details>
           </div>
+
+          )}
 
           {!form.public_coming_soon && (<>
           <div className="flex flex-wrap items-center gap-4">
@@ -677,7 +759,13 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
             disabled={busy || uploading}
             data-testid="contest-save-btn"
             className="bg-[#6C2BFF] hover:bg-[#4A15D9]"
-          >{busy ? 'Saving…' : uploading ? 'Uploading image…' : (isCreate ? 'Create contest' : 'Save changes')}</Button>
+          >{busy
+            ? 'Saving?'
+            : uploading
+              ? 'Uploading image?'
+              : form.public_coming_soon
+                ? 'Launch'
+                : (isCreate ? 'Create contest' : 'Save changes')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
