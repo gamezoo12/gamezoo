@@ -4613,8 +4613,8 @@ body [data-testid="site-header"] {
   top: 46%;
   transform: translateY(-50%);
   z-index: 46;
-  width: 84px;
-  height: 84px;
+  width: 108px;
+  height: 108px;
   padding: 0;
   border: none;
   background: transparent;
@@ -4655,23 +4655,23 @@ body [data-testid="site-header"] {
   transform-origin: 50% 65%;
 }
 .pl-special-fab-gift svg {
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   stroke: #3a1d00;
   filter: drop-shadow(0 1px 1px rgba(255, 255, 255, 0.6));
 }
 
 .pl-special-fab-amount {
-  font-size: 16px;
+  font-size: 21px;
   line-height: 1;
   letter-spacing: 0.3px;
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 .pl-special-fab-tag {
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 900;
-  letter-spacing: 1.3px;
+  letter-spacing: 1.6px;
   opacity: 0.9;
 }
 
@@ -4715,17 +4715,17 @@ body [data-testid="site-header"] {
   .pl-special-fab {
     right: 14px;
     top: auto;
-    bottom: 108px;
+    bottom: 112px;
     transform: none;
-    width: 92px;
-    height: 92px;
+    width: 116px;
+    height: 116px;
     animation: pl-special-pop-mobile 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both,
                pl-special-float-mobile 3.2s ease-in-out 0.5s infinite;
   }
   .pl-special-fab:active { transform: scale(0.92); }
-  .pl-special-fab-gift svg { width: 32px; height: 32px; }
-  .pl-special-fab-amount { font-size: 19px; }
-  .pl-special-fab-tag { font-size: 9px; }
+  .pl-special-fab-gift svg { width: 40px; height: 40px; }
+  .pl-special-fab-amount { font-size: 24px; }
+  .pl-special-fab-tag { font-size: 11px; }
   @keyframes pl-special-pop-mobile {
     0%   { opacity: 0; transform: scale(0.2); }
     100% { opacity: 1; transform: scale(1); }
