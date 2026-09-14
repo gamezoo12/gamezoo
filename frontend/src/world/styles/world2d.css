@@ -13493,9 +13493,11 @@
 
 
 /* =========================================================
-   4K ILLUSTRATED MAP BACKGROUND (whole championship map)
-   Replaces the flat gradient + CSS scenery with a rich
-   painted landscape that tiles down the tall map.
+   PER-CHAMPIONSHIP 4K ILLUSTRATED MAP BACKGROUNDS
+   Each championship shows its OWN painted world, scaled to
+   "cover" (one image, no tiling). Batch 1 = championships 1–10;
+   more batches slot in the same way. Unknown numbers fall back
+   to the default painted map.
    ========================================================= */
 .pl1000-section,
 .pl1000-section.pl2d-biome-autumn,
@@ -13506,12 +13508,23 @@
 .pl1000-section.pl2d-biome-pine,
 .pl1000-section.pl2d-biome-royal,
 .pl1000-section.pl2d-biome-crystal {
-  background-image: url('./world-map-bg.jpg') !important;
-  background-repeat: repeat-y !important;
-  background-size: 100% auto !important;
+  background-repeat: no-repeat !important;
+  background-size: cover !important;
   background-position: center top !important;
-  background-color: #123 !important;
+  background-color: #0e1630 !important;
+  background-image: url('../assets/champ-1.jpg') !important;
 }
+
+.pl1000-section[data-championship="1"]  { background-image: url('../assets/champ-1.jpg')  !important; }
+.pl1000-section[data-championship="2"]  { background-image: url('../assets/champ-2.jpg')  !important; }
+.pl1000-section[data-championship="3"]  { background-image: url('../assets/champ-3.jpg')  !important; }
+.pl1000-section[data-championship="4"]  { background-image: url('../assets/champ-4.jpg')  !important; }
+.pl1000-section[data-championship="5"]  { background-image: url('../assets/champ-5.jpg')  !important; }
+.pl1000-section[data-championship="6"]  { background-image: url('../assets/champ-6.jpg')  !important; }
+.pl1000-section[data-championship="7"]  { background-image: url('../assets/champ-7.jpg')  !important; }
+.pl1000-section[data-championship="8"]  { background-image: url('../assets/champ-8.jpg')  !important; }
+.pl1000-section[data-championship="9"]  { background-image: url('../assets/champ-9.jpg')  !important; }
+.pl1000-section[data-championship="10"] { background-image: url('../assets/champ-10.jpg') !important; }
 
 /* Hide the old CSS scenery so the painted map reads cleanly. */
 .pl2d-mountains,
@@ -13538,6 +13551,27 @@
   background: linear-gradient(180deg, #34e3f2, #0a7f92) !important;
 }
 .pl2d-gate-avatar-leg {
+  background: linear-gradient(180deg, #ffffff, #eef3ff) !important;
+  box-shadow: 0 0 6px rgba(255, 255, 255, .9) !important;
+}
+
+/* Travelling / walking avatar (start → level) matches everywhere:
+   gold head, teal body/arms, bright white legs. */
+.pl2d-travel-head {
+  background:
+    radial-gradient(circle at 34% 28%, #fff4c6 0%, #ffd23a 55%, #e8a100 100%) !important;
+  border-color: #6b3d00 !important;
+}
+.pl2d-travel-body {
+  background:
+    linear-gradient(180deg, #34e3f2 0%, #12b3c9 52%, #0a7f92 100%) !important;
+  border-color: #ffd54a !important;
+  color: #052e37 !important;
+}
+.pl2d-travel-arm {
+  background: linear-gradient(180deg, #34e3f2, #0a7f92) !important;
+}
+.pl2d-travel-leg {
   background: linear-gradient(180deg, #ffffff, #eef3ff) !important;
   box-shadow: 0 0 6px rgba(255, 255, 255, .9) !important;
 }
