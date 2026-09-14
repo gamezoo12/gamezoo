@@ -792,11 +792,9 @@ function ChampionshipSection({
         !state.available &&
         !state.completed;
 
-      const waiting =
-        locked &&
-        state.lock_reason === 'time';
-
-      // The avatar walks strictly on the road centre-line.
+      // The avatar walks strictly on the road centre-line while
+      // levels are locked; once a level is playable it jumps ONTO
+      // the circle (handled by the available branch below).
       const roadX = (i) =>
         (PL1000_ROAD_X[i] != null
           ? PL1000_ROAD_X[i]
@@ -823,7 +821,7 @@ function ChampionshipSection({
         }
       }
 
-      if (waiting && slotIndex >= 1) {
+      if (locked && slotIndex >= 1) {
         const prev =
           PL1000_SLOT_POSITIONS[
             slotIndex - 1
@@ -846,8 +844,9 @@ function ChampionshipSection({
         };
       }
 
+      // Level is playable → the avatar jumps ONTO the level circle.
       return {
-        left: roadX(slotIndex),
+        left: slot.x,
         bottom: slot.bottom,
         waiting: false,
       };
@@ -1336,13 +1335,10 @@ function ChampionshipSection({
               PL
             </span>
 
-            <b>YOU</b>
+            <span className="pl1000-avatar-leg left" />
+            <span className="pl1000-avatar-leg right" />
 
-            {progressAvatar.waiting && (
-              <span className="pl1000-avatar-waiting">
-                WAITING
-              </span>
-            )}
+            <b>YOU</b>
           </div>
         )}
 
