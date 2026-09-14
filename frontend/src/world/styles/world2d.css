@@ -13491,3 +13491,54 @@
   white-space: nowrap;
 }
 
+
+/* =========================================================
+   4K ILLUSTRATED MAP BACKGROUND (whole championship map)
+   Replaces the flat gradient + CSS scenery with a rich
+   painted landscape that tiles down the tall map.
+   ========================================================= */
+.pl1000-section,
+.pl1000-section.pl2d-biome-autumn,
+.pl1000-section.pl2d-biome-highlands,
+.pl1000-section.pl2d-biome-enchanted,
+.pl1000-section.pl2d-biome-coastal,
+.pl1000-section.pl2d-biome-golden,
+.pl1000-section.pl2d-biome-pine,
+.pl1000-section.pl2d-biome-royal,
+.pl1000-section.pl2d-biome-crystal {
+  background-image: url('./world-map-bg.jpg') !important;
+  background-repeat: repeat-y !important;
+  background-size: 100% auto !important;
+  background-position: center top !important;
+  background-color: #123 !important;
+}
+
+/* Hide the old CSS scenery so the painted map reads cleanly. */
+.pl2d-mountains,
+.pl2d-clouds,
+.pl2d-river-wrap,
+.pl2d-forest {
+  display: none !important;
+}
+
+/* Starting-point (entrance) avatar matches the new map avatar:
+   gold head, teal body, bright white legs. */
+.pl2d-gate-avatar-head {
+  background:
+    radial-gradient(circle at 34% 28%, #fff4c6 0%, #ffd23a 55%, #e8a100 100%) !important;
+  border-color: #6b3d00 !important;
+}
+.pl2d-gate-avatar-body {
+  background:
+    linear-gradient(180deg, #34e3f2 0%, #12b3c9 52%, #0a7f92 100%) !important;
+  border-color: #ffd54a !important;
+  color: #052e37 !important;
+}
+.pl2d-gate-avatar-arm {
+  background: linear-gradient(180deg, #34e3f2, #0a7f92) !important;
+}
+.pl2d-gate-avatar-leg {
+  background: linear-gradient(180deg, #ffffff, #eef3ff) !important;
+  box-shadow: 0 0 6px rgba(255, 255, 255, .9) !important;
+}
+
