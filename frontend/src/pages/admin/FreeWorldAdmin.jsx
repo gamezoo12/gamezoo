@@ -13,6 +13,7 @@ import {
   Users,
   X,
   Search,
+  Clock,
 } from 'lucide-react';
 
 import { worldAdminAPI } from '../../lib/api';
@@ -25,6 +26,17 @@ import { useToast } from '../../hooks/use-toast';
 const SEASON_START_LOCAL_ISO = '2026-09-15T00:00:00+01:00';
 const SEASON_START_LABEL = '15 September 2026, 00:00 Europe/London';
 const CONFIRM_PHRASE = 'CONFIRM SEASON LAUNCH';
+
+const fmtCountdown = (ms) => {
+  if (!Number.isFinite(ms) || ms <= 0) return 'opening now';
+  const s = Math.floor(ms / 1000);
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = s % 60;
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d > 0 ? d + 'd ' : ''}${pad(h)}:${pad(m)}:${pad(ss)}`;
+};
 
 const ukDate = (value, withTime = true) => {
   if (!value) return '—';
@@ -102,6 +114,17 @@ export default function FreeWorldAdmin() {
   const [championFilter, setChampionFilter] = useState('');
   const [page, setPage] = useState(1);
   const [selectedUser, setSelectedUser] = useState(null);
+
+  // Live countdown to C1 open (server-authoritative base + local ticking).
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [serverOffset, setServerOffset] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  useEffect(() => {
+    if (serverTime) setServerOffset(new Date(serverTime).getTime() - Date.now());
+  }, [serverTime]);
 
   const c1 = useMemo(
     () => contests.find((c) => c.contest_number === 1) || null,
@@ -292,31 +315,46 @@ export default function FreeWorldAdmin() {
               LAUNCH / SCHEDULE FREE WORLD SEASON
             </Button>
           ) : (
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="inline-flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3"
-                data-testid="season-scheduled-banner">
-                <span className="font-black text-emerald-800 uppercase tracking-wide text-sm">
-                  Season 1 {seasonStatus === 'LIVE' ? 'Live' : 'Scheduled'}
-                </span>
-                <span className="text-sm text-emerald-700">
-                  {ukDate(c1?.start_at)}
-                </span>
-              </div>
-              {seasonStatus === 'SCHEDULED' && (
-                <>
-                  <Button variant="outline" onClick={() => setLaunchOpen(true)}
-                    data-testid="reschedule-season-button">
-                    Reschedule
-                  </Button>
-                  <Button variant="outline"
-                    className="text-rose-600 border-rose-200 hover:bg-rose-50"
-                    disabled={launching}
-                    onClick={cancelSchedule}
-                    data-testid="cancel-schedule-button">
-                    Cancel schedule
-                  </Button>
-                </>
+            <div className="space-y-3">
+              {seasonStatus === 'SCHEDULED' && c1?.start_at && (
+                <div data-testid="c1-countdown-banner"
+                  className="flex items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
+                  <Clock className="w-5 h-5 text-amber-600 shrink-0" />
+                  <div className="text-sm text-amber-900">
+                    Championship 1 opens in{' '}
+                    <b data-testid="c1-countdown" className="font-mono font-black">
+                      {fmtCountdown(new Date(c1.start_at).getTime() - (nowMs + serverOffset))}
+                    </b>
+                    {' '}· {ukDate(c1.start_at)} (Europe/London)
+                  </div>
+                </div>
               )}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="inline-flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3"
+                  data-testid="season-scheduled-banner">
+                  <span className="font-black text-emerald-800 uppercase tracking-wide text-sm">
+                    Season 1 {seasonStatus === 'LIVE' ? 'Live' : 'Scheduled'}
+                  </span>
+                  <span className="text-sm text-emerald-700">
+                    {ukDate(c1?.start_at)}
+                  </span>
+                </div>
+                {seasonStatus === 'SCHEDULED' && (
+                  <>
+                    <Button variant="outline" onClick={() => setLaunchOpen(true)}
+                      data-testid="reschedule-season-button">
+                      Reschedule
+                    </Button>
+                    <Button variant="outline"
+                      className="text-rose-600 border-rose-200 hover:bg-rose-50"
+                      disabled={launching}
+                      onClick={cancelSchedule}
+                      data-testid="cancel-schedule-button">
+                      Cancel schedule
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
           )}
         </div>
