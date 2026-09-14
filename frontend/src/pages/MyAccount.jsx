@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { ordersAPI, userAPI, walletAPI, referralAPI, paymentsAPI } from '../lib/api';
 import WalletPanel from '../components/account/WalletPanel';
+import WinningsWallet from './WinningsWallet';
 import SupportPanel from '../components/account/SupportPanel';
 import MyGamesPanel from '../components/account/MyGamesPanel';
 import {
   User, Wallet, Ticket, Gamepad2, Bell, ShieldCheck, Lock,
   LifeBuoy, FileText, Settings2, Gift, LogOut, ArrowRight,
-  Trophy, Copy, Check, Clock, AlertCircle, Mail, ChevronRight, Upload, Sparkles,
+  Trophy, Copy, Check, Clock, AlertCircle, Mail, ChevronRight, Upload, Sparkles, Coins,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate, useSearchParams, useParams } from 'react-router-dom';
@@ -41,6 +42,7 @@ const KycBadge = ({ status }) => {
 const TOKENS = [
   { id: 'profile',       label: 'Profile',        Icon: User,        color: 'from-violet-500 to-purple-600',   ring: 'ring-violet-400/40', hero: true },
   { id: 'wallet',        label: 'Wallet',         Icon: Wallet,      color: 'from-amber-500 to-orange-600',    ring: 'ring-amber-400/40' },
+  { id: 'winnings',      label: 'Winnings',       Icon: Coins,       color: 'from-yellow-500 to-amber-600',    ring: 'ring-yellow-400/40' },
   { id: 'tickets',       label: 'Tickets',        Icon: Ticket,      color: 'from-teal-500 to-emerald-600',    ring: 'ring-teal-400/40' },
   { id: 'games',         label: 'My Games',       Icon: Gamepad2,    color: 'from-fuchsia-500 to-pink-600',    ring: 'ring-fuchsia-400/40' },
   { id: 'notifications', label: 'Notifications',  Icon: Bell,        color: 'from-sky-500 to-blue-600',        ring: 'ring-sky-400/40' },
@@ -368,6 +370,10 @@ export default function MyAccount() {
               autoOpenTopup={searchParams.get('topup') === '1'}
             />
           </div>
+        )}
+
+        {active === 'winnings' && (
+          <div data-testid="panel-winnings"><WinningsWallet /></div>
         )}
 
         {active === 'tickets' && (

@@ -45,6 +45,7 @@ import PostalEntriesAdmin from './pages/admin/PostalEntriesAdmin';
 import UserDetailsPage from './pages/admin/UserDetailsPage';
 import ReferralsBonusesAdmin from './pages/admin/ReferralsBonusesAdmin';
 import FreeWorldAdmin from './pages/admin/FreeWorldAdmin';
+import WinningsPayoutsAdmin from './pages/admin/WinningsPayoutsAdmin';
 import LegalDocPage from './pages/legal/LegalDocPage';
 import PlayGame from './pages/PlayGame';
 import GameArena from './pages/GameArena';
@@ -126,6 +127,7 @@ function AppRouter() {
         <Route path="games" element={<AdminGames />} />
         <Route path="free-world" element={<FreeWorldAdmin />} />
         <Route path="wallets" element={<AdminWallets />} />
+        <Route path="winnings-payouts" element={<WinningsPayoutsAdmin />} />
         <Route path="orders" element={<AdminOrders />} />
         <Route path="payments" element={<AdminPayments />} />
         <Route path="winners" element={<AdminWinners />} />
