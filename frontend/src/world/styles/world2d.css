@@ -13276,9 +13276,6 @@
   width: 42px;
   height: 61px;
 
-  /* lift so the avatar stands on/near the node circle */
-  margin-bottom: 74px;
-
   transform: translateX(-50%);
   transform-origin: bottom center;
 
@@ -13288,6 +13285,22 @@
   transition:
     left .75s cubic-bezier(.4, 0, .2, 1),
     bottom .75s cubic-bezier(.4, 0, .2, 1);
+}
+
+/* AT a level: stand ON the node (feet on the level), enlarged + gentle idle. */
+.pl1000-progress-avatar.is-at-level {
+  margin-bottom: 100px;
+  transform: translateX(-50%) scale(1.6);
+  transform-origin: bottom center;
+  animation: pl1000AvatarIdle 2.6s ease-in-out infinite;
+}
+
+/* WAITING: sit/rest ON the road path between levels until it unlocks. */
+.pl1000-progress-avatar.is-waiting {
+  margin-bottom: 34px;
+  transform: translateX(-50%) scale(1.45);
+  transform-origin: bottom center;
+  animation: pl1000AvatarWait 1.8s ease-in-out infinite;
 }
 
 .pl1000-progress-avatar .pl1000-avatar-head,
@@ -13319,7 +13332,7 @@
 
 /* Waiting-on-the-road treatment */
 .pl1000-progress-avatar.is-waiting {
-  animation: pl1000AvatarBob 1.9s ease-in-out infinite;
+  /* transform/animation defined above; kept for cascade clarity */
 }
 
 .pl1000-avatar-waiting {
@@ -13355,5 +13368,18 @@
 @keyframes pl1000AvatarBob {
   0%, 100% { transform: translateX(-50%) translateY(0); }
   50% { transform: translateX(-50%) translateY(-5px); }
+}
+
+/* Standing idle at a level (scaled) */
+@keyframes pl1000AvatarIdle {
+  0%, 100% { transform: translateX(-50%) scale(1.6) translateY(0); }
+  50%      { transform: translateX(-50%) scale(1.6) translateY(-2px); }
+}
+
+/* Waiting / resting on the road (scaled, gentle sway like tapping a foot) */
+@keyframes pl1000AvatarWait {
+  0%, 100% { transform: translateX(-50%) scale(1.45) translateY(0) rotate(0deg); }
+  25%      { transform: translateX(-50%) scale(1.45) translateY(-3px) rotate(-4deg); }
+  75%      { transform: translateX(-50%) scale(1.45) translateY(-3px) rotate(4deg); }
 }
 
