@@ -394,3 +394,20 @@ export const gamesAPI = {
   leaderboard: (contest_id, limit = 25) => api.get(`/contests/${contest_id}/leaderboard`, { params: { limit } }).then(r => r.data),
 };
 
+
+export const winningsAPI = {
+  startChallenge: () => api.post('/winnings/challenge/start').then(r => r.data),
+  completeChallenge: (attempt_id, sequence) =>
+    api.post('/winnings/challenge/complete', { attempt_id, sequence }).then(r => r.data),
+  wallet: () => api.get('/winnings/wallet').then(r => r.data),
+  ledger: () => api.get('/winnings/ledger').then(r => r.data),
+  withdraw: (payload) => api.post('/winnings/withdraw', payload).then(r => r.data),
+  myWithdrawals: () => api.get('/winnings/withdrawals').then(r => r.data),
+};
+
+export const winningsAdminAPI = {
+  list: (status) => api.get('/admin/winnings/withdrawals', { params: status ? { status } : {} }).then(r => r.data),
+  bank: (id) => api.get(`/admin/winnings/withdrawals/${id}/bank`).then(r => r.data),
+  markPaid: (id) => api.post(`/admin/winnings/withdrawals/${id}/mark-paid`).then(r => r.data),
+  reject: (id, reason) => api.post(`/admin/winnings/withdrawals/${id}/reject`, { reason }).then(r => r.data),
+};

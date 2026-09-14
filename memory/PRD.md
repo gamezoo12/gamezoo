@@ -371,3 +371,10 @@ See `/app/memory/test_credentials.md`.
     - Session persistence root-cause fix: CORS was `allow_origins=['*'] + allow_credentials=True` (spec-invalid). Now uses `allow_origin_regex` matching preview + prizeleague.co.uk + emergent.host.
     - `TEST_OTP_BYPASS_CODE=000000` in .env for automated pytest coverage.
     - Test suite: `/app/backend/tests/test_auth_signup.py` (17/18 passing); legacy tests unchanged via `conftest.py` shim that auto-injects new required fields.
+
+## Winnings Wallet + Something Special £50 challenge — BACKEND (2026-09-14)
+- New router backend/routers/winnings_routes.py (registered in server.py; 187 routes). Money in integer PENNIES. Separate from all existing wallets.
+- Collections (additive): special_challenge_attempts, special_challenge_rewards (UNIQUE index {user_id, challenge_id} = one £50 ever), winnings_ledger (immutable), withdrawal_requests, winnings_wallets (atomic balance cache), winnings_audit_log.
+- Endpoints: POST /api/winnings/challenge/start, /challenge/complete (server-authoritative timing + sequence check, credits 5000p once, replay 0), GET /api/winnings/wallet, /ledger, POST /api/winnings/withdraw (atomic reserve available>=amount), GET /api/winnings/withdrawals (masked). Admin: GET /api/admin/winnings/withdrawals, GET /{id}/bank (RBAC admin/super_admin + audit), POST /{id}/mark-paid (status-guarded idempotent), POST /{id}/reject (reason, releases funds once).
+- Curl-verified all scenarios (reward once/replay 0/fail 0, over-withdraw blocked, reserve, mark-paid idempotent, reject release idempotent, 403 unauthorized, bank masking).
+- REMAINING: frontend UI (Something Special card + 100-number challenge game, Winnings Wallet page + withdrawal form, admin Winnings Withdrawals panel) + one combined testing_agent pass. api.js winningsAPI/winningsAdminAPI clients added. Nothing deployed. Season 1 untouched.
