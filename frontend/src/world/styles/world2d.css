@@ -13287,20 +13287,24 @@
     bottom 2.6s cubic-bezier(.45, .05, .4, 1);
 }
 
-/* AT a level: stand ON the node (feet on the level), enlarged + gentle idle. */
+/* AT a level: stand on the road centre beside the level circle. */
 .pl1000-progress-avatar.is-at-level {
-  margin-bottom: 100px;
+  margin-bottom: 20px;
   transform: translateX(-50%) scale(1.6);
   transform-origin: bottom center;
-  animation: pl1000AvatarIdle 2.6s ease-in-out infinite;
+  animation:
+    pl1000AvatarAppear .55s ease-out both,
+    pl1000AvatarIdle 2.6s ease-in-out infinite;
 }
 
-/* WAITING: sit/rest ON the road path between levels until it unlocks. */
+/* WAITING: rest ON the road path (before the locked level) until it unlocks. */
 .pl1000-progress-avatar.is-waiting {
-  margin-bottom: 34px;
+  margin-bottom: 16px;
   transform: translateX(-50%) scale(1.45);
   transform-origin: bottom center;
-  animation: pl1000AvatarWait 1.8s ease-in-out infinite;
+  animation:
+    pl1000AvatarAppear .55s ease-out both,
+    pl1000AvatarWait 1.8s ease-in-out infinite;
 }
 
 .pl1000-progress-avatar .pl1000-avatar-head,
@@ -13383,6 +13387,12 @@
   75%      { transform: translateX(-50%) scale(1.45) translateY(-3px) rotate(4deg); }
 }
 
+/* Smooth fade-in so the avatar doesn't pop/"change" when the map loads */
+@keyframes pl1000AvatarAppear {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 
 /* =========================================================
    COUNTDOWN MOVED INSIDE THE LEVEL CIRCLE (2026 update)
@@ -13409,17 +13419,18 @@
 
 .pl1000-node-timer {
   font-family: 'Courier New', ui-monospace, monospace;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 900;
-  letter-spacing: .2px;
+  letter-spacing: .5px;
   line-height: 1;
-  color: #6a3d00;
-  background: linear-gradient(180deg, #ffe98a, #ffcf35);
-  padding: 2px 7px;
+  color: #ffe15a;
+  background: #17102e;
+  padding: 3px 7px;
   border-radius: 999px;
+  border: 1.5px solid rgba(255, 213, 74, .75);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, .8),
-    0 1px 3px rgba(0, 0, 0, .3);
+    0 1px 3px rgba(0, 0, 0, .45),
+    0 0 8px rgba(255, 203, 31, .35);
   white-space: nowrap;
 }
 

@@ -278,20 +278,40 @@ const FORMATTED_TOTAL_PRIZE_POOL =
     TOTAL_PRIZE_POOL,
   );
 const PL1000_SLOT_POSITIONS = [
-  { x: 50, bottom: 4  },  // Level 1
-  { x: 44, bottom: 12 },  // Level 2
-  { x: 38, bottom: 20 },  // Level 3
-  { x: 42, bottom: 28 },  // Level 4
-  { x: 50, bottom: 36 },  // Level 5
-  { x: 58, bottom: 44 },  // Level 6
-  { x: 62, bottom: 52 },  // Level 7
-  { x: 58, bottom: 60 },  // Level 8
-  { x: 52, bottom: 68 },  // Level 9
-  { x: 46, bottom: 76 },  // Level 10
+  { x: 53, bottom: 4  },  // Level 1  (road ~43 → circle to the right)
+  { x: 27, bottom: 12 },  // Level 2  (road ~36 → left)
+  { x: 41, bottom: 20 },  // Level 3  (road ~31 → right)
+  { x: 28, bottom: 28 },  // Level 4  (road ~37 → left)
+  { x: 55, bottom: 36 },  // Level 5  (road ~45 → right)
+  { x: 47, bottom: 44 },  // Level 6  (road ~57 → left)
+  { x: 74, bottom: 52 },  // Level 7  (road ~64 → right)
+  { x: 56, bottom: 60 },  // Level 8  (road ~66 → left)
+  { x: 70, bottom: 68 },  // Level 9  (road ~60 → right)
+  { x: 40, bottom: 76 },  // Level 10 (road ~50 → left)
 
   // Dedicated Champion Arena position.
   // This is NOT a numbered level.
   { x: 50, bottom: 90 },  // Champion Arena
+];
+
+/*
+ * Centre of the black winding road at each level's height. The
+ * progression avatar walks strictly along these points (the circles
+ * above are attached to the SIDE of the road, leaving the centre
+ * clear for the avatar to walk on the path).
+ */
+const PL1000_ROAD_X = [
+  43, // Level 1
+  36, // Level 2
+  31, // Level 3
+  37, // Level 4
+  45, // Level 5
+  57, // Level 6
+  64, // Level 7
+  66, // Level 8
+  60, // Level 9
+  50, // Level 10
+  50, // Champion
 ];
 
 function formatUnlockCountdown(seconds) {
@@ -776,10 +796,15 @@ function ChampionshipSection({
         locked &&
         state.lock_reason === 'time';
 
+      // The avatar walks strictly on the road centre-line.
+      const roadX = (i) =>
+        (PL1000_ROAD_X[i] != null
+          ? PL1000_ROAD_X[i]
+          : PL1000_SLOT_POSITIONS[i].x);
+
       // Level 1 locked (any reason): wait BEFORE Level 1 — down the
       // road toward the entrance. Extrapolate backwards along the
-      // Level 1 -> Level 2 line so the avatar stays on the path,
-      // just below the first node.
+      // road centre so the avatar stays on the path, just below it.
       if (locked && slotIndex === 0) {
         const next =
           PL1000_SLOT_POSITIONS[slotIndex + 1];
@@ -789,7 +814,7 @@ function ChampionshipSection({
 
           return {
             left:
-              slot.x - back * (next.x - slot.x),
+              roadX(0) - back * (roadX(1) - roadX(0)),
             bottom:
               slot.bottom -
               back * (next.bottom - slot.bottom),
@@ -805,16 +830,14 @@ function ChampionshipSection({
           ];
 
         // Deterministic point ON the black road between the
-        // completed level and the locked one. No sideways nudge —
-        // the avatar must stay on the path. Positioned a bit below
-        // the midpoint so it sits clear of the locked level's
-        // timer / early-unlock labels that hang down toward it.
+        // completed level and the locked one — on the road centre.
         const fraction = 0.42;
 
         return {
           left:
-            prev.x +
-            fraction * (slot.x - prev.x),
+            roadX(slotIndex - 1) +
+            fraction *
+              (roadX(slotIndex) - roadX(slotIndex - 1)),
           bottom:
             prev.bottom +
             fraction *
@@ -824,7 +847,7 @@ function ChampionshipSection({
       }
 
       return {
-        left: slot.x,
+        left: roadX(slotIndex),
         bottom: slot.bottom,
         waiting: false,
       };
