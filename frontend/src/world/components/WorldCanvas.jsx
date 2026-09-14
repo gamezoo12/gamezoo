@@ -767,11 +767,36 @@ function ChampionshipSection({
       const state =
         backendLevelMap.get(localLevel);
 
-      const waiting =
+      const locked =
         Boolean(state) &&
         !state.available &&
-        !state.completed &&
+        !state.completed;
+
+      const waiting =
+        locked &&
         state.lock_reason === 'time';
+
+      // Level 1 locked (any reason): wait BEFORE Level 1 — down the
+      // road toward the entrance. Extrapolate backwards along the
+      // Level 1 -> Level 2 line so the avatar stays on the path,
+      // just below the first node.
+      if (locked && slotIndex === 0) {
+        const next =
+          PL1000_SLOT_POSITIONS[slotIndex + 1];
+
+        if (next) {
+          const back = 0.35;
+
+          return {
+            left:
+              slot.x - back * (next.x - slot.x),
+            bottom:
+              slot.bottom -
+              back * (next.bottom - slot.bottom),
+            waiting: true,
+          };
+        }
+      }
 
       if (waiting && slotIndex >= 1) {
         const prev =
