@@ -168,8 +168,13 @@ export default function WinningsWallet() {
           <div className="max-w-2xl mx-auto">
             <div className="flex items-center justify-between text-white mb-3">
               <div className="font-extrabold">Tap 1 → 100 in order</div>
-              <div className="flex items-center gap-2 font-mono font-black text-amber-400" data-testid="challenge-timer">
-                <Clock className="w-4 h-4" /> {left}s
+              <div className="text-right">
+                <div className="flex items-center gap-2 font-mono font-black text-2xl text-amber-400 tabular-nums" data-testid="challenge-timer">
+                  <Clock className="w-5 h-5" /> <MsTimer running={playing} />
+                </div>
+                <div className="text-[11px] font-bold text-white/50 mt-0.5" data-testid="challenge-timeleft">
+                  60s limit · {left}s left
+                </div>
               </div>
             </div>
             <div className="text-white/70 text-sm mb-3">Next: <b className="text-amber-400" data-testid="challenge-next">{next}</b></div>
@@ -242,5 +247,36 @@ function Stat({ label, v, t }) {
       <div className="text-[11px] uppercase font-bold text-slate-400">{label}</div>
       <div className="font-extrabold text-slate-900" data-testid={t}>{v}</div>
     </div>
+  );
+}
+
+// Live millisecond stopwatch (self-contained rAF so it doesn't re-render the grid).
+function MsTimer({ running }) {
+  const [elapsed, setElapsed] = useState(0);
+  const startRef = useRef(null);
+  const rafRef = useRef(null);
+
+  useEffect(() => {
+    if (!running) { setElapsed(0); return undefined; }
+    startRef.current = performance.now();
+    const tick = () => {
+      setElapsed(performance.now() - startRef.current);
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [running]);
+
+  const total = Math.max(0, elapsed);
+  const mm = Math.floor(total / 60000);
+  const ss = Math.floor((total % 60000) / 1000);
+  const ms = Math.floor(total % 1000);
+  const pad = (n, l = 2) => String(n).padStart(l, '0');
+
+  return (
+    <span data-testid="challenge-ms-timer">
+      {pad(mm)}:{pad(ss)}
+      <span className="text-amber-300/80">.{pad(ms, 3)}</span>
+    </span>
   );
 }
