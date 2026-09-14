@@ -1,0 +1,25 @@
+{
+  "summary": "Iteration 37: Read-only verification of 4 backend fixes on Prize League (commit 1881b2a). All 8 pytest checks passed. No DB writes, no C1 activation, no auth/admin flows executed.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/test_fixes_iter37.py", "/app/test_reports/pytest/iter37.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py still uses deprecated @app.on_event startup/shutdown handlers — consider migrating to FastAPI lifespan handlers (non-blocking, minor)."
+  ],
+  "updated_files": ["/app/backend/tests/test_fixes_iter37.py"],
+  "success_rate": {"backend": "100%", "frontend": "N/A (skipped per request)"},
+  "test_credentials": "Not used (read-only, no auth attempted per hard rules)",
+  "seed_data_creation": "None. Strictly read-only against production DB.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Fix verification results per task: (1) Fix 1 ensure_utc: PASS — importable from services.world_championship_schedule and bound in routers.world_routes namespace; isolated call on tz-aware datetime returned tz-aware datetime. (2) Fix 2 timedelta: PASS — bound in services.world_championship_scheduler; datetime.now(timezone.utc)-timedelta(days=1) executes cleanly. (3) Fix 3 health/ready non-blocking startup: PASS — GET http://localhost:8001/health and /ready both return 200 immediately at ROOT. Backend running, 175 routes loaded. (4) Fix 4 Mongo fast-fail timeouts: PASS — deps._client.options.server_selection_timeout=8.0s and pool_options.connect_timeout=8.0s. (5) Server import integrity: PASS — `import server` succeeds with exactly 175 routes. (6) Regression /api/ GET on external URL returned expected status. No live C1 activation, no scheduler settlement, no writes were performed.",
+  "verification_details": {
+    "fix1_ensure_utc": "PASS",
+    "fix2_timedelta": "PASS",
+    "fix3_health_ready_root": "PASS (both 200 on localhost:8001)",
+    "fix4_mongo_timeouts": "PASS (sst=8.0s, connect=8.0s)",
+    "server_import_175_routes": "PASS",
+    "regression_public_get": "PASS"
+  }
+}

@@ -2,6 +2,7 @@ from fastapi import FastAPI, APIRouter
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
 import os
+import asyncio
 import logging
 from pathlib import Path
 
@@ -14,6 +15,16 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 # MongoDB connection (owned by deps.py; re-exported for legacy callers)
 client = get_client()
 db = get_db()
+
+
+_bg_tasks: set = set()
+
+
+def _spawn(coro):
+    t = asyncio.create_task(coro)
+    _bg_tasks.add(t)
+    t.add_done_callback(_bg_tasks.discard)
+    return t
 
 
 def db_ref():
@@ -254,23 +265,27 @@ app.include_router(influencer_promo_router)
 
 @app.on_event('startup')
 async def _ensure_world_engine_indexes():
-    try:
-        await ensure_world_indexes()
-    except Exception as e:
-        import logging
-        logging.warning(
-            f'[startup] world index setup failed: {e}'
-        )
+    async def _bg():
+        try:
+            await ensure_world_indexes()
+        except Exception as e:
+            import logging
+            logging.warning(
+                f'[startup] world index setup failed: {e}'
+            )
+    _spawn(_bg())
 
 
 @app.on_event('startup')
 async def _seed_legal_docs():
     from deps import get_db
-    try:
-        await ensure_legal_docs_seeded(get_db())
-    except Exception as e:
-        import logging
-        logging.warning(f'[startup] legal seed failed: {e}')
+    async def _bg():
+        try:
+            await ensure_legal_docs_seeded(get_db())
+        except Exception as e:
+            import logging
+            logging.warning(f'[startup] legal seed failed: {e}')
+    _spawn(_bg())
 
 # Serve uploaded images under /api/uploads/* so k8s ingress routes to the backend pod.
 app.mount("/api/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
@@ -297,6 +312,10 @@ async def _start_scheduler():
 
 @app.on_event('startup')
 async def _ensure_core_indexes():
+    _spawn(_do_core_indexes())
+
+
+async def _do_core_indexes():
     """Create the indexes the app relies on for correctness (not just perf).
     Idempotent — Mongo silently no-ops if the index already exists.
 
