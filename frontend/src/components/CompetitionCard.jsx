@@ -54,11 +54,11 @@ export default function CompetitionCard({ c }) {
   if (isComingSoon) {
     return (
       <article
-        className="group block overflow-hidden rounded-md bg-[#161433] shadow-sm"
+        className="block overflow-hidden rounded-md bg-white shadow-sm"
         data-testid={`competition-coming-soon-${contestId}`}
+        aria-disabled="true"
       >
-        <div className="relative aspect-[2/1] overflow-hidden bg-gradient-to-br from-[#161433] via-[#32116b] to-[#6C2BFF]">
-
+        <div className="relative aspect-[2/1] overflow-hidden bg-slate-100">
           {c.image ? (
             <img
               src={resolveMediaUrl(c.image)}
@@ -68,52 +68,28 @@ export default function CompetitionCard({ c }) {
               className="block h-full w-full object-cover object-center"
             />
           ) : (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-center text-white/75">
-                <div className="text-4xl">🏆</div>
-
-                <div className="mt-2 text-[9px] font-black uppercase tracking-[0.18em]">
-                  Image coming soon
-                </div>
-              </div>
+            <div className="flex h-full w-full items-center justify-center bg-slate-100">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                Image unavailable
+              </span>
             </div>
           )}
 
-          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-transparent" />
-
-          <div className="absolute left-3 top-3">
-            <span className="inline-flex rounded-full border border-[#FFD54A]/70 bg-black/75 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#FFD54A]">
-              Coming Soon
-            </span>
-          </div>
-
-          <div className="absolute bottom-3 left-3 right-3">
-
-            <div className="text-[9px] font-black uppercase tracking-[0.16em] text-[#FFD54A]">
-              Prize Competition
-            </div>
-
-            <h3 className="mt-1 truncate font-display text-sm font-extrabold text-white">
-              {c.title}
-            </h3>
-
-          </div>
-        </div>
-
-        <div className="bg-white px-3 py-3">
-
-          <p className="min-h-[40px] text-xs leading-5 text-slate-500">
-            {c.subtitle ||
-              'Competition details, prize information and entry information will be announced soon.'}
-          </p>
-
           <div
-            className="mt-3 flex h-9 items-center justify-center rounded-md border border-[#FFD54A]/60 bg-[#FFD54A]/10 text-[11px] font-black uppercase tracking-[0.14em] text-slate-800"
+            className="absolute right-0 top-0 bg-black px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-white sm:text-xs"
             data-testid={`coming-soon-label-${contestId}`}
           >
             Coming Soon
           </div>
+        </div>
 
+        <div className="px-2 py-2">
+          <h3
+            className="truncate font-display text-sm font-black text-slate-900"
+            data-testid={`coming-soon-title-${contestId}`}
+          >
+            {c.title}
+          </h3>
         </div>
       </article>
     );

@@ -12,12 +12,6 @@ import {
 import { useToast } from '../hooks/use-toast';
 import { Upload, X, Loader2 } from 'lucide-react';
 
-const CATS = [
-  { value: 'prize-draws', label: 'Prize Competitions' },
-  { value: 'instant-wins', label: 'Instant Wins' },
-  { value: 'jackpot', label: 'Featured Prize' },
-  { value: 'new-games', label: 'New Game' },
-];
 
 // Live preview of the auto-generated skill question. Whenever admin changes
 // the operation or difficulty in the dialog we call a lightweight sample
@@ -117,15 +111,179 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
 
   const upd = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
+  const generateContestDescription = () => {
+    const title = String(form.title || '').trim() || 'This competition';
+    const priceNumber = Number(form.price ?? 0);
+    const ticketPrice = Number.isFinite(priceNumber) ? priceNumber : 0;
+    const totalTickets = Math.max(0, parseInt(form.tickets_total, 10) || 0);
+    const maxPerUser = Math.max(0, parseInt(form.max_tickets_per_user, 10) || 0);
+    const attempts = Math.max(
+      1,
+      parseInt(form.attempts_per_ticket ?? form.max_attempts ?? 3, 10) || 1
+    );
+    const prizeAmount = Math.max(0, Number(form.prize_amount) || 0);
+    const winners = Math.max(1, parseInt(form.num_prizes, 10) || 1);
+    const engine = form.engine_type || 'leaderboard';
+
+    const method =
+      engine === 'instant_win'
+        ? 'Instant Win'
+        : engine === 'random_draw'
+          ? 'Random Draw'
+          : 'Skill Game';
+
+    const gameName = form.game_type
+      ? String(form.game_type).replace(/_/g, ' ')
+      : '';
+
+    const start = form.open_date
+      ? new Date(form.open_date).toLocaleString('en-GB')
+      : 'the published opening time';
+
+    const end = form.end_date
+      ? new Date(form.end_date).toLocaleString('en-GB')
+      : 'the published closing time';
+
+    const priceText =
+      ticketPrice === 0
+        ? 'Entry tickets are free.'
+        : `Entry tickets cost ?${ticketPrice.toFixed(2)} each.`;
+
+    const ticketText =
+      totalTickets > 0
+        ? `A total of ${totalTickets.toLocaleString('en-GB')} tickets are available.`
+        : '';
+
+    const limitText =
+      maxPerUser > 0
+        ? `Each user may enter a maximum of ${maxPerUser.toLocaleString('en-GB')} tickets.`
+        : '';
+
+    const attemptText =
+      engine === 'leaderboard'
+        ? `Each ticket provides ${attempts} ${attempts === 1 ? 'attempt' : 'attempts'} at the selected skill game.`
+        : '';
+
+    const winnerText =
+      winners === 1
+        ? 'There will be 1 winner.'
+        : `There will be ${winners} winners.`;
+
+    const prizeBreakdown =
+      winners > 1 && String(form.prize_values || '').trim()
+        ? ` Prize distribution: ${String(form.prize_values).trim()}.`
+        : '';
+
+    const prizeDescription =
+      String(form.prize_details || '').trim()
+        ? ` ${String(form.prize_details).trim()}`
+        : '';
+
+    const methodText =
+      engine === 'leaderboard'
+        ? `Winner ranking is determined automatically by the leaderboard${gameName ? ` for ${gameName}` : ''}.`
+        : engine === 'instant_win'
+          ? 'Eligible entries are processed using the Instant Win competition engine.'
+          : 'Eligible entries are included in the Random Draw competition process.';
+
+    const postalText = form.free_postal_entry_available
+      ? ` A free postal entry route is available.${
+          String(form.free_postal_entry_instructions || '').trim()
+            ? ` ${String(form.free_postal_entry_instructions).trim()}`
+            : ''
+        }`
+      : '';
+
+    const description = [
+      `${title} is a ${method} competition with a prize value of ?${prizeAmount.toFixed(2)}.`,
+      priceText,
+      ticketText,
+      limitText,
+      attemptText,
+      winnerText + prizeBreakdown + prizeDescription,
+      `The competition opens at ${start} and closes at ${end}.`,
+      methodText,
+      'A skill question is used as part of the competition entry process.',
+      postalText.trim(),
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+
+    upd('full_description', description);
+    upd('short_description', `${title} ? ?${prizeAmount.toFixed(2)} prize.`);
+    upd(
+      'how_to_enter',
+      ticketPrice === 0
+        ? 'Complete the required skill question and follow the competition entry process.'
+        : 'Complete the required skill question, select your tickets and complete checkout.'
+    );
+
+    if (engine === 'leaderboard') {
+      upd(
+        'skill_instructions',
+        `Play the selected skill game using the attempts provided with each ticket. Your valid performance is recorded automatically on the leaderboard.`
+      );
+    }
+
+    toast({
+      title: 'Description generated',
+      description: 'Review the description before saving or launching the contest.',
+    });
+  };
+
   const save = async () => {
+    if (!String(form.title || '').trim()) {
+      toast({
+        title: 'Title required',
+        description: 'Please enter the contest title.',
+      });
+      return;
+    }
+
+    if (form.public_coming_soon && !form.image) {
+      toast({
+        title: 'Image required',
+        description: 'Please upload the Coming Soon image.',
+      });
+      return;
+    }
+
+    if (!form.public_coming_soon && !form.image) {
+      toast({
+        title: 'Image required',
+        description: 'Please upload the contest image.',
+      });
+      return;
+    }
+
+    if (!form.public_coming_soon && !form.end_date) {
+      toast({
+        title: 'End date required',
+        description: 'Please select the contest closing date and time.',
+      });
+      return;
+    }
+
+    if (
+      !form.public_coming_soon &&
+      (form.engine_type || 'leaderboard') === 'leaderboard' &&
+      !form.game_type
+    ) {
+      toast({
+        title: 'Game required',
+        description: 'Please select the skill game for this contest.',
+      });
+      return;
+    }
+
     setBusy(true);
     try {
       const payload = {
         title: form.title,
-        subtitle: form.subtitle,
-        category: form.category,
+        subtitle: form.subtitle || '',
+        category: form.category || 'prize-draws',
         image: form.image,
-        price: parseFloat(form.price) || 1,
+        price: Number.isFinite(Number(form.price)) ? Number(form.price) : 0,
         tickets_total: parseInt(form.tickets_total, 10) || 100,
         prize_amount: parseFloat(form.prize_amount) || 100,
         end_date: form.end_date,
@@ -139,6 +297,25 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
         skill_question_type: form.skill_question_type || 'addition',
         skill_question_difficulty: form.skill_question_difficulty || 'easy',
         game_type: form.game_type || null,
+
+        // Existing contest-engine contracts. These remain backend-compatible.
+        entry_mode:
+          (form.engine_type || 'leaderboard') === 'leaderboard'
+            ? 'skill_game'
+            : 'random_tickets',
+        attempts_per_ticket: Math.max(
+          1,
+          parseInt(form.attempts_per_ticket ?? form.max_attempts ?? 3, 10) || 1
+        ),
+        max_attempts: Math.max(
+          1,
+          parseInt(form.attempts_per_ticket ?? form.max_attempts ?? 3, 10) || 1
+        ),
+        leaderboard_visibility: 'live',
+        winner_selection_method:
+          (form.engine_type || 'leaderboard') === 'leaderboard'
+            ? 'leaderboard'
+            : 'random_draw',
 
         // Extended editable fields (Phase-1 launch spec)
         short_description: form.short_description || null,
@@ -197,456 +374,600 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
         <DialogHeader><DialogTitle>{isCreate ? 'Create new contest' : 'Edit contest'}</DialogTitle></DialogHeader>
 
         <div className="space-y-4 py-3">
+          {/* Contest mode selector */}
+          <div className="grid grid-cols-2 gap-2" data-testid="contest-mode-toggle">
+            <button type="button" onClick={() => upd('public_coming_soon', false)}
+              data-testid="contest-mode-real"
+              className={`rounded-xl border-2 px-4 py-3 text-sm font-extrabold ${!form.public_coming_soon ? 'border-[#6C2BFF] bg-[#6C2BFF]/5 text-[#6C2BFF]' : 'border-slate-200 text-slate-500'}`}>
+              REAL CONTEST
+            </button>
+            <button type="button" onClick={() => upd('public_coming_soon', true)}
+              data-testid="contest-mode-coming-soon"
+              className={`rounded-xl border-2 px-4 py-3 text-sm font-extrabold ${form.public_coming_soon ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-slate-200 text-slate-500'}`}>
+              COMING SOON
+            </button>
+          </div>
+
           <div>
             <Label>Title</Label>
-            <Input value={form.title || ''} onChange={e => upd('title', e.target.value)} />
-          </div>
-          <div>
-            <Label>Subtitle</Label>
-            <Input value={form.subtitle || ''} onChange={e => upd('subtitle', e.target.value)} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Prize amount (£)</Label>
-              <Input type="number" step="0.01" value={form.prize_amount || 0} onChange={e => upd('prize_amount', e.target.value)} />
-            </div>
-            <div>
-              <Label>Ticket price (£)</Label>
-              <Input type="number" step="0.01" value={form.price || 0} onChange={e => upd('price', e.target.value)} />
-            </div>
-            <div>
-              <Label>Number of tickets</Label>
-              <Input type="number" value={form.tickets_total || 0} onChange={e => upd('tickets_total', e.target.value)} />
-            </div>
-            <div>
-              <Label>Category</Label>
-              <select value={form.category || 'prize-draws'} onChange={e => upd('category', e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                {CATS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-              </select>
-            </div>
-          </div>
-          <div>
-            <Label>End date/time</Label>
             <Input
-              type="datetime-local"
-              value={endDateStr}
-              onChange={e =>
-                upd(
-                  'end_date',
-                  e.target.value
-                    ? new Date(e.target.value).toISOString()
-                    : null
-                )
-              }
+              value={form.title || ''}
+              onChange={e => upd('title', e.target.value)}
+              placeholder="Enter contest title"
+              data-testid="contest-title-input"
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-xl border border-[#FFD54A]/40 bg-[#FFD54A]/5 p-4">
-            <label className="flex cursor-pointer items-start gap-3">
-              <input
-                type="checkbox"
-                checked={!!form.public_coming_soon}
-                onChange={e => {
-                  const checked = e.target.checked;
-                  upd('public_coming_soon', checked);
-
-                  if (checked) {
-                    upd('status', 'draft');
-                  }
-                }}
-                className="mt-1 h-4 w-4"
-                data-testid="contest-coming-soon-toggle"
-              />
-
-              <span>
-                <span className="block text-sm font-extrabold text-slate-900">
-                  Show publicly as Coming Soon
-                </span>
-
-                <span className="mt-1 block text-xs leading-5 text-slate-500">
-                  Displays the Coming Soon card without timer, Join,
-                  progress, ticket purchase or gameplay.
-                </span>
-              </span>
-            </label>
-
-            <div>
-              <Label>Contest status</Label>
-
-              <select
-                value={
-                  form.public_coming_soon
-                    ? 'draft'
-                    : (form.status || 'draft')
-                }
-                onChange={e => upd('status', e.target.value)}
-                disabled={!!form.public_coming_soon}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100"
-                data-testid="contest-status-select"
-              >
-                <option value="draft">Draft</option>
-                <option value="live">Live</option>
-              </select>
-
-              <div className="mt-1 text-xs text-slate-500">
-                Turn off Coming Soon, choose Live, then Save to launch.
-              </div>
-            </div>
-          </div>
-
-          {/* Entry Mode + attempts + leaderboard visibility */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-slate-100 pt-4">
-            <div>
-              <Label>Entry Mode</Label>
-              <select
-                value={form.entry_mode || 'skill_game'}
-                onChange={e => upd('entry_mode', e.target.value)}
-                data-testid="contest-entry-mode"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-              >
-                <option value="skill_game">Skill Game</option>
-                <option value="random_tickets">Allocated Entry Numbers</option>
-              </select>
-              <div className="text-xs text-slate-500 mt-1">Determines the public flow after payment.</div>
-            </div>
-            <div>
-              <Label>Attempts per ticket</Label>
-              <Input
-                type="number" min={1} max={10}
-                value={form.attempts_per_ticket ?? form.max_attempts ?? 3}
-                onChange={e => {
-                  const v = Math.max(1, Math.min(10, parseInt(e.target.value) || 1));
-                  upd('attempts_per_ticket', v);
-                  upd('max_attempts', v);  // keep legacy field in sync
-                }}
-                disabled={
-                  (form.entry_mode || 'skill_game') !== 'skill_game' &&
-                  (form.engine_type || 'leaderboard') !== 'leaderboard'
-                }
-                data-testid="contest-attempts-per-ticket"
-              />
-              <div className="text-xs text-slate-500 mt-1">
-                Each purchased ticket is an independent game entry with <b>this many attempts</b>.
-                Example: 1 attempt per ticket means every ticket can be played once.
-              </div>
-            </div>
-            <div>
-              <Label>Leaderboard visibility</Label>
-              <select
-                value={form.leaderboard_visibility || 'live'}
-                onChange={e => upd('leaderboard_visibility', e.target.value)}
-                disabled={(form.entry_mode || 'skill_game') !== 'skill_game'}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-              >
-                <option value="live">Live during contest</option>
-                <option value="after_playing">Visible only after playing</option>
-                <option value="after_close">Visible only after contest closes</option>
-                <option value="hidden">Hidden</option>
-              </select>
-            </div>
-            <div>
-              <Label>Winner selection method</Label>
-              <select
-                value={form.winner_selection_method || 'random_draw'}
-                onChange={e => upd('winner_selection_method', e.target.value)}
-                disabled={(form.entry_mode || 'skill_game') === 'skill_game'}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-              >
-                <option value="random_draw">Automated winner selection</option>
-                <option value="manual">Manual (requires reason)</option>
-              </select>
-              <div className="text-xs text-slate-500 mt-1">Only for random-ticket contests. Skill contests auto-rank by score.</div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-2 border-t border-slate-100 pt-4">
-            <Label>Skill game (played after ticket purchase)</Label>
-            <p className="text-xs text-slate-500 -mt-1 mb-1">Optional. If none, winner is picked by admin/automated winner selection.</p>
-            <select
-              value={form.game_type || ''}
-              onChange={e => upd('game_type', e.target.value || null)}
-              data-testid="contest-game-select"
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+          {form.public_coming_soon && (
+            <div
+              className="space-y-2"
+              data-testid="coming-soon-image-section"
             >
-              <option value="">— None (winner picked manually) —</option>
-              <optgroup label="Puzzles">
-                <option value="jigsaw_3x3">Image Jigsaw (3×3)</option>
-                <option value="jigsaw_4x4">Image Jigsaw (4×4)</option>
-                <option value="slider_puzzle">15-Slider Puzzle</option>
-                <option value="odd_one_out">Odd One Out</option>
-              </optgroup>
-              <optgroup label="Memory">
-                <option value="memory_match">Memory Match (pairs)</option>
-                <option value="simon_says">Simon Says (sequence)</option>
-                <option value="pattern_repeat">Pattern Repeat</option>
-              </optgroup>
-              <optgroup label="Reaction">
-                <option value="number_sequence">Number Sequence 1→20</option>
-                <option value="target_tap">Target Tap</option>
-                <option value="reaction_time">Reaction Time</option>
-                <option value="whack_a_mole">Whack-a-Mole</option>
-                <option value="color_match">Color Match (Stroop)</option>
-                <option value="math_sprint">Math Sprint</option>
-              </optgroup>
-              <optgroup label="Trivia &amp; Word">
-                <option value="emoji_riddle">Emoji Riddle</option>
-                <option value="word_unscramble">Word Unscramble</option>
-                <option value="trivia_quiz">Trivia Quiz</option>
-              </optgroup>
-            </select>
-          </div>
+              <Label>Contest Image</Label>
 
-          <div>
-            <Label>Competition Image</Label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/jpg,image/png,image/webp"
-              className="hidden"
-              onChange={onFileChange}
-              data-testid="contest-image-input"
-            />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/webp"
+                className="hidden"
+                onChange={onFileChange}
+                data-testid="coming-soon-image-input"
+              />
 
-            {/* Preview card */}
-            <div className="mt-1 rounded-xl border-2 border-dashed border-slate-200 p-4 flex items-center gap-4">
-              {form.image ? (
-                <div className="relative w-28 h-28 shrink-0">
-                  <img src={form.image} alt="Competition preview" className="w-full h-full object-cover rounded-lg border" data-testid="contest-image-preview" />
+              {!form.image ? (
+                <button
+                  type="button"
+                  onClick={onPickFile}
+                  disabled={uploading}
+                  className="flex aspect-[2/1] w-full flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 transition hover:border-[#6C2BFF] hover:bg-[#6C2BFF]/5 disabled:cursor-not-allowed disabled:opacity-60"
+                  data-testid="coming-soon-image-upload"
+                >
+                  {uploading ? (
+                    <>
+                      <Loader2 className="h-8 w-8 animate-spin text-[#6C2BFF]" />
+
+                      <span className="mt-3 text-sm font-extrabold text-slate-800">
+                        Uploading image...
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-8 w-8 text-[#6C2BFF]" />
+
+                      <span className="mt-3 text-sm font-extrabold text-slate-900">
+                        Upload Rectangle Image
+                      </span>
+
+                      <span className="mt-1 text-xs text-slate-500">
+                        Recommended 1200 ? 600
+                      </span>
+
+                      <span className="mt-1 text-[11px] text-slate-400">
+                        JPG, PNG or WEBP ? Maximum 8 MB
+                      </span>
+                    </>
+                  )}
+                </button>
+              ) : (
+                <div className="relative aspect-[2/1] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                  <img
+                    src={form.image}
+                    alt={form.title || 'Coming Soon'}
+                    className="h-full w-full object-cover object-center"
+                    data-testid="coming-soon-image-preview"
+                  />
+
+                  <div className="absolute right-0 top-0 bg-black px-3 py-1.5 text-xs font-black uppercase tracking-wide text-white">
+                    Coming Soon
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={onPickFile}
+                    disabled={uploading}
+                    className="absolute bottom-2 left-2 rounded-md bg-white px-3 py-2 text-xs font-extrabold text-slate-900 shadow"
+                    data-testid="coming-soon-change-image"
+                  >
+                    {uploading ? 'Uploading...' : 'Change Image'}
+                  </button>
+
                   <button
                     type="button"
                     onClick={removeImage}
                     disabled={uploading}
-                    data-testid="contest-image-remove"
-                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-rose-500 text-white flex items-center justify-center shadow hover:bg-rose-600 disabled:opacity-50"
+                    className="absolute bottom-2 right-2 flex h-9 w-9 items-center justify-center rounded-full bg-black/80 text-white shadow hover:bg-black"
                     aria-label="Remove image"
-                  ><X className="w-3.5 h-3.5" /></button>
+                    data-testid="coming-soon-remove-image"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                 </div>
-              ) : (
-                <div className="w-28 h-28 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-300 text-xs shrink-0">No image</div>
               )}
 
-              <div className="flex-1 min-w-0">
-                <Button
-                  type="button"
-                  onClick={onPickFile}
-                  disabled={uploading}
-                  data-testid="contest-image-upload-btn"
-                  className="bg-slate-900 hover:bg-slate-800 text-white"
+              {uploadErr && (
+                <div
+                  className="text-xs font-semibold text-rose-600"
+                  data-testid="coming-soon-image-error"
                 >
-                  {uploading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading…</> : <><Upload className="w-4 h-4 mr-2" /> {form.image ? 'Replace image' : 'Upload image'}</>}
-                </Button>
-                <div className="text-xs text-slate-500 mt-2">JPG, PNG, or WEBP · up to 8 MB · used across all contest listings automatically.</div>
-                {uploadErr && <div className="text-xs text-rose-600 mt-1" data-testid="contest-image-error">{uploadErr}</div>}
-              </div>
-            </div>
-
-            {/* Advanced: paste an external URL (kept for backwards compat) */}
-            <details className="mt-3">
-              <summary className="text-xs text-slate-500 cursor-pointer hover:text-slate-700">Advanced — paste an external image URL instead</summary>
-              <Input value={form.image || ''} onChange={e => upd('image', e.target.value)} placeholder="https://…" className="mt-2" />
-              <div className="mt-2">
-                <div className="text-xs text-slate-500 mb-1">Or pick from the gallery:</div>
-                <div className="flex gap-2 flex-wrap">
-                  {[
-                    'https://images.pexels.com/photos/928187/pexels-photo-928187.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
-                    'https://images.pexels.com/photos/15633962/pexels-photo-15633962.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
-                    'https://images.pexels.com/photos/19240616/pexels-photo-19240616.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
-                    'https://images.pexels.com/photos/9462148/pexels-photo-9462148.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
-                    'https://images.pexels.com/photos/973406/pexels-photo-973406.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
-                    'https://images.pexels.com/photos/27064826/pexels-photo-27064826.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
-                  ].map(url => (
-                    <button
-                      key={url}
-                      type="button"
-                      onClick={() => upd('image', url)}
-                      className={`w-14 h-14 rounded-lg overflow-hidden border-2 ${form.image === url ? 'border-[#6C2BFF]' : 'border-transparent hover:border-slate-300'}`}
-                    ><img src={url} alt="" className="w-full h-full object-cover" /></button>
-                  ))}
-                </div>
-              </div>
-            </details>
-          </div>
-          <div className="flex flex-wrap items-center gap-4">
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!form.jackpot} onChange={e => upd('jackpot', e.target.checked)} /> Featured Prize</label>
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!form.featured} onChange={e => upd('featured', e.target.checked)} /> Featured</label>
-            {isCreate && (
-              <div className="flex items-center gap-2 text-sm ml-auto">
-                <Label className="text-sm">Publish:</Label>
-                <select value={form.status || 'draft'} onChange={e => upd('status', e.target.value)} className="rounded-lg border border-slate-200 px-2 py-1 text-sm">
-                  <option value="draft">On hold (draft)</option>
-                  <option value="live">Go live now</option>
-                </select>
-              </div>
-            )}
-          </div>
-
-          <div className="pt-3 border-t border-slate-100">
-            <Label className="text-base font-semibold">Skill question (auto-generated)</Label>
-            <p className="text-xs text-slate-500 mt-1">
-              Every visitor gets a fresh math problem, verified server-side. Pick the
-              operation and difficulty; the platform generates a new question per user.
-            </p>
-            <div className="grid grid-cols-2 gap-3 mt-3">
-              <div>
-                <Label>Operation</Label>
-                <select
-                  value={form.skill_question_type || 'addition'}
-                  onChange={e => upd('skill_question_type', e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                  data-testid="skill-op-select"
-                >
-                  <option value="addition">Addition (+)</option>
-                  <option value="subtraction">Subtraction (−)</option>
-                  <option value="multiplication">Multiplication (×)</option>
-                  <option value="division">Division (÷)</option>
-                </select>
-              </div>
-              <div>
-                <Label>Difficulty</Label>
-                <select
-                  value={form.skill_question_difficulty || 'easy'}
-                  onChange={e => upd('skill_question_difficulty', e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                  data-testid="skill-difficulty-select"
-                >
-                  <option value="easy">Easy</option>
-                  <option value="medium">Medium</option>
-                  <option value="hard">Hard</option>
-                </select>
-              </div>
-            </div>
-            <SkillQuestionPreview
-              op={form.skill_question_type || 'addition'}
-              difficulty={form.skill_question_difficulty || 'easy'}
-            />
-          </div>
-
-          {/* ---- Extended admin fields (23 optional) ---- */}
-          <details className="pt-3 border-t border-slate-100" data-testid="advanced-contest-fields">
-            <summary className="cursor-pointer text-base font-semibold text-[#6C2BFF] py-2 select-none">
-              Advanced fields (contest info, T&amp;Cs, SEO, postal entry) — 23 fields
-            </summary>
-            <div className="grid md:grid-cols-2 gap-3 mt-3">
-              <div className="md:col-span-2">
-                <Label>Short description</Label>
-                <Input value={form.short_description || ''} onChange={e => upd('short_description', e.target.value)} data-testid="fld-short-description" />
-              </div>
-              <div className="md:col-span-2">
-                <Label>Full description</Label>
-                <textarea rows={3} value={form.full_description || ''} onChange={e => upd('full_description', e.target.value)} className="w-full rounded-lg border border-slate-200 p-2 text-sm" data-testid="fld-full-description" />
-              </div>
-              <div className="md:col-span-2">
-                <Label>How to enter</Label>
-                <textarea rows={2} value={form.how_to_enter || ''} onChange={e => upd('how_to_enter', e.target.value)} className="w-full rounded-lg border border-slate-200 p-2 text-sm" />
-              </div>
-              <div className="md:col-span-2">
-                <Label>Skill game instructions</Label>
-                <textarea rows={2} value={form.skill_instructions || ''} onChange={e => upd('skill_instructions', e.target.value)} className="w-full rounded-lg border border-slate-200 p-2 text-sm" />
-              </div>
-              <div className="md:col-span-2">
-                <Label>Eligibility</Label>
-                <textarea rows={2} value={form.eligibility || ''} onChange={e => upd('eligibility', e.target.value)} className="w-full rounded-lg border border-slate-200 p-2 text-sm" />
-              </div>
-              <div>
-                <Label>Max tickets per user</Label>
-                <Input type="number" value={form.max_tickets_per_user || ''} onChange={e => upd('max_tickets_per_user', e.target.value)} />
-              </div>
-              <div>
-                <Label>Number of prizes</Label>
-                <Input type="number" value={form.num_prizes || 1} onChange={e => upd('num_prizes', e.target.value)} />
-              </div>
-              <div>
-                <Label>Open date</Label>
-                <Input type="datetime-local" value={form.open_date ? new Date(form.open_date).toISOString().slice(0, 16) : ''} onChange={e => upd('open_date', e.target.value ? new Date(e.target.value).toISOString() : null)} />
-              </div>
-              <div>
-                <Label>Result date</Label>
-                <Input type="datetime-local" value={form.draw_date ? new Date(form.draw_date).toISOString().slice(0, 16) : ''} onChange={e => upd('draw_date', e.target.value ? new Date(e.target.value).toISOString() : null)} />
-              </div>
-              <div className="md:col-span-2">
-                <Label>Prize details</Label>
-                <textarea rows={2} value={form.prize_details || ''} onChange={e => upd('prize_details', e.target.value)} className="w-full rounded-lg border border-slate-200 p-2 text-sm" />
-              </div>
-              <div className="md:col-span-2">
-                <Label>Prize values (breakdown)</Label>
-                <Input value={form.prize_values || ''} onChange={e => upd('prize_values', e.target.value)} placeholder="e.g. 1st £500 · 2nd £250 · 3rd £100" />
-              </div>
-              <div><Label>Winner determination method</Label><Input value={form.winner_method || ''} onChange={e => upd('winner_method', e.target.value)} /></div>
-              <div><Label>Scoring method</Label><Input value={form.scoring_method || ''} onChange={e => upd('scoring_method', e.target.value)} /></div>
-              <div><Label>Tie-break method</Label><Input value={form.tiebreak_method || ''} onChange={e => upd('tiebreak_method', e.target.value)} /></div>
-              <div><Label>Result verification method</Label><Input value={form.verification_method || ''} onChange={e => upd('verification_method', e.target.value)} /></div>
-              <div><Label>Prize crediting timeframe</Label><Input value={form.prize_credit_timeframe || ''} onChange={e => upd('prize_credit_timeframe', e.target.value)} /></div>
-              <div><Label>Refund conditions</Label><Input value={form.refund_conditions || ''} onChange={e => upd('refund_conditions', e.target.value)} /></div>
-              <div className="md:col-span-2"><Label>Important information</Label><textarea rows={2} value={form.important_info || ''} onChange={e => upd('important_info', e.target.value)} className="w-full rounded-lg border border-slate-200 p-2 text-sm" /></div>
-              <div className="md:col-span-2"><Label>Contest-specific rules</Label><textarea rows={2} value={form.contest_rules || ''} onChange={e => upd('contest_rules', e.target.value)} className="w-full rounded-lg border border-slate-200 p-2 text-sm" /></div>
-              <div className="md:col-span-2"><Label>Terms acknowledgement</Label><textarea rows={2} value={form.terms_acknowledgement || ''} onChange={e => upd('terms_acknowledgement', e.target.value)} className="w-full rounded-lg border border-slate-200 p-2 text-sm" /></div>
-              <div><Label>Country restrictions</Label><Input value={form.country_restrictions || ''} onChange={e => upd('country_restrictions', e.target.value)} placeholder="United Kingdom only" /></div>
-              <div><Label>Age restriction</Label><Input value={form.age_restriction || '18+'} onChange={e => upd('age_restriction', e.target.value)} /></div>
-              <div>
-                <Label>Contest engine</Label>
-                <select value={form.engine_type || 'leaderboard'} onChange={e => upd('engine_type', e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" data-testid="fld-engine-type">
-                  <option value="leaderboard">Skill Leaderboard (Engine 1) — active</option>
-                  <option value="random_draw">Automated winner selection (Engine 2) — requires legal flag</option>
-                  <option value="instant_win">Instant win (Engine 3) — requires legal flag</option>
-                </select>
-              </div>
-              <div>
-                <Label>Publication status</Label>
-                <select value={form.publication_status || 'published'} onChange={e => upd('publication_status', e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                  <option value="draft">Draft</option>
-                  <option value="published">Published</option>
-                </select>
-              </div>
-              <div><Label>SEO title</Label><Input value={form.seo_title || ''} onChange={e => upd('seo_title', e.target.value)} /></div>
-              <div><Label>SEO description</Label><Input value={form.seo_description || ''} onChange={e => upd('seo_description', e.target.value)} /></div>
-              <div className="md:col-span-2 flex items-center gap-2 mt-1">
-                <input type="checkbox" checked={!!form.free_postal_entry_available} onChange={e => upd('free_postal_entry_available', e.target.checked)} data-testid="fld-postal-toggle" className="w-4 h-4 accent-emerald-600" />
-                <Label className="!m-0">Free postal entry available for this contest</Label>
-              </div>
-              {form.free_postal_entry_available && (
-                <div className="md:col-span-2">
-                  <Label>Free postal entry instructions (contest-specific)</Label>
-                  <textarea rows={2} value={form.free_postal_entry_instructions || ''} onChange={e => upd('free_postal_entry_instructions', e.target.value)} className="w-full rounded-lg border border-slate-200 p-2 text-sm" />
+                  {uploadErr}
                 </div>
               )}
             </div>
-          </details>
+          )}
 
-          {/* ---- Focal-point image uploader ---- */}
-          <details className="pt-3 border-t border-slate-100" data-testid="focal-picker-section">
-            <summary className="cursor-pointer text-base font-semibold text-[#6C2BFF] py-2 select-none">
-              Image upload with focal-point picker (recommended)
-            </summary>
-            <div className="mt-3">
-              <ContestImageFocalPicker
-                initialImage={form.image}
-                onUploaded={(r) => {
-                  if (r?.sizes?.card) upd('image', r.sizes.card);
+          {!form.public_coming_soon && (<>
+            {/* =========================================================
+                REAL CONTEST - CLEAN ADMIN ARCHITECTURE
+                ========================================================= */}
 
-                }}
+            {/* 1. CONTEST IMAGE */}
+            <section
+              className="rounded-xl border border-slate-200 bg-white p-4 space-y-3"
+              data-testid="real-section-basic"
+            >
+              <div>
+                <h3 className="text-base font-black text-slate-900">1. Contest Details</h3>
+                <p className="text-xs text-slate-500">
+                  The contest title is above. Upload the main rectangle image here.
+                </p>
+              </div>
+
+              <div>
+                <Label>Contest Image</Label>
+                <ContestImageFocalPicker
+                  initialImage={form.image}
+                  onUploaded={(r) => {
+                    if (r?.sizes?.card) upd('image', r.sizes.card);
+                    else if (r?.recommended_image_url) upd('image', r.recommended_image_url);
+                  }}
+                />
+              </div>
+            </section>
+
+
+            {/* 2. ENTRY SETTINGS */}
+            <section
+              className="rounded-xl border border-slate-200 bg-white p-4 space-y-3"
+              data-testid="real-section-entry"
+            >
+              <div>
+                <h3 className="text-base font-black text-slate-900">2. Entry Settings</h3>
+                <p className="text-xs text-slate-500">
+                  Set ticket price to ?0 when the contest is free.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div>
+                  <Label>Ticket Price (?)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.price ?? 0}
+                    onChange={e => upd('price', e.target.value)}
+                    data-testid="real-ticket-price"
+                  />
+                </div>
+
+                <div>
+                  <Label>Total Tickets</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={form.tickets_total ?? 150}
+                    onChange={e => upd('tickets_total', e.target.value)}
+                    data-testid="real-total-tickets"
+                  />
+                </div>
+
+                <div>
+                  <Label>Maximum Entries Per User</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={form.max_tickets_per_user ?? ''}
+                    onChange={e => upd('max_tickets_per_user', e.target.value)}
+                    placeholder="e.g. 20"
+                    data-testid="real-max-entries"
+                  />
+                </div>
+
+                <div>
+                  <Label>Attempts Per Entry</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={form.attempts_per_ticket ?? form.max_attempts ?? 3}
+                    onChange={e => {
+                      const v = Math.max(
+                        1,
+                        Math.min(10, parseInt(e.target.value, 10) || 1)
+                      );
+                      upd('attempts_per_ticket', v);
+                      upd('max_attempts', v);
+                    }}
+                    data-testid="real-attempts-per-entry"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">
+                    Used by Skill Game contests. No separate game timer is configured here.
+                  </p>
+                </div>
+              </div>
+            </section>
+
+
+            {/* 3. PRIZE SETTINGS */}
+            <section
+              className="rounded-xl border border-slate-200 bg-white p-4 space-y-3"
+              data-testid="real-section-prize"
+            >
+              <div>
+                <h3 className="text-base font-black text-slate-900">3. Prize Settings</h3>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div>
+                  <Label>Prize Value (?)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.prize_amount ?? 0}
+                    onChange={e => upd('prize_amount', e.target.value)}
+                    data-testid="real-prize-value"
+                  />
+                </div>
+
+                <div>
+                  <Label>Number of Winners</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={form.num_prizes ?? 1}
+                    onChange={e =>
+                      upd(
+                        'num_prizes',
+                        Math.max(1, parseInt(e.target.value, 10) || 1)
+                      )
+                    }
+                    data-testid="real-number-winners"
+                  />
+                </div>
+              </div>
+
+              {(parseInt(form.num_prizes, 10) || 1) > 1 && (
+                <div>
+                  <Label>Prize Distribution</Label>
+                  <Input
+                    value={form.prize_values || ''}
+                    onChange={e => upd('prize_values', e.target.value)}
+                    placeholder="e.g. 1st ?300, 2nd ?100, 3rd ?50"
+                    data-testid="real-prize-distribution"
+                  />
+                </div>
+              )}
+
+              <div>
+                <Label>Prize Description</Label>
+                <textarea
+                  rows={3}
+                  value={form.prize_details || ''}
+                  onChange={e => upd('prize_details', e.target.value)}
+                  placeholder="Describe the prize and any important fulfilment information."
+                  className="w-full rounded-lg border border-slate-200 p-3 text-sm"
+                  data-testid="real-prize-description"
+                />
+              </div>
+            </section>
+
+
+            {/* 4. SCHEDULE */}
+            <section
+              className="rounded-xl border border-slate-200 bg-white p-4 space-y-3"
+              data-testid="real-section-schedule"
+            >
+              <div>
+                <h3 className="text-base font-black text-slate-900">4. Contest Schedule</h3>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div>
+                  <Label>Start Date & Time</Label>
+                  <Input
+                    type="datetime-local"
+                    value={
+                      form.open_date
+                        ? new Date(form.open_date).toISOString().slice(0, 16)
+                        : ''
+                    }
+                    onChange={e =>
+                      upd(
+                        'open_date',
+                        e.target.value
+                          ? new Date(e.target.value).toISOString()
+                          : null
+                      )
+                    }
+                    data-testid="real-start-date"
+                  />
+                </div>
+
+                <div>
+                  <Label>End Date & Time</Label>
+                  <Input
+                    type="datetime-local"
+                    value={endDateStr}
+                    onChange={e =>
+                      upd(
+                        'end_date',
+                        e.target.value
+                          ? new Date(e.target.value).toISOString()
+                          : null
+                      )
+                    }
+                    data-testid="real-end-date"
+                  />
+                </div>
+              </div>
+            </section>
+
+
+            {/* 5. CONTEST TYPE */}
+            <section
+              className="rounded-xl border border-slate-200 bg-white p-4 space-y-3"
+              data-testid="real-section-engine"
+            >
+              <div>
+                <h3 className="text-base font-black text-slate-900">5. Contest Type</h3>
+                <p className="text-xs text-slate-500">
+                  Choose how the competition winner is determined.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                {[
+                  ['leaderboard', 'SKILL GAME'],
+                  ['instant_win', 'INSTANT WIN'],
+                  ['random_draw', 'RANDOM DRAW'],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => upd('engine_type', value)}
+                    className={`rounded-xl border-2 px-3 py-3 text-xs font-black ${
+                      (form.engine_type || 'leaderboard') === value
+                        ? 'border-[#6C2BFF] bg-[#6C2BFF]/5 text-[#6C2BFF]'
+                        : 'border-slate-200 bg-white text-slate-600'
+                    }`}
+                    data-testid={`real-engine-${value}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+
+            {/* 6. SKILL QUESTION */}
+            <section
+              className="rounded-xl border border-slate-200 bg-white p-4 space-y-3"
+              data-testid="real-section-skill-question"
+            >
+              <div>
+                <h3 className="text-base font-black text-slate-900">6. Skill Question</h3>
+                <p className="text-xs text-slate-500">
+                  The backend generates a fresh question for each visitor.
+                  This preview is only an admin sample.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div>
+                  <Label>Operation</Label>
+                  <select
+                    value={form.skill_question_type || 'addition'}
+                    onChange={e => upd('skill_question_type', e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                    data-testid="skill-op-select"
+                  >
+                    <option value="addition">Addition (+)</option>
+                    <option value="subtraction">Subtraction (-)</option>
+                    <option value="multiplication">Multiplication (?)</option>
+                    <option value="division">Division (?)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <Label>Difficulty</Label>
+                  <select
+                    value={form.skill_question_difficulty || 'easy'}
+                    onChange={e => upd('skill_question_difficulty', e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                    data-testid="skill-difficulty-select"
+                  >
+                    <option value="easy">Easy</option>
+                    <option value="medium">Medium</option>
+                    <option value="hard">Hard</option>
+                  </select>
+                </div>
+              </div>
+
+              <SkillQuestionPreview
+                op={form.skill_question_type || 'addition'}
+                difficulty={form.skill_question_difficulty || 'easy'}
               />
-            </div>
-          </details>
+            </section>
 
-          {/* ---- Engine 2: Winner Selection Controls ---- */}
-          {!isCreate && form.engine_type === 'random_draw' && (
-            <details className="pt-3 border-t border-slate-100" data-testid="automated selection-section">
-              <summary className="cursor-pointer text-base font-semibold text-[#6C2BFF] py-2 select-none">
-                Winner Selection Controls (Engine 2)
-              </summary>
-              <div className="mt-3"><RandomDrawPanel contestId={contest.contest_id} /></div>
-            </details>
-          )}
 
-          {/* ---- Engine 3: Instant Win composer ---- */}
-          {!isCreate && form.engine_type === 'instant_win' && (
-            <details className="pt-3 border-t border-slate-100" data-testid="instant-win-section">
-              <summary className="cursor-pointer text-base font-semibold text-[#6C2BFF] py-2 select-none">
-                Instant Win composer (Engine 3)
-              </summary>
-              <div className="mt-3"><InstantWinComposer contestId={contest.contest_id} /></div>
-            </details>
-          )}
+            {/* 7. GAME - ONLY FOR SKILL GAME */}
+            {(form.engine_type || 'leaderboard') === 'leaderboard' && (
+              <section
+                className="rounded-xl border border-slate-200 bg-white p-4 space-y-3"
+                data-testid="real-section-game"
+              >
+                <div>
+                  <h3 className="text-base font-black text-slate-900">7. Select Game</h3>
+                  <p className="text-xs text-slate-500">
+                    Game timing/scoring remains controlled by the existing game engine.
+                    Leaderboard visibility is automatic.
+                  </p>
+                </div>
+
+                <select
+                  value={form.game_type || ''}
+                  onChange={e => upd('game_type', e.target.value || null)}
+                  data-testid="contest-game-select"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                >
+                  <option value="">Select a game</option>
+
+                  <optgroup label="Puzzles">
+                    <option value="jigsaw_3x3">Image Jigsaw (3?3)</option>
+                    <option value="jigsaw_4x4">Image Jigsaw (4?4)</option>
+                    <option value="slider_puzzle">15-Slider Puzzle</option>
+                    <option value="odd_one_out">Odd One Out</option>
+                  </optgroup>
+
+                  <optgroup label="Memory">
+                    <option value="memory_match">Memory Match (pairs)</option>
+                    <option value="simon_says">Simon Says (sequence)</option>
+                    <option value="pattern_repeat">Pattern Repeat</option>
+                  </optgroup>
+
+                  <optgroup label="Reaction">
+                    <option value="number_sequence">Number Sequence 1?20</option>
+                    <option value="target_tap">Target Tap</option>
+                    <option value="reaction_time">Reaction Time</option>
+                    <option value="whack_a_mole">Whack-a-Mole</option>
+                    <option value="color_match">Color Match (Stroop)</option>
+                    <option value="math_sprint">Math Sprint</option>
+                  </optgroup>
+
+                  <optgroup label="Trivia & Word">
+                    <option value="emoji_riddle">Emoji Riddle</option>
+                    <option value="word_unscramble">Word Unscramble</option>
+                    <option value="trivia_quiz">Trivia Quiz</option>
+                  </optgroup>
+                </select>
+              </section>
+            )}
+
+
+            {/* Existing operational controls remain available after creation */}
+            {!isCreate && form.engine_type === 'random_draw' && (
+              <section className="rounded-xl border border-slate-200 bg-white p-4">
+                <h3 className="mb-3 text-base font-black text-slate-900">
+                  Random Draw Controls
+                </h3>
+                <RandomDrawPanel contestId={contest.contest_id} />
+              </section>
+            )}
+
+            {!isCreate && form.engine_type === 'instant_win' && (
+              <section className="rounded-xl border border-slate-200 bg-white p-4">
+                <h3 className="mb-3 text-base font-black text-slate-900">
+                  Instant Win Controls
+                </h3>
+                <InstantWinComposer contestId={contest.contest_id} />
+              </section>
+            )}
+
+
+            {/* 8. POSTAL ENTRY */}
+            <section
+              className="rounded-xl border border-slate-200 bg-white p-4 space-y-3"
+              data-testid="real-section-postal"
+            >
+              <div>
+                <h3 className="text-base font-black text-slate-900">8. Postal Entry</h3>
+              </div>
+
+              <label className="flex items-center gap-3 text-sm font-semibold">
+                <input
+                  type="checkbox"
+                  checked={!!form.free_postal_entry_available}
+                  onChange={e =>
+                    upd('free_postal_entry_available', e.target.checked)
+                  }
+                  data-testid="fld-postal-toggle"
+                  className="h-4 w-4 accent-emerald-600"
+                />
+                Free postal entry available for this contest
+              </label>
+
+              {form.free_postal_entry_available && (
+                <div>
+                  <Label>Postal Entry Instructions</Label>
+                  <textarea
+                    rows={4}
+                    value={form.free_postal_entry_instructions || ''}
+                    onChange={e =>
+                      upd('free_postal_entry_instructions', e.target.value)
+                    }
+                    placeholder="Enter any contest-specific postal entry instructions."
+                    className="w-full rounded-lg border border-slate-200 p-3 text-sm"
+                    data-testid="real-postal-instructions"
+                  />
+                </div>
+              )}
+            </section>
+
+
+            {/* 9. AUTO DESCRIPTION */}
+            <section
+              className="rounded-xl border border-slate-200 bg-white p-4 space-y-3"
+              data-testid="real-section-description"
+            >
+              <div>
+                <h3 className="text-base font-black text-slate-900">
+                  9. Contest Description
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Generate the customer-facing description from the contest settings above.
+                  You can review and edit it before saving.
+                </p>
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={generateContestDescription}
+                data-testid="generate-contest-description"
+              >
+                Generate Description
+              </Button>
+
+              <textarea
+                rows={10}
+                value={form.full_description || ''}
+                onChange={e => upd('full_description', e.target.value)}
+                placeholder="Click Generate Description after completing the contest details."
+                className="w-full rounded-lg border border-slate-200 p-3 text-sm"
+                data-testid="real-generated-description"
+              />
+            </section>
+
+
+            {/* PUBLISH */}
+            <section
+              className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2"
+              data-testid="real-section-publish"
+            >
+              <Label>Contest Status</Label>
+              <select
+                value={form.status || 'draft'}
+                onChange={e => upd('status', e.target.value)}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                data-testid="contest-status-select"
+              >
+                <option value="draft">Save as Draft</option>
+                <option value="live">Launch Contest</option>
+              </select>
+            </section>
+          </>)}
+
         </div>
 
         <DialogFooter>
@@ -656,7 +977,13 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
             disabled={busy || uploading}
             data-testid="contest-save-btn"
             className="bg-[#6C2BFF] hover:bg-[#4A15D9]"
-          >{busy ? 'Saving…' : uploading ? 'Uploading image…' : (isCreate ? 'Create contest' : 'Save changes')}</Button>
+          >{busy
+            ? 'Saving...'
+            : uploading
+              ? 'Uploading image...'
+              : form.public_coming_soon
+                ? 'Launch'
+                : (isCreate ? 'Create contest' : 'Save changes')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
