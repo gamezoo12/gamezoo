@@ -148,7 +148,22 @@ async def _set_contest_status(db, a: dict, status: str, action_name: str) -> dic
     c = await _find_contest(db, a.get('id_or_slug') or '')
     if not c:
         return {'action': action_name, 'ok': False, 'error': f'Not found: {a.get("id_or_slug")}'}
-    await db.contests.update_one({'contest_id': c['contest_id']}, {'$set': {'status': status}})
+
+    if status == 'live' and c.get('public_coming_soon') is True:
+        return {
+            'action': action_name,
+            'ok': False,
+            'error': 'This competition is marked Coming Soon. Remove Coming Soon before launching it.',
+        }
+
+    updates = {'status': status}
+    if status == 'live':
+        updates['public_coming_soon'] = False
+
+    await db.contests.update_one(
+        {'contest_id': c['contest_id']},
+        {'$set': updates},
+    )
     return {'action': action_name, 'ok': True, 'contest_id': c['contest_id']}
 
 
@@ -157,7 +172,18 @@ async def handle_launch_contest(db, a: dict) -> dict:
 
 
 async def handle_launch_all_drafts(db, a: dict) -> dict:
-    r = await db.contests.update_many({'status': 'draft'}, {'$set': {'status': 'live'}})
+    r = await db.contests.update_many(
+        {
+            'status': 'draft',
+            'public_coming_soon': {'$ne': True},
+        },
+        {
+            '$set': {
+                'status': 'live',
+                'public_coming_soon': False,
+            }
+        },
+    )
     return {'action': 'launch_all_drafts', 'ok': True, 'launched': r.modified_count}
 
 

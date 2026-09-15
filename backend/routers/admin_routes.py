@@ -920,6 +920,11 @@ async def bulk_launch_contests(request: Request, payload: dict | None = None):
     status_from = (payload.get('status_from') or 'draft')
     if status_from != 'all':
         q['status'] = status_from
+
+    # Coming Soon contests are intentionally public drafts.
+    # Bulk launch must never convert them into live contests.
+    q['public_coming_soon'] = {'$ne': True}
+
     if payload.get('only_games'):
         q['game_type'] = {'$exists': True, '$nin': [None, '']}
     cat = payload.get('category')
@@ -954,9 +959,24 @@ async def launch_contest(contest_id: str, request: Request):
     await require_admin(request)
     from deps import get_db
     db = get_db()
-    r = await db.contests.update_one({'contest_id': contest_id}, {'$set': {'status': 'live'}})
-    if r.matched_count == 0:
+
+    contest = await db.contests.find_one(
+        {'contest_id': contest_id},
+        {'_id': 0, 'public_coming_soon': 1},
+    )
+    if not contest:
         raise HTTPException(status_code=404, detail='Contest not found')
+
+    if contest.get('public_coming_soon') is True:
+        raise HTTPException(
+            status_code=409,
+            detail='This competition is marked Coming Soon. Remove Coming Soon before launching it.',
+        )
+
+    await db.contests.update_one(
+        {'contest_id': contest_id},
+        {'$set': {'status': 'live', 'public_coming_soon': False}},
+    )
     return {'ok': True, 'status': 'live'}
 
 
