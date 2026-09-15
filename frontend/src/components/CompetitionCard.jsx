@@ -65,7 +65,7 @@ export default function CompetitionCard({ c }) {
               alt={c.title}
               loading="lazy"
               onError={useFallbackImage}
-              className="block h-full w-full object-cover object-center"
+              className="block h-full w-full object-contain object-center"
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-slate-100">
@@ -109,7 +109,7 @@ export default function CompetitionCard({ c }) {
             alt={c.title}
             loading="lazy"
             onError={useFallbackImage}
-            className="block h-full w-full object-cover object-center"
+            className="block h-full w-full object-contain object-center"
           />
         </div>
 
