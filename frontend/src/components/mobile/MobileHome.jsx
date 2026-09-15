@@ -36,7 +36,7 @@ export default function MobileHome() {
   });
   const [contests, setContests] = useState([]);
   useEffect(() => {
-    contestsAPI.list({ status: 'live', limit: 24 }).then(r => setContests(r?.contests || r || [])).catch(() => setContests([]));
+    contestsAPI.list({ limit: 24 }).then(r => setContests(r?.contests || r || [])).catch(() => setContests([]));
   }, []);
   // Persist the active tab in the URL (?m=leaderboard) so back-button + deep links work.
   useEffect(() => {

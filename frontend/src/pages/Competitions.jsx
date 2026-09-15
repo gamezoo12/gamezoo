@@ -6,61 +6,7 @@ import { Input } from '../components/ui/input';
 import {
   Search,
   Sparkles,
-  Image as ImageIcon,
 } from 'lucide-react';
-
-function ComingSoonCard({ contest }) {
-  return (
-    <article
-      className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
-      data-testid={`coming-soon-${contest.id}`}
-    >
-      <div className="relative aspect-[16/10] bg-gradient-to-br from-[#160B35] via-[#351071] to-[#6C2BFF] flex items-center justify-center overflow-hidden">
-        {contest.image ? (
-          <img
-            src={contest.image}
-            alt={contest.title}
-            className="absolute inset-0 h-full w-full object-cover"
-            loading="lazy"
-          />
-        ) : (
-          <div className="text-center text-white/75">
-            <ImageIcon className="w-10 h-10 mx-auto mb-2" />
-            <span className="text-xs font-bold uppercase tracking-widest">
-              Image coming soon
-            </span>
-          </div>
-        )}
-
-        <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-transparent" />
-
-        <div className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full border border-[#FFD54A]/50 bg-black/65 px-3 py-1.5 text-[11px] font-black tracking-wider text-[#FFD54A]">
-          <Sparkles className="w-3.5 h-3.5" />
-          COMING SOON
-        </div>
-      </div>
-
-      <div className="p-5">
-        <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-[#6C2BFF]">
-          Prize Competition
-        </p>
-
-        <h2 className="mt-1 font-display text-xl font-extrabold text-slate-900">
-          {contest.title}
-        </h2>
-
-        <p className="mt-2 min-h-[40px] text-sm leading-5 text-slate-500">
-          {contest.subtitle ||
-            'Competition details, prize information and entry information will be announced soon.'}
-        </p>
-
-        <div className="mt-5 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-center text-sm font-extrabold text-slate-600">
-          COMING SOON
-        </div>
-      </div>
-    </article>
-  );
-}
 
 export default function Competitions() {
   const [contests, setContests] =
@@ -159,7 +105,7 @@ export default function Competitions() {
             onChange={e =>
               setQ(e.target.value)
             }
-            placeholder="Search competitions…"
+            placeholder="Search competitionsâ€¦"
             className="pl-9"
           />
         </div>
@@ -188,19 +134,12 @@ export default function Competitions() {
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
 
-        {items.map(contest =>
-          contest.comingSoon ? (
-            <ComingSoonCard
-              key={contest.id}
-              contest={contest}
-            />
-          ) : (
-            <CompetitionCard
-              key={contest.id}
-              c={contest}
-            />
-          )
-        )}
+        {items.map(contest => (
+          <CompetitionCard
+            key={contest.id}
+            c={contest}
+          />
+        ))}
 
       </div>
 
