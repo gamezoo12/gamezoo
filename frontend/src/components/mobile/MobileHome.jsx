@@ -1,12 +1,12 @@
 /**
- * MobileHome — the entire redesigned mobile experience (<768px) in one
+ * MobileHome - the entire redesigned mobile experience (<768px) in one
  * self-contained component. Wrapped by `md:hidden` at the mount site and
  * paired with `hidden md:block` on the desktop Home markup so desktop UI is
  * BYTE-FOR-BYTE untouched.
  *
  * Three tabs, each hitting the same live API methods the desktop pages use
  * (contestsAPI.list, gamesAPI.leaderboard, contestsAPI.myGames, ordersAPI.myTickets)
- * — no mock, no seed, no new endpoints.
+ * - no mock, no seed, no new endpoints.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -81,15 +81,15 @@ function ContestsPanel({ contests }) {
   return (
     <div className="pt-4">
 
-      {/* 1 — clean promotional image holder */}
+      {/* 1 - clean promotional image holder */}
       <div className="-mt-4">
         <PromotionBanner />
       </div>
 
-      {/* 2 — optional admin-controlled public game previews */}
+      {/* 2 - optional admin-controlled public game previews */}
       <GamePreviewSection mobile />
 
-      {/* 3 — only four contests */}
+      {/* 3 - only four contests */}
       <div className="px-4 pt-6">
         <h2 className="font-display font-extrabold text-xl text-white mb-3">
           Contests
@@ -119,13 +119,21 @@ function ContestsPanel({ contests }) {
                   ticketsTotal: c.tickets_total,
                   endDate: c.end_date || c.end_time,
                   image: c.image,
+                  status: c.status,
+                  public_coming_soon: c.public_coming_soon === true,
+                  comingSoon:
+                    c.public_coming_soon === true ||
+                    (
+                      c.status === 'draft' &&
+                      String(c.tag || '').trim().toLowerCase() === 'coming soon'
+                    ),
                 }}
               />
             ))}
           </div>
         )}
 
-        {/* 4 — More Contests */}
+        {/* 4 - More Contests */}
         {homeContests.length > 0 && (
           <div className="flex justify-center pt-6 pb-2">
             <Link
@@ -140,17 +148,17 @@ function ContestsPanel({ contests }) {
         )}
       </div>
 
-      {/* 5 — How It Works */}
+      {/* 5 - How It Works */}
       <div className="mt-7">
         <HowToPlaySection compact />
       </div>
 
-      {/* 6 — Refer & Earn */}
+      {/* 6 - Refer & Earn */}
       <div className="px-4 mt-7">
         <ReferAndEarnCard />
       </div>
 
-      {/* 7 — Trust / safety */}
+      {/* 7 - Trust / safety */}
       <div className="mt-7">
         <TrustBadges />
       </div>
@@ -200,7 +208,7 @@ function GamesPanel() {
       {playable.length === 0 ? (
         <div className="text-center py-10 text-white text-sm">
           <p>No pending games right now.</p>
-          <Link to="/?m=contests" className="inline-block mt-3 text-[#FFD54A] font-bold">Browse contests →</Link>
+          <Link to="/?m=contests" className="inline-block mt-3 text-[#FFD54A] font-bold">Browse contests ></Link>
         </div>
       ) : (
         <div className="space-y-2" data-testid="mobile-games-list">
@@ -216,7 +224,7 @@ function GamesPanel() {
               )}
               <div className="flex-1 min-w-0">
                 <div className="font-bold text-white text-sm truncate">{t.contest?.title || 'Contest'}</div>
-                <div className="text-[10px] text-white">{t.contest?.game_type || 'Skill game'} · Ticket #{t.ticket_number}</div>
+                <div className="text-[10px] text-white">{t.contest?.game_type || 'Skill game'} - Ticket #{t.ticket_number}</div>
               </div>
               <div className="bg-[#FFD54A] text-slate-900 font-extrabold text-[10px] rounded-full px-2 py-0.5">1 attempt</div>
               <ChevronRight className="w-4 h-4 text-white" />

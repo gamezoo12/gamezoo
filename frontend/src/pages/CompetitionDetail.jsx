@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button } from '../components/ui/button';
 import { Progress } from '../components/ui/progress';
 import { Badge } from '../components/ui/badge';
-import { Minus, Plus, Ticket, Clock, Brain, Check, X, Image as ImageIcon, ShoppingBag } from 'lucide-react';
+import { Minus, Plus, Ticket, Clock, Brain, Check, X, Image as ImageIcon, ShoppingBag, Coins, Trophy } from 'lucide-react';
 import { countdown, percent, gbp, tokens as fmtTokens, tokenCount } from '../lib/format';
 import { useToast } from '../hooks/use-toast';
 import { contestsAPI, walletAPI } from '../lib/api';
@@ -33,12 +33,12 @@ export default function CompetitionDetail() {
   const [wrong, setWrong] = useState(false);
   const [imgState, setImgState] = useState('loading'); // loading | ok | fail
   const [wallet, setWallet] = useState(null);
-  // Dynamic skill-challenge state â€” question + signed token + options come
+  // Dynamic skill-challenge state - question + signed token + options come
   // from GET /contests/{slug}/skill-challenge and are refreshed on wrong
   // answers or manual "New question" clicks.
   const [challenge, setChallenge] = useState(null);   // { question, options, challenge_token, op, difficulty }
   const [challengeLoading, setChallengeLoading] = useState(false);
-  // Mandatory "Before you buy" confirmation â€” must be ticked before the Buy
+  // Mandatory "Before you buy" confirmation - must be ticked before the Buy
   // button becomes active. Resets when the user changes contest.
   const [confirmed, setConfirmed] = useState(false);
 
@@ -56,13 +56,13 @@ export default function CompetitionDetail() {
       setWrong(false);
       setVerified(false);
     } catch (err) {
-      // Non-fatal â€” page falls back to the legacy static question if available.
+      // Non-fatal - page falls back to the legacy static question if available.
       setChallenge(null);
     } finally {
       setChallengeLoading(false);
     }
   };
-  useEffect(() => { if (c && (c.entry_mode || 'skill_game') === 'skill_game') loadChallenge(); /* eslint-disable-next-line */ }, [slug, c?.entry_mode]);
+  useEffect(() => { if (c && !c.public_coming_soon && (c.entry_mode || 'skill_game') === 'skill_game') loadChallenge(); /* eslint-disable-next-line */ }, [slug, c?.entry_mode, c?.public_coming_soon]);
 
   useEffect(() => {
     if (!user) { setWallet(null); return; }
@@ -79,7 +79,14 @@ export default function CompetitionDetail() {
 
   const status = useMemo(() => c ? saleStatus(c.tickets_sold, c.tickets_total) : null, [c]);
 
-  if (!c) return <div className="max-w-7xl mx-auto p-10 text-slate-500">Loading contestâ€¦</div>;
+  const isComingSoon =
+    c?.public_coming_soon === true ||
+    (
+      c?.status === 'draft' &&
+      String(c?.tag || '').trim().toLowerCase() === 'coming soon'
+    );
+
+  if (!c) return <div className="max-w-7xl mx-auto p-10 text-slate-500">Loading contest...</div>;
 
   // Prefer the dynamic per-visitor challenge; fall back to the legacy static
   // question ONLY when the backend didn't hand us a challenge (e.g. contests
@@ -105,6 +112,14 @@ export default function CompetitionDetail() {
   };
 
   const addToCart = () => {
+    if (isComingSoon) {
+      toast({
+        title: 'Coming Soon',
+        description: 'This competition is not open for entries yet.'
+      });
+      return;
+    }
+
     if (isSkillGame && !verified) { toast({ title: 'Answer the skill question correctly first' }); return; }
     const raw = localStorage.getItem('gamezoo_cart');
     const cart = raw ? JSON.parse(raw) : [];
@@ -124,7 +139,7 @@ export default function CompetitionDetail() {
       cart.push(item);
     }
     localStorage.setItem('gamezoo_cart', JSON.stringify(cart));
-    toast({ title: 'Added to basket', description: `${tickets} ticket${tickets > 1 ? 's' : ''} for â€œ${c.title}â€` });
+    toast({ title: 'Added to basket', description: `${tickets} ticket${tickets > 1 ? 's' : ''} for "${c.title}"` });
     nav('/cart');
   };
 
@@ -132,7 +147,7 @@ export default function CompetitionDetail() {
     <div className="max-w-7xl mx-auto px-4 lg:px-8 py-8 md:py-10" data-testid="contest-detail">
       <BackButton to="/competitions" label="All contests" className="mb-4" />
       <div className="grid lg:grid-cols-2 gap-6 lg:gap-10">
-        {/* IMAGE COLUMN â€” dark neutral bg, object-contain, loading + fallback */}
+        {/* IMAGE COLUMN - dark neutral bg, object-contain, loading + fallback */}
         <div>
           <div className="relative aspect-[4/3] md:aspect-video lg:aspect-square rounded-2xl md:rounded-3xl overflow-hidden bg-[#0B0D1F] shadow-xl">
             {imgState === 'loading' && (
@@ -177,7 +192,7 @@ export default function CompetitionDetail() {
             </div>
           </div>
 
-          {/* Public sale progress â€” NO exact counts */}
+          {/* Public sale progress - NO exact counts */}
           <div className="mt-6" data-testid="sale-progress">
             <div className="flex justify-between text-sm mb-1">
               <span className="text-slate-600">Entries sold</span>
@@ -186,6 +201,25 @@ export default function CompetitionDetail() {
             <Progress value={status.pct} className="h-2" />
           </div>
 
+          {isComingSoon ? (
+            <div
+              className="mt-6 rounded-2xl border-2 border-[#6C2BFF]/20 bg-[#6C2BFF]/5 p-6 md:p-8 text-center"
+              data-testid="coming-soon-detail-lock"
+            >
+              <div className="inline-flex items-center rounded-full bg-[#6C2BFF] px-4 py-1.5 text-xs font-extrabold uppercase tracking-wider text-white">
+                Coming Soon
+              </div>
+
+              <h2 className="mt-4 font-display text-2xl font-extrabold text-slate-900">
+                This competition is coming soon
+              </h2>
+
+              <p className="mx-auto mt-2 max-w-lg text-sm leading-relaxed text-slate-600">
+                Entries are not open yet. Please check back when this competition is officially launched.
+              </p>
+            </div>
+          ) : (
+            <>
           {/* Skill Question or Random Draw notice */}
           {isSkillGame ? (
             <div className="mt-6 p-4 md:p-5 rounded-2xl border-2 border-[#6C2BFF]/20 bg-[#6C2BFF]/5" data-testid="skill-question-block">
@@ -195,7 +229,7 @@ export default function CompetitionDetail() {
                 {challenge?.op && (
                   <span className="text-[10px] uppercase tracking-wider bg-white border border-[#6C2BFF]/20 text-[#6C2BFF] px-1.5 py-0.5 rounded-full font-bold" data-testid="skill-op-badge">
                     {challenge.op}
-                    {challenge.difficulty ? ` Â· ${challenge.difficulty}` : ''}
+                    {challenge.difficulty ? ` - ${challenge.difficulty}` : ''}
                   </span>
                 )}
                 <button
@@ -205,11 +239,11 @@ export default function CompetitionDetail() {
                   className="ml-auto text-xs text-[#6C2BFF] hover:underline disabled:opacity-40"
                   data-testid="new-question-btn"
                 >
-                  {challengeLoading ? 'Loadingâ€¦' : 'New question'}
+                  {challengeLoading ? 'Loading...' : 'New question'}
                 </button>
               </div>
               <p className="text-slate-900 font-semibold text-lg mb-3 break-words font-mono" data-testid="skill-question-text">
-                {questionText || 'Loading questionâ€¦'}
+                {questionText || 'Loading question...'}
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {options.map(opt => {
@@ -233,7 +267,7 @@ export default function CompetitionDetail() {
                   Incorrect. Click <button type="button" onClick={loadChallenge} className="underline font-semibold hover:text-rose-700">New question</button> to try another one.
                 </p>
               )}
-              {verified && <p className="text-xs text-emerald-700 mt-2 font-medium">âœ“ Skill verified. You may now purchase tickets.</p>}
+              {verified && <p className="text-xs text-emerald-700 mt-2 font-medium"><span className="inline-flex items-center gap-1"><Check className="w-3.5 h-3.5" aria-hidden="true" /> Skill verified. You may now purchase tickets.</span></p>}
             </div>
           ) : (
             <div className="mt-6 p-4 md:p-5 rounded-2xl border-2 border-amber-200 bg-amber-50" data-testid="random-ticket-info">
@@ -242,14 +276,14 @@ export default function CompetitionDetail() {
             </div>
           )}
 
-          {/* Ticket selector â€” mobile-safe with live totals */}
+          {/* Ticket selector - mobile-safe with live totals */}
           <div className="mt-6 p-4 md:p-5 rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
               <div>
                 <div className="text-xs text-slate-500">Cost per entry</div>
                 <div className="font-display font-extrabold text-2xl text-slate-900 flex items-baseline gap-1">
                   <span>{tokenCount(c.price)}</span>
-                  <span className="text-sm text-slate-500 font-bold">ðŸª™</span>
+                  <Coins className="w-4 h-4 text-slate-500" aria-hidden="true" />
                 </div>
               </div>
               <div className="flex items-center gap-1 md:gap-2" data-testid="ticket-qty-controls">
@@ -303,7 +337,7 @@ export default function CompetitionDetail() {
                 className="mt-0.5 w-4 h-4 accent-[#6C2BFF]"
               />
               <span>
-                <strong>Before you buy â€”</strong> I confirm I have read the contest information above, I&apos;m aged 18+ and resident in the UK, I understand that I am purchasing {tickets} entry ticket{tickets > 1 ? 's' : ''} to <em>{c.title}</em> for <strong>{fmtTokens(subtotal)}</strong>, and I accept the {' '}
+                <strong>Before you buy -</strong> I confirm I have read the contest information above, I&apos;m aged 18+ and resident in the UK, I understand that I am purchasing {tickets} entry ticket{tickets > 1 ? 's' : ''} to <em>{c.title}</em> for <strong>{fmtTokens(subtotal)}</strong>, and I accept the {' '}
                 <Link to="/legal/terms" className="text-[#6C2BFF] underline">Terms &amp; Conditions</Link>.
               </span>
             </label>
@@ -315,17 +349,21 @@ export default function CompetitionDetail() {
               className="w-full h-12 pl-btn-gold text-slate-900 text-base font-extrabold disabled:opacity-50 disabled:cursor-not-allowed">
               <ShoppingBag className="w-4 h-4 mr-2" /> {isSkillGame && !verified
                 ? 'Answer skill question first'
-                : (!confirmed ? 'Tick the confirmation to buy' : `Buy ${tickets} ticket${tickets > 1 ? 's' : ''} â†’ Basket`)}
+                : (!confirmed ? 'Tick the confirmation to buy' : `Buy ${tickets} ticket${tickets > 1 ? 's' : ''} > Basket`)}
             </Button>
             <Link to={`/results/${c.slug}`} className="block mt-2" data-testid="see-results-link">
               <Button variant="outline" className="w-full h-10 text-sm">
-                ðŸ† See results &amp; leaderboard
+                <span className="inline-flex items-center justify-center gap-2">
+                  <Trophy className="w-4 h-4" aria-hidden="true" />
+                  <span>See results &amp; leaderboard</span>
+                </span>
               </Button>
             </Link>
-            <p className="text-[11px] text-slate-500 text-center mt-2"><Link to="/free-entry" className="text-[#6C2BFF] hover:underline">Free postal entry route</Link> available â€” no purchase necessary.</p>
+            <p className="text-[11px] text-slate-500 text-center mt-2"><Link to="/free-entry" className="text-[#6C2BFF] hover:underline">Free postal entry route</Link> available - no purchase necessary.</p>
           </div>
-
-          {/* Contest T&Cs â€” single long-scroll list per admin-editable fields */}
+            </>
+          )}
+          {/* Contest T&Cs - single long-scroll list per admin-editable fields */}
           <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6" data-testid="contest-terms">
             <h2 className="font-display font-extrabold text-xl text-slate-900 mb-4">Contest information &amp; rules</h2>
             <ol className="space-y-4 text-sm text-slate-700 leading-relaxed list-decimal list-outside pl-5" data-testid="contest-info-list">
@@ -399,7 +437,7 @@ export default function CompetitionDetail() {
         </div>
       </div>
 
-      {/* Live leaderboard section removed â€” per launch spec, results appear only after the contest closes on the Winners page. */}
+      {/* Live leaderboard section removed - per launch spec, results appear only after the contest closes on the Winners page. */}
     </div>
   );
 }

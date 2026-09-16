@@ -36,6 +36,14 @@ export default function Home() {
     jackpot: c.jackpot,
     featured: c.featured,
     gameType: c.game_type,
+    status: c.status,
+    public_coming_soon: c.public_coming_soon === true,
+    comingSoon:
+      c.public_coming_soon === true ||
+      (
+        c.status === 'draft' &&
+        String(c.tag || '').trim().toLowerCase() === 'coming soon'
+      ),
   }));
 
   const homeContests = [...mapped]
@@ -56,13 +64,13 @@ export default function Home() {
 
       {/* DESKTOP */}
       <div className="hidden md:block bg-white">
-        {/* 1 — clean promotion holder */}
+        {/* 1 - clean promotion holder */}
         <PromotionBanner />
 
-        {/* 2 — optional admin-controlled public game previews */}
+        {/* 2 - optional admin-controlled public game previews */}
         <GamePreviewSection />
 
-        {/* 3 — only four contests */}
+        {/* 3 - only four contests */}
         {homeContests.length > 0 && (
           <>
             <CompetitionSection
@@ -73,14 +81,14 @@ export default function Home() {
               hideViewAll
             />
 
-            {/* 4 — More Contests after the four cards */}
+            {/* 4 - More Contests after the four cards */}
             <div className="max-w-7xl mx-auto px-4 lg:px-8 pb-10 flex justify-center">
               <Link
                 to="/competitions"
                 className="inline-flex items-center justify-center min-w-[180px] h-12 px-7 rounded-full bg-[#6C2BFF] text-white font-extrabold shadow-lg hover:opacity-90 transition"
                 data-testid="home-more-contests"
               >
-                More Contests →
+                More Contests >
               </Link>
             </div>
           </>
