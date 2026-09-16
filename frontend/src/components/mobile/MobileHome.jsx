@@ -36,7 +36,7 @@ export default function MobileHome() {
   });
   const [contests, setContests] = useState([]);
   useEffect(() => {
-    contestsAPI.list({ limit: 24 }).then(r => setContests(r?.contests || r || [])).catch(() => setContests([]));
+    contestsAPI.list({ limit: 100 }).then(r => setContests(r?.contests || r || [])).catch(() => setContests([]));
   }, []);
   // Persist the active tab in the URL (?m=leaderboard) so back-button + deep links work.
   useEffect(() => {
@@ -76,7 +76,34 @@ export default function MobileHome() {
 
 /* --------------------------------- CONTESTS -------------------------------- */
 function ContestsPanel({ contests }) {
-  const homeContests = contests.slice(0, 4);
+  const liveContests = contests
+    .filter(c => c.public_coming_soon !== true)
+    .slice(0, 10);
+
+  const futureContests = contests
+    .filter(c => c.public_coming_soon === true)
+    .slice(0, 10);
+
+  const mapContest = c => ({
+    id: c.contest_id,
+    contest_id: c.contest_id,
+    slug: c.slug,
+    title: c.title,
+    subtitle: c.subtitle || c.tag,
+    tag: c.tag,
+    price: c.price,
+    ticketsSold: c.tickets_sold,
+    ticketsTotal: c.tickets_total,
+    prizeAmount: c.prize_amount,
+    endDate: c.end_date || c.end_time,
+    image: c.image,
+    jackpot: c.jackpot,
+    featured: c.featured,
+    gameType: c.game_type,
+    status: c.status,
+    public_coming_soon: c.public_coming_soon === true,
+    comingSoon: c.public_coming_soon === true,
+  });
 
   return (
     <div className="pt-4">
@@ -89,57 +116,74 @@ function ContestsPanel({ contests }) {
       {/* 2 - optional admin-controlled public game previews */}
       <GamePreviewSection mobile />
 
-      {/* 3 - only four contests */}
+      {/* 3 - LIVE CONTESTS */}
       <div className="px-4 pt-6">
         <h2 className="font-display font-extrabold text-xl text-white mb-3">
-          Contests
+          Live Contests
         </h2>
 
-        {homeContests.length === 0 ? (
-          <div className="text-center py-16 text-white text-sm">
-            No contests live right now. Check back soon.
+        {liveContests.length === 0 ? (
+          <div className="text-center py-10 text-white text-sm">
+            No live contests right now. Check back soon.
           </div>
         ) : (
           <div
             className="space-y-4"
-            data-testid="mobile-contest-list"
+            data-testid="mobile-live-contest-list"
           >
-            {homeContests.map(c => (
+            {liveContests.map(c => (
               <CompetitionCard
                 key={c.contest_id}
-                c={{
-                  id: c.contest_id,
-                  contest_id: c.contest_id,
-                  slug: c.slug,
-                  title: c.title,
-                  subtitle: c.subtitle || c.tag,
-                  tag: c.tag,
-                  price: c.price,
-                  ticketsSold: c.tickets_sold,
-                  ticketsTotal: c.tickets_total,
-                  endDate: c.end_date || c.end_time,
-                  image: c.image,
-                  status: c.status,
-                  public_coming_soon: c.public_coming_soon === true,
-                  comingSoon:
-                    c.public_coming_soon === true ||
-                    (
-                      c.status === 'draft' &&
-                      String(c.tag || '').trim().toLowerCase() === 'coming soon'
-                    ),
-                }}
+                c={mapContest(c)}
               />
             ))}
           </div>
         )}
 
-        {/* 4 - More Contests */}
-        {homeContests.length > 0 && (
+        {liveContests.length > 0 && (
           <div className="flex justify-center pt-6 pb-2">
             <Link
-              to="/competitions"
+              to="/competitions?view=live"
               className="inline-flex items-center justify-center min-w-[170px] h-11 px-6 rounded-full bg-[#FFD54A] text-slate-900 font-extrabold text-sm shadow"
-              data-testid="mobile-more-contests"
+              data-testid="mobile-more-live-contests"
+            >
+              More Contests
+              <ChevronRight className="w-4 h-4 ml-1" />
+            </Link>
+          </div>
+        )}
+      </div>
+
+      {/* 4 - FUTURE CONTESTS */}
+      <div className="px-4 pt-8">
+        <h2 className="font-display font-extrabold text-xl text-white mb-3">
+          Future Contests
+        </h2>
+
+        {futureContests.length === 0 ? (
+          <div className="text-center py-10 text-white text-sm">
+            No future contests announced right now.
+          </div>
+        ) : (
+          <div
+            className="space-y-4"
+            data-testid="mobile-future-contest-list"
+          >
+            {futureContests.map(c => (
+              <CompetitionCard
+                key={c.contest_id}
+                c={mapContest(c)}
+              />
+            ))}
+          </div>
+        )}
+
+        {futureContests.length > 0 && (
+          <div className="flex justify-center pt-6 pb-2">
+            <Link
+              to="/competitions?view=future"
+              className="inline-flex items-center justify-center min-w-[170px] h-11 px-6 rounded-full bg-[#FFD54A] text-slate-900 font-extrabold text-sm shadow"
+              data-testid="mobile-more-future-contests"
             >
               More Contests
               <ChevronRight className="w-4 h-4 ml-1" />
@@ -162,6 +206,7 @@ function ContestsPanel({ contests }) {
       <div className="mt-7">
         <TrustBadges />
       </div>
+
     </div>
   );
 }
