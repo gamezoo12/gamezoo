@@ -3,15 +3,14 @@ import { X } from 'lucide-react';
 import { useLocation,useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
-
+const ATTR='fw_promo_attribution';
 const visitorId=()=>{let id=localStorage.getItem('fw_promo_visitor');if(!id){id=(globalThis.crypto?.randomUUID?.()||`${Date.now()}-${Math.random()}`);localStorage.setItem('fw_promo_visitor',id)}return id};
 const device=()=>window.innerWidth<640?'mobile':window.innerWidth<1024?'tablet':'desktop';
-const safePath=v=>typeof v==='string'&&v.startsWith('/')&&!v.startsWith('//')?v:null;
 const excluded=path=>path==='/login'||path==='/forgot-password'||path==='/auth-callback'||path==='/my-account/promotions'||path.startsWith('/admin')||path.startsWith('/production')||path.startsWith('/legal/')||path==='/terms'||path==='/privacy'||path==='/website-terms'||path==='/mobile-terms';
-const track=(name,path)=>{const u=new URL(window.location.href);return api.post('/promotion/event',{event:name,visitor_id:visitorId(),page:path||u.pathname,device:device(),source:u.searchParams.get('utm_source'),medium:u.searchParams.get('utm_medium'),campaign:u.searchParams.get('utm_campaign'),referrer:document.referrer||null}).catch(()=>{})};
-
+const attribution=()=>{const u=new URL(window.location.href);let saved={};try{saved=JSON.parse(localStorage.getItem(ATTR)||'{}')}catch{}const fresh={source:u.searchParams.get('utm_source')||saved.source||(!document.referrer?'direct':null),medium:u.searchParams.get('utm_medium')||saved.medium||null,campaign:u.searchParams.get('utm_campaign')||saved.campaign||null,term:u.searchParams.get('utm_term')||saved.term||null,content:u.searchParams.get('utm_content')||saved.content||null,referrer:saved.referrer||document.referrer||null,landing_page:saved.landing_page||`${u.pathname}${u.search}`,first_seen_at:saved.first_seen_at||new Date().toISOString()};localStorage.setItem(ATTR,JSON.stringify(fresh));return fresh};
+const track=(name,path)=>{const a=attribution();return api.post('/promotion/event',{event:name,visitor_id:visitorId(),page:path||window.location.pathname,device:device(),source:a.source,medium:a.medium,campaign:a.campaign,term:a.term,content:a.content,referrer:a.referrer,landing_page:a.landing_page}).catch(()=>{})};
 export default function PromotionPopup(){const{user}=useAuth();const location=useLocation();const nav=useNavigate();const[cfg,setCfg]=useState(null);const[open,setOpen]=useState(false);const path=location.pathname;const seenKey=cfg?.promotion_id?`promo_seen_${cfg.promotion_id}`:null;const eligible=useMemo(()=>{if(!cfg?.is_live||excluded(path))return false;if(user)return path==='/world';return true},[cfg,user,path]);
- useEffect(()=>{api.get('/promotion/config').then(r=>setCfg(r.data)).catch(()=>{})},[]);
+ useEffect(()=>{attribution();api.get('/promotion/config').then(r=>setCfg(r.data)).catch(()=>{})},[]);
  useEffect(()=>{if(!cfg?.is_live||!eligible){setOpen(false);return}if(seenKey&&sessionStorage.getItem(seenKey)==='1'){setOpen(false);return}setOpen(true);track('impression',path)},[cfg?.promotion_id,cfg?.is_live,eligible,path,seenKey]);
  if(!cfg?.is_live||!eligible||!open)return null;
  const dismiss=()=>{track('close',path);if(seenKey)sessionStorage.setItem(seenKey,'1');setOpen(false)};
