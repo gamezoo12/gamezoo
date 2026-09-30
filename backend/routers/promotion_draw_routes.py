@@ -65,3 +65,5 @@ async def mark_winner_paid(place:int,request:Request):
 @router.get('/draw/history')
 async def draw_history(request:Request):
  await require_admin(request);db=get_db();items=await db.promotion_draws.find({}, {'_id':0}).sort('drawn_at',-1).limit(100).to_list(100);return {'items':items,'count':len(items)}
+from routers.promotion_source_analytics_routes import router as source_analytics_router
+router.include_router(source_analytics_router)
