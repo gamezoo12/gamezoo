@@ -6,6 +6,7 @@ import { AuthProvider } from './context/AuthContext';
 import TermsGate from './components/TermsGate';
 import PromotionPopup from './components/PromotionPopup';
 import PromotionAuthBridge from './components/PromotionAuthBridge';
+import PromotionFloatingBadge from './components/PromotionFloatingBadge';
 
 import PublicLayout from './components/layout/PublicLayout';
 import Home from './pages/Home';
@@ -103,245 +104,66 @@ function AppRouter() {
         <Route path="/faq" element={<FAQ />} />
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
-
         <Route path="/my-account" element={<MyAccount />} />
-
-        {/* Promotion user page */}
-        <Route
-          path="/my-account/promotions"
-          element={<PromotionPage />}
-        />
-
+        <Route path="/my-account/promotions" element={<PromotionPage />} />
         <Route path="/my-account/:section" element={<MyAccount />} />
-
         <Route path="/legal/:slug" element={<LegalDocPage />} />
-
-        <Route
-          path="/cart"
-          element={
-            <CartErrorBoundary>
-              <Cart />
-            </CartErrorBoundary>
-          }
-        />
-
+        <Route path="/cart" element={<CartErrorBoundary><Cart /></CartErrorBoundary>} />
         <Route path="/free-entry" element={<FreeEntry />} />
         <Route path="/verify" element={<VerifyFeed />} />
-        <Route
-          path="/play/:contestId/:ticketId"
-          element={<PlayGame />}
-        />
+        <Route path="/play/:contestId/:ticketId" element={<PlayGame />} />
         <Route path="/games" element={<GameArena />} />
         <Route path="/games/:gameId" element={<GamePreview />} />
         <Route path="/leaderboard" element={<LeaderboardIndex />} />
-
-        <Route
-          path="/leaderboard/:contestId"
-          element={<ContestLeaderboard />}
-        />
-
-        <Route
-          path="/how-it-works"
-          element={<HowItWorksPage />}
-        />
-
+        <Route path="/leaderboard/:contestId" element={<ContestLeaderboard />} />
+        <Route path="/how-it-works" element={<HowItWorksPage />} />
         <Route path="/refer" element={<ReferPage />} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
-        <Route
-          path="/website-terms"
-          element={<WebsiteTermsPage />}
-        />
-        <Route
-          path="/mobile-terms"
-          element={<MobileTermsPage />}
-        />
+        <Route path="/website-terms" element={<WebsiteTermsPage />} />
+        <Route path="/mobile-terms" element={<MobileTermsPage />} />
       </Route>
 
-      <Route
-        path="/world-preview"
-        element={<WorldPreview />}
-      />
+      <Route path="/world-preview" element={<WorldPreview />} />
+      <Route path="/challenge" element={<SpecialChallenge />} />
+      <Route path="/admin/login" element={<AdminLogin />} />
+      <Route path="/auth-callback" element={<AuthCallback />} />
+      <Route path="/admin/promotion/draw-studio" element={<PromotionDrawStudio />} />
 
-      <Route
-        path="/challenge"
-        element={<SpecialChallenge />}
-      />
-
-      <Route
-        path="/admin/login"
-        element={<AdminLogin />}
-      />
-
-      {/* Emergent Google OAuth redirects here with
-          #session_id=… in the URL. */}
-      <Route
-        path="/auth-callback"
-        element={<AuthCallback />}
-      />
-
-      {/* Full-screen Promotion RNG Draw Studio */}
-      <Route
-        path="/admin/promotion/draw-studio"
-        element={<PromotionDrawStudio />}
-      />
-
-      <Route
-        path="/admin"
-        element={<AdminLayout />}
-      >
+      <Route path="/admin" element={<AdminLayout />}>
         <Route index element={<AdminDashboard />} />
-
-        <Route
-          path="users"
-          element={<AdminUsers />}
-        />
-
-        <Route
-          path="alerts"
-          element={<AdminAlerts />}
-        />
-
-        <Route
-          path="referrals"
-          element={<ReferralsBonusesAdmin />}
-        />
-
-        <Route
-          path="kyc"
-          element={<AdminKyc />}
-        />
-
-        <Route
-          path="competitions"
-          element={<AdminCompetitions />}
-        />
-
-        <Route
-          path="games"
-          element={<AdminGames />}
-        />
-
-        <Route
-          path="free-world"
-          element={<FreeWorldAdmin />}
-        />
-
-        {/* Promotion Admin */}
-        <Route
-          path="promotion"
-          element={<PromotionAdminShell />}
-        />
-
-        <Route
-          path="wallets"
-          element={<AdminWallets />}
-        />
-
-        <Route
-          path="winnings-payouts"
-          element={<WinningsPayoutsAdmin />}
-        />
-
-        <Route
-          path="cash-out"
-          element={<CashOutAdmin />}
-        />
-
-        <Route
-          path="orders"
-          element={<AdminOrders />}
-        />
-
-        <Route
-          path="payments"
-          element={<AdminPayments />}
-        />
-
-        <Route
-          path="winners"
-          element={<AdminWinners />}
-        />
-
-        <Route
-          path="winner-selection"
-          element={<WinnerSelectionAdmin />}
-        />
-
-        <Route
-          path="analytics"
-          element={<AdminAnalytics />}
-        />
-
-        <Route
-          path="acquisition"
-          element={<AcquisitionAdmin />}
-        />
-
-        <Route
-          path="roles"
-          element={<AdminRoles />}
-        />
-
-        <Route
-          path="settings"
-          element={<AdminSettings />}
-        />
-
-        <Route
-          path="audit-logs"
-          element={<AdminAuditLogs />}
-        />
-
-        <Route
-          path="legal"
-          element={<AdminLegalDocs />}
-        />
-
-        <Route
-          path="company"
-          element={<CompanySettingsAdmin />}
-        />
-
-        <Route
-          path="postal"
-          element={<PostalEntriesAdmin />}
-        />
-
-        <Route
-          path="users/:user_id"
-          element={<UserDetailsPage />}
-        />
+        <Route path="users" element={<AdminUsers />} />
+        <Route path="alerts" element={<AdminAlerts />} />
+        <Route path="referrals" element={<ReferralsBonusesAdmin />} />
+        <Route path="kyc" element={<AdminKyc />} />
+        <Route path="competitions" element={<AdminCompetitions />} />
+        <Route path="games" element={<AdminGames />} />
+        <Route path="free-world" element={<FreeWorldAdmin />} />
+        <Route path="promotion" element={<PromotionAdminShell />} />
+        <Route path="wallets" element={<AdminWallets />} />
+        <Route path="winnings-payouts" element={<WinningsPayoutsAdmin />} />
+        <Route path="cash-out" element={<CashOutAdmin />} />
+        <Route path="orders" element={<AdminOrders />} />
+        <Route path="payments" element={<AdminPayments />} />
+        <Route path="winners" element={<AdminWinners />} />
+        <Route path="winner-selection" element={<WinnerSelectionAdmin />} />
+        <Route path="analytics" element={<AdminAnalytics />} />
+        <Route path="acquisition" element={<AcquisitionAdmin />} />
+        <Route path="roles" element={<AdminRoles />} />
+        <Route path="settings" element={<AdminSettings />} />
+        <Route path="audit-logs" element={<AdminAuditLogs />} />
+        <Route path="legal" element={<AdminLegalDocs />} />
+        <Route path="company" element={<CompanySettingsAdmin />} />
+        <Route path="postal" element={<PostalEntriesAdmin />} />
+        <Route path="users/:user_id" element={<UserDetailsPage />} />
       </Route>
 
-      <Route
-        path="/production"
-        element={<ProductionLayout />}
-      >
-        <Route
-          index
-          element={<OperationsPage />}
-        />
-
-        <Route
-          path="live-draw"
-          element={<LiveDrawPage />}
-        />
-
-        <Route
-          path="inventory"
-          element={<PrizeInventory />}
-        />
-
-        <Route
-          path="winners"
-          element={<WinnersFeed />}
-        />
-
-        <Route
-          path="kyc"
-          element={<AdminKyc />}
-        />
+      <Route path="/production" element={<ProductionLayout />}>
+        <Route index element={<OperationsPage />} />
+        <Route path="live-draw" element={<LiveDrawPage />} />
+        <Route path="inventory" element={<PrizeInventory />} />
+        <Route path="winners" element={<WinnersFeed />} />
+        <Route path="kyc" element={<AdminKyc />} />
       </Route>
     </Routes>
   );
@@ -353,24 +175,13 @@ function App() {
       <AuthProvider>
         <BrowserRouter>
           <AcquisitionTracker />
-
-          {/* Handles promotion intent across login/signup */}
           <PromotionAuthBridge />
-
           <AppRouter />
-
-          {/* Global promotion popup */}
           <PromotionPopup />
-
+          <PromotionFloatingBadge />
           <TermsGate />
-
           <Toaster />
-
-          <SonnerToaster
-            position="top-center"
-            richColors
-            closeButton
-          />
+          <SonnerToaster position="top-center" richColors closeButton />
         </BrowserRouter>
       </AuthProvider>
     </div>
