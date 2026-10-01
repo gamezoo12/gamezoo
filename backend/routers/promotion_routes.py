@@ -33,8 +33,7 @@ async def _issue_ticket(db,pid,uid,source,referred_user_id=None):
   except DuplicateKeyError:continue
  raise HTTPException(500,'Unable to allocate a unique promotion ticket.')
 async def _sync_referral_ticket(db,pid,joined_user_id):
- # Promotion referral qualification is intentionally separate from the existing token reward programme:
- # a valid referred account must itself join this promotion before it can create one extra ticket.
+ # Promotion referral qualification is intentionally separate from the existing token reward programme.
  ref=await db.referrals.find_one({'referred_user_id':joined_user_id},{'_id':0,'referrer_user_id':1,'referral_id':1})
  if not ref:return None
  referrer=ref.get('referrer_user_id')
@@ -42,18 +41,9 @@ async def _sync_referral_ticket(db,pid,joined_user_id):
  referrer_entry=await db.promotion_entries.find_one({'promotion_id':pid,'user_id':referrer},{'_id':0,'user_id':1})
  if not referrer_entry:return None
  return await _issue_ticket(db,pid,referrer,'referral',joined_user_id)
-async def _backfill_my_referral_tickets(db,pid,uid):
- # Recovery path: if referred users joined before their referrer joined, grant those earned tickets now.
- refs=await db.referrals.find({'referrer_user_id':uid},{'_id':0,'referred_user_id':1}).to_list(10000)
- for ref in refs:
-  referred=ref.get('referred_user_id')
-  if not referred or referred==uid:continue
-  joined=await db.promotion_entries.find_one({'promotion_id':pid,'user_id':referred},{'_id':0,'user_id':1})
-  if joined:await _issue_ticket(db,pid,uid,'referral',referred)
 async def auto_join_referred_signup(db,referred_user_id):
- # A successful personal-referral signup automatically joins the referred user
- # to the live promotion and grants the normal join ticket. If the referrer is
- # already joined, they also receive one idempotent referral ticket.
+ # Idempotent for both new and historical referrals. If a valid personal referral exists,
+ # enrol the referred user into the live promotion and issue the normal join ticket.
  cfg=await _config(db)
  if not cfg.get('is_live'):return {'joined':False,'reason':'promotion_not_live'}
  pid=cfg['promotion_id'];now=datetime.now(timezone.utc)
@@ -67,6 +57,17 @@ async def auto_join_referred_signup(db,referred_user_id):
  await _issue_ticket(db,pid,referred_user_id,'join')
  await _sync_referral_ticket(db,pid,referred_user_id)
  return {'joined':True,'promotion_id':pid}
+async def _backfill_my_referral_tickets(db,pid,uid):
+ # Historical recovery: every valid existing A->B referral is brought onto the
+ # current live promotion before A's referral ticket is checked. Safe to run
+ # repeatedly because entries and tickets are idempotent upserts.
+ refs=await db.referrals.find({'referrer_user_id':uid},{'_id':0,'referred_user_id':1}).to_list(10000)
+ for ref in refs:
+  referred=ref.get('referred_user_id')
+  if not referred or referred==uid:continue
+  await auto_join_referred_signup(db,referred)
+  joined=await db.promotion_entries.find_one({'promotion_id':pid,'user_id':referred},{'_id':0,'user_id':1})
+  if joined:await _issue_ticket(db,pid,uid,'referral',referred)
 class EventInput(BaseModel):
  event:str;visitor_id:str|None=None;page:str|None=None;device:str|None=None;source:str|None=None;medium:str|None=None;campaign:str|None=None;referrer:str|None=None
 @router.post('/event')
@@ -81,9 +82,12 @@ async def promotion_event(inp:EventInput,request:Request):
 async def promotion_config():return await _config(get_db())
 @router.get('/me')
 async def promotion_me(request:Request):
- user=await get_current_user(request);db=get_db();cfg=await _config(db);pid=cfg['promotion_id'];entry=await db.promotion_entries.find_one({'promotion_id':pid,'user_id':user['user_id']},{'_id':0})
- if entry:await _backfill_my_referral_tickets(db,pid,user['user_id'])
- tickets=await db.promotion_tickets.find({'promotion_id':pid,'user_id':user['user_id']},{'_id':0}).sort('created_at',1).to_list(10000)
+ user=await get_current_user(request);db=get_db();cfg=await _config(db);pid=cfg['promotion_id'];uid=user['user_id']
+ # Repair historical referred signups lazily when either referred user opens the promotion page.
+ if cfg.get('is_live'):await auto_join_referred_signup(db,uid)
+ entry=await db.promotion_entries.find_one({'promotion_id':pid,'user_id':uid},{'_id':0})
+ if entry:await _backfill_my_referral_tickets(db,pid,uid)
+ tickets=await db.promotion_tickets.find({'promotion_id':pid,'user_id':uid},{'_id':0}).sort('created_at',1).to_list(10000)
  return {'promotion':cfg,'joined':bool(entry),'tickets':tickets,'ticket_count':len(tickets),'base_ticket_count':sum(1 for t in tickets if t.get('source')=='join'),'referral_ticket_count':sum(1 for t in tickets if t.get('source')=='referral')}
 @router.post('/join')
 async def join_promotion(request:Request):
@@ -113,7 +117,7 @@ async def admin_participants(request:Request,q:str|None=None,limit:int=Query(200
  return {'items':out,'count':len(out),'skip':skip,'limit':limit}
 @admin_router.get('/events')
 async def admin_events(request:Request,event:str|None=None,device:str|None=None,page:str|None=None,limit:int=Query(500,ge=1,le=2000),skip:int=Query(0,ge=0)):
- await require_admin(request);db=get_db();cfg=await _config(db);f={'promotion_id':cfg['promotion_id']}
+ await require_admin(request);db=get_db();cfg=await _config(db);pid=cfg['promotion_id'];f={'promotion_id':pid}
  if event:f['event']=event
  if device:f['device']=device
  if page:f['page']=page
