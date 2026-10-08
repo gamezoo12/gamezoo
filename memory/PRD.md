@@ -474,3 +474,8 @@ See `/app/memory/test_credentials.md`.
 - User chose **www**. Aligned all SEO URLs to `https://www.prizeleague.co.uk` across FreeWorldLanding.jsx, HowItWorks.jsx, Competitions.jsx, prerender-seo.js, public/index.html (canonical+OG+Organization/WebSite JSON-LD), sitemap.xml, robots.txt (incl. Sitemap: line). brand.js already used www.
 - Left untouched (not SEO head tags): legal copy in website-terms.js and an internal AlertsAdmin URL constant.
 - MANUAL (hosting/DNS): add a 301 redirect non-www -> www (apex prizeleague.co.uk -> www.prizeleague.co.uk). In GSC, set the www property as primary and submit https://www.prizeleague.co.uk/sitemap.xml.
+
+## 2026-06-28 · Champion 1 timer fix (minimal)
+- Root cause: `_personal_champion_transition_schedule` (backend/routers/world_routes.py ~L3194) anchored BEHIND users (personal stage < active global contest, e.g. Champion 1 while global is Champion 2) to `personal_stage_started_at`, producing a wrong ~9-day Champion countdown. Live users (stage==active) correctly anchored to the active global contest `start_at`.
+- Fix: when a Global Contest is active, ALL personal Championships (live OR behind) anchor to that contest `start_at`; fallback to personal stage start only when no contest is active. One condition changed; removed 2 now-unused locals.
+- Verified: behind (C1) and live (C2) now return identical champion_opens_at/closes_at for the same Global Contest (MATCH=True); C2 output byte-identical to before; fallback intact. Not deployed.

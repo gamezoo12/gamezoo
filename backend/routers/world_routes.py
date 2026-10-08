@@ -3208,20 +3208,15 @@ def _personal_champion_transition_schedule(
     It is generic for personal Championships 1..100.
     """
     now = _utcnow()
-    stage = int(progress.get("champion_stage") or 1)
 
-    active_number = (
-        int(active_contest.get("contest_number"))
-        if active_contest and active_contest.get("contest_number")
-        else None
-    )
-
-    # Users on the live personal Championship retain the shared/global
-    # Championship start anchor used by the existing normal-level timer.
-    # Users progressing through an older personal Championship use the time
-    # they entered that personal stage, so historical global dates cannot make
-    # their Champion timer disappear or point at a future global Championship.
-    if active_number == stage and active_contest is not None:
+    # Champion 1-100 all share their Global Contest's start/end window. When a
+    # Global Contest is active, every personal Championship (live OR behind)
+    # anchors its Champion timer to that same shared contest start, so Champion
+    # 1 and Champion 2 display identical timestamps within the same Global
+    # Contest cycle. Only when no contest is active do we fall back to the
+    # personal stage start. This preserves the cyclic behaviour for all future
+    # Global Contests.
+    if active_contest is not None:
         anchor = _ensure_aware_datetime(active_contest.get("start_at")) or now
     else:
         anchor = _ensure_aware_datetime(
