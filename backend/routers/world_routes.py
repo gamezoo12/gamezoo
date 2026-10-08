@@ -11308,6 +11308,8 @@ async def free_world_skip_level(level: int, request: Request):
     SKIP does NOT create a score, grant any reward, or consume a free attempt
     or token. It only advances personal progression and is recorded for audit.
     """
+    raise HTTPException(status_code=403, detail={"code": "LEVEL_SKIP_DISABLED", "message": "Every personal Championship level must be played in order."})
+
     from deps import get_db
 
     user = await get_current_user(request)
@@ -11497,45 +11499,24 @@ async def continue_after_champion(
             },
         )
 
-    # The user may advance only when THEIR matching global
-    # Championship has closed. A later closed Championship must
-    # never unlock an earlier personal Champion stage.
-    stage_contest = await db.world_global_contests.find_one(
+    # Personal Champion participation is mandatory, but winning is not.
+    # The session keeps the global leaderboard contest and personal prize snapshot.
+    played = await db.world_champion_sessions.find_one(
         {
-            "season_id":
-                WORLD_SEASON_ID,
-
-            "contest_number":
-                champion_stage,
-
-            "status": {
-                "$in": [
-                    "closed",
-                    "settled",
-                    "closed_settled",
-                ]
-            },
+            "season_id": WORLD_SEASON_ID,
+            "user_id": user["user_id"],
+            "champion_stage_snapshot": champion_stage,
+            "status": "submitted",
         },
-        {
-            "_id": 0,
-        },
+        {"_id": 0, "session_id": 1},
     )
-
-    if not stage_contest:
+    if not played:
         raise HTTPException(
             status_code=409,
             detail={
-                "code":
-                    "CHAMPION_PERIOD_NOT_CLOSED",
-
-                "message":
-                    (
-                        "Your current Champion stage "
-                        "has not closed yet."
-                    ),
-
-                "champion_stage":
-                    champion_stage,
+                "code": "CHAMPION_PARTICIPATION_REQUIRED",
+                "message": "Play and submit your personal Champion Challenge before advancing.",
+                "champion_stage": champion_stage,
             },
         )
 
@@ -11660,7 +11641,7 @@ async def continue_after_champion(
                 False,
 
             "participation_required_to_continue":
-                False,
+                True,
 
             "qualification_required_to_continue":
                 False,
