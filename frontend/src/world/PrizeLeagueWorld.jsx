@@ -83,6 +83,28 @@ export default function PrizeLeagueWorld() {
     showWorldLeaderboard,
     setShowWorldLeaderboard,
   ] = useState(false);
+
+  // Measure the real site header (nav + announcement bar) height and expose it
+  // as a CSS var so the Free World map, popups and leaderboard start just below
+  // the announcement bar instead of being hidden under it.
+  useEffect(() => {
+    const applyTopbarHeight = () => {
+      const header = document.querySelector('[data-testid="site-header"]');
+      const h = header
+        ? Math.round(header.getBoundingClientRect().height)
+        : 113;
+      document.documentElement.style.setProperty('--pl-topbar-h', `${h}px`);
+    };
+    applyTopbarHeight();
+    const t = setTimeout(applyTopbarHeight, 300);
+    window.addEventListener('resize', applyTopbarHeight);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener('resize', applyTopbarHeight);
+      document.documentElement.style.removeProperty('--pl-topbar-h');
+    };
+  }, []);
+
   useEffect(() => {
     const onLevelSelect = async (event) => {
       const level =

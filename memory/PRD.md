@@ -1,5 +1,11 @@
 # Prize League â€” PRD
 
+## Free World announcement-bar overlap — aligned WITHOUT changing the bar (2026-06)
+- Requirement: keep the announcement bar + header exactly as original; just stop Free World content from hiding under the bar (map nodes/games, notification popup, and the Free World leaderboard).
+- Approach (frontend only, no bar/header redesign): `PrizeLeagueWorld.jsx` measures the real `[data-testid=site-header]` height at runtime (mount + resize) and sets CSS var `--pl-topbar-h`. `world.css` `.pl-world-page` and `pl-global-lb.css` `.pl-global-lb-shell` now use `top: var(--pl-topbar-h, 113px)` so the map and the Free World leaderboard start just below the bar. `WorldAlertPopup.jsx` popup at `top-[124px]`.
+- Reverted the earlier wrong change (had swapped the whole header/ticker via trailing-slash isFreeWorldHeader). `isFreeWorldHeader` is back to `=== '/world'`; global `AnnouncementTicker` renders as before.
+- Verified in preview (desktop 1440 + measured mobile header=99, desktop=113): map content below bar; leaderboard top bar/close button visible (lbTopbarTop=113=headerBottom); popup below bar. NOT deployed.
+
 ## Free World announcement-bar overlap — REAL root cause fixed (2026-06)
 - ROOT CAUSE: `/world` resolves with a trailing slash (`/world/`), so `isFreeWorldHeader` (`=== '/world'`) was always FALSE → the dedicated fixed Free World header never activated and the global promo `AnnouncementTicker` rendered over the fixed-fullscreen map (`.pl-world-page`, position:fixed inset:0), hiding the notification popup, level nodes and content. Earlier "spacer" fix did nothing because the map is position:fixed and ignores normal flow.
 - FIX (frontend only): `Header.jsx` `isFreeWorldHeader` now matches `'/world'` || `'/world/'`; global `AnnouncementTicker` no longer renders on the Free World map (the map has its own branded `pl-world-promo-ticker-top`). `WorldAlertPopup.jsx` popup moved to `top-[124px]` so it always clears header + ticker.

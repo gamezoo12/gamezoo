@@ -1,6 +1,7 @@
 .pl-world-page {
   position: fixed;
   inset: 0;
+  top: var(--pl-topbar-h, 113px);
   z-index: 1000;
   overflow: hidden;
   background:

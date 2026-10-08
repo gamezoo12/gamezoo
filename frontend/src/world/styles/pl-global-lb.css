@@ -8,6 +8,7 @@
 .pl-global-lb-shell {
   position: fixed;
   inset: 0;
+  top: var(--pl-topbar-h, 113px);
   z-index: 10100;
   overflow-y: auto;
   overflow-x: hidden;

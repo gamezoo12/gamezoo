@@ -41,7 +41,7 @@ const minimalWorldHeader =
    pathname === '/login';
 
  const isFreeWorldHeader =
-   pathname === '/world' || pathname === '/world/';
+   pathname === '/world';
  const profileRef = useRef(null);
  const freeProfileRef = useRef(null);
 
@@ -567,17 +567,18 @@ const minimalWorldHeader =
  </div>
  </div>
 
- {!isFreeWorldHeader && <AnnouncementTicker mode="winners" />}
+ <AnnouncementTicker mode="winners" />
  </header>
 
  {/* Spacer: the Free World header is position:fixed, so reserve its height
-     (nav only — the map has its own branded ticker) in normal flow. Non-fixed
+     (nav + announcement ticker) in normal flow to prevent it overlapping
+     notifications, leaderboards, nav buttons and page content. Non-fixed
      (sticky) headers on other pages need no spacer. */}
  {isFreeWorldHeader && (
    <div
      aria-hidden
      data-testid="fixed-header-spacer"
-     className="h-14 sm:h-16 md:h-[70px]"
+     className="h-[98px] sm:h-[106px] md:h-[112px]"
    />
  )}
 
