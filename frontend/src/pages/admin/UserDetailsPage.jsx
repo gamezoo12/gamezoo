@@ -44,6 +44,7 @@ function ProfileManagementCard({ userId, identity, onReload }) {
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState('');
+  const [savingConsent, setSavingConsent] = useState(false);
 
   const makeForm = () => ({
     name: identity?.name || '',
@@ -216,6 +217,28 @@ function ProfileManagementCard({ userId, identity, onReload }) {
       });
     } finally {
       setVerifyingOtp(false);
+    }
+  };
+
+  const setSmsConsent = async (consent) => {
+    try {
+      setSavingConsent(true);
+      await adminAPI.setUserSmsConsent(userId, consent);
+      toast({
+        title: consent ? 'SMS consent granted' : 'SMS consent revoked',
+        description: consent
+          ? 'User is now eligible for Admin Alert SMS (verified phone still required).'
+          : 'User will no longer receive Admin Alert SMS.',
+      });
+      await onReload();
+    } catch (e) {
+      toast({
+        title: 'Could not update SMS consent',
+        description:
+          e?.response?.data?.detail || 'Please try again.',
+      });
+    } finally {
+      setSavingConsent(false);
     }
   };
 
@@ -436,6 +459,59 @@ function ProfileManagementCard({ userId, identity, onReload }) {
             )}
           </div>
         </div>
+
+        <div className="rounded-xl border border-slate-100 p-4" data-testid="admin-sms-consent-card">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="font-bold text-sm">SMS Alerts Consent</div>
+              <div className="text-xs text-slate-500 mt-1">
+                Required before this user can receive Admin Alert SMS
+                (e.g. winner greetings). A verified phone is also required.
+              </div>
+            </div>
+            {identity?.sms_consent ? (
+              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700" data-testid="sms-consent-status">
+                Granted
+              </span>
+            ) : (
+              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600" data-testid="sms-consent-status">
+                Not granted
+              </span>
+            )}
+          </div>
+
+          {!identity?.erased && (
+            <div className="mt-4 flex items-center gap-2">
+              {identity?.sms_consent ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSmsConsent(false)}
+                  disabled={savingConsent}
+                  data-testid="revoke-sms-consent"
+                >
+                  {savingConsent ? 'Saving…' : 'Revoke SMS consent'}
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={() => setSmsConsent(true)}
+                  disabled={savingConsent}
+                  data-testid="grant-sms-consent"
+                >
+                  {savingConsent ? 'Saving…' : 'Grant SMS consent'}
+                </Button>
+              )}
+            </div>
+          )}
+
+          {identity?.sms_opt_out && (
+            <p className="text-[11px] text-rose-600 mt-2">
+              User previously opted out (STOP). Granting consent clears the opt-out.
+            </p>
+          )}
+        </div>
+
 
         {(identity?.phone_verified_at ||
           identity?.email_verified_at) && (

@@ -205,6 +205,8 @@ async def register(inp: RegisterInput, request: Request):
         phone=normalized_phone,
         phone_verified=phone_verified,
         phone_verified_at=datetime.now(timezone.utc),
+        sms_consent=bool(inp.sms_consent),
+        sms_consent_at=(datetime.now(timezone.utc) if inp.sms_consent else None),
         dob=inp.dob,
         address=(inp.address or None),
         terms_accepted_at=datetime.now(timezone.utc),
@@ -550,6 +552,7 @@ class GoogleFinalizeInput(BaseModel):
     dob: str = Field(..., description='YYYY-MM-DD')
     address: Optional[str] = None
     referral_code: Optional[str] = None
+    sms_consent: bool = False
 
 
 @router.post('/google/finalize')
@@ -575,16 +578,24 @@ async def finalize_google_signup(inp: GoogleFinalizeInput, request: Request):
         raise HTTPException(status_code=400, detail='This phone is already linked to another account')
 
     username = user.get('username') or await _generate_username(db, user['name'], inp.dob)
+    _fin_set = {
+        'phone': normalized_phone,
+        'phone_verified': True,
+        'dob': inp.dob,
+        'address': (inp.address or None),
+        'username': username,
+        'terms_accepted_at': datetime.now(timezone.utc),
+    }
+    # Record SMS consent choice from Google onboarding (only set the timestamp
+    # when consent is granted). Never auto-opt-in.
+    if inp.sms_consent:
+        _fin_set['sms_consent'] = True
+        _fin_set['sms_consent_at'] = datetime.now(timezone.utc)
+    else:
+        _fin_set['sms_consent'] = False
     await db.users.update_one(
         {'user_id': user['user_id']},
-        {'$set': {
-            'phone': normalized_phone,
-            'phone_verified': True,
-            'dob': inp.dob,
-            'address': (inp.address or None),
-            'username': username,
-            'terms_accepted_at': datetime.now(timezone.utc),
-        }},
+        {'$set': _fin_set},
     )
     # Apply a personal referral once, at successful Google signup finalization.
     # This does not alter the separate £10/top-up token reward programme.
@@ -817,3 +828,29 @@ async def logout(request: Request, response: Response):
         await db.user_sessions.delete_one({'session_token': token})
     response.delete_cookie('session_token', path='/')
     return {'ok': True}
+
+
+
+class SmsConsentInput(BaseModel):
+    sms_consent: bool
+
+
+@router.post('/preferences/sms-consent')
+async def set_sms_consent(inp: SmsConsentInput, request: Request):
+    """Self-service SMS notification consent for the authenticated user.
+
+    Enabling records consent + timestamp and clears any prior opt-out.
+    Disabling withdraws consent (sets an explicit opt-out). Promotional SMS
+    additionally requires a verified phone, enforced at send time.
+    """
+    user = await get_current_user(request)
+    from deps import get_db
+    db = get_db()
+    now = datetime.now(timezone.utc)
+    if inp.sms_consent:
+        update = {'sms_consent': True, 'sms_consent_at': now, 'sms_opt_out': False}
+    else:
+        update = {'sms_consent': False, 'sms_consent_withdrawn_at': now, 'sms_opt_out': True}
+    await db.users.update_one({'user_id': user['user_id']}, {'$set': update})
+    fresh = await db.users.find_one({'user_id': user['user_id']}, {'_id': 0, 'password_hash': 0})
+    return {'ok': True, 'user': _to_public(fresh)}

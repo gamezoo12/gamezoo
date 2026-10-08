@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ordersAPI, userAPI, walletAPI, referralAPI, paymentsAPI } from '../lib/api';
+import { ordersAPI, userAPI, walletAPI, referralAPI, paymentsAPI, authAPI } from '../lib/api';
+import PhoneOtpModal from '../components/auth/PhoneOtpModal';
 import WalletPanel from '../components/account/WalletPanel';
 import WinningsWallet from './WinningsWallet';
 import SupportPanel from '../components/account/SupportPanel';
@@ -65,6 +66,21 @@ export default function MyAccount() {
 
   const active = section || null;   // null → show tab list; else show selected panel
   const [signOutOpen, setSignOutOpen] = useState(false);
+  const [smsBusy, setSmsBusy] = useState(false);
+  const [phoneOtpOpen, setPhoneOtpOpen] = useState(false);
+
+  const handleSmsConsent = async (next) => {
+    setSmsBusy(true);
+    try {
+      await authAPI.setSmsConsent(next);
+      await refresh?.();
+      toast({ title: next ? 'SMS notifications enabled' : 'SMS notifications disabled' });
+    } catch (e) {
+      toast({ title: 'Could not update SMS consent', description: e?.response?.data?.detail || 'Please try again.' });
+    } finally {
+      setSmsBusy(false);
+    }
+  };
 
   const [tickets, setTickets] = useState([]);
   const [notifications, setNotifications] = useState([]);
@@ -616,6 +632,42 @@ export default function MyAccount() {
               <h3 className="font-display font-bold text-lg">Notifications &amp; account</h3>
             </div>
             <div className="space-y-4">
+              <div className="rounded-xl border border-violet-100 bg-violet-50/50 p-4" data-testid="sms-consent-block">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="font-semibold text-sm text-slate-900">SMS notifications</div>
+                    <div className="text-xs text-slate-600 mt-1 leading-relaxed">
+                      I agree to receive SMS notifications from Prize League about Champion Levels,
+                      contests, prizes, winners and promotions. I can withdraw my consent at any time.
+                    </div>
+                  </div>
+                  <label className="relative inline-flex cursor-pointer items-center shrink-0">
+                    <input
+                      type="checkbox"
+                      data-testid="sms-consent-toggle"
+                      className="peer sr-only"
+                      checked={!!user.sms_consent}
+                      disabled={smsBusy}
+                      onChange={(e) => handleSmsConsent(e.target.checked)}
+                    />
+                    <div className="h-6 w-11 rounded-full bg-slate-300 peer-checked:bg-[#6C2BFF] transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all peer-checked:after:translate-x-5" />
+                  </label>
+                </div>
+                {!profile.phone_verified && (
+                  <div className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2" data-testid="sms-consent-phone-warning">
+                    Promotional SMS require a verified mobile number.{' '}
+                    <button
+                      type="button"
+                      className="font-semibold underline text-[#6C2BFF]"
+                      data-testid="sms-verify-phone-link"
+                      onClick={() => setPhoneOtpOpen(true)}
+                    >
+                      Verify your phone
+                    </button>{' '}
+                    to start receiving them.
+                  </div>
+                )}
+              </div>
               {[
                 { key: 'newsletter', label: 'Weekly newsletter', desc: 'Big prize drops + new games' },
                 { key: 'win_email', label: 'Win notifications', desc: 'Email me when I win a prize' },
@@ -836,6 +888,11 @@ export default function MyAccount() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <PhoneOtpModal
+        open={phoneOtpOpen}
+        onVerified={async () => { setPhoneOtpOpen(false); await refresh?.(); setProfile(p => ({ ...p, phone_verified: true })); }}
+        onDismiss={() => setPhoneOtpOpen(false)}
+      />
     </div>
   );
 }

@@ -570,6 +570,18 @@ const minimalWorldHeader =
  <AnnouncementTicker mode="winners" />
  </header>
 
+ {/* Spacer: the Free World header is position:fixed, so reserve its height
+     (nav + announcement ticker) in normal flow to prevent it overlapping
+     notifications, leaderboards, nav buttons and page content. Non-fixed
+     (sticky) headers on other pages need no spacer. */}
+ {isFreeWorldHeader && (
+   <div
+     aria-hidden
+     data-testid="fixed-header-spacer"
+     className="h-[98px] sm:h-[106px] md:h-[112px]"
+   />
+ )}
+
  {/* Mobile drawer */}
  {open && (
  <div className="fixed inset-0 z-50 lg:hidden" data-testid="mobile-menu">

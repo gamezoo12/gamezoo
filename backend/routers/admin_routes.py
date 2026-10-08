@@ -1195,3 +1195,32 @@ async def wipe_demo_data(payload: dict, request: Request):
     })
 
     return {'ok': True, 'wiped': report, 'preserved_users': len(preserved_ids)}
+
+
+@router.post('/reconcile-verification')
+async def reconcile_verification(request: Request):
+    """Admin-triggered safe reconciliation of verification flags.
+
+    Trusted evidence only:
+      - Google accounts (method=='google') are email-verified by the Emergent
+        Google OAuth provider, so backfill email_verified=true where missing.
+    Does NOT touch phone verification (no trusted evidence stored) and never
+    alters fictitious/unverified numbers. Idempotent.
+    """
+    from datetime import datetime, timezone
+    await require_admin(request)
+    from deps import get_db
+    db = get_db()
+    now = datetime.now(timezone.utc)
+
+    google_res = await db.users.update_many(
+        {'method': 'google', 'email_verified': {'$ne': True}},
+        {'$set': {'email_verified': True, 'email_verified_at': now}},
+    )
+    return {
+        'ok': True,
+        'google_email_reconciled': google_res.modified_count,
+        'phone_reconciled': 0,
+        'note': 'Phone verification is not auto-reconciled (no trusted evidence stored). Use per-user manual verify where evidence exists.',
+    }
+

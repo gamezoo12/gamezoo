@@ -732,6 +732,8 @@ export default function UsersPage() {
                 <th className="text-left p-3">Contact</th>
                 <th className="text-left p-3">Registered</th>
                 <th className="text-left p-3">Phone</th>
+                <th className="text-left p-3">Email</th>
+                <th className="text-left p-3">SMS Consent</th>
                 <th className="text-left p-3">KYC</th>
                 <th className="text-left p-3">Source</th>
                 <th className="text-right p-3">Wallet</th>
@@ -793,6 +795,18 @@ export default function UsersPage() {
 
                   <td className="p-3">
                     <VerifiedPill verified={!!u.phone_verified} />
+                  </td>
+
+                  <td className="p-3">
+                    <VerifiedPill verified={!!u.email_verified} />
+                  </td>
+
+                  <td className="p-3" data-testid={`sms-consent-${u.user_id}`}>
+                    {u.sms_consent ? (
+                      <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">Enabled</span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-500 font-semibold">Disabled</span>
+                    )}
                   </td>
 
                   <td className="p-3">

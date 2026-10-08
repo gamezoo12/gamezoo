@@ -16,6 +16,7 @@ export const authAPI = {
   login: (data) => api.post('/auth/login', data).then(r => r.data),
   me: () => api.get('/auth/me').then(r => r.data),
   logout: () => api.post('/auth/logout').then(r => r.data),
+  setSmsConsent: (sms_consent) => api.post('/auth/preferences/sms-consent', { sms_consent }).then(r => r.data),
   googleSession: (sessionId) => api.post('/auth/session', {}, { headers: { 'X-Session-ID': sessionId } }).then(r => r.data),
   emailOtpSend: (email) =>
     api.post('/auth/otp/email/send', { email }).then(r => r.data),
@@ -100,6 +101,8 @@ export const adminAPI = {
     api.post(`/admin/users/${id}/phone/send-otp`).then(r => r.data),
   verifyUserPhoneOtp: (id, code) =>
     api.post(`/admin/users/${id}/phone/verify-otp`, { code }).then(r => r.data),
+  setUserSmsConsent: (id, consent) =>
+    api.post(`/admin/users/${id}/sms-consent`, { consent }).then(r => r.data),
   suspendUser: (id) => api.post(`/admin/users/${id}/suspend`).then(r => r.data),
   unsuspendUser: (id) => api.post(`/admin/users/${id}/unsuspend`).then(r => r.data),
   orders: () => api.get('/admin/orders').then(r => r.data),

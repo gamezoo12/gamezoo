@@ -194,6 +194,9 @@ class User(BaseModel):
     phone: Optional[str] = None  # E.164 format, e.g. +447xxxxxxxxx
     phone_verified: bool = False
     phone_verified_at: Optional[datetime] = None
+    sms_consent: bool = False
+    sms_consent_at: Optional[datetime] = None
+    sms_opt_out: bool = False
     dob: Optional[str] = None  # ISO date YYYY-MM-DD
     address: Optional[str] = None
     terms_accepted_at: Optional[datetime] = None
@@ -214,6 +217,9 @@ class UserPublic(BaseModel):
     phone: Optional[str] = None
     phone_verified: bool = False
     phone_verified_at: Optional[datetime] = None
+    sms_consent: bool = False
+    sms_consent_at: Optional[datetime] = None
+    sms_opt_out: bool = False
     dob: Optional[str] = None
     address: Optional[str] = None
     terms_accepted_at: Optional[datetime] = None
@@ -234,6 +240,7 @@ class RegisterInput(BaseModel):
     dob: str = Field(..., description="YYYY-MM-DD, 18+ enforced server-side")
     address: Optional[str] = None
     referral_code: Optional[str] = None
+    sms_consent: bool = False
 
 
 class LoginInput(BaseModel):

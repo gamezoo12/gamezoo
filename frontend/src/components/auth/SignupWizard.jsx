@@ -55,6 +55,7 @@ export default function SignupWizard() {
     address: '',
     referralCode: '',
     accept_terms: false,
+    sms_consent: false,
   });
 
   // Preserve referral / influencer acquisition code during signup.
@@ -375,6 +376,7 @@ export default function SignupWizard() {
                 .trim()
                 .toUpperCase()
             : null,
+        sms_consent: !!data.sms_consent,
       };
 
       const result = await authAPI.register(
@@ -975,6 +977,23 @@ export default function SignupWizard() {
               I&apos;ve read and accept the
               Terms &amp; Privacy Policy.
               I&apos;m 18 or older.
+            </span>
+          </label>
+
+          <label
+            className="flex items-start gap-3 cursor-pointer select-none py-2"
+            data-testid="signup-sms-consent-label"
+          >
+            <Checkbox
+              data-testid="signup-sms-consent"
+              checked={data.sms_consent}
+              onCheckedChange={(value) => set('sms_consent', !!value)}
+              className="mt-0.5"
+            />
+            <span className="text-sm text-slate-700">
+              I agree to receive SMS notifications from Prize League about
+              Champion Levels, contests, prizes, winners and promotions. I can
+              withdraw my consent at any time. <span className="text-slate-400">(Optional)</span>
             </span>
           </label>
 

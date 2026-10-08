@@ -1,5 +1,20 @@
 # Prize League â€” PRD
 
+## Admin per-user SMS consent control (2026-06, abc fast-fix)
+- NEW `POST /api/admin/users/{user_id}/sms-consent` (`user360_routes.py`, admin/super_admin, audited `admin_sms_consent_change`): grant sets `sms_consent=true`, `sms_consent_at`, `sms_consent_source='admin'`, clears `sms_opt_out`; revoke sets false. This is the missing piece that lets an admin make winners / legacy verified-phone users eligible for Admin Alert SMS (e.g. winner greetings) without running a script.
+- Frontend `UserDetailsPage.jsx`: new **SMS Alerts Consent** card (Grant/Revoke button, Granted/Not-granted pill, opt-out note) next to Email/Phone Verification. `adminAPI.setUserSmsConsent` added to `lib/api.js`.
+- Verified (curl + admin UI screenshot): grant→sms_consent=true/opt_out=false/source=admin, revoke→false, unauth→401, card renders. (a) Email/Phone verified columns confirmed accurate; (b) Send-to-Winners winner-sources/winners endpoints respond correctly (0 in preview, no winner data); (c) legacy phone still verifiable via existing admin OTP flow, now consent-grantable. NOT deployed.
+
+
+## Verification statuses + SMS consent + announcement fix (2026-06, Plan A)
+- #5 Admin UsersPage: separate **Phone / Email / SMS Consent** columns (accurate from backend doc). #2 Google email: `/api/admin/reconcile-verification` safe one-time backfill for method=='google' (trusted evidence) + existing reconcile-on-login; admin shows real state.
+- #3 Profile→Preferences (`MyAccount.jsx`): wired **SMS notifications** toggle (`authAPI.setSmsConsent` → `POST /api/auth/preferences/sms-consent`), exact consent text, default OFF; unverified-phone users get the existing `PhoneOtpModal` to verify. #4 SMS consent checkbox added to `SignupWizard` (register) and `GoogleFinalizeModal` (Google onboarding), unchecked by default; plumbed to `/auth/register` and `/auth/google/finalize`.
+- New user fields: `sms_consent`, `sms_consent_at`, `sms_opt_out` (models.py User + UserPublic). Alert SMS eligibility now = verified phone AND sms_consent AND NOT sms_opt_out (STOP opt-outs honoured) in `create_alert_campaign`.
+- #6 Announcement overlap: added a responsive flow spacer after the Free World `!fixed` header (nav+ticker height) so it no longer covers content; `/world` (sticky header) verified no overlap. No z-index hacks.
+- #1 Phone verified: live OTP write/read paths confirmed correct; no unsafe auto-reconcile (no trusted evidence stored) — legacy users via existing admin manual-verify.
+- Tested in preview: admin 3-column statuses, consent toggle (enable/disable), /auth/me exposes fields, reconcile endpoint, preferences UI render. NO real SMS sent. NOT deployed (awaiting approval).
+
+
 ## Targeted Alerts + In-World Popup + Extension-Timer fix (2026-06)
 - **Targeted Alerts** (`user360_routes.py`): `create_alert_campaign` now accepts `audience` {mode: range|users|winners}. New admin endpoints: `GET /api/admin/users/alerts/user-search?q=`, `GET /alerts/winner-sources`, `GET /alerts/winners?source=&ref=`. 'users' resolves account IDs/emails (unknowns ignored+recorded); 'winners' pulls Free World Champions (`world_winner_awards`), Paid Contest winners (`contests.winner_user_id`), Promotion Draw winners (`promotion_draws.winners[]`). All modes reuse existing In-App/Email/SMS delivery + consent/Twilio gating. Admin UI: Recipients tabs (search+multiselect, paste, winners) in `AlertsAdmin.jsx` — original design preserved.
 - **In-World Popup** (`world/components/WorldAlertPopup.jsx`, mounted in `PrizeLeagueWorld.jsx` + `FreeWorldLanding.jsx`): shows UNREAD admin alerts one at a time on world entry; Skip/swipe marks read (`POST /api/users/notifications/{id}/read`) and advances; click opens full-screen detail (title/message/date/Close). Fires once per entry (keyed on user id) so it never interrupts an in-progress game; history preserved. Positioned top-center z-120 to avoid install banner / bottom nav.

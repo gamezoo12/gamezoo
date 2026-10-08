@@ -25,7 +25,7 @@ export default function GoogleFinalizeModal({ open, onComplete }) {
   const [busy, setBusy] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const [data, setData] = useState({
-    dob: '', phone: '', normalizedPhone: '', code: '', address: '', accept_terms: false,
+    dob: '', phone: '', normalizedPhone: '', code: '', address: '', accept_terms: false, sms_consent: false,
   });
   const { toast } = useToast();
 
@@ -82,6 +82,7 @@ export default function GoogleFinalizeModal({ open, onComplete }) {
           sessionStorage.getItem('pl_google_referral_code') ||
           localStorage.getItem('pl_referral_code') ||
           null,
+        sms_consent: !!data.sms_consent,
       }).then(x => x.data);
       sessionStorage.removeItem('pl_google_referral_code');
       localStorage.removeItem('pl_referral_code');
@@ -188,6 +189,10 @@ export default function GoogleFinalizeModal({ open, onComplete }) {
             <label className="flex items-start gap-3 cursor-pointer select-none py-2">
               <Checkbox data-testid="gf-accept-terms" checked={data.accept_terms} onCheckedChange={(v) => set('accept_terms', !!v)} className="mt-0.5" />
               <span className="text-sm text-slate-700">I&apos;ve read and accept the Terms &amp; Privacy Policy. I&apos;m 18 or older.</span>
+            </label>
+            <label className="flex items-start gap-3 cursor-pointer select-none py-2">
+              <Checkbox data-testid="gf-sms-consent" checked={data.sms_consent} onCheckedChange={(v) => set('sms_consent', !!v)} className="mt-0.5" />
+              <span className="text-sm text-slate-700">I agree to receive SMS notifications from Prize League about Champion Levels, contests, prizes, winners and promotions. I can withdraw my consent at any time. <span className="text-slate-400">(Optional)</span></span>
             </label>
             <Button data-testid="gf-finish" onClick={finish} disabled={busy || !data.accept_terms} className="w-full h-11 pl-btn-gold text-slate-900 font-extrabold">
               {busy ? 'Finalizing…' : 'Finish signup →'}

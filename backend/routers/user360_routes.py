@@ -501,6 +501,72 @@ async def admin_verify_phone_otp(
     }
 
 
+class AdminSmsConsentRequest(BaseModel):
+    consent: bool
+
+
+@router.post('/{user_id}/sms-consent')
+async def admin_set_sms_consent(
+    user_id: str,
+    payload: AdminSmsConsentRequest,
+    request: Request,
+):
+    """Admin grants or revokes a user's SMS marketing/alert consent.
+
+    Granting records the consent timestamp and clears any prior opt-out so the
+    user becomes eligible for Admin Alert SMS (still gated on a verified phone).
+    Revoking sets consent to false. Every change is audited with the actor.
+    """
+    admin = await require_admin(request)
+    from deps import get_db
+    db = get_db()
+
+    user = await db.users.find_one(
+        {'user_id': user_id},
+        {'_id': 0, 'user_id': 1, 'phone_verified': 1, 'erased': 1},
+    )
+    if not user:
+        raise HTTPException(status_code=404, detail='User not found')
+    if user.get('erased'):
+        raise HTTPException(
+            status_code=400, detail='Cannot change an erased account',
+        )
+
+    now = datetime.now(timezone.utc)
+    if payload.consent:
+        updates = {
+            'sms_consent': True,
+            'sms_consent_at': now,
+            'sms_consent_source': 'admin',
+            'sms_opt_out': False,
+        }
+    else:
+        updates = {
+            'sms_consent': False,
+            'sms_consent_at': now,
+            'sms_consent_source': 'admin',
+        }
+
+    await db.users.update_one({'user_id': user_id}, {'$set': updates})
+
+    await db.audit_log.insert_one({
+        'audit_id': f'aud_{uuid.uuid4().hex[:12]}',
+        'kind': 'admin_sms_consent_change',
+        'admin_email': admin.get('email'),
+        'admin_user_id': admin.get('user_id'),
+        'target_user_id': user_id,
+        'consent': bool(payload.consent),
+        'at': now,
+    })
+
+    return {
+        'ok': True,
+        'sms_consent': bool(payload.consent),
+        'phone_verified': bool(user.get('phone_verified')),
+    }
+
+
+
 @router.post('/{user_id}/suspend')
 async def suspend_user(user_id: str, payload: DeleteRequest, request: Request):
     admin = await require_admin(request)
@@ -1085,9 +1151,14 @@ async def create_alert_campaign(
                     user.get('phone') and user.get('phone_verified')
                 )
                 has_consent = user.get('sms_consent') is True
+                opted_out = user.get('sms_opt_out') is True
                 if not has_verified_phone:
                     status = 'skipped'
                     reason = 'no_verified_phone'
+                elif opted_out:
+                    # Respect Twilio STOP / self-service opt-outs.
+                    status = 'skipped'
+                    reason = 'sms_opted_out'
                 elif not has_consent:
                     # Respect consent / opt-outs: never send without it.
                     status = 'skipped'
