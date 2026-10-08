@@ -1,5 +1,12 @@
 # Prize League â€” PRD
 
+## Targeted Alerts + In-World Popup + Extension-Timer fix (2026-06)
+- **Targeted Alerts** (`user360_routes.py`): `create_alert_campaign` now accepts `audience` {mode: range|users|winners}. New admin endpoints: `GET /api/admin/users/alerts/user-search?q=`, `GET /alerts/winner-sources`, `GET /alerts/winners?source=&ref=`. 'users' resolves account IDs/emails (unknowns ignored+recorded); 'winners' pulls Free World Champions (`world_winner_awards`), Paid Contest winners (`contests.winner_user_id`), Promotion Draw winners (`promotion_draws.winners[]`). All modes reuse existing In-App/Email/SMS delivery + consent/Twilio gating. Admin UI: Recipients tabs (search+multiselect, paste, winners) in `AlertsAdmin.jsx` — original design preserved.
+- **In-World Popup** (`world/components/WorldAlertPopup.jsx`, mounted in `PrizeLeagueWorld.jsx` + `FreeWorldLanding.jsx`): shows UNREAD admin alerts one at a time on world entry; Skip/swipe marks read (`POST /api/users/notifications/{id}/read`) and advances; click opens full-screen detail (title/message/date/Close). Fires once per entry (keyed on user id) so it never interrupts an in-progress game; history preserved. Positioned top-center z-120 to avoid install banner / bottom nav.
+- **Extension-Timer fix** (`world_routes.py` `_personal_champion_transition_schedule`): champion close now uses the active contest's authoritative `end_at` (scheduler keeps it in sync with 24h extensions) instead of a fixed +46h — Free World timers now reflect admin extensions within ~60s. Non-extended behaviour unchanged.
+- Tested: testing_agent iteration_46 (backend 100%); popup HIGH bug fixed + self-verified via screenshots on /world and /free-world; extension timer verified (`/world/state` → extended close); NO bulk SMS sent (in_app only). Winner collections empty in preview so winners targeting returns 0 there (goes live once winners exist). NOT deployed — redeploy to ship live.
+
+
 ## Admin Alert SMS → Twilio Messaging Service (2026-06, bugfix)
 - `backend/routers/user360_routes.py` `create_alert_campaign()` now sends real SMS via the Twilio **Messaging Service** (env: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_MESSAGING_SERVICE_SID`) instead of leaving SMS as `pending`.
 - Eligibility: `phone_verified == true` AND new `sms_consent == true`. Non-consenting/unverified users are `skipped` (reasons `no_sms_consent` / `no_verified_phone`). If the Messaging SID is absent, deliveries are `skipped` with reason `sms_not_configured` (never faked as sent).

@@ -21,28 +21,28 @@ export default function WorldAlertPopup() {
   const [queue, setQueue] = useState([]);
   const [current, setCurrent] = useState(null);
   const [expanded, setExpanded] = useState(false);
-  const initialised = useRef(false);
   const touchStartX = useRef(null);
 
-  // Load unread admin alerts exactly once per mount (per world entry).
+  // Load unread admin alerts when a user enters a world. Keyed on the stable
+  // user id so unrelated re-renders of the parent world page never re-run or
+  // cancel this; it fetches once per session entry and does not re-queue after
+  // the user has dismissed the alerts (so it won't interrupt a later game).
   useEffect(() => {
-    if (!user || initialised.current) return;
-    initialised.current = true;
-    let cancelled = false;
+    const uid = user?.user_id;
+    if (!uid) return undefined;
+    let active = true;
     userAPI.notifications(true)
       .then(({ notifications }) => {
-        if (cancelled) return;
+        if (!active) return;
         const alerts = (notifications || []).filter(
           (n) => n.kind === 'admin_alert' && !n.read,
         );
-        if (alerts.length) {
-          setCurrent(alerts[0]);
-          setQueue(alerts.slice(1));
-        }
+        setQueue(alerts.slice(1));
+        setCurrent(alerts[0] || null);
       })
       .catch(() => {});
-    return () => { cancelled = true; };
-  }, [user]);
+    return () => { active = false; };
+  }, [user?.user_id]);
 
   const advance = useCallback(() => {
     setExpanded(false);
@@ -80,7 +80,7 @@ export default function WorldAlertPopup() {
   if (expanded) {
     return (
       <div
-        className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4"
+        className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4"
         data-testid="world-alert-detail"
       >
         <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl overflow-hidden">
@@ -118,7 +118,7 @@ export default function WorldAlertPopup() {
   // Compact card popup (swipe / skip / click to open).
   return (
     <div
-      className="fixed bottom-4 left-1/2 z-[90] w-[92%] max-w-sm -translate-x-1/2"
+      className="fixed top-20 left-1/2 z-[120] w-[92%] max-w-sm -translate-x-1/2"
       data-testid="world-alert-popup"
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}

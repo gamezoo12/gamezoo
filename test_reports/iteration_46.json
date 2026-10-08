@@ -1,0 +1,44 @@
+{
+  "summary": "Iteration 46 — Verified Targeted Admin Alerts (specific-users, winners, range), per-notification read endpoint, and extension-aware champion_closes_at. Backend: 10/10 pytest in /app/backend/tests/test_iter46_targeted_alerts_and_popup.py pass. Frontend: in-world admin-alert popup works on /free-world (popup visible → open → detail with full message → close → marked read; reload no longer shows the same alert). On /world (PrizeLeagueWorld) the popup DOES NOT appear even though 13 unread admin_alert notifications exist for the player — captured network trace shows the component DID GET /api/users/notifications?only_unread=true and the response returned 13 admin_alert items (kinds=['admin_alert',...], first_title='FE_WORLD3_bhplk'), but <WorldAlertPopup/> never renders (data-testid='world-alert-popup' absent in DOM). Root cause: a useEffect race in WorldAlertPopup.jsx (details below).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "WorldAlertPopup (mounted in PrizeLeagueWorld on /world)",
+        "issue": "Popup never shows on /world despite unread admin alerts. useEffect sets `initialised.current = true` BEFORE the async fetch resolves, and the cleanup sets `cancelled = true`. When `user` from useAuth changes reference while PrizeLeagueWorld renders (several concurrent effects there), the first effect's cleanup fires, the in-flight fetch is suppressed, and the next effect run early-returns because `initialised.current` is already true — so setCurrent is never called. Works on /free-world because FreeWorldLanding has fewer re-renders and user ref remains stable long enough for the fetch to complete before the cleanup runs.",
+        "selector": "[data-testid='world-alert-popup']",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter46_targeted_alerts_and_popup.py",
+    "/app/test_reports/pytest/iter46.xml"
+  ],
+  "action_items": [
+    "Fix WorldAlertPopup.jsx useEffect race: either (a) move `initialised.current = true` INSIDE the `.then` after a successful fetch so a cancelled fetch can be retried, OR (b) drop the `[user]` dep + ref gate and use a stable `useRef` of the auth token / user_id, OR (c) store the fetched alerts in a stable state that doesn't depend on an untracked ref. The current pattern silently loses the data every time React re-runs the effect while the fetch is in flight.",
+    "Confirm the popup renders on /world after the fix (manual: log in as player1, visit /world, popup with [data-testid='world-alert-popup'] should appear bottom-centre).",
+    "Minor: WorldAlertPopup fetches ALL unread notifications and filters client-side for kind=='admin_alert'. For players with many unread system notifications this scales poorly; consider a dedicated endpoint or a server-side `kind=admin_alert` filter param."
+  ],
+  "critical_code_review_comments": [
+    "WorldAlertPopup.jsx L28-45 — initialised.current set BEFORE awaiting fetch, combined with cleanup `cancelled=true`, creates a one-shot gate that silently fails when `user` ref changes mid-fetch. This is the root cause of the /world no-popup bug.",
+    "create_alert_campaign (user360_routes.py L1167-1174) — response schema does not include unknown_identifiers; frontend must round-trip GET /alerts/campaigns/{id} to display what was ignored. Consider echoing `unknown_identifiers` and `audience` in the create response for better UX in the AlertsAdmin panel.",
+    "AudienceSpec contract: when audience.mode in ('users','winners'), request body still REQUIRES user_from>=1 and user_to>=1 (Pydantic validation). These are irrelevant to non-range modes; they should default to 1 (or Optional) so clients don't have to pass dummy values. Current behaviour returns 422 on `user_from:0`.",
+    "notifications_routes mark_one_read returns `{ok: true, updated: 0}` when the notification_id doesn't belong to the user (no 404). This is OK for idempotency but could mask client bugs — consider logging a counter."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter46_targeted_alerts_and_popup.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "70%"},
+  "test_credentials": "bachanta8@gmail.com / Herts@910022 (super_admin); player1@example.com / Player@12345",
+  "seed_data_creation": "Several in-app admin_alert notifications were created for player1 during testing (titles starting with TEST_, FE_POPUP_TEST_, FE_SKIP_, FE_WORLD_, FE_WORLD2_, FE_WORLD3_). They are harmless in test_database (will accumulate in the player's notifications collection). Championship-2 extension was applied once and reset at the end of the extension test. Final state: no championship_extensions remain.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend parity is complete: user-search, winner-sources, winners resolver, campaign create (users/winners/range), per-notification read, and the extend+scheduler propagation (admin champion.champion_closes_at shifts within ~65s from 2026-10-09T21:00 → 2026-10-10T21:00 after extend contest 2 days=1; reset endpoint restores). The ONLY failing scenario is the /world popup not rendering (bug in WorldAlertPopup.jsx effect race). After E1 fixes the race, re-run /app/backend/tests/test_iter46_targeted_alerts_and_popup.py (should still pass) and re-run the UI flow: login as player1 → GET /world → wait up to 10s → assert [data-testid='world-alert-popup'] is visible. The in-page captured response at that URL already shows 13 admin_alert unread, so the only issue is client-side state management.",
+  "rca of the issue": "WorldAlertPopup.jsx uses a ref-based one-shot gate (`initialised.current=true`) that is set synchronously BEFORE the async notifications fetch. The effect's cleanup sets `cancelled=true`. In PrizeLeagueWorld, where multiple sibling effects update context during initial mount, the AuthContext user ref flips once more after WorldAlertPopup's first effect fires. React runs the previous effect's cleanup (cancelled=true) and schedules a new effect run — but the gate (`initialised.current`) is already true, so the new run early-returns and never re-fetches. The in-flight fetch resolves but its `.then` sees cancelled=true and skips setCurrent. Net: setCurrent is never called, popup renders null, data-testid absent. On /free-world (FreeWorldLanding) the component tree is simpler, user ref stabilises before the fetch resolves, and setCurrent fires normally. Reproduction: (1) create an in_app admin_alert targeting player1 via POST /api/admin/users/alerts/campaigns; (2) log in as player1; (3) visit /world; (4) observe network tab — GET /api/users/notifications?only_unread=true returns 200 with the admin_alert, but no [data-testid='world-alert-popup'] appears in DOM. Mitigation: move `initialised.current=true` into the `.then` of the fetch (after a successful parse), so a cancelled fetch allows a retry on the next effect run."
+}
