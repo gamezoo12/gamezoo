@@ -1606,10 +1606,7 @@ function ChampionshipSection({
               backendState?.token_unlock_enabled !== false &&
               Number(localLevel) >= 2;
 
-            const skippable =
-              Boolean(
-                backendState?.skippable,
-              );
+            const skippable = false; // Every level must be played; no catch-up skips.
 
             return (
               <button
