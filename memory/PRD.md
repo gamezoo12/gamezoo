@@ -1,5 +1,12 @@
 # Prize League â€” PRD
 
+## Admin Alert SMS → Twilio Messaging Service (2026-06, bugfix)
+- `backend/routers/user360_routes.py` `create_alert_campaign()` now sends real SMS via the Twilio **Messaging Service** (env: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_MESSAGING_SERVICE_SID`) instead of leaving SMS as `pending`.
+- Eligibility: `phone_verified == true` AND new `sms_consent == true`. Non-consenting/unverified users are `skipped` (reasons `no_sms_consent` / `no_verified_phone`). If the Messaging SID is absent, deliveries are `skipped` with reason `sms_not_configured` (never faked as sent).
+- Sends run in a FastAPI BackgroundTask (non-blocking for bulk); each delivery is atomically claimed (`pending → sending`) to prevent duplicates; Twilio Message SID stored; status set from API result (`sent`, never `delivered`). In-app + email paths unchanged.
+- ACTION REQUIRED (user): set `TWILIO_MESSAGING_SERVICE_SID` backend secret and collect `sms_consent`; a single approved test SMS is pending until then. Verified locally (gating + missing-config reporting; no SMS sent).
+
+
 ## Original problem statement
 Skill-based sweepstakes web app (rebranded **GameZoo â†’ Prize League** on 2026-07-09). Requirements:
 - JWT + Emergent Google auth

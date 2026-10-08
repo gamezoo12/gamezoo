@@ -8,13 +8,17 @@ Endpoints:
     POST  /api/admin/users/{user_id}/erase           — permanent erasure
 """
 from __future__ import annotations
+import os
 import uuid
+import logging
 from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from pydantic import BaseModel
 from typing import Optional
 
 from auth import require_admin, verify_password
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix='/api/admin/users', tags=['admin-users-360'])
 
@@ -618,10 +622,134 @@ def _alert_public(doc: dict) -> dict:
     return d
 
 
+def _twilio_messaging():
+    """Return (Client, messaging_service_sid) for the configured Twilio
+    Messaging Service, or (None, None) if the backend secrets are not set.
+
+    Reuses the already-configured Twilio account credentials. The Messaging
+    Service SID is intentionally separate from the Verify SID used for OTP.
+    Credentials are read from the environment and never logged or returned.
+    """
+    sid = os.environ.get('TWILIO_ACCOUNT_SID')
+    token = os.environ.get('TWILIO_AUTH_TOKEN')
+    messaging_service_sid = os.environ.get('TWILIO_MESSAGING_SERVICE_SID')
+    if not (sid and token and messaging_service_sid):
+        return None, None
+    from twilio.rest import Client
+    return Client(sid, token), messaging_service_sid
+
+
+async def _recount_campaign(db, campaign_id: str) -> None:
+    """Recompute per-channel/status delivery counts for a campaign."""
+    counts: dict = {}
+    cursor = db.alert_deliveries.find(
+        {'campaign_id': campaign_id},
+        {'_id': 0, 'channel': 1, 'status': 1},
+    )
+    async for d in cursor:
+        ch = d.get('channel')
+        st = d.get('status')
+        counts.setdefault(ch, {})
+        counts[ch][st] = counts[ch].get(st, 0) + 1
+    await db.alert_campaigns.update_one(
+        {'campaign_id': campaign_id},
+        {'$set': {
+            'delivery_counts': counts,
+            'updated_at': datetime.now(timezone.utc),
+        }},
+    )
+
+
+async def _send_campaign_sms(campaign_id: str, message: str, sends: list) -> None:
+    """Background delivery of campaign SMS via the Twilio Messaging Service.
+
+    - Claims each delivery (pending -> sending) atomically before calling
+      Twilio, which prevents duplicate sends if this runs more than once.
+    - Stores the Twilio Message SID and sets status from the actual API
+      result. Never marks a record 'delivered' (that needs delivery webhooks).
+    - Never raises to the caller; failures are recorded per-delivery.
+    """
+    from deps import get_db
+    db = get_db()
+
+    client, messaging_service_sid = _twilio_messaging()
+    if not client:
+        # Configuration disappeared between request and send — report it,
+        # never pretend the messages were sent.
+        await db.alert_deliveries.update_many(
+            {'campaign_id': campaign_id, 'channel': 'sms', 'status': 'pending'},
+            {'$set': {
+                'status': 'skipped',
+                'reason': 'sms_not_configured',
+                'updated_at': datetime.now(timezone.utc),
+            }},
+        )
+        await _recount_campaign(db, campaign_id)
+        return
+
+    from twilio.base.exceptions import TwilioRestException
+
+    for item in sends:
+        delivery_id = item['delivery_id']
+        now = datetime.now(timezone.utc)
+
+        # Atomic claim: only proceed if still pending.
+        claimed = await db.alert_deliveries.find_one_and_update(
+            {'delivery_id': delivery_id, 'status': 'pending'},
+            {'$set': {'status': 'sending', 'updated_at': now}},
+        )
+        if not claimed:
+            continue
+
+        try:
+            msg = client.messages.create(
+                messaging_service_sid=messaging_service_sid,
+                to=item['phone'],
+                body=message,
+            )
+            await db.alert_deliveries.update_one(
+                {'delivery_id': delivery_id},
+                {'$set': {
+                    'status': 'sent',
+                    'provider_status': getattr(msg, 'status', None) or 'queued',
+                    'message_sid': msg.sid,
+                    'reason': None,
+                    'updated_at': datetime.now(timezone.utc),
+                }},
+            )
+        except TwilioRestException as e:
+            await db.alert_deliveries.update_one(
+                {'delivery_id': delivery_id},
+                {'$set': {
+                    'status': 'failed',
+                    'reason': 'twilio_error',
+                    'error_code': getattr(e, 'code', None),
+                    'updated_at': datetime.now(timezone.utc),
+                }},
+            )
+            logger.warning(
+                'Campaign %s SMS to user %s failed (code %s)',
+                campaign_id, item.get('user_id'), getattr(e, 'code', None),
+            )
+        except Exception as e:  # noqa: BLE001 - never crash the worker
+            await db.alert_deliveries.update_one(
+                {'delivery_id': delivery_id},
+                {'$set': {
+                    'status': 'failed',
+                    'reason': 'send_error',
+                    'updated_at': datetime.now(timezone.utc),
+                }},
+            )
+            logger.warning('Campaign %s SMS send error: %s', campaign_id, e)
+
+    await _recount_campaign(db, campaign_id)
+
+
 @router.post('/alerts/campaigns')
 async def create_alert_campaign(
     payload: AdminAlertCreateRequest,
     request: Request,
+    background_tasks: BackgroundTasks,
 ):
     """
     Create an alert campaign for a stable 1-based registration range.
@@ -655,6 +783,10 @@ async def create_alert_campaign(
     now = datetime.now(timezone.utc)
     campaign_id = f'alt_{uuid.uuid4().hex[:16]}'
 
+    # Whether the Twilio Messaging Service is configured for real SMS sends.
+    _mclient, _ = _twilio_messaging()
+    sms_configured = _mclient is not None
+
     # Stable audience order. created_at is preferred; user_id breaks ties.
     users = await db.users.find(
         {'erased': {'$ne': True}},
@@ -664,6 +796,7 @@ async def create_alert_campaign(
             'email': 1,
             'phone': 1,
             'phone_verified': 1,
+            'sms_consent': 1,
             'created_at': 1,
         },
     ).sort([('created_at', 1), ('user_id', 1)]).skip(
@@ -689,6 +822,7 @@ async def create_alert_campaign(
 
     notification_docs = []
     delivery_docs = []
+    pending_sms = []
 
     for position, user in enumerate(users, start=payload.user_from):
         user_id = user.get('user_id')
@@ -721,9 +855,26 @@ async def create_alert_campaign(
                 has_verified_phone = bool(
                     user.get('phone') and user.get('phone_verified')
                 )
-                # Do not claim delivery until an SMS messaging provider is connected.
-                status = 'pending' if has_verified_phone else 'skipped'
-                reason = None if has_verified_phone else 'no_verified_phone'
+                has_consent = user.get('sms_consent') is True
+                if not has_verified_phone:
+                    status = 'skipped'
+                    reason = 'no_verified_phone'
+                elif not has_consent:
+                    # Respect consent / opt-outs: never send without it.
+                    status = 'skipped'
+                    reason = 'no_sms_consent'
+                elif not sms_configured:
+                    # Report the missing configuration instead of pretending.
+                    status = 'skipped'
+                    reason = 'sms_not_configured'
+                else:
+                    status = 'pending'
+                    reason = None
+                    pending_sms.append({
+                        'delivery_id': delivery_id,
+                        'user_id': user_id,
+                        'phone': user.get('phone'),
+                    })
 
             delivery_docs.append({
                 'delivery_id': delivery_id,
@@ -774,11 +925,23 @@ async def create_alert_campaign(
         'at': now,
     })
 
+    # Send SMS in the background so bulk campaigns never block the API
+    # response. Each delivery is claimed atomically to prevent duplicates.
+    if pending_sms:
+        background_tasks.add_task(
+            _send_campaign_sms,
+            campaign_id,
+            campaign['message'],
+            pending_sms,
+        )
+
     return {
         'ok': True,
         'campaign_id': campaign_id,
         'targeted_count': len(users),
         'counts': counts,
+        'sms_configured': sms_configured,
+        'sms_queued': len(pending_sms),
     }
 
 
