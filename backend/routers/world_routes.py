@@ -6772,6 +6772,10 @@ async def champion_session_start(
         "game_id"
     )
 
+    # Global Contest 2 uses the same official Champion engine for every stage.
+    if int(contest.get("contest_number", 0)) == 2:
+        game_id = "number_sequence"
+
     # First real Champion game currently supported.
     if game_id != "number_sequence":
         raise HTTPException(
@@ -6921,8 +6925,9 @@ async def champion_session_start(
         ) or {}
     )
 
-    # Champion V2 reuses the exact same Number Sequence game.
-    target = 20
+    # Global Contest 2 uses 1-50 for all Champion stages.
+    # Normal levels and other Champion contests remain unchanged.
+    target = 50 if contest_number == 2 else 20
 
     timer_mode = str(
         game_config.get(
