@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 45 — Verified the Phase 3/4/5 Admin Control upgrade end-to-end. Backend: 18/18 pytest cases pass covering (a) Phase 5 activity tracking (login/visit timestamps surface on /api/admin/world/users and /user-progress/{id}), (b) Phase 3 extend-cascade (POST /contest/2/extend?days=1 shifts C2 champion_closes_at and cascades C3/C4 start_at; reset reverts to baseline; non-admin → 401/403; days/stage range guards return 404/422), (c) Phase 4 stage-level-config CRUD + validation (stage 1-100, level 1-10, attempts 0-20 → 422; null clears; auth guard enforced), (d) token-retry reserve FREE_ATTEMPT_AVAILABLE guard for normal level AND Champion (level 0) with no attempts_remaining side-effect, (e) Phase 1 user-progress regression (champion_ready guard, range enforcement, audit log). Frontend: /admin/free-world renders free-world-admin, section-season-schedule with Ext column + extend-btn-2 (+24h), section-stage-level-config (set/list/clear override exercised: slc-row-2-8 appeared then cleared), section-free-world-users; clicking a user row opens user-detail-drawer with user-activity tiles and progress-editor + audit trail. All cleanup done (extensions reset, override cleared).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/world/state (levels[].initial_free_attempts)", "issue": "Per-(stage, level) override set via PUT /api/admin/world/stage-level-config does NOT propagate to the player's state response. The /api/world/state level listing calls _effective_level_config(db, level) without champion_stage (world_routes.py L3254). Same omission at L5312, L5345, L5639, L5675, L8652, L9301, L12430. Result: a player cannot SEE the override. The counter actually initialised via _free_attempt_counter DOES pass champion_stage (L4202), so fresh counters respect the override — but the token-retry reserve guard and session-begin paths read config without champion_stage, which could allow token_retry_enabled / token_retry_cost overrides (if added later) to be bypassed. For the current single-field override (initial_free_attempts) the visible-but-latent effect is: UI shows wrong allowance. Recommend threading champion_stage through all _effective_level_config call-sites."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter45_admin_control_upgrade.py",
+    "/app/test_reports/pytest/iter45.xml"
+  ],
+  "action_items": [
+    "Pass champion_stage into every _effective_level_config() call site (world_routes.py L3254, 5312, 5345, 5639, 5675, 8652, 9301, 12430) so the per-(stage, level) override drives /api/world/state's level listing and all token-retry/session-begin config lookups. Today the override only wins at counter-insert time, which means (i) players never see the override in /api/world/state and (ii) a future admin-managed field like token_retry_cost/enabled wouldn't apply."
+  ],
+  "critical_code_review_comments": [
+    "world_routes.py L3254 — _effective_level_config(db, level) drops champion_stage. Phase 4 override stored but not reflected in /api/world/state level rows.",
+    "world_routes.py L8652 (reserve_world_token_retry normal-level branch) also omits champion_stage, so if admins ever add a token_retry_enabled / token_retry_cost override per stage it would silently fall back to the global level config.",
+    "activate_admin_world_contest still contains the dead branch `if int(1 or 1) != 1` (L1358) carried over from iter 43 — safe to remove.",
+    "admin_world_extend_contest validates `days` with a two-level clamp (`after = min(60, before + days)`) but accepts individual `days` up to 30 — document that cumulative extensions saturate at 60 so admins aren't surprised when their N+1 extend doesn't move the schedule.",
+    "world_stage_level_config holds `initial_free_attempts` but there's no soft-reset of EXISTING counters when the override is lowered. By design (set-on-insert) this is correct for isolation, but the admin UI doesn't communicate it — consider showing 'applies to future attempt counters only; existing counters unaffected'."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter45_admin_control_upgrade.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "bachanta8@gmail.com / Herts@910022 (super_admin); player1@example.com / Player@12345",
+  "seed_data_creation": "No persistent data created. Extension to C2 and override (stage=2,level=5|7|8 attempts=5|7|9) applied during tests were cleared via module-scoped autouse fixture (reset + clear). Final schedule is clean, no overrides remain. Three audit rows (contest_extension + stage_level_config set/clear) written to world_progress_audit_log — expected behaviour.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Phase 4 override currently applies only on counter $setOnInsert; /api/world/state does not thread champion_stage into _effective_level_config, so a player will not see the override in level rows. If main agent fixes this, re-run test_iter45_admin_control_upgrade.py and additionally assert that after PUT override to initial_free_attempts=7 for (stage, level) the player's /api/world/state levels[level].initial_free_attempts == 7 even when the counter row already exists. Token-retry entitlement schema (season_id, user_id, champion_stage, level) is correctly indexed (world_token_retry_daily_unique) and reserve code at L8752 uses champion_stage — isolation works at the DB layer. For stronger cross-stage isolation testing, admin would need to flip champion_stage on world_progress to force a stage change (via POST /api/admin/world/user-progress/{id} with champion_stage=N and champion_ready=false), which would churn seed state; left for a dedicated harness.",
+  "rca of the issue": "Minor latent issue: _effective_level_config was promoted to accept an optional champion_stage, but only two of its ten call-sites were updated. Fix: thread the user's champion_stage (via _user_champion_stage(db, user_id)) at every call-site that reads level config in a per-user context."
+}

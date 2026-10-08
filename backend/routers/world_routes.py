@@ -3254,6 +3254,7 @@ async def _world_unlock_context(
     config = await _effective_level_config(
         db,
         level,
+        int(progress.get("champion_stage") or 1),
     )
 
     active = await _active_contest(
@@ -3876,12 +3877,39 @@ async def _effective_level_config(
         level
     )
 
+    # Phase 4: resolve any per-(champion_stage, level) admin override ONCE,
+    # then apply it on every return path (including the default paths).
+    _stage_ifa = None
+    if champion_stage is not None:
+        try:
+            _so = await db.world_stage_level_config.find_one(
+                {
+                    "season_id": WORLD_SEASON_ID,
+                    "champion_stage": int(champion_stage),
+                    "level": int(level),
+                },
+                {"_id": 0, "initial_free_attempts": 1},
+            )
+            if _so and _so.get("initial_free_attempts") is not None:
+                _stage_ifa = max(0, int(_so["initial_free_attempts"]))
+        except Exception:
+            _stage_ifa = None
+
+    def _apply_stage_override(cfg: dict) -> dict:
+        if _stage_ifa is not None:
+            cfg = {
+                **cfg,
+                "initial_free_attempts": _stage_ifa,
+                "stage_level_override": True,
+            }
+        return cfg
+
     active = await _active_contest(
         db
     )
 
     if not active:
-        return default
+        return _apply_stage_override(default)
 
     rows = active.get(
         "levels_config"
@@ -3891,7 +3919,7 @@ async def _effective_level_config(
         rows,
         list,
     ):
-        return default
+        return _apply_stage_override(default)
 
     override = next(
         (
@@ -3908,7 +3936,7 @@ async def _effective_level_config(
     )
 
     if not override:
-        return default
+        return _apply_stage_override(default)
 
     merged = {
         **default,
@@ -3974,32 +4002,7 @@ async def _effective_level_config(
     except (TypeError, ValueError):
         merged["initial_free_attempts"] = 3
 
-    # Phase 4: per-(champion_stage, level) admin override wins over the
-    # global level config for the free-attempt allowance ONLY.
-    if champion_stage is not None:
-        try:
-            stage_override = await db.world_stage_level_config.find_one(
-                {
-                    "season_id": WORLD_SEASON_ID,
-                    "champion_stage": int(champion_stage),
-                    "level": int(level),
-                },
-                {"_id": 0},
-            )
-        except Exception:
-            stage_override = None
-        if stage_override and (
-            stage_override.get("initial_free_attempts") is not None
-        ):
-            try:
-                merged["initial_free_attempts"] = max(
-                    0, int(stage_override["initial_free_attempts"])
-                )
-                merged["stage_level_override"] = True
-            except (TypeError, ValueError):
-                pass
-
-    return merged
+    return _apply_stage_override(merged)
 
 
 class FreeWorldSessionStartInput(BaseModel):
@@ -4417,11 +4420,12 @@ async def _free_attempt_status(
     Refreshed attempts do not accumulate.
     """
 
+    champion_stage = await _user_champion_stage(db, user_id)
     config = await _effective_level_config(
         db,
         level,
+        champion_stage,
     )
-    champion_stage = await _user_champion_stage(db, user_id)
 
     # --------------------------------------------------------
     # READ-ONLY ATTEMPT STATUS
@@ -5312,6 +5316,7 @@ async def free_world_state(
         await _effective_level_config(
             db,
             current_level,
+            int(progress.get("champion_stage") or 1),
         )
     )
 
@@ -5345,6 +5350,7 @@ async def free_world_state(
             await _effective_level_config(
                 db,
                 level_number,
+                int(progress.get("champion_stage") or 1),
             )
         )
 
@@ -5636,7 +5642,9 @@ async def free_world_level(
         level,
     )
 
-    config = await _effective_level_config(db, level)
+    config = await _effective_level_config(
+        db, level, int(progress.get("champion_stage") or 1)
+    )
 
     return {
         "season_id": WORLD_SEASON_ID,
@@ -5675,6 +5683,7 @@ async def free_world_session_start(
     config = await _effective_level_config(
         db,
         level,
+        await _user_champion_stage(db, user["user_id"]),
     )
 
     if not config:
@@ -8652,6 +8661,7 @@ async def reserve_world_token_retry(
         config = await _effective_level_config(
             db,
             level,
+            await _user_champion_stage(db, user_id),
         )
 
         if not bool(
@@ -12430,6 +12440,7 @@ async def free_world_access(
         config = await _effective_level_config(
             db,
             level,
+            int(progress.get("champion_stage") or 1),
         )
 
         access = await _resolve_unlock_context(
