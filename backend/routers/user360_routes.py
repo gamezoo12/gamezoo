@@ -605,6 +605,17 @@ from typing import List, Literal
 from pydantic import Field
 
 
+class AudienceSpec(BaseModel):
+    mode: Literal['range', 'users', 'winners'] = 'range'
+    # For mode='users': account IDs (public_id/user_id) or emails.
+    identifiers: List[str] = Field(default_factory=list)
+    # For mode='winners':
+    winner_source: Optional[
+        Literal['paid_contest', 'promotion_draw', 'free_world']
+    ] = None
+    winner_ref: Optional[str] = None  # contest_id / promotion_id / stage / 'all'
+
+
 class AdminAlertCreateRequest(BaseModel):
     title: str = Field(min_length=1, max_length=160)
     message: str = Field(min_length=1, max_length=4000)
@@ -614,6 +625,186 @@ class AdminAlertCreateRequest(BaseModel):
     channels: List[Literal['in_app', 'email', 'sms']] = Field(
         default_factory=lambda: ['in_app']
     )
+    audience: Optional[AudienceSpec] = None
+
+
+# User fields loaded for every recipient (shared projection).
+_ALERT_USER_PROJECTION = {
+    '_id': 0, 'user_id': 1, 'email': 1, 'phone': 1,
+    'phone_verified': 1, 'sms_consent': 1, 'created_at': 1,
+    'public_id': 1, 'name': 1,
+}
+
+
+async def _resolve_identifier_users(db, identifiers: list):
+    """Resolve a list of account IDs / emails to user docs.
+
+    Returns (users_in_input_order, unknown_tokens). Deduplicated by user_id.
+    """
+    tokens = [str(t).strip() for t in (identifiers or []) if str(t).strip()]
+    if not tokens:
+        return [], []
+    lowered = [t.lower() for t in tokens]
+    query = {'$or': [
+        {'public_id': {'$in': tokens}},
+        {'user_id': {'$in': tokens}},
+        {'email': {'$in': lowered}},
+        {'username': {'$in': lowered}},
+    ]}
+    found = await db.users.find(
+        {'$and': [{'erased': {'$ne': True}}, query]},
+        _ALERT_USER_PROJECTION,
+    ).to_list(5000)
+
+    by_key = {}
+    for u in found:
+        for key in (u.get('public_id'), u.get('user_id'),
+                    (u.get('email') or '').lower()):
+            if key:
+                by_key[key] = u
+
+    ordered, seen, unknown = [], set(), []
+    for raw, low in zip(tokens, lowered):
+        u = by_key.get(raw) or by_key.get(low)
+        if u and u['user_id'] not in seen:
+            seen.add(u['user_id'])
+            ordered.append(u)
+        elif not u:
+            unknown.append(raw)
+    return ordered, unknown
+
+
+async def _resolve_winner_user_ids(db, source: str, ref: Optional[str]):
+    """Return an ordered list of winner user_ids for a winner source."""
+    uids: list = []
+    if source == 'paid_contest':
+        q = {'winner_user_id': {'$exists': True, '$ne': None}}
+        if ref and ref != 'all':
+            q['contest_id'] = ref
+        async for c in db.contests.find(q, {'_id': 0, 'winner_user_id': 1}):
+            if c.get('winner_user_id'):
+                uids.append(c['winner_user_id'])
+    elif source == 'promotion_draw':
+        q = {} if (not ref or ref == 'all') else {'promotion_id': ref}
+        async for d in db.promotion_draws.find(q, {'_id': 0, 'winners': 1}):
+            for w in (d.get('winners') or []):
+                if w.get('user_id'):
+                    uids.append(w['user_id'])
+    elif source == 'free_world':
+        q = {'status': 'paid'}
+        if ref and ref != 'all':
+            try:
+                q['champion_stage'] = int(ref)
+            except (TypeError, ValueError):
+                q['champion_stage'] = ref
+        async for a in db.world_winner_awards.find(
+            q, {'_id': 0, 'user_id': 1}
+        ):
+            if a.get('user_id'):
+                uids.append(a['user_id'])
+    # Dedup preserving order
+    seen, out = set(), []
+    for u in uids:
+        if u not in seen:
+            seen.add(u)
+            out.append(u)
+    return out
+
+
+async def _users_by_ids(db, user_ids: list):
+    """Fetch recipient docs for a list of user_ids, preserving order."""
+    if not user_ids:
+        return []
+    docs = await db.users.find(
+        {'user_id': {'$in': user_ids}, 'erased': {'$ne': True}},
+        _ALERT_USER_PROJECTION,
+    ).to_list(len(user_ids))
+    by_id = {d['user_id']: d for d in docs}
+    return [by_id[u] for u in user_ids if u in by_id]
+
+
+@router.get('/alerts/user-search')
+async def alert_user_search(request: Request, q: str = '', limit: int = 20):
+    """Search users by name, email, username or account ID for targeting."""
+    await require_admin(request)
+    from deps import get_db
+    db = get_db()
+    term = (q or '').strip()
+    if len(term) < 2:
+        return {'users': []}
+    limit = max(1, min(int(limit), 50))
+    import re as _re
+    rx = _re.compile(_re.escape(term), _re.I)
+    rows = await db.users.find(
+        {'erased': {'$ne': True}, '$or': [
+            {'name': rx}, {'email': rx}, {'username': rx},
+            {'public_id': rx}, {'user_id': rx},
+        ]},
+        {'_id': 0, 'user_id': 1, 'public_id': 1, 'name': 1,
+         'email': 1, 'phone_verified': 1, 'sms_consent': 1},
+    ).limit(limit).to_list(limit)
+    return {'users': rows}
+
+
+@router.get('/alerts/winner-sources')
+async def alert_winner_sources(request: Request):
+    """List available winner sources and their selectable references."""
+    await require_admin(request)
+    from deps import get_db
+    db = get_db()
+
+    paid = []
+    async for c in db.contests.find(
+        {'winner_user_id': {'$exists': True, '$ne': None}},
+        {'_id': 0, 'contest_id': 1, 'title': 1, 'name': 1},
+    ).limit(200):
+        paid.append({
+            'ref': c.get('contest_id'),
+            'label': c.get('title') or c.get('name') or c.get('contest_id'),
+        })
+
+    promos = []
+    async for d in db.promotion_draws.find(
+        {}, {'_id': 0, 'promotion_id': 1, 'promotion_name': 1, 'winners': 1},
+    ).limit(200):
+        promos.append({
+            'ref': d.get('promotion_id'),
+            'label': d.get('promotion_name') or d.get('promotion_id'),
+            'count': len(d.get('winners') or []),
+        })
+
+    stages = await db.world_winner_awards.distinct(
+        'champion_stage', {'status': 'paid'}
+    )
+    fw = [{'ref': 'all', 'label': 'All Free World Champions'}]
+    for s in sorted(x for x in stages if x is not None):
+        fw.append({'ref': str(s), 'label': f'Championship {s} Champions'})
+
+    return {
+        'sources': {
+            'paid_contest': paid,
+            'promotion_draw': promos,
+            'free_world': fw,
+        }
+    }
+
+
+@router.get('/alerts/winners')
+async def alert_winners(request: Request, source: str, ref: str = 'all'):
+    """Resolve the winner recipients for a chosen source/reference."""
+    await require_admin(request)
+    from deps import get_db
+    db = get_db()
+    uids = await _resolve_winner_user_ids(db, source, ref)
+    users = await _users_by_ids(db, uids)
+    return {
+        'count': len(users),
+        'users': [
+            {'user_id': u['user_id'], 'public_id': u.get('public_id'),
+             'name': u.get('name'), 'email': u.get('email')}
+            for u in users
+        ],
+    }
 
 
 def _alert_public(doc: dict) -> dict:
@@ -763,22 +954,75 @@ async def create_alert_campaign(
     """
     admin = await require_admin(request)
 
-    if payload.user_to < payload.user_from:
-        raise HTTPException(
-            status_code=400,
-            detail='user_to must be greater than or equal to user_from',
-        )
-
-    # Safety cap: one request may target at most 10,000 users.
-    target_count = payload.user_to - payload.user_from + 1
-    if target_count > 10000:
-        raise HTTPException(
-            status_code=400,
-            detail='A single campaign can target at most 10,000 users',
-        )
-
     from deps import get_db
     db = get_db()
+
+    audience = payload.audience or AudienceSpec()
+    unknown_identifiers: list = []
+    audience_meta: dict = {'mode': audience.mode}
+
+    if audience.mode == 'range':
+        if payload.user_to < payload.user_from:
+            raise HTTPException(
+                status_code=400,
+                detail='user_to must be greater than or equal to user_from',
+            )
+        target_count = payload.user_to - payload.user_from + 1
+        if target_count > 10000:
+            raise HTTPException(
+                status_code=400,
+                detail='A single campaign can target at most 10,000 users',
+            )
+        # Stable audience order. created_at is preferred; user_id breaks ties.
+        users = await db.users.find(
+            {'erased': {'$ne': True}},
+            _ALERT_USER_PROJECTION,
+        ).sort([('created_at', 1), ('user_id', 1)]).skip(
+            payload.user_from - 1
+        ).limit(target_count).to_list(target_count)
+        camp_from, camp_to = payload.user_from, payload.user_to
+
+    elif audience.mode == 'users':
+        users, unknown_identifiers = await _resolve_identifier_users(
+            db, audience.identifiers
+        )
+        if not users:
+            raise HTTPException(
+                status_code=400,
+                detail='No matching users found for the provided identifiers.',
+            )
+        if len(users) > 10000:
+            raise HTTPException(
+                status_code=400,
+                detail='A single campaign can target at most 10,000 users',
+            )
+        camp_from, camp_to = 0, 0
+        audience_meta['unknown_identifiers'] = unknown_identifiers
+
+    else:  # winners
+        if not audience.winner_source:
+            raise HTTPException(
+                status_code=400, detail='winner_source is required.'
+            )
+        uids = await _resolve_winner_user_ids(
+            db, audience.winner_source, audience.winner_ref or 'all'
+        )
+        users = await _users_by_ids(db, uids)
+        if not users:
+            raise HTTPException(
+                status_code=400,
+                detail='No winners found for the selected source.',
+            )
+        if len(users) > 10000:
+            raise HTTPException(
+                status_code=400,
+                detail='A single campaign can target at most 10,000 users',
+            )
+        camp_from, camp_to = 0, 0
+        audience_meta['winner_source'] = audience.winner_source
+        audience_meta['winner_ref'] = audience.winner_ref or 'all'
+
+    target_count = len(users)
 
     now = datetime.now(timezone.utc)
     campaign_id = f'alt_{uuid.uuid4().hex[:16]}'
@@ -787,29 +1031,14 @@ async def create_alert_campaign(
     _mclient, _ = _twilio_messaging()
     sms_configured = _mclient is not None
 
-    # Stable audience order. created_at is preferred; user_id breaks ties.
-    users = await db.users.find(
-        {'erased': {'$ne': True}},
-        {
-            '_id': 0,
-            'user_id': 1,
-            'email': 1,
-            'phone': 1,
-            'phone_verified': 1,
-            'sms_consent': 1,
-            'created_at': 1,
-        },
-    ).sort([('created_at', 1), ('user_id', 1)]).skip(
-        payload.user_from - 1
-    ).limit(target_count).to_list(target_count)
-
     campaign = {
         'campaign_id': campaign_id,
         'title': payload.title.strip(),
         'message': payload.message.strip(),
         'alert_type': payload.alert_type.strip() or 'custom',
-        'user_from': payload.user_from,
-        'user_to': payload.user_to,
+        'user_from': camp_from,
+        'user_to': camp_to,
+        'audience': audience_meta,
         'requested_count': target_count,
         'targeted_count': len(users),
         'channels': list(dict.fromkeys(payload.channels)),
@@ -824,7 +1053,7 @@ async def create_alert_campaign(
     delivery_docs = []
     pending_sms = []
 
-    for position, user in enumerate(users, start=payload.user_from):
+    for position, user in enumerate(users, start=(camp_from or 1)):
         user_id = user.get('user_id')
         if not user_id:
             continue

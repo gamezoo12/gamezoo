@@ -26,6 +26,8 @@ import {
   worldContestAPI,
 } from '../lib/api';
 
+import WorldAlertPopup from './components/WorldAlertPopup';
+
 import {
   useEffect,
   useState,
@@ -368,6 +370,7 @@ export default function PrizeLeagueWorld() {
 
   return (
     <div className="pl-world-page">
+      <WorldAlertPopup />
 
       {!showWorldLeaderboard && (
 <WorldCanvas />

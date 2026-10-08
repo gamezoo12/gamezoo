@@ -3,6 +3,7 @@ import {
   Trophy, Gamepad2, CalendarDays, Crown, Sparkles, ArrowRight, CheckCircle2,
 } from 'lucide-react';
 import useSeo from '../hooks/useSeo';
+import WorldAlertPopup from '../world/components/WorldAlertPopup';
 
 const SITE = 'https://www.prizeleague.co.uk';
 const URL = `${SITE}/free-world`;
@@ -77,6 +78,7 @@ export default function FreeWorldLanding() {
 
   return (
     <div className="bg-white text-slate-900" data-testid="free-world-landing">
+      <WorldAlertPopup />
       {/* Breadcrumbs */}
       <nav aria-label="Breadcrumb" className="max-w-6xl mx-auto px-5 pt-5 text-sm text-slate-500">
         <ol className="flex items-center gap-2">

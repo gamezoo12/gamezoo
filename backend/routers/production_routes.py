@@ -92,3 +92,16 @@ async def mark_read(request: Request):
         {'$set': {'read': True}},
     )
     return {'ok': True, 'updated': r.modified_count}
+
+
+@notif_router.post('/{notification_id}/read')
+async def mark_one_read(notification_id: str, request: Request):
+    """Mark a single notification as read (used by the in-world popup)."""
+    user = await get_current_user(request)
+    from deps import get_db
+    db = get_db()
+    r = await db.notifications.update_one(
+        {'user_id': user['user_id'], 'notification_id': notification_id},
+        {'$set': {'read': True}},
+    )
+    return {'ok': True, 'updated': r.modified_count}

@@ -2098,11 +2098,66 @@ export default function AlertsAdmin() {
   const [notice, setNotice] = useState('');
   const [templateCategory, setTemplateCategory] = useState(CATEGORY_KEYS[0]);
 
+  // Recipient targeting (audience)
+  const [audienceMode, setAudienceMode] = useState('range');
+  const [selectedUsers, setSelectedUsers] = useState([]);
+  const [searchQ, setSearchQ] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [pasteText, setPasteText] = useState('');
+  const [winnerSources, setWinnerSources] = useState({ paid_contest: [], promotion_draw: [], free_world: [] });
+  const [winnerSource, setWinnerSource] = useState('free_world');
+  const [winnerRef, setWinnerRef] = useState('all');
+  const [winnerPreview, setWinnerPreview] = useState(null);
+
+  useEffect(() => {
+    adminAPI.alertWinnerSources()
+      .then((d) => setWinnerSources(d?.sources || { paid_contest: [], promotion_draw: [], free_world: [] }))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (audienceMode !== 'users' || searchQ.trim().length < 2) { setSearchResults([]); return undefined; }
+    const t = setTimeout(() => {
+      adminAPI.alertUserSearch(searchQ.trim())
+        .then((d) => setSearchResults(d?.users || []))
+        .catch(() => setSearchResults([]));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchQ, audienceMode]);
+
+  const addUser = (u) => {
+    setSelectedUsers((prev) => prev.find((x) => x.user_id === u.user_id) ? prev : [...prev, u]);
+    setSearchQ('');
+    setSearchResults([]);
+  };
+  const removeUser = (uid) => setSelectedUsers((prev) => prev.filter((x) => x.user_id !== uid));
+
+  const addPasted = () => {
+    const tokens = pasteText.split(/[\s,;\n]+/).map((s) => s.trim()).filter(Boolean);
+    const existing = new Set(selectedUsers.map((u) => u.public_id || u.user_id));
+    const additions = tokens
+      .filter((t) => !existing.has(t))
+      .map((t) => ({ user_id: t, public_id: t, name: null, email: /@/.test(t) ? t : null, _raw: true }));
+    setSelectedUsers((prev) => [...prev, ...additions]);
+    setPasteText('');
+  };
+
+  const loadWinners = async () => {
+    try {
+      const d = await adminAPI.alertWinners(winnerSource, winnerRef);
+      setWinnerPreview(d);
+    } catch {
+      setWinnerPreview({ count: 0, users: [] });
+    }
+  };
+
   const targetCount = useMemo(() => {
+    if (audienceMode === 'users') return selectedUsers.length;
+    if (audienceMode === 'winners') return winnerPreview?.count ?? 0;
     const a = Number(form.user_from) || 0;
     const b = Number(form.user_to) || 0;
     return b >= a && a > 0 ? b - a + 1 : 0;
-  }, [form.user_from, form.user_to]);
+  }, [audienceMode, selectedUsers.length, winnerPreview, form.user_from, form.user_to]);
 
   const loadCampaigns = async () => {
     try {
@@ -2138,7 +2193,18 @@ export default function AlertsAdmin() {
       setError('Select at least one delivery channel.');
       return;
     }
-    if (!window.confirm(`Send this alert to up to ${targetCount.toLocaleString()} users?`)) return;
+    if (audienceMode === 'users' && !selectedUsers.length) {
+      setError('Add at least one recipient.');
+      return;
+    }
+    if (audienceMode === 'winners' && !(winnerPreview?.count)) {
+      setError('Load winners for the selected source first.');
+      return;
+    }
+    const confirmText = audienceMode === 'range'
+      ? `Send this alert to up to ${targetCount.toLocaleString()} users?`
+      : `Send this alert to ${targetCount.toLocaleString()} selected recipient(s)?`;
+    if (!window.confirm(confirmText)) return;
     setLoading(true);
     try {
       const shouldIncludeWebsite = form.channels.some(channel => channel === 'email' || channel === 'sms');
@@ -2146,12 +2212,36 @@ export default function AlertsAdmin() {
         ? `${form.message.trim()}\n\nPlay now: ${PRIZE_LEAGUE_URL}`
         : form.message;
 
-      const result = await adminAPI.createAlertCampaign({
-        ...form,
+      const base = {
+        title: form.title,
         message: messageWithWebsite,
-        user_from: Number(form.user_from),
-        user_to: Number(form.user_to),
-      });
+        alert_type: form.alert_type,
+        channels: form.channels,
+      };
+      let payload;
+      if (audienceMode === 'users') {
+        payload = {
+          ...base,
+          audience: {
+            mode: 'users',
+            identifiers: selectedUsers.map((u) => u.public_id || u.user_id),
+          },
+        };
+      } else if (audienceMode === 'winners') {
+        payload = {
+          ...base,
+          audience: { mode: 'winners', winner_source: winnerSource, winner_ref: winnerRef },
+        };
+      } else {
+        payload = {
+          ...base,
+          user_from: Number(form.user_from),
+          user_to: Number(form.user_to),
+          audience: { mode: 'range' },
+        };
+      }
+
+      const result = await adminAPI.createAlertCampaign(payload);
       setNotice(`Campaign created. ${result?.targeted_count ?? 0} users targeted.`);
       await loadCampaigns();
     } catch (e2) {
@@ -2217,6 +2307,18 @@ export default function AlertsAdmin() {
       {notice && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{notice}</div>}
 
       <form onSubmit={send} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-5">
+        <div>
+          <div className="mb-2 text-sm font-semibold text-slate-700">Recipients</div>
+          <div className="flex flex-wrap gap-2">
+            {[['range','Registration range'],['users','Specific users'],['winners','Winners']].map(([v,l]) => (
+              <button key={v} type="button" onClick={() => setAudienceMode(v)}
+                data-testid={`audience-mode-${v}`}
+                className={`rounded-full border px-4 py-2 text-sm font-semibold ${audienceMode === v ? 'border-[#6C2BFF] bg-[#6C2BFF] text-white' : 'border-slate-300 bg-white text-slate-700'}`}>{l}</button>
+            ))}
+          </div>
+        </div>
+
+        {audienceMode === 'range' && (
         <div className="grid gap-4 md:grid-cols-3">
           <label className="text-sm font-semibold text-slate-700">
             From user #
@@ -2232,6 +2334,79 @@ export default function AlertsAdmin() {
             <div className="text-xs text-slate-500">Maximum 10,000 per campaign</div>
           </div>
         </div>
+        )}
+
+        {audienceMode === 'users' && (
+        <div className="space-y-3" data-testid="audience-users">
+          <div className="relative">
+            <input value={searchQ} onChange={e => setSearchQ(e.target.value)} data-testid="user-search-input"
+              placeholder="Search by name, email, username or account ID…"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            {searchResults.length > 0 && (
+              <div className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                {searchResults.map(u => (
+                  <button key={u.user_id} type="button" onClick={() => addUser(u)}
+                    data-testid={`user-search-result-${u.user_id}`}
+                    className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-violet-50">
+                    <span><span className="font-semibold">{u.name || u.public_id}</span> <span className="text-slate-400">{u.email}</span></span>
+                    <span className="text-xs text-slate-400">{u.public_id}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div>
+            <textarea value={pasteText} onChange={e => setPasteText(e.target.value)} rows="2" data-testid="paste-identifiers"
+              placeholder="Paste account IDs or emails (comma, space or newline separated)…"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <button type="button" onClick={addPasted} data-testid="add-pasted-btn"
+              className="mt-1 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50">Add pasted</button>
+          </div>
+          <div className="flex flex-wrap gap-2" data-testid="selected-recipients">
+            {selectedUsers.map(u => (
+              <span key={u.user_id} className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-800">
+                {u.public_id || u.user_id}
+                <button type="button" onClick={() => removeUser(u.user_id)} className="hover:text-violet-900">×</button>
+              </span>
+            ))}
+            {!selectedUsers.length && <span className="text-xs text-slate-400">No recipients selected yet.</span>}
+          </div>
+          <div className="text-xs font-semibold text-slate-600">{selectedUsers.length} recipient(s) selected</div>
+        </div>
+        )}
+
+        {audienceMode === 'winners' && (
+        <div className="space-y-3" data-testid="audience-winners">
+          <div className="grid gap-3 md:grid-cols-3">
+            <label className="text-sm font-semibold text-slate-700">
+              Winner source
+              <select value={winnerSource} onChange={e => { setWinnerSource(e.target.value); setWinnerRef('all'); setWinnerPreview(null); }}
+                data-testid="winner-source" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2">
+                <option value="free_world">Free World Champions</option>
+                <option value="paid_contest">Paid Contest Winners</option>
+                <option value="promotion_draw">Promotion Draw Winners</option>
+              </select>
+            </label>
+            <label className="text-sm font-semibold text-slate-700">
+              Contest / draw
+              <select value={winnerRef} onChange={e => { setWinnerRef(e.target.value); setWinnerPreview(null); }}
+                data-testid="winner-ref" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2">
+                {winnerSource !== 'free_world' && <option value="all">All</option>}
+                {(winnerSources[winnerSource] || []).map(o => (
+                  <option key={o.ref} value={o.ref}>{o.label}{o.count != null ? ` (${o.count})` : ''}</option>
+                ))}
+              </select>
+            </label>
+            <div className="flex items-end">
+              <button type="button" onClick={loadWinners} data-testid="load-winners-btn"
+                className="w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Load winners</button>
+            </div>
+          </div>
+          <div className="text-xs font-semibold text-slate-600" data-testid="winners-count">
+            {winnerPreview ? `${winnerPreview.count} winner(s) found` : 'No winners loaded yet.'}
+          </div>
+        </div>
+        )}
 
         <div className="grid gap-4 md:grid-cols-3">
           <label className="text-sm font-semibold text-slate-700">

@@ -82,6 +82,7 @@ export const userAPI = {
   },
   notifications: (onlyUnread = false) => api.get('/users/notifications', { params: { only_unread: onlyUnread } }).then(r => r.data),
   markAllRead: () => api.post('/users/notifications/mark-read').then(r => r.data),
+  markNotificationRead: (id) => api.post(`/users/notifications/${id}/read`).then(r => r.data),
   acceptTerms: () => api.post('/users/me/accept-terms').then(r => r.data),
 };
 
@@ -148,6 +149,15 @@ export const adminAPI = {
 
   alertDeliveries: (campaignId, params = {}) =>
     api.get(`/admin/users/alerts/campaigns/${campaignId}/deliveries`, { params }).then(r => r.data),
+
+  alertUserSearch: (q) =>
+    api.get('/admin/users/alerts/user-search', { params: { q } }).then(r => r.data),
+
+  alertWinnerSources: () =>
+    api.get('/admin/users/alerts/winner-sources').then(r => r.data),
+
+  alertWinners: (source, ref = 'all') =>
+    api.get('/admin/users/alerts/winners', { params: { source, ref } }).then(r => r.data),
 
   // Legal documents
   legalList: () => api.get('/admin/legal/documents').then(r => r.data),

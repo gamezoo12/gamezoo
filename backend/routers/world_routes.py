@@ -3735,8 +3735,22 @@ def _personal_champion_transition_schedule(
 
     level_10_unlock_at = level_unlock_at(anchor, 9)
     champion_opens_at = level_10_unlock_at + timedelta(hours=24)
-    champion_closes_at = champion_opens_at + timedelta(hours=46)
-    next_start_at = champion_opens_at + timedelta(hours=48)
+
+    # Champion close is authoritative from the active Global Contest's end_at
+    # (the scheduler keeps this in sync with any admin 24h extensions). Only
+    # when no contest is active do we fall back to the fixed +46h window. The
+    # results gap to the next personal Championship is a fixed +2h after close,
+    # so with no extension this reproduces the original +46h / +48h timings.
+    contest_end_at = (
+        _ensure_aware_datetime(active_contest.get("end_at"))
+        if active_contest is not None else None
+    )
+    if contest_end_at is not None:
+        champion_closes_at = contest_end_at
+        next_start_at = contest_end_at + timedelta(hours=2)
+    else:
+        champion_closes_at = champion_opens_at + timedelta(hours=46)
+        next_start_at = champion_opens_at + timedelta(hours=48)
 
     return {
         "level_10_unlock_at": _serialize_datetime(level_10_unlock_at),
