@@ -115,6 +115,13 @@ export default function FreeWorldAdmin() {
   const [page, setPage] = useState(1);
   const [selectedUser, setSelectedUser] = useState(null);
 
+  // User Progress Manager (Phase 1)
+  const [detail, setDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [edit, setEdit] = useState(null);
+  const [editReason, setEditReason] = useState('');
+
   // Live countdown to C1 open (server-authoritative base + local ticking).
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [serverOffset, setServerOffset] = useState(0);
@@ -249,6 +256,96 @@ export default function FreeWorldAdmin() {
       });
     } finally {
       setLaunching(false);
+    }
+  };
+
+  const openUser = useCallback(async (u) => {
+    setSelectedUser(u);
+    setDetail(null);
+    setEdit(null);
+    setEditReason('');
+    setDetailLoading(true);
+    try {
+      const res = await worldAdminAPI.userProgress(u.user_id);
+      setDetail(res);
+      setEdit({
+        current_level: res.progress.current_level,
+        highest_unlocked_level: res.progress.highest_unlocked_level,
+        champion_stage: res.progress.champion_stage,
+        champion_ready: res.progress.champion_ready,
+        completed_levels: [...(res.progress.completed_levels || [])],
+      });
+    } catch (e) {
+      toast({
+        title: 'Failed to load progress',
+        description: e?.response?.data?.detail || 'Please retry.',
+        variant: 'destructive',
+      });
+    } finally {
+      setDetailLoading(false);
+    }
+  }, [toast]);
+
+  const closeUser = () => {
+    setSelectedUser(null);
+    setDetail(null);
+    setEdit(null);
+    setEditReason('');
+  };
+
+  const toggleCompleted = (lvl) => {
+    setEdit((prev) => {
+      const set = new Set(prev.completed_levels);
+      if (set.has(lvl)) set.delete(lvl); else set.add(lvl);
+      return { ...prev, completed_levels: Array.from(set).sort((a, b) => a - b) };
+    });
+  };
+
+  const allTen = edit &&
+    edit.completed_levels.length === 10 &&
+    edit.completed_levels.every((l, i) => l === i + 1);
+
+  const saveProgress = async () => {
+    if (!selectedUser || !edit) return;
+    if (edit.champion_ready && !allTen) {
+      toast({
+        title: 'Cannot enable Champion ready',
+        description: 'All 10 levels must be marked completed first.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await worldAdminAPI.editUserProgress(selectedUser.user_id, {
+        current_level: edit.current_level,
+        highest_unlocked_level: edit.highest_unlocked_level,
+        champion_stage: edit.champion_stage,
+        champion_ready: edit.champion_ready,
+        completed_levels: edit.completed_levels,
+        reason: editReason.trim() || undefined,
+      });
+      toast({
+        title: res.updated ? 'Progress updated' : 'No changes',
+        description: res.updated
+          ? `${res.changes.length} field(s) changed.`
+          : 'Nothing to save.',
+      });
+      if (res.updated) {
+        const fresh = await worldAdminAPI.userProgress(selectedUser.user_id);
+        setDetail(fresh);
+        setEditReason('');
+        loadUsers();
+      }
+    } catch (e) {
+      const d = e?.response?.data?.detail;
+      toast({
+        title: 'Update failed',
+        description: (typeof d === 'string' ? d : d?.message) || 'Please retry.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -436,7 +533,7 @@ export default function FreeWorldAdmin() {
         data-testid="section-free-world-users">
         <h2 className="font-extrabold text-lg text-slate-900 flex items-center gap-2 mb-4">
           <Users className="w-5 h-5 text-[#6C2BFF]" /> Free World Users
-          <span className="text-xs font-normal text-slate-400">(read-only)</span>
+          <span className="text-xs font-normal text-slate-400">(click a row to view & edit)</span>
         </h2>
 
         <div className="flex flex-wrap gap-2 mb-3">
@@ -497,7 +594,7 @@ export default function FreeWorldAdmin() {
               )}
               {!usersLoading && users.map((u) => (
                 <tr key={u.user_id}
-                  onClick={() => setSelectedUser(u)}
+                  onClick={() => openUser(u)}
                   className="border-t border-slate-100 hover:bg-violet-50 cursor-pointer"
                   data-testid={`users-row-${u.user_id}`}>
                   <td className="px-3 py-2 font-mono text-xs">{u.public_id || '—'}</td>
@@ -579,41 +676,184 @@ export default function FreeWorldAdmin() {
         </div>
       )}
 
-      {/* User detail drawer (read-only) */}
+      {/* User Progress Manager drawer (editable, audited) */}
       {selectedUser && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/40"
           data-testid="user-detail-drawer"
-          onClick={() => setSelectedUser(null)}>
-          <div className="w-full max-w-md h-full bg-white p-6 overflow-auto"
+          onClick={closeUser}>
+          <div className="w-full max-w-lg h-full bg-white p-6 overflow-auto"
             onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <h3 className="font-extrabold text-lg text-slate-900">Player progress</h3>
-              <button onClick={() => setSelectedUser(null)} data-testid="drawer-close">
+              <h3 className="font-extrabold text-lg text-slate-900">User Progress Manager</h3>
+              <button onClick={closeUser} data-testid="drawer-close">
                 <X className="w-5 h-5 text-slate-400" />
               </button>
             </div>
-            <div className="mt-4 space-y-2 text-sm">
-              {[
-                ['Public ID', selectedUser.public_id],
-                ['Name', selectedUser.name],
-                ['Email', selectedUser.email],
-                ['Current championship', selectedUser.current_championship],
-                ['Champion stage', selectedUser.champion_stage],
-                ['Current level', selectedUser.current_level],
-                ['Highest unlocked', selectedUser.highest_unlocked_level],
-                ['Completed levels', (selectedUser.completed_levels || []).join(', ') || '—'],
-                ['All levels completed', selectedUser.all_levels_completed ? 'Yes' : 'No'],
-                ['Champion ready', selectedUser.champion_ready ? 'Yes' : 'No'],
-                ['Qualified', selectedUser.qualified ? 'Yes' : 'No'],
-                ['Winner status', selectedUser.winner_status || '—'],
-                ['Last activity', ukDate(selectedUser.last_activity)],
-              ].map(([k, v]) => (
-                <div key={k} className="flex justify-between border-b border-slate-100 py-2">
-                  <span className="text-slate-500">{k}</span>
-                  <span className="font-semibold text-slate-900 text-right">{String(v ?? '—')}</span>
+
+            <div className="mt-3 rounded-xl bg-slate-50 border border-slate-100 p-3 text-sm">
+              <div className="font-bold text-slate-900">
+                {selectedUser.name || '—'}
+                <span className="font-mono text-xs text-slate-400 ml-2">
+                  {selectedUser.public_id || ''}
+                </span>
+              </div>
+              <div className="text-slate-500">{selectedUser.email || '—'}</div>
+              {detail?.current_championship != null && (
+                <div className="text-slate-500 mt-1 text-xs">
+                  Current global Championship: <b>{detail.current_championship}</b>
                 </div>
-              ))}
+              )}
             </div>
+
+            {detailLoading && (
+              <div className="mt-6 text-center text-slate-400 text-sm"
+                data-testid="drawer-loading">Loading progress…</div>
+            )}
+
+            {!detailLoading && edit && (
+              <div className="mt-5 space-y-5" data-testid="progress-editor">
+                {/* Championship + levels */}
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className="text-[11px] font-bold uppercase text-slate-500">
+                      Championship (1–{detail?.limits?.max_championship || 100})
+                    </span>
+                    <input type="number" min={1}
+                      max={detail?.limits?.max_championship || 100}
+                      data-testid="edit-champion-stage"
+                      value={edit.champion_stage}
+                      onChange={(e) => setEdit((p) => ({
+                        ...p, champion_stage: Number(e.target.value),
+                      }))}
+                      className="w-full mt-1 px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                  </label>
+                  <label className="block">
+                    <span className="text-[11px] font-bold uppercase text-slate-500">
+                      Current level (1–10)
+                    </span>
+                    <input type="number" min={1} max={10}
+                      data-testid="edit-current-level"
+                      value={edit.current_level}
+                      onChange={(e) => setEdit((p) => ({
+                        ...p, current_level: Number(e.target.value),
+                      }))}
+                      className="w-full mt-1 px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                  </label>
+                  <label className="block">
+                    <span className="text-[11px] font-bold uppercase text-slate-500">
+                      Highest unlocked (1–10)
+                    </span>
+                    <input type="number" min={1} max={10}
+                      data-testid="edit-highest-level"
+                      value={edit.highest_unlocked_level}
+                      onChange={(e) => setEdit((p) => ({
+                        ...p, highest_unlocked_level: Number(e.target.value),
+                      }))}
+                      className="w-full mt-1 px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                  </label>
+                </div>
+
+                {/* Completed levels */}
+                <div>
+                  <span className="text-[11px] font-bold uppercase text-slate-500">
+                    Completed levels ({edit.completed_levels.length}/10)
+                  </span>
+                  <div className="mt-2 grid grid-cols-5 gap-2" data-testid="edit-completed-grid">
+                    {Array.from({ length: 10 }, (_, i) => i + 1).map((lvl) => {
+                      const on = edit.completed_levels.includes(lvl);
+                      return (
+                        <button key={lvl} type="button"
+                          data-testid={`edit-completed-${lvl}`}
+                          onClick={() => toggleCompleted(lvl)}
+                          className={`py-2 rounded-lg text-sm font-bold border transition-colors ${
+                            on
+                              ? 'bg-[#6C2BFF] text-white border-[#6C2BFF]'
+                              : 'bg-white text-slate-600 border-slate-200 hover:border-violet-300'
+                          }`}>
+                          {lvl}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Champion ready */}
+                <label className="flex items-center justify-between rounded-xl border border-slate-200 p-3">
+                  <span className="text-sm">
+                    <span className="font-bold text-slate-900">Champion ready</span>
+                    <span className="block text-xs text-slate-500">
+                      Only enabled when all 10 levels are completed.
+                    </span>
+                  </span>
+                  <input type="checkbox"
+                    data-testid="edit-champion-ready"
+                    checked={edit.champion_ready}
+                    disabled={!allTen}
+                    onChange={(e) => setEdit((p) => ({
+                      ...p, champion_ready: e.target.checked,
+                    }))}
+                    className="w-5 h-5 accent-[#6C2BFF] disabled:opacity-40" />
+                </label>
+
+                {/* Reason */}
+                <label className="block">
+                  <span className="text-[11px] font-bold uppercase text-slate-500">
+                    Reason (optional — recorded in audit log)
+                  </span>
+                  <textarea rows={2}
+                    data-testid="edit-reason"
+                    value={editReason}
+                    onChange={(e) => setEditReason(e.target.value)}
+                    placeholder="Why are you making this change?"
+                    className="w-full mt-1 px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                </label>
+
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1" onClick={closeUser}
+                    data-testid="edit-cancel">Close</Button>
+                  <Button className="flex-1 bg-[#6C2BFF] hover:bg-[#5a22d6] text-white"
+                    disabled={saving} onClick={saveProgress}
+                    data-testid="edit-save">
+                    {saving ? 'Saving…' : 'Save changes'}
+                  </Button>
+                </div>
+
+                {/* Audit trail */}
+                <div className="pt-2 border-t border-slate-100">
+                  <h4 className="text-sm font-extrabold text-slate-900 mb-2">
+                    Audit trail
+                  </h4>
+                  {!(detail?.audit || []).length && (
+                    <div className="text-xs text-slate-400" data-testid="audit-empty">
+                      No manual edits yet.
+                    </div>
+                  )}
+                  <div className="space-y-2" data-testid="audit-list">
+                    {(detail?.audit || []).map((a, idx) => (
+                      <div key={idx}
+                        className="rounded-lg border border-slate-100 bg-slate-50 p-2 text-xs">
+                        <div className="flex justify-between text-slate-500">
+                          <span className="font-semibold text-slate-700">
+                            {a.actor_email || a.actor_user_id || 'admin'}
+                          </span>
+                          <span>{ukDate(a.created_at)}</span>
+                        </div>
+                        <div className="mt-1 text-slate-600">
+                          {(a.changes || []).map((c, i) => (
+                            <div key={i}>
+                              <b>{c.field}</b>: {JSON.stringify(c.before)} → {JSON.stringify(c.after)}
+                            </div>
+                          ))}
+                        </div>
+                        {a.reason && (
+                          <div className="mt-1 italic text-slate-500">“{a.reason}”</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

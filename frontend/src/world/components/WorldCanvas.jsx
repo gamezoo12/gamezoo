@@ -1384,6 +1384,10 @@ function ChampionshipSection({
                   championshipNumber,
                 );
 
+              const championUnlocked =
+                isCurrentChampionship &&
+                worldState?.progress?.champion_ready === true;
+
               return (
                 <button
                   key={
@@ -1410,7 +1414,7 @@ function ChampionshipSection({
                     championshipNumber
                   }
                   onClick={() => {
-                    if (isPastChampionship) {
+                    if (!championUnlocked) {
                       return;
                     }
                     window.dispatchEvent(

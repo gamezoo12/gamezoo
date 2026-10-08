@@ -30,6 +30,14 @@ Skill-based sweepstakes web app (rebranded **GameZoo â†’ Prize League** on 
 - [x] Prominent multi-path logout (header/admin/production/mobile) â€” all 4 verified working
 
 
+## Free World Admin Control — Phase 1: User Progress Manager (2026-06, iteration current)
+- Backend (`world_routes.py`, admin_router `/api/admin/world`): `GET /user-progress/{user_id}` (full progression detail + recent audit trail) and `POST /user-progress/{user_id}` (atomic partial edit). Editable: current_level, highest_unlocked_level, completed_levels, champion_stage, champion_ready.
+- Guardrails: level 1–10, championship 1–WORLD_CONTEST_COUNT(100), completed_levels ⊆ 1–10, highest_unlocked ≥ current_level, champion_ready can ONLY be true when all 10 levels completed. Violations → 422.
+- Audit: every change writes to NEW collection `world_progress_audit_log` (actor_user_id/email/role, before/after diff per field, optional reason, created_at). No prizes awarded, no scores/leaderboard/contest-entry rows touched (snapshots intact).
+- Frontend: editable drawer inside `FreeWorldAdmin.jsx` (row click → `openUser` loads detail; number inputs + 10-tile completed grid + champion-ready checkbox (disabled until all 10) + optional reason + Save; audit trail list below). `worldAdminAPI.userProgress()` / `.editUserProgress()` added to `lib/api.js`.
+- Tested: curl verified edit, all guardrails (422), champion_ready gate, audit persistence, 401 without token; reset QA user; frontend screenshot confirms editor + audit render. Reason set OPTIONAL per user. NOT deployed (preview local test_database).
+- REMAINING (user paused — low credits): Phase 3 (editable global contests + 24h auto-extension), Phase 4 (per-contest game config + attempt limits), Phase 5 (accurate activity timestamps). Also pending: attempt/token isolation gaps (champion_stage in DB keys).
+
 ## Admin Free World cleanup + Season launch-control (2026-09-14)
 - Rebuilt `frontend/src/pages/admin/FreeWorldAdmin.jsx` into 4 sections: Season Control (+ confirm "CONFIRM SEASON LAUNCH" dialog, Reschedule/Cancel while SCHEDULED), read-only 100-Championship Schedule (Europe/London), Current Championship monitor, and read-only Free World Users table + detail drawer. Removed all per-level/Champion manual editors from the UI (backend fixed 100-championship contract remains authoritative; no backend gameplay config changed).
 - Added 2 READ-ONLY admin endpoints in `backend/routers/world_routes.py`: `GET /api/admin/world/season-schedule` (derives C1–C100 from `championship_window`, optional `?preview_start`, UK-time render) and `GET /api/admin/world/users` (server-side paginated Free World progress; safe fields only — no password/token/KYC). Added `worldAdminAPI.seasonSchedule()` + `.users()` in `frontend/src/lib/api.js`.
@@ -479,3 +487,8 @@ See `/app/memory/test_credentials.md`.
 - Root cause: `_personal_champion_transition_schedule` (backend/routers/world_routes.py ~L3194) anchored BEHIND users (personal stage < active global contest, e.g. Champion 1 while global is Champion 2) to `personal_stage_started_at`, producing a wrong ~9-day Champion countdown. Live users (stage==active) correctly anchored to the active global contest `start_at`.
 - Fix: when a Global Contest is active, ALL personal Championships (live OR behind) anchor to that contest `start_at`; fallback to personal stage start only when no contest is active. One condition changed; removed 2 now-unused locals.
 - Verified: behind (C1) and live (C2) now return identical champion_opens_at/closes_at for the same Global Contest (MATCH=True); C2 output byte-identical to before; fallback intact. Not deployed.
+
+## 2026-06-28 · Champion Challenge unlock bypass fixed (minimal)
+- Root cause: POST /api/world/contest/enter (enter_world_contest, world_routes.py) created a world_contest_entries doc WITHOUT the champion_ready (Level-10) check. Once an entry existed, _ensure_champion_entry returned it and skipped its own gate, so champion_session_start let users play the Champion Challenge without completing Level 10.
+- Fix: added the same champion_ready 403 guard to enter_world_contest (contest-active window already enforced there). Frontend already gated (isCurrentChampionship && champion_ready) so no FE change.
+- Verified: ready user (admin, current_level 10) -> 200; not-ready users (champion_ready False) -> 403 CHAMPION_NOT_READY branch (identical to proven _ensure_champion_entry gate). File changed: backend/routers/world_routes.py. Not deployed.

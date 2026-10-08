@@ -576,6 +576,27 @@ async def enter_world_contest(request: Request):
             "entry": _clean_doc(existing),
         }
 
+    # Champion Challenge unlocks ONLY after the player completes Level 10 of
+    # their current Championship (champion_ready). The active-contest window is
+    # already enforced above. Mirrors the gate in _ensure_champion_entry so a
+    # premature entry can never be created and later bypass the Level-10 rule.
+    progress = await _free_world_progress(
+        db,
+        user["user_id"],
+    )
+
+    if not bool(progress.get("champion_ready", False)):
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "CHAMPION_NOT_READY",
+                "message": (
+                    "Complete the Royal Village progression before "
+                    "entering the Champion challenge."
+                ),
+            },
+        )
+
     champion_stage = await _user_champion_stage(
         db,
         user["user_id"],
@@ -1952,6 +1973,233 @@ async def admin_world_users(
         "server_time": _serialize_datetime(_utcnow()),
         "items": items,
     }
+
+
+# ===========================================================================
+# ADMIN · USER PROGRESS MANAGER (Phase 1)
+# ===========================================================================
+# Manually inspect and edit a single Free World user's progression with
+# strict guardrails, atomic writes and a full audit trail.
+#
+# Rules (NON-NEGOTIABLE):
+# - Never fabricate scores, attempts or leaderboard rows.
+# - Never auto-award prizes during a manual edit.
+# - Keep valid historical records intact (contest entries untouched).
+# - Edits are atomic and always written to `world_progress_audit_log`.
+# ===========================================================================
+
+WORLD_PROGRESS_EDITABLE_FIELDS = (
+    "current_level",
+    "highest_unlocked_level",
+    "completed_levels",
+    "champion_stage",
+    "champion_ready",
+)
+
+
+class WorldProgressEditInput(BaseModel):
+    current_level: Optional[int] = None
+    highest_unlocked_level: Optional[int] = None
+    completed_levels: Optional[list[int]] = None
+    champion_stage: Optional[int] = None
+    champion_ready: Optional[bool] = None
+    reason: Optional[str] = None
+
+
+async def _world_progress_audit(db, user_id: str, limit: int = 50):
+    rows = await db.world_progress_audit_log.find(
+        {"season_id": WORLD_SEASON_ID, "user_id": user_id},
+        {"_id": 0},
+    ).sort("created_at", -1).to_list(limit)
+    for r in rows:
+        r["created_at"] = _serialize_datetime(r.get("created_at"))
+    return rows
+
+
+@admin_router.get("/user-progress/{user_id}")
+async def admin_get_user_progress(user_id: str, request: Request):
+    """Full progression detail for a single user + recent audit trail."""
+    await require_admin(request)
+    db = get_db()
+
+    progress = await _free_world_progress(db, user_id)
+
+    user = await db.users.find_one(
+        {"user_id": user_id},
+        {"_id": 0, "user_id": 1, "name": 1, "display_name": 1,
+         "email": 1, "public_id": 1},
+    ) or {}
+
+    active = await _active_contest(db)
+    completed_levels = sorted(
+        int(x) for x in (progress.get("completed_levels") or [])
+    )
+
+    return {
+        "user": {
+            "user_id": user_id,
+            "public_id": user.get("public_id"),
+            "name": user.get("name") or user.get("display_name"),
+            "email": user.get("email"),
+        },
+        "progress": {
+            "current_level": int(progress.get("current_level") or 1),
+            "highest_unlocked_level": int(
+                progress.get("highest_unlocked_level") or 1
+            ),
+            "completed_levels": completed_levels,
+            "completed_count": len(completed_levels),
+            "champion_stage": int(progress.get("champion_stage") or 1),
+            "champion_ready": bool(progress.get("champion_ready")),
+            "qualified": bool(progress.get("qualified")),
+            "season_complete": bool(progress.get("season_complete")),
+            "updated_at": _serialize_datetime(progress.get("updated_at")),
+        },
+        "current_championship": (
+            active.get("contest_number") if active else None
+        ),
+        "limits": {
+            "max_level": 10,
+            "max_championship": WORLD_CONTEST_COUNT,
+        },
+        "audit": await _world_progress_audit(db, user_id),
+        "server_time": _serialize_datetime(_utcnow()),
+    }
+
+
+@admin_router.post("/user-progress/{user_id}")
+async def admin_edit_user_progress(
+    user_id: str,
+    payload: WorldProgressEditInput,
+    request: Request,
+):
+    """Atomically edit a user's progression under strict guardrails.
+
+    Only the fields provided in the request body are changed. Every change
+    is recorded in `world_progress_audit_log`. No prizes are awarded and no
+    contest entries / scores / leaderboard rows are touched.
+    """
+    actor = await require_admin(request)
+    db = get_db()
+
+    before = await _free_world_progress(db, user_id)
+
+    # --- Resolve the desired end state (provided fields override current) ---
+    def _cur(field, default):
+        v = getattr(payload, field)
+        return v if v is not None else before.get(field, default)
+
+    new_current = int(_cur("current_level", 1))
+    new_highest = int(_cur("highest_unlocked_level", 1))
+    new_stage = int(_cur("champion_stage", 1))
+    new_ready = bool(_cur("champion_ready", False))
+
+    if payload.completed_levels is not None:
+        new_completed = sorted(set(int(x) for x in payload.completed_levels))
+    else:
+        new_completed = sorted(
+            set(int(x) for x in (before.get("completed_levels") or []))
+        )
+
+    # --- Guardrails ---------------------------------------------------------
+    if not (1 <= new_current <= 10):
+        raise HTTPException(422, "current_level must be between 1 and 10")
+    if not (1 <= new_highest <= 10):
+        raise HTTPException(
+            422, "highest_unlocked_level must be between 1 and 10"
+        )
+    if not (1 <= new_stage <= WORLD_CONTEST_COUNT):
+        raise HTTPException(
+            422,
+            f"champion_stage must be between 1 and {WORLD_CONTEST_COUNT}",
+        )
+    for lvl in new_completed:
+        if not (1 <= lvl <= 10):
+            raise HTTPException(
+                422, "completed_levels may only contain values 1-10"
+            )
+    if new_highest < new_current:
+        raise HTTPException(
+            422,
+            "highest_unlocked_level cannot be lower than current_level",
+        )
+    # champion_ready can only be true when all 10 levels are completed.
+    if new_ready and set(new_completed) != set(range(1, 11)):
+        raise HTTPException(
+            422,
+            "champion_ready can only be enabled when levels 1-10 are all "
+            "marked completed",
+        )
+
+    # --- Build atomic $set + before/after diff ------------------------------
+    desired = {
+        "current_level": new_current,
+        "highest_unlocked_level": new_highest,
+        "completed_levels": new_completed,
+        "champion_stage": new_stage,
+        "champion_ready": new_ready,
+    }
+
+    changes = []
+    set_doc: dict[str, Any] = {}
+    for field, new_val in desired.items():
+        old_val = before.get(field)
+        if field == "completed_levels":
+            old_norm = sorted(set(int(x) for x in (old_val or [])))
+            if old_norm != new_val:
+                changes.append(
+                    {"field": field, "before": old_norm, "after": new_val}
+                )
+                set_doc[field] = new_val
+        else:
+            # normalise ints for comparison
+            if field in ("current_level", "highest_unlocked_level",
+                         "champion_stage"):
+                old_cmp = int(old_val) if old_val is not None else None
+            else:
+                old_cmp = bool(old_val)
+            if old_cmp != new_val:
+                changes.append(
+                    {"field": field, "before": old_cmp, "after": new_val}
+                )
+                set_doc[field] = new_val
+
+    if not set_doc:
+        return {
+            "updated": False,
+            "message": "No changes detected.",
+            "progress": (await admin_get_user_progress(user_id, request))[
+                "progress"
+            ],
+        }
+
+    set_doc["updated_at"] = _utcnow()
+
+    await db.world_progress.update_one(
+        {"season_id": WORLD_SEASON_ID, "user_id": user_id},
+        {"$set": set_doc},
+    )
+
+    audit_entry = {
+        "season_id": WORLD_SEASON_ID,
+        "user_id": user_id,
+        "actor_user_id": actor.get("user_id"),
+        "actor_email": actor.get("email"),
+        "actor_role": actor.get("role"),
+        "changes": changes,
+        "reason": (payload.reason or "").strip() or None,
+        "created_at": _utcnow(),
+    }
+    await db.world_progress_audit_log.insert_one(dict(audit_entry))
+
+    detail = await admin_get_user_progress(user_id, request)
+    return {
+        "updated": True,
+        "changes": changes,
+        "progress": detail["progress"],
+        "audit": detail["audit"],
+    }
+
 
 
 # ===========================================================================

@@ -382,6 +382,12 @@ export const worldAdminAPI = {
 
   users: (params = {}) =>
     api.get('/admin/world/users', { params }).then(r => r.data),
+
+  userProgress: (userId) =>
+    api.get(`/admin/world/user-progress/${userId}`).then(r => r.data),
+
+  editUserProgress: (userId, data) =>
+    api.post(`/admin/world/user-progress/${userId}`, data).then(r => r.data),
 };
 
 export const worldAPI = {
