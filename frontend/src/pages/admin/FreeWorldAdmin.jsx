@@ -122,6 +122,17 @@ export default function FreeWorldAdmin() {
   const [edit, setEdit] = useState(null);
   const [editReason, setEditReason] = useState('');
 
+  // Phase 3 · extensions
+  const [extending, setExtending] = useState(false);
+
+  // Phase 4 · per-(stage, level) attempt config
+  const [slcOverrides, setSlcOverrides] = useState([]);
+  const [slcDefault, setSlcDefault] = useState(3);
+  const [slcStage, setSlcStage] = useState('');
+  const [slcLevel, setSlcLevel] = useState('');
+  const [slcAttempts, setSlcAttempts] = useState('');
+  const [slcSaving, setSlcSaving] = useState(false);
+
   // Live countdown to C1 open (server-authoritative base + local ticking).
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [serverOffset, setServerOffset] = useState(0);
@@ -349,6 +360,97 @@ export default function FreeWorldAdmin() {
     }
   };
 
+  const extendContest = async (number) => {
+    setExtending(true);
+    try {
+      const res = await worldAdminAPI.extendContest(number, 1);
+      toast({
+        title: `Championship ${number} extended +24h`,
+        description: 'Downstream championships shifted automatically.',
+      });
+      await loadCore();
+    } catch (e) {
+      const d = e?.response?.data?.detail;
+      toast({
+        title: 'Extend failed',
+        description: (typeof d === 'string' ? d : d?.message) || 'Please retry.',
+        variant: 'destructive',
+      });
+    } finally {
+      setExtending(false);
+    }
+  };
+
+  const resetExtensions = async () => {
+    if (!window.confirm('Clear all championship extensions? Schedules revert to the base calendar.')) return;
+    setExtending(true);
+    try {
+      await worldAdminAPI.resetExtensions();
+      toast({ title: 'Extensions cleared' });
+      await loadCore();
+    } catch (e) {
+      toast({ title: 'Reset failed', variant: 'destructive' });
+    } finally {
+      setExtending(false);
+    }
+  };
+
+  const loadStageLevelConfig = useCallback(async () => {
+    try {
+      const res = await worldAdminAPI.stageLevelConfig();
+      setSlcOverrides(res.overrides || []);
+      setSlcDefault(res.default_free_attempts ?? 3);
+    } catch (e) {
+      // non-blocking
+    }
+  }, []);
+
+  useEffect(() => { loadStageLevelConfig(); }, [loadStageLevelConfig]);
+
+  const saveStageLevelConfig = async () => {
+    const stage = Number(slcStage);
+    const level = Number(slcLevel);
+    const attempts = Number(slcAttempts);
+    if (!(stage >= 1 && stage <= 100) || !(level >= 1 && level <= 10) ||
+        !(attempts >= 0 && attempts <= 20)) {
+      toast({
+        title: 'Check your inputs',
+        description: 'Championship 1–100, Level 1–10, attempts 0–20.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setSlcSaving(true);
+    try {
+      await worldAdminAPI.setStageLevelConfig({
+        champion_stage: stage,
+        level,
+        initial_free_attempts: attempts,
+      });
+      toast({ title: `Override set for C${stage} L${level}` });
+      setSlcStage(''); setSlcLevel(''); setSlcAttempts('');
+      await loadStageLevelConfig();
+    } catch (e) {
+      toast({ title: 'Failed to set override', variant: 'destructive' });
+    } finally {
+      setSlcSaving(false);
+    }
+  };
+
+  const clearStageLevelConfig = async (stage, level) => {
+    try {
+      await worldAdminAPI.setStageLevelConfig({
+        champion_stage: stage,
+        level,
+        initial_free_attempts: null,
+      });
+      toast({ title: `Override cleared for C${stage} L${level}` });
+      await loadStageLevelConfig();
+    } catch (e) {
+      toast({ title: 'Failed to clear override', variant: 'destructive' });
+    }
+  };
+
   return (
     <div className="space-y-6" data-testid="free-world-admin">
       {/* Header */}
@@ -488,10 +590,24 @@ export default function FreeWorldAdmin() {
           <h2 className="font-extrabold text-lg text-slate-900">
             Season Schedule — 100 Championships
           </h2>
-          <span className="text-xs text-slate-400">
-            {schedule?.scheduled ? 'Scheduled' : 'Preview'} · times Europe/London
-          </span>
+          <div className="flex items-center gap-3">
+            {Object.keys(schedule?.championship_extensions || {}).length > 0 && (
+              <Button variant="outline" size="sm" onClick={resetExtensions}
+                disabled={extending}
+                data-testid="reset-extensions-btn">
+                Reset extensions
+              </Button>
+            )}
+            <span className="text-xs text-slate-400">
+              {schedule?.scheduled ? 'Scheduled' : 'Preview'} · times Europe/London
+            </span>
+          </div>
         </div>
+        <p className="text-xs text-slate-500 mb-3 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+          Extending a championship by 24h pushes its Champion close later and
+          automatically shifts every later championship by the same amount.
+          The live scheduler applies the new end time within ~60 seconds.
+        </p>
         <div className="overflow-auto max-h-[420px] rounded-xl border border-slate-100"
           data-testid="season-schedule-table">
           <table className="w-full text-sm">
@@ -502,7 +618,9 @@ export default function FreeWorldAdmin() {
                 <th className="text-left px-3 py-2">L10 start</th>
                 <th className="text-left px-3 py-2">Champion open</th>
                 <th className="text-left px-3 py-2">Champion close</th>
+                <th className="text-left px-3 py-2">Ext</th>
                 <th className="text-left px-3 py-2">Status</th>
+                <th className="text-left px-3 py-2"></th>
               </tr>
             </thead>
             <tbody>
@@ -515,12 +633,106 @@ export default function FreeWorldAdmin() {
                   <td className="px-3 py-2">{ukDate(c.l10_start)}</td>
                   <td className="px-3 py-2">{ukDate(c.champion_opens_at)}</td>
                   <td className="px-3 py-2">{ukDate(c.champion_closes_at)}</td>
+                  <td className="px-3 py-2">
+                    {c.extension_days > 0 ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[11px] font-bold"
+                        data-testid={`schedule-ext-${c.championship_number}`}>
+                        +{c.extension_days}d
+                      </span>
+                    ) : <span className="text-slate-300">—</span>}
+                  </td>
                   <td className="px-3 py-2"><StatusPill status={c.status} /></td>
+                  <td className="px-3 py-2">
+                    {c.status !== 'completed' && (
+                      <Button variant="outline" size="sm"
+                        disabled={extending}
+                        onClick={() => extendContest(c.championship_number)}
+                        data-testid={`extend-btn-${c.championship_number}`}>
+                        +24h
+                      </Button>
+                    )}
+                  </td>
                 </tr>
               ))}
               {!(schedule?.championships || []).length && (
-                <tr><td colSpan={6} className="px-3 py-6 text-center text-slate-400">
+                <tr><td colSpan={8} className="px-3 py-6 text-center text-slate-400">
                   No schedule available.
+                </td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* PART 2.5 — PER-CHAMPIONSHIP+LEVEL ATTEMPT CONFIG (Phase 4) */}
+      <section className="rounded-2xl border border-slate-200 bg-white p-5"
+        data-testid="section-stage-level-config">
+        <h2 className="font-extrabold text-lg text-slate-900 flex items-center gap-2 mb-1">
+          <Trophy className="w-5 h-5 text-[#6C2BFF]" /> Per-Championship Attempt Limits
+        </h2>
+        <p className="text-xs text-slate-500 mb-4">
+          Override the free-attempt allowance for a specific Championship + Level.
+          Leave unset to use the default ({slcDefault} free attempts).
+        </p>
+        <div className="flex flex-wrap items-end gap-3 mb-4">
+          <label className="block">
+            <span className="text-[11px] font-bold uppercase text-slate-500">Championship</span>
+            <input type="number" min={1} max={100} value={slcStage}
+              onChange={(e) => setSlcStage(e.target.value)}
+              data-testid="slc-stage"
+              className="w-28 mt-1 px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+          </label>
+          <label className="block">
+            <span className="text-[11px] font-bold uppercase text-slate-500">Level (1–10)</span>
+            <input type="number" min={1} max={10} value={slcLevel}
+              onChange={(e) => setSlcLevel(e.target.value)}
+              data-testid="slc-level"
+              className="w-24 mt-1 px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+          </label>
+          <label className="block">
+            <span className="text-[11px] font-bold uppercase text-slate-500">Free attempts</span>
+            <input type="number" min={0} max={20} value={slcAttempts}
+              onChange={(e) => setSlcAttempts(e.target.value)}
+              data-testid="slc-attempts"
+              className="w-28 mt-1 px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+          </label>
+          <Button className="bg-[#6C2BFF] hover:bg-[#5a22d6] text-white"
+            disabled={slcSaving} onClick={saveStageLevelConfig}
+            data-testid="slc-save">
+            {slcSaving ? 'Saving…' : 'Set override'}
+          </Button>
+        </div>
+        <div className="overflow-auto rounded-xl border border-slate-100">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-slate-500 text-[11px] uppercase">
+              <tr>
+                <th className="text-left px-3 py-2">Championship</th>
+                <th className="text-left px-3 py-2">Level</th>
+                <th className="text-left px-3 py-2">Free attempts</th>
+                <th className="text-left px-3 py-2"></th>
+              </tr>
+            </thead>
+            <tbody data-testid="slc-list">
+              {(slcOverrides || []).map((o) => (
+                <tr key={`${o.champion_stage}-${o.level}`}
+                  className="border-t border-slate-100"
+                  data-testid={`slc-row-${o.champion_stage}-${o.level}`}>
+                  <td className="px-3 py-2 font-bold">C{o.champion_stage}</td>
+                  <td className="px-3 py-2">L{o.level}</td>
+                  <td className="px-3 py-2">{o.initial_free_attempts}</td>
+                  <td className="px-3 py-2">
+                    <Button variant="outline" size="sm"
+                      onClick={() => clearStageLevelConfig(o.champion_stage, o.level)}
+                      data-testid={`slc-clear-${o.champion_stage}-${o.level}`}>
+                      Clear
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+              {!(slcOverrides || []).length && (
+                <tr><td colSpan={4} className="px-3 py-6 text-center text-slate-400"
+                  data-testid="slc-empty">
+                  No overrides — all championships use the default.
                 </td></tr>
               )}
             </tbody>
@@ -701,6 +913,23 @@ export default function FreeWorldAdmin() {
               {detail?.current_championship != null && (
                 <div className="text-slate-500 mt-1 text-xs">
                   Current global Championship: <b>{detail.current_championship}</b>
+                </div>
+              )}
+              {detail?.user && (
+                <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]"
+                  data-testid="user-activity">
+                  <div className="rounded-lg bg-white border border-slate-100 p-2">
+                    <div className="uppercase text-slate-400 font-bold">Last login</div>
+                    <div className="text-slate-700 mt-0.5">{ukDate(detail.user.last_login_at)}</div>
+                  </div>
+                  <div className="rounded-lg bg-white border border-slate-100 p-2">
+                    <div className="uppercase text-slate-400 font-bold">Last visit</div>
+                    <div className="text-slate-700 mt-0.5">{ukDate(detail.user.last_visit_at)}</div>
+                  </div>
+                  <div className="rounded-lg bg-white border border-slate-100 p-2">
+                    <div className="uppercase text-slate-400 font-bold">Last play</div>
+                    <div className="text-slate-700 mt-0.5">{ukDate(detail.user.last_gameplay_at)}</div>
+                  </div>
                 </div>
               )}
             </div>

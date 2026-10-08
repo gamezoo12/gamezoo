@@ -539,6 +539,13 @@ async def tick_free_world(
         )
     )
 
+    extensions = (
+        setting.get(
+            "championship_extensions"
+        )
+        or {}
+    )
+
     if not season_start:
         # Existing installations may have an active contest
         # but have not yet been launched through the new
@@ -555,6 +562,7 @@ async def tick_free_world(
         championship_for_time(
             season_start,
             now,
+            extensions,
         )
     )
 
@@ -737,6 +745,7 @@ async def tick_free_world(
             championship_window(
                 season_start,
                 previous,
+                extensions,
             )
         )
 

@@ -101,6 +101,32 @@ def _serialize_datetime(value):
     return value
 
 
+# ---------------------------------------------------------------------------
+# Phase 5 · Server-authoritative Free World activity tracking.
+# Stores last login / visit / gameplay timestamps on the user document.
+# Fire-and-forget: never blocks the caller and never raises on failure.
+# ---------------------------------------------------------------------------
+WORLD_ACTIVITY_FIELDS = {
+    "login": "fw_last_login_at",
+    "visit": "fw_last_visit_at",
+    "gameplay": "fw_last_gameplay_at",
+}
+
+
+async def _touch_world_activity(db, user_id: str, kind: str):
+    field = WORLD_ACTIVITY_FIELDS.get(kind)
+    if not user_id or not field:
+        return
+    try:
+        now = datetime.now(timezone.utc)
+        await db.users.update_one(
+            {"user_id": user_id},
+            {"$set": {field: now, "fw_last_activity_at": now}},
+        )
+    except Exception:
+        pass
+
+
 def _clean_doc(doc: Optional[dict]) -> Optional[dict]:
     if not doc:
         return None
@@ -354,14 +380,36 @@ async def ensure_world_indexes():
         name="world_champion_stage_counter_unique",
     )
 
+    # Token-retry entitlements are personal to each Champion stage so an
+    # unused purchased retry from Championship N cannot leak into N+1.
+    # Drop the legacy season/user/level-only unique index first.
+    try:
+        await db.world_token_retry_daily.drop_index(
+            "world_token_retry_daily_unique"
+        )
+    except Exception:
+        pass
+
     await db.world_token_retry_daily.create_index(
         [
             ("season_id", 1),
             ("user_id", 1),
+            ("champion_stage", 1),
             ("level", 1),
         ],
         unique=True,
         name="world_token_retry_daily_unique",
+    )
+
+    # Phase 4 per-(champion_stage, level) attempt-config overrides.
+    await db.world_stage_level_config.create_index(
+        [
+            ("season_id", 1),
+            ("champion_stage", 1),
+            ("level", 1),
+        ],
+        unique=True,
+        name="world_stage_level_config_unique",
     )
 
     # Every paid retry gets its own reservation.
@@ -1787,6 +1835,7 @@ async def admin_world_season_schedule(
     scheduled_start = _ensure_aware_datetime(
         (setting or {}).get("season_start_at")
     )
+    extensions = (setting or {}).get("championship_extensions") or {}
 
     season_start = scheduled_start
     source = "scheduled" if scheduled_start else None
@@ -1817,7 +1866,7 @@ async def admin_world_season_schedule(
 
     championships = []
     for number in range(1, WORLD_CONTEST_COUNT + 1):
-        w = championship_window(season_start, number)
+        w = championship_window(season_start, number, extensions)
         start_at = ensure_utc(w["start_at"])
         close_at = ensure_utc(w["champion_closes_at"])
         next_start = w.get("next_start_at")
@@ -1846,6 +1895,9 @@ async def admin_world_season_schedule(
             ),
             "champion_closes_at": _serialize_datetime(close_at),
             "next_start_at": _serialize_datetime(next_start),
+            "extension_days": int(
+                extensions.get(str(number), extensions.get(number, 0)) or 0
+            ),
             "status": status,
         })
 
@@ -1858,10 +1910,206 @@ async def admin_world_season_schedule(
         "season_start_at": _serialize_datetime(season_start),
         "server_time": _serialize_datetime(now),
         "championship_count": WORLD_CONTEST_COUNT,
+        "championship_extensions": {
+            str(k): int(v) for k, v in extensions.items()
+        },
         "active_championship_number": (
             active.get("contest_number") if active else None
         ),
         "championships": championships,
+    }
+
+
+@admin_router.post("/contest/{contest_number}/extend")
+async def admin_world_extend_contest(
+    contest_number: int,
+    request: Request,
+    days: int = 1,
+):
+    """Phase 3 · Extend a championship by `days` (default 1 = 24h).
+
+    The extension cascades: every championship AFTER this one shifts later
+    by the same amount automatically (schedule is derived from the stored
+    extension map). The live scheduler re-activates the current contest with
+    the new end time on its next tick. Audited.
+    """
+    admin = await require_admin(request)
+    db = get_db()
+
+    if contest_number < 1 or contest_number > WORLD_CONTEST_COUNT:
+        raise HTTPException(404, "Championship not found.")
+    days = int(days)
+    if days < 1 or days > 30:
+        raise HTTPException(422, "days must be between 1 and 30.")
+
+    setting = await db.world_settings.find_one(
+        {"_id": "active_global_contest", "season_id": WORLD_SEASON_ID}
+    )
+    if not setting or not setting.get("season_start_at"):
+        raise HTTPException(
+            409, "Season is not launched yet; nothing to extend."
+        )
+
+    extensions = dict(setting.get("championship_extensions") or {})
+    key = str(contest_number)
+    before = int(extensions.get(key, extensions.get(contest_number, 0)) or 0)
+    after = min(60, before + days)
+    extensions.pop(contest_number, None)
+    extensions[key] = after
+
+    await db.world_settings.update_one(
+        {"_id": "active_global_contest", "season_id": WORLD_SEASON_ID},
+        {"$set": {
+            "championship_extensions": extensions,
+            "updated_at": _utcnow(),
+            "updated_by": admin.get("user_id"),
+        }},
+    )
+
+    await db.world_progress_audit_log.insert_one({
+        "season_id": WORLD_SEASON_ID,
+        "scope": "contest_extension",
+        "contest_number": contest_number,
+        "actor_user_id": admin.get("user_id"),
+        "actor_email": admin.get("email"),
+        "changes": [{
+            "field": f"championship_{contest_number}_extension_days",
+            "before": before,
+            "after": after,
+        }],
+        "reason": f"Extended championship {contest_number} by {days} day(s)",
+        "created_at": _utcnow(),
+    })
+
+    season_start = _ensure_aware_datetime(setting.get("season_start_at"))
+    new_window = championship_window(
+        season_start, contest_number, extensions
+    )
+    return {
+        "contest_number": contest_number,
+        "extension_days": after,
+        "new_champion_closes_at": _serialize_datetime(
+            ensure_utc(new_window["champion_closes_at"])
+        ),
+        "championship_extensions": {
+            str(k): int(v) for k, v in extensions.items()
+        },
+        "note": (
+            "Downstream championships shifted automatically. The live "
+            "scheduler applies the new end time within ~60 seconds."
+        ),
+    }
+
+
+@admin_router.post("/contest-extensions/reset")
+async def admin_world_reset_extensions(request: Request):
+    """Phase 3 · Clear all manual championship extensions."""
+    admin = await require_admin(request)
+    db = get_db()
+    setting = await db.world_settings.find_one(
+        {"_id": "active_global_contest", "season_id": WORLD_SEASON_ID}
+    )
+    before = dict((setting or {}).get("championship_extensions") or {})
+    await db.world_settings.update_one(
+        {"_id": "active_global_contest", "season_id": WORLD_SEASON_ID},
+        {"$set": {
+            "championship_extensions": {},
+            "updated_at": _utcnow(),
+            "updated_by": admin.get("user_id"),
+        }},
+    )
+    if before:
+        await db.world_progress_audit_log.insert_one({
+            "season_id": WORLD_SEASON_ID,
+            "scope": "contest_extension",
+            "actor_user_id": admin.get("user_id"),
+            "actor_email": admin.get("email"),
+            "changes": [{
+                "field": "championship_extensions",
+                "before": {str(k): int(v) for k, v in before.items()},
+                "after": {},
+            }],
+            "reason": "Reset all championship extensions",
+            "created_at": _utcnow(),
+        })
+    return {"championship_extensions": {}, "cleared": bool(before)}
+
+
+class StageLevelConfigInput(BaseModel):
+    champion_stage: int = Field(..., ge=1, le=WORLD_CONTEST_COUNT)
+    level: int = Field(..., ge=1, le=10)
+    initial_free_attempts: Optional[int] = Field(default=None, ge=0, le=20)
+
+
+@admin_router.get("/stage-level-config")
+async def admin_get_stage_level_config(request: Request):
+    """Phase 4 · List all per-(champion_stage, level) attempt-limit
+    overrides. Absent entries fall back to the global level config."""
+    await require_admin(request)
+    db = get_db()
+    rows = await db.world_stage_level_config.find(
+        {"season_id": WORLD_SEASON_ID}, {"_id": 0},
+    ).sort([("champion_stage", 1), ("level", 1)]).to_list(2000)
+    for r in rows:
+        r["updated_at"] = _serialize_datetime(r.get("updated_at"))
+    return {"overrides": rows, "default_free_attempts": 3}
+
+
+@admin_router.put("/stage-level-config")
+async def admin_set_stage_level_config(
+    payload: StageLevelConfigInput,
+    request: Request,
+):
+    """Phase 4 · Create/update/clear a per-(stage, level) free-attempt
+    override. Passing initial_free_attempts=null clears the override."""
+    admin = await require_admin(request)
+    db = get_db()
+
+    key = {
+        "season_id": WORLD_SEASON_ID,
+        "champion_stage": int(payload.champion_stage),
+        "level": int(payload.level),
+    }
+
+    if payload.initial_free_attempts is None:
+        await db.world_stage_level_config.delete_one(key)
+        action = "cleared"
+    else:
+        await db.world_stage_level_config.update_one(
+            key,
+            {"$set": {
+                **key,
+                "initial_free_attempts": int(payload.initial_free_attempts),
+                "updated_at": _utcnow(),
+                "updated_by": admin.get("user_id"),
+            }},
+            upsert=True,
+        )
+        action = "set"
+
+    await db.world_progress_audit_log.insert_one({
+        "season_id": WORLD_SEASON_ID,
+        "scope": "stage_level_config",
+        "champion_stage": int(payload.champion_stage),
+        "level": int(payload.level),
+        "actor_user_id": admin.get("user_id"),
+        "actor_email": admin.get("email"),
+        "changes": [{
+            "field": "initial_free_attempts",
+            "after": payload.initial_free_attempts,
+        }],
+        "reason": (
+            f"{action} free-attempt override for C"
+            f"{payload.champion_stage} L{payload.level}"
+        ),
+        "created_at": _utcnow(),
+    })
+
+    return {
+        "action": action,
+        "champion_stage": int(payload.champion_stage),
+        "level": int(payload.level),
+        "initial_free_attempts": payload.initial_free_attempts,
     }
 
 
@@ -1928,7 +2176,9 @@ async def admin_world_users(
     if user_ids:
         for u in await db.users.find(
             {"user_id": {"$in": user_ids}},
-            {"_id": 0, "user_id": 1, "name": 1, "email": 1, "public_id": 1},
+            {"_id": 0, "user_id": 1, "name": 1, "email": 1, "public_id": 1,
+             "fw_last_login_at": 1, "fw_last_visit_at": 1,
+             "fw_last_gameplay_at": 1},
         ).to_list(len(user_ids)):
             users_map[u["user_id"]] = u
 
@@ -1962,6 +2212,11 @@ async def admin_world_users(
             "qualified": bool(r.get("qualified")),
             "winner_status": r.get("winner_status"),
             "last_activity": _serialize_datetime(r.get("updated_at")),
+            "last_login_at": _serialize_datetime(u.get("fw_last_login_at")),
+            "last_visit_at": _serialize_datetime(u.get("fw_last_visit_at")),
+            "last_gameplay_at": _serialize_datetime(
+                u.get("fw_last_gameplay_at")
+            ),
         })
 
     return {
@@ -2027,7 +2282,8 @@ async def admin_get_user_progress(user_id: str, request: Request):
     user = await db.users.find_one(
         {"user_id": user_id},
         {"_id": 0, "user_id": 1, "name": 1, "display_name": 1,
-         "email": 1, "public_id": 1},
+         "email": 1, "public_id": 1, "fw_last_login_at": 1,
+         "fw_last_visit_at": 1, "fw_last_gameplay_at": 1},
     ) or {}
 
     active = await _active_contest(db)
@@ -2041,6 +2297,11 @@ async def admin_get_user_progress(user_id: str, request: Request):
             "public_id": user.get("public_id"),
             "name": user.get("name") or user.get("display_name"),
             "email": user.get("email"),
+            "last_login_at": _serialize_datetime(user.get("fw_last_login_at")),
+            "last_visit_at": _serialize_datetime(user.get("fw_last_visit_at")),
+            "last_gameplay_at": _serialize_datetime(
+                user.get("fw_last_gameplay_at")
+            ),
         },
         "progress": {
             "current_level": int(progress.get("current_level") or 1),
@@ -3597,6 +3858,7 @@ async def _assert_world_level_available(
 async def _effective_level_config(
     db,
     level: int,
+    champion_stage: Optional[int] = None,
 ) -> dict:
     """
     Active GLOBAL contest determines the game/config every user
@@ -3604,6 +3866,10 @@ async def _effective_level_config(
 
     If there is no active global contest, retain the original
     Royal Village defaults so development/local World still works.
+
+    Phase 4: when `champion_stage` is supplied, an admin per-(stage, level)
+    override in `world_stage_level_config` can further override the
+    `initial_free_attempts` for that specific Championship + Level only.
     """
 
     default = _default_world_level_config(
@@ -3707,6 +3973,31 @@ async def _effective_level_config(
         merged["initial_free_attempts"] = max(0, int(_ifa))
     except (TypeError, ValueError):
         merged["initial_free_attempts"] = 3
+
+    # Phase 4: per-(champion_stage, level) admin override wins over the
+    # global level config for the free-attempt allowance ONLY.
+    if champion_stage is not None:
+        try:
+            stage_override = await db.world_stage_level_config.find_one(
+                {
+                    "season_id": WORLD_SEASON_ID,
+                    "champion_stage": int(champion_stage),
+                    "level": int(level),
+                },
+                {"_id": 0},
+            )
+        except Exception:
+            stage_override = None
+        if stage_override and (
+            stage_override.get("initial_free_attempts") is not None
+        ):
+            try:
+                merged["initial_free_attempts"] = max(
+                    0, int(stage_override["initial_free_attempts"])
+                )
+                merged["stage_level_override"] = True
+            except (TypeError, ValueError):
+                pass
 
     return merged
 
@@ -3907,8 +4198,8 @@ async def _free_attempt_counter(
     user_id: str,
     level: int,
 ):
-    config = await _effective_level_config(db, level)
     champion_stage = await _user_champion_stage(db, user_id)
+    config = await _effective_level_config(db, level, champion_stage)
 
     counter = await db.world_attempt_counters.find_one(
         {
@@ -4353,6 +4644,9 @@ async def _free_attempt_status(
 
                 "user_id":
                     user_id,
+
+                "champion_stage":
+                    champion_stage,
 
                 "level":
                     level,
@@ -4879,6 +5173,9 @@ async def _consume_world_attempt(
                 "user_id":
                     user_id,
 
+                "champion_stage":
+                    await _user_champion_stage(db, user_id),
+
                 "level":
                     level,
 
@@ -4963,6 +5260,7 @@ async def free_world_state(
             db,
             user["user_id"],
         )
+        await _touch_world_activity(db, user["user_id"], "visit")
     else:
         # Public viewing state only.
         # No guest progress is created or persisted.
@@ -5754,6 +6052,8 @@ async def free_world_session_submit(
             detail="World game session not found.",
         )
 
+    await _touch_world_activity(db, user["user_id"], "gameplay")
+
     if session.get("status") == "submitted":
         raise HTTPException(
             status_code=409,
@@ -6455,11 +6755,13 @@ async def _champion_attempt_status(
                 int(counter.get("attempts_remaining", initial_attempts)),
             )
 
-    # Shared Champion token-retry entitlement (sentinel level 0).
+    # Champion token-retry entitlement (sentinel level 0), isolated per
+    # personal Champion stage so retries never leak across championships.
     champion_retry = await db.world_token_retry_daily.find_one(
         {
             "season_id": WORLD_SEASON_ID,
             "user_id": user_id,
+            "champion_stage": stage,
             "level": 0,
         },
         {"_id": 0},
@@ -6560,11 +6862,12 @@ async def _consume_champion_stage2_attempt(
     if scoped is not None:
         return max(0, int(scoped.get("attempts_remaining", 0)))
 
-    # 2. PURCHASED CHAMPION RETRY (shared level-0 entitlement)
+    # 2. PURCHASED CHAMPION RETRY (level-0 entitlement, isolated per stage)
     paid = await db.world_token_retry_daily.find_one_and_update(
         {
             "season_id": WORLD_SEASON_ID,
             "user_id": user_id,
+            "champion_stage": stage,
             "level": 0,
             "entitlement_remaining": {"$gt": 0},
         },
@@ -6731,6 +7034,9 @@ async def _consume_champion_attempt(
 
             "user_id":
                 user_id,
+
+            "champion_stage":
+                stage,
 
             "level":
                 0,
@@ -7127,6 +7433,9 @@ async def champion_session_start(
 
             "user_id":
                 user["user_id"],
+
+            "champion_stage":
+                await _user_champion_stage(db, user["user_id"]),
 
             "level":
                 0,
@@ -7568,6 +7877,8 @@ async def champion_session_submit(
                 "Champion session not found."
             ),
         )
+
+    await _touch_world_activity(db, user["user_id"], "gameplay")
 
     if (
         session.get("status")
@@ -8436,6 +8747,10 @@ async def reserve_world_token_retry(
 
     now = _utcnow()
 
+    # Isolate the entitlement holder per personal Champion stage so a
+    # purchased retry can never be used in a different championship.
+    reserve_champion_stage = await _user_champion_stage(db, user_id)
+
     holder_filter = {
         "season_id":
             WORLD_SEASON_ID,
@@ -8443,11 +8758,14 @@ async def reserve_world_token_retry(
         "user_id":
             user_id,
 
+        "champion_stage":
+            reserve_champion_stage,
+
         "level":
             level,
     }
 
-    # Ensure the one-per-user/level entitlement holder exists.
+    # Ensure the one-per-user/stage/level entitlement holder exists.
     await db.world_token_retry_daily.update_one(
         holder_filter,
         {
@@ -8457,6 +8775,9 @@ async def reserve_world_token_retry(
 
                 "user_id":
                     user_id,
+
+                "champion_stage":
+                    reserve_champion_stage,
 
                 "level":
                     level,

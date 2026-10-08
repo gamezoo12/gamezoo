@@ -284,6 +284,15 @@ async def login(inp: LoginInput):
         raise HTTPException(status_code=401, detail='Invalid email or password')
     if user.get('suspended'):
         raise HTTPException(status_code=403, detail='This account has been suspended. Please contact support.')
+    try:
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        await db.users.update_one(
+            {'user_id': user['user_id']},
+            {'$set': {'fw_last_login_at': now, 'fw_last_activity_at': now}},
+        )
+    except Exception:
+        pass
     token = create_jwt(user['user_id'])
     return {
         'user': _to_public(user),

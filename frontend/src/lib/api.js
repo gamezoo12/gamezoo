@@ -388,6 +388,20 @@ export const worldAdminAPI = {
 
   editUserProgress: (userId, data) =>
     api.post(`/admin/world/user-progress/${userId}`, data).then(r => r.data),
+
+  extendContest: (number, days = 1) =>
+    api.post(`/admin/world/contest/${number}/extend`, null, {
+      params: { days },
+    }).then(r => r.data),
+
+  resetExtensions: () =>
+    api.post('/admin/world/contest-extensions/reset').then(r => r.data),
+
+  stageLevelConfig: () =>
+    api.get('/admin/world/stage-level-config').then(r => r.data),
+
+  setStageLevelConfig: (data) =>
+    api.put('/admin/world/stage-level-config', data).then(r => r.data),
 };
 
 export const worldAPI = {
