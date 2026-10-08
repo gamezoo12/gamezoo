@@ -118,7 +118,7 @@ export default function WorldAlertPopup() {
   // Compact card popup (swipe / skip / click to open).
   return (
     <div
-      className="fixed top-20 left-1/2 z-[120] w-[92%] max-w-sm -translate-x-1/2"
+      className="fixed top-[124px] left-1/2 z-[120] w-[92%] max-w-sm -translate-x-1/2"
       data-testid="world-alert-popup"
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}

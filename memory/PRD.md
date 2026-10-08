@@ -1,5 +1,10 @@
 # Prize League â€” PRD
 
+## Free World announcement-bar overlap — REAL root cause fixed (2026-06)
+- ROOT CAUSE: `/world` resolves with a trailing slash (`/world/`), so `isFreeWorldHeader` (`=== '/world'`) was always FALSE → the dedicated fixed Free World header never activated and the global promo `AnnouncementTicker` rendered over the fixed-fullscreen map (`.pl-world-page`, position:fixed inset:0), hiding the notification popup, level nodes and content. Earlier "spacer" fix did nothing because the map is position:fixed and ignores normal flow.
+- FIX (frontend only): `Header.jsx` `isFreeWorldHeader` now matches `'/world'` || `'/world/'`; global `AnnouncementTicker` no longer renders on the Free World map (the map has its own branded `pl-world-promo-ticker-top`). `WorldAlertPopup.jsx` popup moved to `top-[124px]` so it always clears header + ticker.
+- Verified in preview (desktop + evaluate): popupTop=124 ≥ tickerBottom=97 (noOverlap=True); Free World header (prize pot/tokens/profile) active, single branded ticker, level nodes/£500 FAB/bottom nav all visible. NOT deployed.
+
 ## Admin per-user SMS consent control (2026-06, abc fast-fix)
 - NEW `POST /api/admin/users/{user_id}/sms-consent` (`user360_routes.py`, admin/super_admin, audited `admin_sms_consent_change`): grant sets `sms_consent=true`, `sms_consent_at`, `sms_consent_source='admin'`, clears `sms_opt_out`; revoke sets false. This is the missing piece that lets an admin make winners / legacy verified-phone users eligible for Admin Alert SMS (e.g. winner greetings) without running a script.
 - Frontend `UserDetailsPage.jsx`: new **SMS Alerts Consent** card (Grant/Revoke button, Granted/Not-granted pill, opt-out note) next to Email/Phone Verification. `adminAPI.setUserSmsConsent` added to `lib/api.js`.
