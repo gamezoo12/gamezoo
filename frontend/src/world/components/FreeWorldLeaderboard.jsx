@@ -87,6 +87,17 @@ export default function FreeWorldLeaderboard({ open, onClose }) {
 
   useEffect(() => { if (open) load(champN); }, [open, champN, load]);
 
+  // Live rankings: while the leaderboard is open and the tab is visible, pull
+  // fresh standings every 15s so positions update automatically without a
+  // manual refresh. Pauses when the panel is closed or the tab is hidden.
+  useEffect(() => {
+    if (!open) return undefined;
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') load(champN);
+    }, 15000);
+    return () => clearInterval(id);
+  }, [open, champN, load]);
+
   useEffect(() => {
     if (!open) return undefined;
     const onKey = (e) => { if (e.key === 'Escape') { if (showMult) setShowMult(false); else onClose?.(); } };

@@ -1,5 +1,15 @@
 # Prize League â€” PRD
 
+## App speed, smooth nav & live updates (2026-06)
+Measured bottleneck: backend fast (APIs 0.1–0.3s); nav already SPA (React Router). Real cause = frontend had ZERO code-splitting (78 static imports, one giant bundle) + heavy `/world` (WorldCanvas ~3,400 lines) mounting with no loading placeholder. Notifications polled only every 30s.
+Implemented (frontend only, no logic/score/prize changes, no new deps):
+- Code-splitting: `App.js` route components converted to `React.lazy`; `<Routes>` wrapped in `<Suspense>` with a lightweight branded `RouteLoader` spinner (CSS in App.css). Layouts, wrappers and `AuthCallback` kept eager. Result: `/world` fresh render 2.59s → 1.66s; admin/public/world chunks all load.
+- Prefetch: `WorldSelector` and `FreeWorldLanding` warm the heavy `PrizeLeagueWorld` chunk on mount so the map opens instantly.
+- Notifications (`NotificationsBell.jsx`): poll 30s → 12s, visibility-aware (pauses when hidden), refresh on tab focus and on `pl-notifications-refresh` event; timestamps now `Europe/London`.
+- In-world popup (`WorldAlertPopup.jsx`): now gently polls (20s, visibility-aware, de-duped via `seenIds`) so NEW admin alerts appear without refresh; only ever shows the small top card (never force-opens full-screen) so it can't interrupt a game; dismiss marks read server-side (no repeat) and dispatches `pl-notifications-refresh` to sync the bell; timestamps `Europe/London`.
+- Live leaderboard (`FreeWorldLeaderboard.jsx`): polls every 15s while open + visible so rankings update automatically.
+Verified in preview (screenshots + compile): world/admin/public routes render, Free World faster, no console errors, announcement-bar alignment intact. NOT deployed (awaiting explicit approval).
+
 ## Free World real-time sync + timezone + Last Activity accuracy (2026-06)
 Root causes (traced + verified in preview):
 - 1h-behind timestamps: `_serialize_datetime` called `.isoformat()` on Motor's naive (UTC) datetimes → no offset → browser parsed as local (BST) → 1h behind. FIX: tag naive datetimes as UTC so ISO carries `+00:00`. No historical data touched.

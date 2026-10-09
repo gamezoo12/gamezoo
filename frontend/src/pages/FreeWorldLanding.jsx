@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useEffect } from 'react';
 import {
   Trophy, Gamepad2, CalendarDays, Crown, Sparkles, ArrowRight, CheckCircle2,
 } from 'lucide-react';
@@ -44,6 +45,12 @@ const STEPS = [
 ];
 
 export default function FreeWorldLanding() {
+  // Warm the heavy Free World map chunk while the user reads the landing page
+  // so tapping "Play" opens the map instantly.
+  useEffect(() => {
+    import('../world/PrizeLeagueWorld');
+  }, []);
+
   useSeo({
     title: 'Free Skill Games & Prize Competitions UK | Free World \u2013 Prize League',
     description:

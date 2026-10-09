@@ -23,8 +23,23 @@ export default function NotificationsBell() {
   useEffect(() => {
     if (!user) { setItems([]); setUnread(0); return undefined; }
     load();
-    const t = setInterval(load, 30000);
-    return () => clearInterval(t);
+    // Lightweight auto-update: poll every 12s, but only while the tab is
+    // visible (pauses in background to save requests), and refresh instantly
+    // when the tab regains focus or another part of the app signals activity.
+    const POLL_MS = 12000;
+    const t = setInterval(() => {
+      if (document.visibilityState === 'visible') load();
+    }, POLL_MS);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') load();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('pl-notifications-refresh', load);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('pl-notifications-refresh', load);
+    };
   }, [user, load]);
 
   useEffect(() => {
@@ -87,7 +102,7 @@ export default function NotificationsBell() {
                     <div className="min-w-0">
                       <div className="text-sm font-semibold text-slate-900">{n.title}</div>
                       <div className="text-xs text-slate-500 mt-0.5">{n.body}</div>
-                      <div className="text-[10px] text-slate-400 mt-1">{new Date(n.created_at).toLocaleString('en-GB')}</div>
+                      <div className="text-[10px] text-slate-400 mt-1">{new Date(n.created_at).toLocaleString('en-GB', { timeZone: 'Europe/London' })}</div>
                     </div>
                   </div>
                 </li>

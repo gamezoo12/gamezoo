@@ -22,26 +22,57 @@ export default function WorldAlertPopup() {
   const [current, setCurrent] = useState(null);
   const [expanded, setExpanded] = useState(false);
   const touchStartX = useRef(null);
+  const seenIds = useRef(new Set());
+  const currentRef = useRef(null);
+  const queueRef = useRef([]);
+  useEffect(() => { currentRef.current = current; }, [current]);
+  useEffect(() => { queueRef.current = queue; }, [queue]);
 
-  // Load unread admin alerts when a user enters a world. Keyed on the stable
-  // user id so unrelated re-renders of the parent world page never re-run or
-  // cancel this; it fetches once per session entry and does not re-queue after
-  // the user has dismissed the alerts (so it won't interrupt a later game).
+  // Load unread admin alerts when a user enters a world, then keep checking
+  // gently (every 20s, only while the tab is visible) so a NEW alert sent by
+  // an admin appears automatically without a refresh. De-duped via seenIds so
+  // the same alert never re-queues, and it only ever shows the small top card
+  // (never force-opens the full-screen detail), so it cannot interrupt a game.
   useEffect(() => {
     const uid = user?.user_id;
     if (!uid) return undefined;
     let active = true;
-    userAPI.notifications(true)
-      .then(({ notifications }) => {
+
+    const fetchAlerts = async () => {
+      try {
+        const { notifications } = await userAPI.notifications(true);
         if (!active) return;
-        const alerts = (notifications || []).filter(
+        const unreadAlerts = (notifications || []).filter(
           (n) => n.kind === 'admin_alert' && !n.read,
         );
-        setQueue(alerts.slice(1));
-        setCurrent(alerts[0] || null);
-      })
-      .catch(() => {});
-    return () => { active = false; };
+        const fresh = unreadAlerts.filter(
+          (n) => !seenIds.current.has(n.notification_id),
+        );
+        if (fresh.length === 0) return;
+        fresh.forEach((n) => seenIds.current.add(n.notification_id));
+        if (currentRef.current) {
+          setQueue((prev) => [...prev, ...fresh]);
+        } else {
+          const [first, ...rest] = fresh;
+          setCurrent(first || null);
+          setQueue((prev) => [...prev, ...rest]);
+        }
+      } catch { /* best effort */ }
+    };
+
+    fetchAlerts();
+    const t = setInterval(() => {
+      if (document.visibilityState === 'visible') fetchAlerts();
+    }, 20000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') fetchAlerts();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      active = false;
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [user?.user_id]);
 
   const advance = useCallback(() => {
@@ -58,6 +89,8 @@ export default function WorldAlertPopup() {
     setExpanded(false);
     if (id) {
       try { await userAPI.markNotificationRead(id); } catch { /* keep going */ }
+      // Let the header bell update its unread count immediately.
+      window.dispatchEvent(new CustomEvent('pl-notifications-refresh'));
     }
     advance();
   }, [current, advance]);
@@ -73,7 +106,7 @@ export default function WorldAlertPopup() {
   if (!user || !current) return null;
 
   const dateStr = current.created_at
-    ? new Date(current.created_at).toLocaleString('en-GB')
+    ? new Date(current.created_at).toLocaleString('en-GB', { timeZone: 'Europe/London' })
     : '';
 
   // Full-screen detail view.

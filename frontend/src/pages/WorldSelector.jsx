@@ -5,6 +5,13 @@ import '../styles/worldSelector.css';
 export default function WorldSelector() {
   const navigate = useNavigate();
 
+  // Prefetch the heavy world chunks while the user is choosing, so the map
+  // opens instantly on click instead of downloading its chunk first.
+  React.useEffect(() => {
+    import('../world/PrizeLeagueWorld');
+    import('./Home');
+  }, []);
+
   const enterPaid = () => {
     navigate('/paid-leagues');
   };

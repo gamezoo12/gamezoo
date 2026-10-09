@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
 import './App.css';
 
 import { Toaster } from './components/ui/toaster';
@@ -13,78 +14,96 @@ import PromotionFloatingBadge from './components/PromotionFloatingBadge';
 
 import PublicLayout from './components/layout/PublicLayout';
 
-import Home from './pages/Home';
-import Competitions from './pages/Competitions';
-import CompetitionDetail from './pages/CompetitionDetail';
-import WinnersReveal from './pages/WinnersReveal';
-import Winners from './pages/Winners';
-import DrawCentre from './pages/DrawCentre';
-import Stories from './pages/Stories';
-import FAQ from './pages/FAQ';
-import Login from './pages/Login';
-import ForgotPassword from './pages/ForgotPassword';
-import MyAccount from './pages/MyAccount';
-import Cart from './pages/Cart';
+const Home = lazy(() => import('./pages/Home'));
+const Competitions = lazy(() => import('./pages/Competitions'));
+const CompetitionDetail = lazy(() => import('./pages/CompetitionDetail'));
+const WinnersReveal = lazy(() => import('./pages/WinnersReveal'));
+const Winners = lazy(() => import('./pages/Winners'));
+const DrawCentre = lazy(() => import('./pages/DrawCentre'));
+const Stories = lazy(() => import('./pages/Stories'));
+const FAQ = lazy(() => import('./pages/FAQ'));
+const Login = lazy(() => import('./pages/Login'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const MyAccount = lazy(() => import('./pages/MyAccount'));
+const Cart = lazy(() => import('./pages/Cart'));
 import CartErrorBoundary from './components/CartErrorBoundary';
 import AuthCallback from './pages/AuthCallback';
-import FreeEntry from './pages/FreeEntry';
-import VerifyFeed from './pages/VerifyFeed';
-import AdminLogin from './pages/AdminLogin';
-import PromotionPage from './pages/PromotionPage';
+const FreeEntry = lazy(() => import('./pages/FreeEntry'));
+const VerifyFeed = lazy(() => import('./pages/VerifyFeed'));
+const AdminLogin = lazy(() => import('./pages/AdminLogin'));
+const PromotionPage = lazy(() => import('./pages/PromotionPage'));
 
 import AdminLayout from './components/admin/AdminLayout';
-import AdminDashboard from './pages/admin/Dashboard';
-import AdminUsers from './pages/admin/UsersPage';
-import AdminAlerts from './pages/admin/AlertsAdmin';
-import AdminCompetitions from './pages/admin/CompetitionsAdmin';
-import AdminOrders from './pages/admin/OrdersPage';
-import AdminWinners from './pages/admin/WinnersAdmin';
-import WinnerSelectionAdmin from './pages/admin/WinnerSelectionAdmin';
-import AdminAnalytics from './pages/admin/AnalyticsPage';
-import AcquisitionAdmin from './pages/admin/AcquisitionAdmin';
+const AdminDashboard = lazy(() => import('./pages/admin/Dashboard'));
+const AdminUsers = lazy(() => import('./pages/admin/UsersPage'));
+const AdminAlerts = lazy(() => import('./pages/admin/AlertsAdmin'));
+const AdminCompetitions = lazy(() => import('./pages/admin/CompetitionsAdmin'));
+const AdminOrders = lazy(() => import('./pages/admin/OrdersPage'));
+const AdminWinners = lazy(() => import('./pages/admin/WinnersAdmin'));
+const WinnerSelectionAdmin = lazy(() => import('./pages/admin/WinnerSelectionAdmin'));
+const AdminAnalytics = lazy(() => import('./pages/admin/AnalyticsPage'));
+const AcquisitionAdmin = lazy(() => import('./pages/admin/AcquisitionAdmin'));
 import AcquisitionTracker from './components/AcquisitionTracker';
-import AdminKyc from './pages/admin/KycPage';
-import AdminPayments from './pages/admin/PaymentsPage';
-import AdminSettings from './pages/admin/SettingsPage';
-import AdminRoles from './pages/admin/RolesPage';
-import AdminWallets from './pages/admin/WalletAdmin';
-import AdminGames from './pages/admin/GamesAdmin';
-import AdminAuditLogs from './pages/admin/AuditLogsPage';
-import AdminLegalDocs from './pages/admin/LegalDocsAdmin';
-import CompanySettingsAdmin from './pages/admin/CompanySettings';
-import PostalEntriesAdmin from './pages/admin/PostalEntriesAdmin';
-import UserDetailsPage from './pages/admin/UserDetailsPage';
-import ReferralsBonusesAdmin from './pages/admin/ReferralsBonusesAdmin';
-import FreeWorldAdmin from './pages/admin/FreeWorldAdmin';
-import WinningsPayoutsAdmin from './pages/admin/WinningsPayoutsAdmin';
-import CashOutAdmin from './pages/admin/CashOutAdmin';
-import PromotionAdminShell from './pages/admin/PromotionAdminShell';
-import PromotionDrawStudio from './pages/admin/PromotionDrawStudio';
+const AdminKyc = lazy(() => import('./pages/admin/KycPage'));
+const AdminPayments = lazy(() => import('./pages/admin/PaymentsPage'));
+const AdminSettings = lazy(() => import('./pages/admin/SettingsPage'));
+const AdminRoles = lazy(() => import('./pages/admin/RolesPage'));
+const AdminWallets = lazy(() => import('./pages/admin/WalletAdmin'));
+const AdminGames = lazy(() => import('./pages/admin/GamesAdmin'));
+const AdminAuditLogs = lazy(() => import('./pages/admin/AuditLogsPage'));
+const AdminLegalDocs = lazy(() => import('./pages/admin/LegalDocsAdmin'));
+const CompanySettingsAdmin = lazy(() => import('./pages/admin/CompanySettings'));
+const PostalEntriesAdmin = lazy(() => import('./pages/admin/PostalEntriesAdmin'));
+const UserDetailsPage = lazy(() => import('./pages/admin/UserDetailsPage'));
+const ReferralsBonusesAdmin = lazy(() => import('./pages/admin/ReferralsBonusesAdmin'));
+const FreeWorldAdmin = lazy(() => import('./pages/admin/FreeWorldAdmin'));
+const WinningsPayoutsAdmin = lazy(() => import('./pages/admin/WinningsPayoutsAdmin'));
+const CashOutAdmin = lazy(() => import('./pages/admin/CashOutAdmin'));
+const PromotionAdminShell = lazy(() => import('./pages/admin/PromotionAdminShell'));
+const PromotionDrawStudio = lazy(() => import('./pages/admin/PromotionDrawStudio'));
 
-import LegalDocPage from './pages/legal/LegalDocPage';
-import PlayGame from './pages/PlayGame';
-import GameArena from './pages/GameArena';
-import GamePreview from './pages/GamePreview';
-import ContestLeaderboard from './pages/ContestLeaderboard';
-import LeaderboardIndex from './pages/LeaderboardIndex';
-import HowItWorksPage from './pages/HowItWorks';
-import ReferPage from './pages/ReferPage';
-import TermsPage from './pages/legal/TermsPage';
-import PrivacyPage from './pages/legal/PrivacyPage';
-import WebsiteTermsPage from './pages/legal/WebsiteTermsPage';
-import MobileTermsPage from './pages/legal/MobileTermsPage';
+const LegalDocPage = lazy(() => import('./pages/legal/LegalDocPage'));
+const PlayGame = lazy(() => import('./pages/PlayGame'));
+const GameArena = lazy(() => import('./pages/GameArena'));
+const GamePreview = lazy(() => import('./pages/GamePreview'));
+const ContestLeaderboard = lazy(() => import('./pages/ContestLeaderboard'));
+const LeaderboardIndex = lazy(() => import('./pages/LeaderboardIndex'));
+const HowItWorksPage = lazy(() => import('./pages/HowItWorks'));
+const ReferPage = lazy(() => import('./pages/ReferPage'));
+const TermsPage = lazy(() => import('./pages/legal/TermsPage'));
+const PrivacyPage = lazy(() => import('./pages/legal/PrivacyPage'));
+const WebsiteTermsPage = lazy(() => import('./pages/legal/WebsiteTermsPage'));
+const MobileTermsPage = lazy(() => import('./pages/legal/MobileTermsPage'));
 
-import PrizeLeagueWorld from './world/PrizeLeagueWorld';
-import WorldPreview from './world/WorldPreview';
-import WorldSelector from './pages/WorldSelector';
-import FreeWorldLanding from './pages/FreeWorldLanding';
-import SpecialChallenge from './pages/SpecialChallenge';
+const PrizeLeagueWorld = lazy(() => import('./world/PrizeLeagueWorld'));
+const WorldPreview = lazy(() => import('./world/WorldPreview'));
+const WorldSelector = lazy(() => import('./pages/WorldSelector'));
+const FreeWorldLanding = lazy(() => import('./pages/FreeWorldLanding'));
+const SpecialChallenge = lazy(() => import('./pages/SpecialChallenge'));
 
 import ProductionLayout from './components/admin/ProductionLayout';
-import LiveDrawPage from './pages/production/LiveDraw';
-import PrizeInventory from './pages/production/PrizeInventory';
-import OperationsPage from './pages/production/Operations';
-import WinnersFeed from './pages/production/WinnersFeed';
+const LiveDrawPage = lazy(() => import('./pages/production/LiveDraw'));
+const PrizeInventory = lazy(() => import('./pages/production/PrizeInventory'));
+const OperationsPage = lazy(() => import('./pages/production/Operations'));
+const WinnersFeed = lazy(() => import('./pages/production/WinnersFeed'));
+
+
+function RouteLoader() {
+  return (
+    <div
+      data-testid="route-loader"
+      style={{
+        minHeight: '60vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'transparent',
+      }}
+    >
+      <div className="pl-route-spinner" aria-label="Loading" role="status" />
+    </div>
+  );
+}
 
 
 function AppRouter() {
@@ -102,6 +121,7 @@ function AppRouter() {
   }
 
   return (
+    <Suspense fallback={<RouteLoader />}>
     <Routes>
 
       {/* =========================
@@ -555,6 +575,7 @@ function AppRouter() {
       </Route>
 
     </Routes>
+    </Suspense>
   );
 }
 
