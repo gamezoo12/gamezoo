@@ -1,5 +1,18 @@
 # Prize League â€” PRD
 
+## Free World real-time sync + timezone + Last Activity accuracy (2026-06)
+Root causes (traced + verified in preview):
+- 1h-behind timestamps: `_serialize_datetime` called `.isoformat()` on Motor's naive (UTC) datetimes → no offset → browser parsed as local (BST) → 1h behind. FIX: tag naive datetimes as UTC so ISO carries `+00:00`. No historical data touched.
+- Admin not auto-updating: no WebSocket/SSE/polling; only a 1s countdown clock. FIX: visibility-aware ~7s polling of the Free World users list in `FreeWorldAdmin.jsx` (silent, preserves search/filter/pagination/sort; pauses when tab hidden; refreshes on tab focus).
+- "Last Activity" looked stale after Champion play: admin column read `world_progress.updated_at` (only changes on level progression). FIX: `admin_world_users` now returns `last_activity = fw_last_activity_at` (fallback `updated_at`). `_touch_world_activity` switched to `$max` (monotonic — slow/old requests can't lower it) and is now also fired on level `session/begin` and `champion/session/begin` (already on visit + both gameplay submits).
+- UK display consistency: admin UserDetailsPage timestamps now format with `timeZone:'Europe/London'` (FreeWorldAdmin already used `ukDate`). GMT/BST handled automatically by the browser.
+
+Files: `backend/routers/world_routes.py` (`_serialize_datetime`, `_touch_world_activity`, `admin_world_users` projection+last_activity, begin endpoints); `frontend/src/pages/admin/FreeWorldAdmin.jsx` (polling); `frontend/src/pages/admin/UserDetailsPage.jsx` (Europe/London).
+
+Verified in preview (curl + screenshot): all admin timestamps carry `+00:00`; Last Activity shows correct UK time (20:34 UTC → 21:34 BST); session begin bumped PL20001 last_activity within ~1s; GMT(Jan)/BST(Jul) correct; admin page loads with polling; player frontend already refetches `worldAPI.state()` after completion via `pl-world-progress-refresh`.
+NOT changed: game logic, scores, prizes, progression rules. NOT deployed (awaiting explicit user approval).
+LIMITATION: PL10062 is a production account absent from the preview DB — code path verified with preview account PL20001; PL10062's production record was NOT inspected from here.
+
 ## Free World announcement-bar overlap — aligned WITHOUT changing the bar (2026-06)
 - Requirement: keep the announcement bar + header exactly as original; just stop Free World content from hiding under the bar (map nodes/games, notification popup, and the Free World leaderboard).
 - Approach (frontend only, no bar/header redesign): `PrizeLeagueWorld.jsx` measures the real `[data-testid=site-header]` height at runtime (mount + resize) and sets CSS var `--pl-topbar-h`. `world.css` `.pl-world-page` and `pl-global-lb.css` `.pl-global-lb-shell` now use `top: var(--pl-topbar-h, 113px)` so the map and the Free World leaderboard start just below the bar. `WorldAlertPopup.jsx` popup at `top-[124px]`.

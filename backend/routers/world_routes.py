@@ -97,6 +97,11 @@ def _utcnow():
 
 def _serialize_datetime(value):
     if isinstance(value, datetime):
+        # MongoDB/Motor returns naive datetimes that represent UTC. Tag them as
+        # UTC so the ISO string carries an explicit offset (+00:00); otherwise
+        # the browser parses it as local time and displays it 1h off in BST.
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
         return value.isoformat()
     return value
 
@@ -119,9 +124,11 @@ async def _touch_world_activity(db, user_id: str, kind: str):
         return
     try:
         now = datetime.now(timezone.utc)
+        # $max keeps the timestamp monotonic: a slow/out-of-order request can
+        # never overwrite a newer last-activity value with an older one.
         await db.users.update_one(
             {"user_id": user_id},
-            {"$set": {field: now, "fw_last_activity_at": now}},
+            {"$max": {field: now, "fw_last_activity_at": now}},
         )
     except Exception:
         pass
@@ -2178,7 +2185,7 @@ async def admin_world_users(
             {"user_id": {"$in": user_ids}},
             {"_id": 0, "user_id": 1, "name": 1, "email": 1, "public_id": 1,
              "fw_last_login_at": 1, "fw_last_visit_at": 1,
-             "fw_last_gameplay_at": 1},
+             "fw_last_gameplay_at": 1, "fw_last_activity_at": 1},
         ).to_list(len(user_ids)):
             users_map[u["user_id"]] = u
 
@@ -2211,7 +2218,9 @@ async def admin_world_users(
             "champion_ready": bool(r.get("champion_ready")),
             "qualified": bool(r.get("qualified")),
             "winner_status": r.get("winner_status"),
-            "last_activity": _serialize_datetime(r.get("updated_at")),
+            "last_activity": _serialize_datetime(
+                u.get("fw_last_activity_at") or r.get("updated_at")
+            ),
             "last_login_at": _serialize_datetime(u.get("fw_last_login_at")),
             "last_visit_at": _serialize_datetime(u.get("fw_last_visit_at")),
             "last_gameplay_at": _serialize_datetime(
@@ -5869,6 +5878,7 @@ async def free_world_session_begin(
     """
     user = await get_current_user(request)
     db = get_db()
+    await _touch_world_activity(db, user["user_id"], "gameplay")
 
     session = await db.world_game_sessions.find_one(
         {
@@ -7674,6 +7684,7 @@ async def champion_session_begin(
     )
 
     db = get_db()
+    await _touch_world_activity(db, user["user_id"], "gameplay")
 
     session = await db.world_champion_sessions.find_one(
         {

@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -216,6 +217,48 @@ export default function FreeWorldAdmin() {
 
   useEffect(() => { loadCore(); }, [loadCore]);
   useEffect(() => { loadUsers(); }, [loadUsers]);
+
+  // Silent background refresh (no spinner) for the auto-poller: updates the
+  // table in place without flicker, preserving current filters/search/page.
+  const loadUsersSilent = useCallback(async () => {
+    try {
+      const params = { page, page_size: 25 };
+      if (search.trim()) params.search = search.trim();
+      if (levelFilter) params.level = Number(levelFilter);
+      if (completedFilter) params.completed = completedFilter === 'yes';
+      if (championFilter === 'yes') params.champion = true;
+      const res = await worldAdminAPI.users(params);
+      setUsers(res.items || []);
+      setUsersMeta({
+        page: res.page,
+        total: res.total,
+        total_pages: res.total_pages,
+      });
+    } catch {
+      // Silent: transient poll failures must not disrupt the admin.
+    }
+  }, [page, search, levelFilter, completedFilter, championFilter]);
+
+  const loadUsersSilentRef = useRef(loadUsersSilent);
+  useEffect(() => { loadUsersSilentRef.current = loadUsersSilent; }, [loadUsersSilent]);
+
+  // Visibility-aware polling (~7s): admin sees progress/activity within
+  // seconds without manual refresh. Pauses while the tab is hidden and
+  // refreshes immediately when it becomes visible again.
+  useEffect(() => {
+    const POLL_MS = 7000;
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') loadUsersSilentRef.current();
+    }, POLL_MS);
+    const onVis = () => {
+      if (document.visibilityState === 'visible') loadUsersSilentRef.current();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, []);
 
   const activeSched = useMemo(
     () => (schedule?.championships || []).find(

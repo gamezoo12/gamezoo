@@ -521,7 +521,7 @@ function ProfileManagementCard({ userId, identity, onReload }) {
                 Phone verified:{' '}
                 {new Date(
                   identity.phone_verified_at
-                ).toLocaleString('en-GB')}
+                ).toLocaleString('en-GB', { timeZone: 'Europe/London' })}
               </div>
             )}
 
@@ -530,7 +530,7 @@ function ProfileManagementCard({ userId, identity, onReload }) {
                 Email verified:{' '}
                 {new Date(
                   identity.email_verified_at
-                ).toLocaleString('en-GB')}
+                ).toLocaleString('en-GB', { timeZone: 'Europe/London' })}
               </div>
             )}
           </div>
@@ -670,7 +670,7 @@ export default function UserDetailsPage() {
             <div className="flex"><dt className="w-32 text-slate-500">Username</dt><dd>{identity.username || '—'}</dd></div>
             <div className="flex"><dt className="w-32 text-slate-500">DOB</dt><dd>{identity.dob || '—'}</dd></div>
             <div className="flex"><dt className="w-32 text-slate-500">Address</dt><dd className="flex-1">{identity.address || '—'}</dd></div>
-            <div className="flex"><dt className="w-32 text-slate-500">Joined</dt><dd>{identity.created_at ? new Date(identity.created_at).toLocaleString('en-GB') : '—'}</dd></div>
+            <div className="flex"><dt className="w-32 text-slate-500">Joined</dt><dd>{identity.created_at ? new Date(identity.created_at).toLocaleString('en-GB', { timeZone: 'Europe/London' }) : '—'}</dd></div>
             <div className="flex"><dt className="w-32 text-slate-500">KYC status</dt><dd>{kyc?.status || 'none'}</dd></div>
           </dl>
         </Section>
@@ -754,7 +754,7 @@ export default function UserDetailsPage() {
               {signup_bonus?.granted_at && (
                 <div className="flex justify-between gap-3">
                   <span className="text-slate-500">Granted at</span>
-                  <span>{new Date(signup_bonus.granted_at).toLocaleString('en-GB')}</span>
+                  <span>{new Date(signup_bonus.granted_at).toLocaleString('en-GB', { timeZone: 'Europe/London' })}</span>
                 </div>
               )}
 
@@ -941,7 +941,7 @@ export default function UserDetailsPage() {
                   <div className="flex justify-between"><dt className="text-slate-500">Skipped (this stage)</dt><dd className="font-semibold">{(world.progress.skipped_levels || []).join(', ') || '—'}</dd></div>
                   <div className="flex justify-between"><dt className="text-slate-500">Champion ready</dt><dd className="font-semibold">{world.progress.champion_ready ? 'Yes' : 'No'}</dd></div>
                   <div className="flex justify-between"><dt className="text-slate-500">Season complete</dt><dd className="font-semibold">{world.progress.season_complete ? 'Yes' : 'No'}</dd></div>
-                  <div className="flex justify-between"><dt className="text-slate-500">Last updated</dt><dd>{world.progress.updated_at ? new Date(world.progress.updated_at).toLocaleString('en-GB') : '—'}</dd></div>
+                  <div className="flex justify-between"><dt className="text-slate-500">Last updated</dt><dd>{world.progress.updated_at ? new Date(world.progress.updated_at).toLocaleString('en-GB', { timeZone: 'Europe/London' }) : '—'}</dd></div>
                 </dl>
               )}
 
@@ -952,7 +952,7 @@ export default function UserDetailsPage() {
                     {world.level_skips.map((s, i) => (
                       <div key={i} className="flex items-center justify-between border-b border-slate-100 py-1">
                         <span>C{s.champion_stage} · Level {s.level}</span>
-                        <span className="text-slate-400">{s.skipped_at ? new Date(s.skipped_at).toLocaleString('en-GB') : '—'}</span>
+                        <span className="text-slate-400">{s.skipped_at ? new Date(s.skipped_at).toLocaleString('en-GB', { timeZone: 'Europe/London' }) : '—'}</span>
                       </div>
                     ))}
                   </div>
@@ -973,7 +973,7 @@ export default function UserDetailsPage() {
                     <div key={a.attempt_id || i} className="flex items-center justify-between border-b border-slate-100 py-1.5 gap-2">
                       <div>
                         <div className="font-semibold">Level {a.level} · <span className="text-slate-500">{a.source || 'attempt'}</span></div>
-                        <div className="text-slate-400">{a.created_at ? new Date(a.created_at).toLocaleString('en-GB') : '—'}</div>
+                        <div className="text-slate-400">{a.created_at ? new Date(a.created_at).toLocaleString('en-GB', { timeZone: 'Europe/London' }) : '—'}</div>
                       </div>
                       <div className="text-right shrink-0">
                         <span className={`px-2 py-0.5 rounded-full font-bold ${a.passed === true ? 'bg-emerald-100 text-emerald-700' : a.passed === false ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-500'}`}>
@@ -1000,7 +1000,7 @@ export default function UserDetailsPage() {
                     <div key={i} className="flex items-center justify-between border-b border-slate-100 py-1.5 gap-2">
                       <div>
                         <div className="font-semibold">Championship {w.global_contest_number} · Rank {w.rank}</div>
-                        <div className="text-slate-400">{(w.paid_at || w.frozen_at) ? new Date(w.paid_at || w.frozen_at).toLocaleString('en-GB') : '—'}</div>
+                        <div className="text-slate-400">{(w.paid_at || w.frozen_at) ? new Date(w.paid_at || w.frozen_at).toLocaleString('en-GB', { timeZone: 'Europe/London' }) : '—'}</div>
                       </div>
                       <div className="text-right shrink-0">
                         <div className="font-bold text-emerald-700">{gbp(w.winning_amount || 0)}</div>
@@ -1029,7 +1029,7 @@ export default function UserDetailsPage() {
                         <div className="font-semibold">
                           {t.kind === 'level_unlock' ? 'Early unlock' : 'Retry'} · C{t.champion_stage ?? '—'} L{t.level ?? '—'}
                         </div>
-                        <div className="text-slate-400">{t.at ? new Date(t.at).toLocaleString('en-GB') : '—'}</div>
+                        <div className="text-slate-400">{t.at ? new Date(t.at).toLocaleString('en-GB', { timeZone: 'Europe/London' }) : '—'}</div>
                       </div>
                       <div className="text-right shrink-0">
                         <div className="font-bold text-amber-700">{t.token_cost ?? 1} 🪙</div>
@@ -1051,7 +1051,7 @@ export default function UserDetailsPage() {
           <ul className="text-xs space-y-1 max-h-52 overflow-y-auto">
             {admin_actions.map((a, i) => (
               <li key={i} className="flex gap-2">
-                <span className="text-slate-400 shrink-0">{new Date(a.at).toLocaleString('en-GB')}</span>
+                <span className="text-slate-400 shrink-0">{new Date(a.at).toLocaleString('en-GB', { timeZone: 'Europe/London' })}</span>
                 <span className="font-semibold">{a.kind}</span>
                 <span className="text-slate-500">by {a.admin_email}</span>
                 {a.reason && <span className="text-slate-500 truncate">— {a.reason}</span>}
