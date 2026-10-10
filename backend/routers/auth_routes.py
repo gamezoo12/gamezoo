@@ -207,6 +207,9 @@ async def register(inp: RegisterInput, request: Request):
         phone_verified_at=datetime.now(timezone.utc),
         sms_consent=bool(inp.sms_consent),
         sms_consent_at=(datetime.now(timezone.utc) if inp.sms_consent else None),
+        marketing_email_consent=bool(inp.marketing_email_consent),
+        marketing_email_consent_at=(datetime.now(timezone.utc) if inp.marketing_email_consent else None),
+        marketing_email_consent_source=('registration' if inp.marketing_email_consent else None),
         dob=inp.dob,
         address=(inp.address or None),
         terms_accepted_at=datetime.now(timezone.utc),
@@ -553,6 +556,7 @@ class GoogleFinalizeInput(BaseModel):
     address: Optional[str] = None
     referral_code: Optional[str] = None
     sms_consent: bool = False
+    marketing_email_consent: bool = False
 
 
 @router.post('/google/finalize')
@@ -593,6 +597,10 @@ async def finalize_google_signup(inp: GoogleFinalizeInput, request: Request):
         _fin_set['sms_consent_at'] = datetime.now(timezone.utc)
     else:
         _fin_set['sms_consent'] = False
+    _fin_set['marketing_email_consent'] = bool(inp.marketing_email_consent)
+    if inp.marketing_email_consent:
+        _fin_set['marketing_email_consent_at'] = datetime.now(timezone.utc)
+        _fin_set['marketing_email_consent_source'] = 'google_registration'
     await db.users.update_one(
         {'user_id': user['user_id']},
         {'$set': _fin_set},
