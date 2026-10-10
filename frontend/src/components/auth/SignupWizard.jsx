@@ -56,6 +56,7 @@ export default function SignupWizard() {
     referralCode: '',
     accept_terms: false,
     sms_consent: false,
+    marketing_email_consent: false,
   });
 
   // Preserve referral / influencer acquisition code during signup.
@@ -377,6 +378,7 @@ export default function SignupWizard() {
                 .toUpperCase()
             : null,
         sms_consent: !!data.sms_consent,
+        marketing_email_consent: !!data.marketing_email_consent,
       };
 
       const result = await authAPI.register(
@@ -995,6 +997,11 @@ export default function SignupWizard() {
               Champion Levels, contests, prizes, winners and promotions. I can
               withdraw my consent at any time. <span className="text-slate-400">(Optional)</span>
             </span>
+          </label>
+
+          <label className="flex items-start gap-3 cursor-pointer select-none py-2" data-testid="signup-email-marketing-consent-label">
+            <Checkbox data-testid="signup-email-marketing-consent" checked={data.marketing_email_consent} onCheckedChange={(value) => set('marketing_email_consent', !!value)} className="mt-0.5" />
+            <span className="text-sm text-slate-700">I agree to receive marketing emails from Prize League about competitions, prizes, special offers and promotions. I can unsubscribe at any time. <span className="text-slate-400">(Optional)</span></span>
           </label>
 
           <Button
