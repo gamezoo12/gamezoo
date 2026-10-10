@@ -197,6 +197,10 @@ class User(BaseModel):
     sms_consent: bool = False
     sms_consent_at: Optional[datetime] = None
     sms_opt_out: bool = False
+    marketing_email_consent: bool = False
+    marketing_email_consent_at: Optional[datetime] = None
+    marketing_email_consent_source: Optional[str] = None
+    marketing_email_unsubscribed: bool = False
     dob: Optional[str] = None  # ISO date YYYY-MM-DD
     address: Optional[str] = None
     terms_accepted_at: Optional[datetime] = None
@@ -220,6 +224,8 @@ class UserPublic(BaseModel):
     sms_consent: bool = False
     sms_consent_at: Optional[datetime] = None
     sms_opt_out: bool = False
+    marketing_email_consent: bool = False
+    marketing_email_consent_at: Optional[datetime] = None
     dob: Optional[str] = None
     address: Optional[str] = None
     terms_accepted_at: Optional[datetime] = None
@@ -241,6 +247,7 @@ class RegisterInput(BaseModel):
     address: Optional[str] = None
     referral_code: Optional[str] = None
     sms_consent: bool = False
+    marketing_email_consent: bool = False
 
 
 class LoginInput(BaseModel):
