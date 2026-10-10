@@ -2172,22 +2172,43 @@ async def admin_world_users(
 
     total = await db.world_progress.count_documents(query)
 
-    rows = await db.world_progress.find(
-        query, {"_id": 0}
-    ).sort("updated_at", -1).skip(
-        (page - 1) * page_size
-    ).to_list(page_size)
-
+    # Sort by actual activity before pagination; retain the existing fields.
+    pipeline = [
+        {"$match": query},
+        {"$lookup": {"from": "users", "localField": "user_id",
+                     "foreignField": "user_id", "as": "account"}},
+        {"$unwind": {"path": "$account", "preserveNullAndEmptyArrays": True}},
+        {"$addFields": {"activity_sort": {"$ifNull": [
+            "$account.fw_last_activity_at", "$updated_at"]}}},
+        {"$sort": {"activity_sort": -1, "user_id": 1}},
+        {"$skip": (page - 1) * page_size},
+        {"$limit": page_size},
+        {"$project": {"_id": 0, "account._id": 0}},
+    ]
+    rows = await db.world_progress.aggregate(pipeline).to_list(page_size)
     user_ids = [r.get("user_id") for r in rows if r.get("user_id")]
-    users_map: dict[str, dict] = {}
+    users_map = {r.get("user_id"): r.get("account") or {} for r in rows}
+    level_counts, champion_counts = {}, {}
     if user_ids:
-        for u in await db.users.find(
-            {"user_id": {"$in": user_ids}},
-            {"_id": 0, "user_id": 1, "name": 1, "email": 1, "public_id": 1,
-             "fw_last_login_at": 1, "fw_last_visit_at": 1,
-             "fw_last_gameplay_at": 1, "fw_last_activity_at": 1},
-        ).to_list(len(user_ids)):
-            users_map[u["user_id"]] = u
+        for record in await db.world_level_attempts.aggregate([
+            {"$match": {"season_id": WORLD_SEASON_ID,
+                        "user_id": {"$in": user_ids}}},
+            {"$group": {"_id": {"user_id": "$user_id", "level": "$level"},
+                        "count": {"$sum": 1}}},
+        ]).to_list(None):
+            key = record["_id"]
+            if key.get("level") is not None:
+                level_counts.setdefault(key["user_id"], {})[str(key["level"])] = record["count"]
+        for record in await db.world_champion_sessions.aggregate([
+            {"$match": {"season_id": WORLD_SEASON_ID,
+                        "user_id": {"$in": user_ids}, "begun_at": {"$ne": None}}},
+            {"$group": {"_id": {"user_id": "$user_id",
+                                "contest": "$global_contest_number"},
+                        "count": {"$sum": 1}}},
+        ]).to_list(None):
+            key = record["_id"]
+            if key.get("contest") is not None:
+                champion_counts.setdefault(key["user_id"], {})[str(key["contest"])] = record["count"]
 
     active = await _active_contest(db)
     active_number = active.get("contest_number") if active else None
@@ -2201,7 +2222,15 @@ async def admin_world_users(
             continue
         if completed is False and is_completed:
             continue
+        uid = r.get("user_id")
+        per_level = level_counts.get(uid, {})
+        per_contest = champion_counts.get(uid, {})
         items.append({
+            "level_attempts_by_level": per_level,
+            "level_attempts_total": sum(per_level.values()),
+            "champion_attempts_by_contest": per_contest,
+            "champion_attempts_total": sum(per_contest.values()),
+            "total_attempts": sum(per_level.values()) + sum(per_contest.values()),
             "user_id": r.get("user_id"),
             "public_id": u.get("public_id"),
             "name": u.get("name") or u.get("display_name"),

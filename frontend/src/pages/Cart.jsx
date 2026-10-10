@@ -194,8 +194,8 @@ export default function Cart() {
           : rawDetail || 'Please try again.';
 
       if (status === 402) {
-        toast({ title: 'Not enough tokens', description: `Buy ${fmtTokens(shortfall)} more to complete this order.` });
-        nav('/my-account/wallet?topup=1');
+        loadWallet();
+        toast({ title: 'Checkout balance check', description: detail });
       } else if (status === 400 && /skill|token|answer|expired/i.test(detail)) {
         // Force a re-issue of the skill challenge for the failing contest(s)
         // so the user's next click can succeed.

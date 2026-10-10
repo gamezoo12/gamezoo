@@ -839,12 +839,15 @@ export default function FreeWorldAdmin() {
                 <th className="text-left px-3 py-2">Level</th>
                 <th className="text-left px-3 py-2">Completed</th>
                 <th className="text-left px-3 py-2">Champion</th>
+                <th className="text-left px-3 py-2">Level attempts</th>
+                <th className="text-left px-3 py-2">Champion attempts</th>
+                <th className="text-left px-3 py-2">Total attempts</th>
                 <th className="text-left px-3 py-2">Last activity</th>
               </tr>
             </thead>
             <tbody>
               {usersLoading && (
-                <tr><td colSpan={7} className="px-3 py-6 text-center text-slate-400">
+                <tr><td colSpan={10} className="px-3 py-6 text-center text-slate-400">
                   Loading…</td></tr>
               )}
               {!usersLoading && users.map((u) => (
@@ -858,11 +861,14 @@ export default function FreeWorldAdmin() {
                   <td className="px-3 py-2 font-bold">{u.current_level}</td>
                   <td className="px-3 py-2">{u.completed_count}/10</td>
                   <td className="px-3 py-2">{u.champion_ready ? 'Yes' : 'No'}</td>
+                  <td className="px-3 py-2 text-xs" title="Recorded Level 1–10 attempts across all Championships">{u.level_attempts_total ?? '—'}</td>
+                  <td className="px-3 py-2 text-xs" title="Recorded Champion Challenge attempts">{u.champion_attempts_total ?? '—'}</td>
+                  <td className="px-3 py-2 font-semibold">{u.total_attempts ?? '—'}</td>
                   <td className="px-3 py-2 text-slate-500">{ukDate(u.last_activity)}</td>
                 </tr>
               ))}
               {!usersLoading && !users.length && (
-                <tr><td colSpan={7} className="px-3 py-6 text-center text-slate-400"
+                <tr><td colSpan={10} className="px-3 py-6 text-center text-slate-400"
                   data-testid="users-empty">No users found.</td></tr>
               )}
             </tbody>
@@ -975,6 +981,23 @@ export default function FreeWorldAdmin() {
                   </div>
                 </div>
               )}
+            </div>
+
+            <div className="mt-3 rounded-xl border border-slate-100 p-3 text-sm" data-testid="user-attempt-breakdown">
+              <div className="font-bold text-slate-800 mb-2">Recorded game attempts</div>
+              <div>Normal levels (all Championships): <b>{selectedUser.level_attempts_total ?? '—'}</b></div>
+              <div>Champion Challenge: <b>{selectedUser.champion_attempts_total ?? '—'}</b></div>
+              <div>Total: <b>{selectedUser.total_attempts ?? '—'}</b></div>
+              <div className="mt-2 grid grid-cols-5 gap-2 text-xs">
+                {Array.from({ length: 10 }, (_, i) => i + 1).map((lvl) => (
+                  <div key={lvl} className="rounded bg-slate-50 p-2 text-center">
+                    L{lvl}: <b>{selectedUser.level_attempts_by_level?.[String(lvl)] ?? 0}</b>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-2 text-xs text-slate-500">Champion attempts by global contest:</div>
+              <div className="text-xs">{Object.entries(selectedUser.champion_attempts_by_contest || {}).sort((a, b) => Number(a[0]) - Number(b[0])).map(([contest, count]) => `C${contest}: ${count}`).join(' · ') || 'None recorded'}</div>
+              <div className="mt-2 text-[11px] text-slate-400">Historical normal-level attempt records do not identify a Championship stage; counts are shown across all Championships rather than assigned to an unverified stage.</div>
             </div>
 
             {detailLoading && (

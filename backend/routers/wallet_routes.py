@@ -228,8 +228,13 @@ async def _apply_tx(db, user_id: str, kind: str, amount: float, note: str = '', 
             inc = {'balance': delta, 'bonus': -d_bonus, 'withdrawable': -d_wd}
             if kind == 'spend':
                 inc['lifetime_spend'] = amt
+            # Legacy wallets may not have source fields yet; match missing as well
+            # as zero instead of repeatedly failing the optimistic update.
+            guard = {'user_id': user_id, 'balance': cur.get('balance', 0)}
+            for field, value in (('bonus', bon), ('withdrawable', wd), ('withdrawable_pending', wp)):
+                guard[field] = cur[field] if field in cur else {'$exists': False}
             updated = await db.wallets.find_one_and_update(
-                {'user_id': user_id, 'balance': bal, 'bonus': bon, 'withdrawable': wd, 'withdrawable_pending': wp},
+                guard,
                 {'$inc': inc, '$set': {'updated_at': now}},
                 return_document=True,
                 projection={'_id': 0, 'balance': 1},
@@ -238,7 +243,7 @@ async def _apply_tx(db, user_id: str, kind: str, amount: float, note: str = '', 
                 new_balance = round(updated['balance'], 2)
                 break
         if new_balance is None:
-            raise HTTPException(status_code=400, detail='Insufficient wallet balance')
+            raise HTTPException(status_code=409, detail='Wallet changed during checkout. Please try again.')
         tx = WalletTx(
             user_id=user_id, kind=kind, amount=delta,
             balance_after=new_balance, note=note, ref_order_id=ref_order_id,

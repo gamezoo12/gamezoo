@@ -985,7 +985,7 @@ async def pause_contest(contest_id: str, request: Request):
     await require_admin(request)
     from deps import get_db
     db = get_db()
-    r = await db.contests.update_one({'contest_id': contest_id}, {'$set': {'status': 'draft'}})
+    r = await db.contests.update_one({'contest_id': contest_id}, {'$set': {'status': 'draft', 'public_coming_soon': False}})
     if r.matched_count == 0:
         raise HTTPException(status_code=404, detail='Contest not found')
     return {'ok': True, 'status': 'draft'}
@@ -1224,3 +1224,76 @@ async def reconcile_verification(request: Request):
         'note': 'Phone verification is not auto-reconciled (no trusted evidence stored). Use per-user manual verify where evidence exists.',
     }
 
+
+
+# Read-only Live Contests monitoring. Existing routes and purchase logic unchanged.
+@router.get('/live-contests')
+async def live_contests(request: Request):
+    await require_admin(request)
+    from deps import get_db
+    db = get_db()
+    contests = await db.contests.find({'status': 'live'}, {'_id': 0}).sort('end_date', 1).to_list(1000)
+    ids = [c['contest_id'] for c in contests]
+    if not ids:
+        return {'contests': []}
+    counts = await db.tickets.aggregate([
+        {'$match': {'contest_id': {'$in': ids}}},
+        {'$group': {'_id': '$contest_id', 'tickets': {'$sum': 1}, 'users': {'$addToSet': '$user_id'}}},
+    ]).to_list(None)
+    summary = {r['_id']: r for r in counts}
+    for c in contests:
+        r = summary.get(c['contest_id'], {})
+        c['issued_tickets'] = r.get('tickets', 0)
+        c['participant_count'] = len(r.get('users', []))
+    return {'contests': contests}
+
+
+@router.get('/live-contests/{contest_id}/participants')
+async def live_contest_participants(contest_id: str, request: Request):
+    await require_admin(request)
+    from deps import get_db
+    db = get_db()
+    contest = await db.contests.find_one({'contest_id': contest_id}, {'_id': 0})
+    if not contest:
+        raise HTTPException(status_code=404, detail='Contest not found')
+    tickets = await db.tickets.find({'contest_id': contest_id}, {'_id': 0}).sort('ticket_number', 1).to_list(None)
+    user_ids = list({t['user_id'] for t in tickets if t.get('user_id')})
+    order_ids = list({t['order_id'] for t in tickets if t.get('order_id')})
+    users = await db.users.find({'user_id': {'$in': user_ids}}, {'_id': 0, 'user_id': 1, 'name': 1, 'username': 1, 'email': 1, 'public_id': 1}).to_list(None)
+    orders = await db.orders.find({'order_id': {'$in': order_ids}}, {'_id': 0}).to_list(None)
+    user_map = {u['user_id']: u for u in users}
+    order_map = {o['order_id']: o for o in orders}
+    participants = {}
+    for t in tickets:
+        uid = t.get('user_id')
+        if not uid:
+            continue
+        if uid not in participants:
+            participants[uid] = {**user_map.get(uid, {'user_id': uid}), 'tickets': [], 'ticket_count': 0, 'paid_count': 0, 'free_count': 0, 'unknown_count': 0, 'total_paid': 0.0}
+        order = order_map.get(t.get('order_id')) or {}
+        item = next((i for i in order.get('items', []) if i.get('contest_id') == contest_id), {})
+        price = item.get('price')
+        method = order.get('method')
+        status = order.get('status')
+        # A ticket without a paid order cannot safely be called free.
+        if status == 'paid' and price is not None:
+            kind = 'paid' if float(price) > 0 else 'free'
+        elif t.get('entry_type') in ('free', 'postal', 'admin', 'promotional'):
+            kind = 'free'
+        else:
+            kind = 'unknown'
+        row = {
+            'ticket_id': t.get('ticket_id'), 'ticket_number': t.get('ticket_number'),
+            'order_id': t.get('order_id'), 'entry_type': kind,
+            'entry_source': t.get('entry_type') or method,
+            'price': float(price) if price is not None else None,
+            'payment_method': method, 'order_status': status,
+            'purchased_at': order.get('created_at') or t.get('created_at'),
+        }
+        person = participants[uid]
+        person['tickets'].append(row)
+        person['ticket_count'] += 1
+        person[kind + '_count'] += 1
+        if kind == 'paid':
+            person['total_paid'] += float(price)
+    return {'contest': contest, 'participants': list(participants.values()), 'total_tickets': len(tickets)}

@@ -1,3 +1,4 @@
+
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import './App.css';
@@ -38,6 +39,7 @@ const AdminDashboard = lazy(() => import('./pages/admin/Dashboard'));
 const AdminUsers = lazy(() => import('./pages/admin/UsersPage'));
 const AdminAlerts = lazy(() => import('./pages/admin/AlertsAdmin'));
 const AdminCompetitions = lazy(() => import('./pages/admin/CompetitionsAdmin'));
+const AdminLiveContests = lazy(() => import('./pages/admin/AdminLiveContests'));
 const AdminOrders = lazy(() => import('./pages/admin/OrdersPage'));
 const AdminWinners = lazy(() => import('./pages/admin/WinnersAdmin'));
 const WinnerSelectionAdmin = lazy(() => import('./pages/admin/WinnerSelectionAdmin'));
@@ -434,6 +436,11 @@ function AppRouter() {
         <Route
           path="competitions"
           element={<AdminCompetitions />}
+        />
+
+        <Route
+          path="live-contests"
+          element={<AdminLiveContests />}
         />
 
         <Route

@@ -78,6 +78,16 @@ export default function PrizeLeagueWorld() {
   const [championMode, setChampionMode] =
     useState(false);
 
+  // Keep the game overlay above the fixed announcement/header while playing.
+  useEffect(() => {
+    if (!gameFlowOpen) return undefined;
+    const header = document.querySelector('[data-testid="site-header"]');
+    if (!header) return undefined;
+    const previousZIndex = header.style.zIndex;
+    header.style.zIndex = '0';
+    return () => { header.style.zIndex = previousZIndex; };
+  }, [gameFlowOpen]);
+
 
   const [
     showWorldLeaderboard,

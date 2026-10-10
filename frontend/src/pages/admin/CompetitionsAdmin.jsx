@@ -10,6 +10,7 @@ import EditContestDialog from '../../components/EditContestDialog';
 const STATUS_TABS = [
   { key: 'all', label: 'All' },
   { key: 'draft', label: 'On hold' },
+  { key: 'coming-soon', label: 'Coming Soon' },
   { key: 'live', label: 'Live' },
   { key: 'drawn', label: 'Drawn' },
 ];
@@ -26,6 +27,10 @@ export default function CompetitionsAdmin() {
 
   const launch = async (id) => { try { await adminAPI.launchContest(id); toast({ title: 'Launched' }); load(); } catch (e) { toast({ title: 'Failed', description: e?.response?.data?.detail }); } };
   const pause = async (id) => { try { await adminAPI.pauseContest(id); toast({ title: 'Paused' }); load(); } catch (e) { toast({ title: 'Failed', description: e?.response?.data?.detail }); } };
+  const pauseComingSoon = async (id) => {
+    if (!window.confirm('Pause Coming Soon? The contest will be moved to On hold and hidden from the Coming Soon section.')) return;
+    try { await adminAPI.pauseContest(id); toast({ title: 'Coming Soon paused' }); load(); } catch (e) { toast({ title: 'Failed', description: e?.response?.data?.detail }); }
+  };
   const bulkLaunch = async () => {
     if (!window.confirm(`Launch all ${tab === 'all' ? 'draft' : tab === 'draft' ? '' : ''} contests${tab !== 'all' && tab !== 'draft' ? ` in "${tab}" tab` : ''}?`)) return;
     try {
@@ -46,7 +51,7 @@ export default function CompetitionsAdmin() {
   const remove = async (id) => { if (!window.confirm('Delete contest? Tickets will be deleted too.')) return; try { await adminAPI.deleteContest(id); toast({ title: 'Deleted' }); load(); } catch (e) { toast({ title: 'Failed', description: e?.response?.data?.detail }); } };
   const draw = async (id) => { try { const r = await adminAPI.draw(id); toast({ title: 'Winner drawn!', description: `${r.winner.user_name} – Ticket #${r.winner.ticket_number}` }); load(); } catch (e) { toast({ title: 'Draw failed', description: e?.response?.data?.detail }); } };
 
-  const filtered = contests.filter(c => tab === 'all' || c.status === tab);
+  const filtered = contests.filter(c => tab === 'all' || (tab === 'coming-soon' ? c.public_coming_soon === true : tab === 'draft' ? c.status === 'draft' && !c.public_coming_soon : c.status === tab));
   const colors = { live: 'bg-emerald-100 text-emerald-700', draft: 'bg-slate-200 text-slate-700', drawn: 'bg-amber-100 text-amber-700', archived: 'bg-slate-100 text-slate-500' };
 
   return (
@@ -56,7 +61,7 @@ export default function CompetitionsAdmin() {
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex gap-1 bg-white border border-slate-100 p-1 rounded-xl overflow-x-auto no-scrollbar max-w-full">
             {STATUS_TABS.map(t => {
-              const count = t.key === 'all' ? contests.length : contests.filter(c => c.status === t.key).length;
+              const count = t.key === 'all' ? contests.length : contests.filter(c => t.key === 'coming-soon' ? c.public_coming_soon === true : t.key === 'draft' ? c.status === 'draft' && !c.public_coming_soon : c.status === t.key).length;
               return (
                 <button key={t.key} onClick={() => setTab(t.key)} className={`px-2.5 md:px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium whitespace-nowrap ${tab === t.key ? 'bg-[#6C2BFF] text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
                   {t.label} <span className={`ml-1 text-[10px] md:text-xs ${tab === t.key ? 'text-white/80' : 'text-slate-400'}`}>({count})</span>
@@ -126,7 +131,8 @@ export default function CompetitionsAdmin() {
               <div className="px-3"><Progress value={pct} className="h-1.5" /></div>
               <div className="flex flex-wrap justify-end gap-2 p-3">
                 <Button size="sm" variant="outline" onClick={() => setEditing(c)}><Pencil className="w-3.5 h-3.5 mr-1" /> Edit</Button>
-                {c.status === 'draft' && <Button size="sm" onClick={() => launch(c.contest_id)} className="bg-emerald-600 hover:bg-emerald-700"><Play className="w-3.5 h-3.5 mr-1" /> Launch</Button>}
+                {c.status === 'draft' && !c.public_coming_soon && <Button size="sm" onClick={() => launch(c.contest_id)} className="bg-emerald-600 hover:bg-emerald-700"><Play className="w-3.5 h-3.5 mr-1" /> Launch</Button>}
+                {c.public_coming_soon === true && <Button size="sm" variant="outline" onClick={() => pauseComingSoon(c.contest_id)}><Pause className="w-3.5 h-3.5 mr-1" /> Pause Coming Soon</Button>}
                 {c.status === 'live' && <Button size="sm" variant="outline" onClick={() => pause(c.contest_id)}><Pause className="w-3.5 h-3.5 mr-1" /> Pause</Button>}
                 {c.status === 'live' && <Button size="sm" onClick={() => draw(c.contest_id)} className="bg-[#6C2BFF] hover:bg-[#4A15D9]"><Trophy className="w-3.5 h-3.5 mr-1" /> Draw</Button>}
                 <Button size="sm" variant="outline" onClick={() => remove(c.contest_id)} className="text-rose-600 hover:text-rose-700 border-rose-200"><Trash2 className="w-3.5 h-3.5" /></Button>

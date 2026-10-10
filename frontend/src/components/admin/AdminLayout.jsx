@@ -13,6 +13,7 @@ const LINKS = [
  { to: '/admin/roles', label: 'Roles & Permissions', icon: ShieldCheck },
  { to: '/admin/kyc', label: 'KYC', icon: Shield },
  { to: '/admin/competitions', label: 'Contests', icon: Package },
+ { to: '/admin/live-contests', label: 'Live Contests', icon: ClipboardList },
  { to: '/admin/games', label: 'Games', icon: Gamepad2 },
  { to: '/admin/free-world', label: 'Free World', icon: Trophy },
  { to: '/admin/promotion', label: 'Promotion', icon: Gift },
