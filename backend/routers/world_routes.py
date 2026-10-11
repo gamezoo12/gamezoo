@@ -3626,25 +3626,12 @@ def _next_unpassed_level(progress: dict) -> int:
     return 0
 
 
-def _personal_unlock_context(level: int, progress: dict, active_number: int | None = None, active_start_at=None):
-    """
-    Personal progression with GLOBAL level-unlock timing.
-
-    The CURRENT GLOBAL Championship start is the shared time clock for every
-    Championship that is already globally available. Personal progression
-    still controls sequence, but signup time / personal_stage_started_at never
-    creates a separate level-unlock clock.
-
-    Example while Global C2 is active:
-      - C1 and C2 share the same L1-L10 global unlock clock.
-      - If global L3 is open, L1-L3 are time-unlocked in both C1 and C2.
-      - A new user in personal C1 must still progress L1 -> L2 -> L3.
-      - L4 remains time-locked until the shared global L4 unlock time.
-    """
+async def _personal_unlock_context(db, level: int, progress: dict, active_number: int | None = None, active_start_at=None):
+    """Current-contest cohorts wait 24h after passing the preceding level;
+    earlier cohorts catch up sequentially with Skip."""
     now = _utcnow()
     stage = int(progress.get("champion_stage") or 1)
     started = int(progress.get("free_world_started_global_contest") or 1)
-
     completed_levels = set(
         int(x) for x in (progress.get("completed_levels") or [])
     )
@@ -3659,20 +3646,48 @@ def _personal_unlock_context(level: int, progress: dict, active_number: int | No
     sequence_available = level <= highest_unlocked
 
     behind = active_number is not None and stage < active_number
-    catchup = behind and (started <= stage)
+    catchup = bool(
+        behind
+        and active_number is not None
+        and started < active_number
+    )
 
-    # ONLY CHANGE: level time unlocks use the current GLOBAL Championship
-    # start for everyone. Never use personal_stage_started_at as the clock.
     anchor = _ensure_aware_datetime(active_start_at) or now
 
     unlock_at = level_unlock_at(anchor, max(0, level - 1))
+    if not catchup and level > 1:
+        stage_started_at = _ensure_aware_datetime(
+            progress.get("personal_stage_started_at")
+        )
+        previous_attempt_filter = {
+            "season_id": WORLD_SEASON_ID,
+            "user_id": progress.get("user_id"),
+            "level": level - 1,
+            "passed": True,
+            "completed_at": {"$exists": True, "$ne": None},
+            "$or": [
+                {"champion_stage": stage},
+                {"champion_stage": {"$exists": False}},
+            ],
+        }
+        if stage_started_at is not None:
+            previous_attempt_filter["completed_at"]["$gte"] = stage_started_at
+        previous_attempt = await db.world_level_attempts.find_one(
+            previous_attempt_filter,
+            {"_id": 0, "completed_at": 1},
+            sort=[("completed_at", -1)],
+        )
+        passed_at = _ensure_aware_datetime(
+            (previous_attempt or {}).get("completed_at")
+        )
+        if passed_at is not None:
+            unlock_at = passed_at + timedelta(hours=24)
+
     scheduled_time_available = now >= unlock_at
     time_available = bool(scheduled_time_available or token_unlocked)
 
-    # OLD/BEHIND users are in catch-up mode. Their old personal Championship
-    # levels L1-L10 must not be blocked by the CURRENT live Championship's
-    # level-number timer. Progression is still strictly sequential, and each
-    # next level may be PLAYED or SKIPPED.
+    # Earlier cohorts catch up sequentially. Current-contest cohorts use
+    # per-player completion timers below.
     if catchup and 1 <= level <= 10:
         time_available = True
         scheduled_time_available = True
@@ -3709,6 +3724,7 @@ def _personal_unlock_context(level: int, progress: dict, active_number: int | No
         and not completed
         and level == next_unpassed
         and 1 <= level <= 10
+        and not (stage == 1 and level == 10)
     )
 
     return {
@@ -3835,13 +3851,9 @@ async def _resolve_unlock_context(db, level: int, progress: dict):
     """
     Route to the correct availability model.
 
-    - When an active Championship exists, ALL users use the CURRENT GLOBAL
-      Championship start as the shared level-unlock clock. Personal progression
-      still controls sequence. Level 1 is always open; Levels 2-10 unlock one
-      per global day at the existing 00:00 Europe/London boundary. Behind users
-      retain catch-up Play/Skip sequentially through all remaining normal
-      levels of Championships behind the live Championship. Once they catch up
-      to the live Championship, Skip disappears and the global timer applies.
+        - The active global Championship determines the game. Current-cohort users
+            unlock Levels 2-10 24h after passing the preceding level; earlier cohorts
+            behind the live global Championship use sequential catch-up Play/Skip.
       This never changes the global scheduler, Championship windows,
       leaderboard, settlement or prizes.
     - Fallback (no active contest) -> existing _world_unlock_context.
@@ -3856,7 +3868,8 @@ async def _resolve_unlock_context(db, level: int, progress: dict):
     if active_number is None:
         return await _world_unlock_context(db, level, progress)
 
-    return _personal_unlock_context(
+    return await _personal_unlock_context(
+        db,
         level,
         progress,
         active_number,
@@ -5551,6 +5564,20 @@ async def free_world_state(
         )
     )
 
+    champion_completed = bool(
+        user
+        and await db.world_champion_sessions.find_one(
+            {
+                "season_id": WORLD_SEASON_ID,
+                "user_id": user["user_id"],
+                "champion_stage_snapshot": champion_stage,
+                "status": "submitted",
+                "passed": True,
+            },
+            {"_id": 1},
+        )
+    )
+
     setting = await db.world_settings.find_one(
         {
             "_id":
@@ -5735,6 +5762,8 @@ async def free_world_state(
 
         "champion": {
             **champion_config,
+
+            "completed": champion_completed,
 
             "unlocked":
                 bool(
@@ -5943,6 +5972,9 @@ async def free_world_session_start(
 
         "user_id":
             user["user_id"],
+
+        "champion_stage":
+            int(progress.get("champion_stage") or 1),
 
         "level":
             level,
@@ -6165,6 +6197,9 @@ async def free_world_session_begin(
 
             "user_id":
                 user["user_id"],
+
+            "champion_stage":
+                int(session.get("champion_stage") or 1),
 
             "level":
                 level,
@@ -12087,9 +12122,8 @@ async def settle_admin_world_contest(
 @router.post("/level/{level}/skip")
 async def free_world_skip_level(level: int, request: Request):
     """
-    Catch-up SKIP for OLD users who fell behind when a newer Championship
-    started. Server-validated: only eligible catch-up users may skip, and only
-    the next un-passed level in sequence.
+    Catch-up SKIP for users whose personal Championship is behind the live
+    global contest. Only the next un-passed level in sequence may be skipped.
 
     SKIP does NOT create a score, grant any reward, or consume a free attempt
     or token. It only advances personal progression and is recorded for audit.
@@ -12103,7 +12137,6 @@ async def free_world_skip_level(level: int, request: Request):
     progress = await _free_world_progress(db, user_id)
 
     stage = int(progress.get("champion_stage") or 1)
-    started = int(progress.get("free_world_started_global_contest") or 1)
 
     active = await _active_contest(db)
     active_number = (
@@ -12113,10 +12146,11 @@ async def free_world_skip_level(level: int, request: Request):
     )
 
     # Eligibility: user must be an OLD user behind the live Championship.
+    started = int(progress.get("free_world_started_global_contest") or 1)
     eligible = bool(
         active_number is not None
         and stage < active_number
-        and started <= stage
+        and started < active_number
     )
     if not eligible:
         raise HTTPException(

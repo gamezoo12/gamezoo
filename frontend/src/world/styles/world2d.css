@@ -2686,6 +2686,50 @@
   background: rgba(117,18,29,.94);
 }
 
+.pl2d-catchup-skip {
+  position: fixed;
+  left: 50%;
+  bottom: 88px;
+  z-index: 6000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: min(calc(100vw - 28px), 480px);
+  padding: 10px 12px 10px 16px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(255, 217, 90, .65);
+  border-radius: 16px;
+  background: rgba(20, 15, 43, .96);
+  color: #fff;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .42);
+}
+
+.pl2d-catchup-skip span {
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.pl2d-catchup-skip button {
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 11px;
+  background: #ffd21a;
+  color: #1c1634;
+  font-size: 12px;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.pl2d-catchup-skip button:disabled {
+  opacity: .65;
+  cursor: wait;
+}
+
 .pl2d-castle-zone {
   position: absolute;
   left: 0;
