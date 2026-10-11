@@ -465,6 +465,10 @@ class ChallengeGameBody(BaseModel):
     enabled: bool = True
 
 
+class ChallengeGameEnabledBody(BaseModel):
+    enabled: bool
+
+
 @admin_router.get("/challenge/games")
 async def admin_challenge_games(request: Request):
     await require_admin(request)
@@ -643,6 +647,20 @@ async def launch_all_challenge_games(request: Request):
     return {"launched_count": len(rows)}
 
 
+@admin_router.patch("/challenge/games/{game_id}/enabled")
+async def set_challenge_game_enabled(game_id: str, body: ChallengeGameEnabledBody, request: Request):
+    await require_admin(request)
+    db = get_db()
+    await _seed_challenges(db)
+    result = await db.special_challenge_games.update_one(
+        {"game_id": game_id}, {"$set": {"enabled": body.enabled}},
+    )
+    if result.matched_count != 1:
+        raise HTTPException(404, "Challenge game not found")
+    game = await db.special_challenge_games.find_one({"game_id": game_id}, {"_id": 0})
+    return {"game": _public_game(game)}
+
+
 @admin_router.put("/challenge/games/{game_id}")
 async def save_challenge_game(game_id: str, body: ChallengeGameBody, request: Request):
     await require_admin(request)
@@ -658,7 +676,7 @@ async def save_challenge_game(game_id: str, body: ChallengeGameBody, request: Re
         raise HTTPException(400, "Each challenge attempt costs exactly 1 token")
     if not (0 <= body.prize_pence <= 100000000) or not (0 <= body.max_attempts <= 100000):
         raise HTTPException(400, "Invalid prize or attempt limit")
-    if not (1 <= body.target_matches <= 500):
+    if body.type == "colour_match" and not (1 <= body.target_matches <= 500):
         raise HTTPException(400, "Target matches must be 1–500")
     if not body.name.strip() or len(body.name) > 100:
         raise HTTPException(400, "Invalid name")
@@ -669,6 +687,8 @@ async def save_challenge_game(game_id: str, body: ChallengeGameBody, request: Re
         raise HTTPException(400, "Cannot change the type or size of an existing game")
     row = body.model_dump() if hasattr(body, "model_dump") else body.dict()
     row["entry_tokens"] = 1
+    if body.type == "number_sequence":
+        row["target_matches"] = 0
     await db.special_challenge_games.update_one({"game_id": game_id}, {"$set": row}, upsert=True)
     return {"game": row}
 

@@ -84,9 +84,8 @@ export default function SpecialChallengeAdmin() {
     const enabled = !game.enabled;
     setSaving(game.game_id); setNotice('');
     try {
-      const payload = gamePayload({ ...game, enabled });
-      const { data } = await api.put(`/admin/winnings/challenge/games/${encodeURIComponent(game.game_id)}`, payload);
-      setGames(items => items.map(item => item.game_id === game.game_id ? normalizeGame(data.game || payload) : item));
+      const { data } = await api.patch(`/admin/winnings/challenge/games/${encodeURIComponent(game.game_id)}/enabled`, { enabled });
+      setGames(items => items.map(item => item.game_id === game.game_id ? normalizeGame(data.game || { ...game, enabled }) : item));
       setNotice(`${game.name} is ${enabled ? 'LIVE' : 'STOPPED'}. ${enabled ? 'New attempts are open.' : 'New attempts are blocked; active attempts can finish.'}`);
     } catch (e) { setNotice(errorText(e)); }
     finally { setSaving(''); }
