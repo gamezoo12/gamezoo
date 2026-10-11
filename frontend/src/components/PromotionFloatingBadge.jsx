@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Gift, GripVertical } from 'lucide-react';
+import { Gift, GripVertical, X } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 
 const STORAGE_KEY = 'pl_promotion_badge_position';
+const DISMISS_KEY = 'pl_promotion_badge_hidden';
 const EDGE = 12;
 
 const excluded = (path) =>
@@ -32,6 +33,7 @@ export default function PromotionFloatingBadge() {
   const [cfg, setCfg] = useState(null);
   const [position, setPosition] = useState(null);
   const [dragging, setDragging] = useState(false);
+  const [hidden, setHidden] = useState(() => sessionStorage.getItem(DISMISS_KEY) === '1');
 
   useEffect(() => {
     api.get('/promotion/config').then((r) => setCfg(r.data)).catch(() => {});
@@ -56,7 +58,13 @@ export default function PromotionFloatingBadge() {
     return () => window.removeEventListener('resize', place);
   }, []);
 
-  if (!user || !cfg?.is_live || excluded(location.pathname)) return null;
+  if (!user || !cfg?.is_live || hidden || excluded(location.pathname)) return null;
+
+  const dismiss = (e) => {
+    e.stopPropagation();
+    sessionStorage.setItem(DISMISS_KEY, '1');
+    setHidden(true);
+  };
 
   const startDrag = (e) => {
     if (e.button !== undefined && e.button !== 0) return;
@@ -116,9 +124,10 @@ export default function PromotionFloatingBadge() {
   };
 
   return (
-    <button
+    <div
       ref={badgeRef}
-      type="button"
+      role="button"
+      tabIndex={0}
       aria-label="Open promotion"
       onPointerDown={startDrag}
       onPointerMove={moveDrag}
@@ -131,6 +140,17 @@ export default function PromotionFloatingBadge() {
       }}
       className={`fixed z-[80] select-none rounded-full border-2 border-[#FFD54A] bg-[#0B0D1F]/95 px-3 py-2.5 sm:px-4 sm:py-3 text-white shadow-2xl backdrop-blur-md transition-transform ${dragging ? 'scale-105 cursor-grabbing' : 'hover:scale-105 cursor-grab'}`}
     >
+      <button
+        type="button"
+        aria-label="Hide promotion badge"
+        data-testid="promotion-badge-dismiss"
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
+        onClick={dismiss}
+        className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-rose-600 text-white shadow-lg hover:bg-rose-500"
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
       <span className="flex items-center gap-2">
         <span className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#FFD54A] to-[#FFB300] text-[#0B0D1F] shadow-lg">
           <Gift className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -147,6 +167,6 @@ export default function PromotionFloatingBadge() {
         </span>
         <GripVertical className="h-4 w-4 text-white/45" />
       </span>
-    </button>
+    </div>
   );
 }

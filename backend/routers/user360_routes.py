@@ -1122,14 +1122,40 @@ def _send_sendgrid_campaign_email(
     from html import escape
 
     sender = os.environ.get('SENDGRID_FROM_EMAIL') or os.environ.get('FROM_EMAIL')
+    import re
     text_body = message + "\n\nUnsubscribe from marketing emails: " + unsubscribe_url
-    html_body = '<div style="white-space:pre-wrap">' + escape(message) + '</div>' + (
-        '<p><a href="' + escape(unsubscribe_url, quote=True) +
-        '">Unsubscribe or manage email preferences</a></p>'
+    # Pull the first link out of the message and render it as a button instead of a raw URL.
+    url_match = re.search(r'https?://[^\s<>"]+', message)
+    cta_url = url_match.group(0).rstrip('.,);') if url_match else None
+    body_text = re.sub(r'https?://[^\s<>"]+', '', message).strip()
+    body_text = re.sub(r'\n{3,}', '\n\n', body_text)
+    safe_body = escape(body_text).replace('\n', '<br>')
+    cta_html = (
+        '<div style="padding:26px 0 8px;"><a href="' + escape(cta_url, quote=True) +
+        '" style="display:inline-block;background:#6c2bff;color:#ffffff;text-decoration:none;'
+        'font-size:16px;font-weight:700;padding:14px 28px;border-radius:8px;">View competition</a></div>'
+    ) if cta_url else ''
+    html_body = (
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1"></head>'
+        '<body style="margin:0;padding:0;background:#f3f5f7;font-family:Arial,Helvetica,sans-serif;color:#17202b;">'
+        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f5f7;padding:28px 12px;">'
+        '<tr><td align="center"><table role="presentation" width="600" cellspacing="0" cellpadding="0" '
+        'style="width:100%;max-width:600px;background:#ffffff;border:1px solid #e4e8ed;border-radius:14px;overflow:hidden;">'
+        '<tr><td style="padding:22px 28px;background:#101827;color:#ffffff;font-size:14px;font-weight:700;letter-spacing:1px;">PRIZE LEAGUE</td></tr>'
+        '<tr><td style="padding:32px 28px 18px;">'
+        '<h1 style="margin:0 0 18px;font-size:24px;line-height:1.3;color:#101827;">' + escape(title) + '</h1>'
+        '<div style="font-size:16px;line-height:1.7;color:#475569;">' + safe_body + '</div>'
+        + cta_html +
+        '</td></tr>'
+        '<tr><td style="padding:18px 28px 24px;border-top:1px solid #edf0f3;font-size:12px;line-height:1.6;color:#7b8794;">'
+        'You are receiving this because you opted in to Prize League marketing emails. '
+        '<a href="' + escape(unsubscribe_url, quote=True) + '" style="color:#64748b;text-decoration:underline;">Unsubscribe</a>'
+        '</td></tr></table></td></tr></table></body></html>'
     )
     data = json.dumps({
         'personalizations': [{'to': [{'email': to_email}]}],
-        'from': {'email': sender},
+        'from': {'email': sender, 'name': 'Prize League'},
         'subject': title,
         'headers': {'List-Unsubscribe': f'<{unsubscribe_url}>'},
         'content': [

@@ -1,9 +1,28 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Clock, Coins, Gift, Hash, Palette, Target } from 'lucide-react';
-import { api } from '../lib/api';
+import { api, walletAPI } from '../lib/api';
 import { Button } from '../components/ui/button';
 import { useToast } from '../hooks/use-toast';
+
+const PALETTES = [
+  { card: 'from-fuchsia-600 via-purple-700 to-indigo-800', ring: 'ring-fuchsia-300' },
+  { card: 'from-cyan-500 via-sky-600 to-blue-800', ring: 'ring-cyan-300' },
+  { card: 'from-emerald-500 via-teal-600 to-cyan-800', ring: 'ring-emerald-300' },
+  { card: 'from-amber-500 via-orange-600 to-rose-700', ring: 'ring-amber-300' },
+  { card: 'from-rose-500 via-pink-600 to-purple-800', ring: 'ring-rose-300' },
+  { card: 'from-lime-500 via-green-600 to-emerald-800', ring: 'ring-lime-300' },
+  { card: 'from-violet-500 via-indigo-600 to-blue-800', ring: 'ring-violet-300' },
+  { card: 'from-yellow-500 via-amber-600 to-red-700', ring: 'ring-yellow-300' },
+];
+const CELL_COLOURS = [
+  'bg-rose-500', 'bg-orange-500', 'bg-amber-500', 'bg-lime-500', 'bg-emerald-500',
+  'bg-cyan-500', 'bg-sky-500', 'bg-indigo-500', 'bg-violet-500', 'bg-fuchsia-500',
+];
+const OPTION_GRADIENTS = [
+  'from-fuchsia-500 to-purple-600', 'from-cyan-500 to-blue-600', 'from-amber-500 to-orange-600',
+  'from-emerald-500 to-teal-600', 'from-rose-500 to-pink-600', 'from-indigo-500 to-violet-600',
+];
 
 const shuffle = (values) => {
   const a = [...values];
@@ -50,6 +69,10 @@ export default function SpecialChallenge() {
   const [result, setResult] = useState(null);
   const [resultQuote, setResultQuote] = useState('');
   const [error, setError] = useState('');
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [balance, setBalance] = useState(null);
+  const [countdown, setCountdown] = useState(null);
+  const countdownTimerRef = useRef(null);
   const deadlineRef = useRef(0);
   const completedRef = useRef(false);
   const attemptRef = useRef(null);
@@ -111,9 +134,42 @@ export default function SpecialChallenge() {
       deadlineRef.current = Date.now() + data.duration_ms;
       setLeftMs(data.duration_ms);
       setAttempt(a);
+      walletAPI.me().then((w) => {
+        const left = w?.tokens ?? Math.round(w?.balance ?? 0);
+        setBalance(left);
+        toast({ title: `${data.entry_tokens || 1} token deducted`, description: `Balance: ${left} ${left === 1 ? 'token' : 'tokens'}` });
+        window.dispatchEvent(new CustomEvent('pl-world-progress-refresh'));
+      }).catch(() => toast({ title: '1 token deducted' }));
     } catch (e) { setError(messageOf(e)); }
     finally { setBusy(false); }
   };
+
+  const requestStart = async () => {
+    if (!selected || busy || countdown !== null) return;
+    setError('');
+    try {
+      const w = await walletAPI.me();
+      setBalance(w?.tokens ?? Math.round(w?.balance ?? 0));
+    } catch { setBalance(null); }
+    setConfirmOpen(true);
+  };
+
+  // Charge happens at the end of the countdown so the paid timer starts when play does.
+  const confirmAndCountdown = () => {
+    setConfirmOpen(false);
+    setResult(null);
+    let n = 3;
+    setCountdown(n);
+    countdownTimerRef.current = setInterval(() => {
+      n -= 1;
+      if (n > 0) { setCountdown(n); return; }
+      clearInterval(countdownTimerRef.current);
+      setCountdown(null);
+      start();
+    }, 1000);
+  };
+
+  useEffect(() => () => clearInterval(countdownTimerRef.current), []);
 
   const tap = (n) => {
     if (completedRef.current || busy || !attempt || n !== next || Date.now() >= deadlineRef.current) return;
@@ -144,6 +200,7 @@ export default function SpecialChallenge() {
   };
 
   const reset = () => {
+    clearInterval(countdownTimerRef.current); setCountdown(null); setConfirmOpen(false);
     setAttempt(null); attemptRef.current = null; setResult(null); setResultQuote(''); setQuestion(null);
     setError(''); completedRef.current = false; setLeftMs(0);
   };
@@ -170,7 +227,7 @@ export default function SpecialChallenge() {
     : `Ignore the written colour name. Tap the colour of the INK. Complete ${selected?.target_matches} correct matches before time runs out. One wrong answer ends the attempt. Every question is random.`;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white" data-testid="challenge-page">
+    <div className="min-h-screen bg-gradient-to-b from-indigo-950 via-slate-950 to-purple-950 text-white" data-testid="challenge-page">
       <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-slate-900 px-4 py-4">
         <button
           onClick={back}
@@ -184,6 +241,52 @@ export default function SpecialChallenge() {
         <div className="font-mono font-bold text-amber-300" data-testid="challenge-timer">{attempt && !result ? <><Clock size={14} className="inline" /> {clock}</> : ''}</div>
       </div>
       <main className="mx-auto w-full max-w-[1760px] px-4 py-7 sm:px-6 lg:px-10 2xl:px-14">
+        {!loading && games.length > 0 && !(attempt && !result) && countdown === null && (
+          <nav aria-label="Select game" data-testid="game-selection-bar" className="sticky top-0 z-30 -mx-4 mb-6 flex gap-2 overflow-x-auto border-b border-white/10 bg-slate-950/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10">
+            {[...games].sort((a, b) => (a.type === b.type ? a.size - b.size : a.type.localeCompare(b.type))).map((g) => {
+              const pal = PALETTES[games.indexOf(g) % PALETTES.length];
+              const active = selected?.game_id === g.game_id;
+              return (
+                <button
+                  key={g.game_id}
+                  type="button"
+                  onClick={() => { reset(); setSelected(g); }}
+                  data-testid={`game-tab-${g.game_id}`}
+                  className={`shrink-0 whitespace-nowrap rounded-full bg-gradient-to-r px-4 py-2 text-sm font-extrabold text-white shadow transition ${pal.card} ${active ? `ring-2 ring-offset-2 ring-offset-slate-950 ${pal.ring}` : 'opacity-80 hover:opacity-100'}`}
+                >
+                  {g.name}
+                </button>
+              );
+            })}
+          </nav>
+        )}
+        {countdown !== null && (
+          <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-slate-950/95" data-testid="challenge-countdown" aria-live="assertive">
+            <p className="mb-4 text-sm font-bold uppercase tracking-[0.3em] text-amber-300">Get ready</p>
+            <div key={countdown} className="animate-pulse bg-gradient-to-br from-fuchsia-400 via-amber-300 to-cyan-300 bg-clip-text text-[10rem] font-black leading-none text-transparent">{countdown}</div>
+          </div>
+        )}
+        {confirmOpen && selected && (
+          <div className="fixed inset-0 z-[190] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" data-testid="challenge-confirm">
+            <div className="w-full max-w-sm rounded-2xl border border-white/20 bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900 p-6 text-center shadow-2xl">
+              <h2 className="text-xl font-black text-amber-300">Confirm entry</h2>
+              <p className="mt-1 text-sm text-white/70">{selected.name}</p>
+              <div className="mt-5 space-y-2 rounded-xl bg-white/10 p-4 text-sm">
+                <div className="flex justify-between"><span>Entry cost</span><strong className="text-amber-300">1 token</strong></div>
+                <div className="flex justify-between"><span>Your balance</span><strong>{balance ?? '—'} {balance === 1 ? 'token' : 'tokens'}</strong></div>
+                {balance !== null && <div className="flex justify-between border-t border-white/10 pt-2"><span>After entry</span><strong className="text-emerald-300">{Math.max(0, balance - 1)} tokens</strong></div>}
+              </div>
+              <p className="mt-3 text-xs text-white/60">1 token is deducted when the 3-2-1 countdown ends and the game starts.</p>
+              {balance !== null && balance < 1 && <p className="mt-3 text-sm font-bold text-rose-300">Not enough tokens.</p>}
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                <Button variant="outline" className="border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white" onClick={() => setConfirmOpen(false)}>Cancel</Button>
+                {balance !== null && balance < 1
+                  ? <Button className="bg-amber-500 font-black text-slate-950 hover:bg-amber-400" onClick={() => navigate('/my-account/wallet')}>Top up</Button>
+                  : <Button className="bg-amber-500 font-black text-slate-950 hover:bg-amber-400" onClick={confirmAndCountdown} data-testid="challenge-confirm-play">Confirm &amp; play</Button>}
+              </div>
+            </div>
+          </div>
+        )}
         {loading && <p className="text-center text-white/70">Loading challenges…</p>}
         {!selected && !loading && <>
           <section className="relative mb-10 overflow-hidden rounded-2xl border border-white/10 bg-[#101a20] px-6 py-7 sm:px-9 sm:py-9 lg:px-12">
@@ -232,12 +335,14 @@ export default function SpecialChallenge() {
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-500">{typeGames.length} challenges</span>
                 </div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 2xl:gap-5">
-                  {typeGames.map(g => (
+                  {typeGames.map(g => {
+                    const pal = PALETTES[games.indexOf(g) % PALETTES.length];
+                    return (
                     <button
                       key={g.game_id}
                       type="button"
                       onClick={() => { setSelected(g); setError(''); }}
-                      className={`group flex min-h-[340px] w-full flex-col rounded-xl border border-white/10 bg-gradient-to-br from-[#18232a] to-[#10171c] p-5 text-left shadow-lg transition duration-200 hover:-translate-y-1 hover:bg-[#1c2930] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 ${accent.border}`}
+                      className={`group flex min-h-[340px] w-full flex-col rounded-xl border border-white/20 bg-gradient-to-br ${pal.card} p-5 text-left text-white shadow-lg transition duration-200 hover:-translate-y-1 hover:shadow-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white`}
                       data-testid={`game-${g.game_id}`}
                     >
                       <div className="flex w-full items-start justify-between gap-3">
@@ -251,35 +356,35 @@ export default function SpecialChallenge() {
                         </span>
                       </div>
                       <h3 className="mt-5 text-xl font-black leading-tight text-white 2xl:text-2xl">{g.name}</h3>
-                      <p className="mt-2 min-h-[48px] text-sm leading-relaxed text-slate-400">
+                      <p className="mt-2 min-h-[48px] text-sm leading-relaxed text-white/85">
                         {isSequence
                           ? `Tap all ${g.size} shuffled numbers in order, from 1 to ${g.size}. Wrong taps do not advance.`
                           : `Ignore the word and tap the ink colour. Get ${g.target_matches} matches right; one wrong answer ends the run.`}
                       </p>
                       <div className="mt-5 grid w-full grid-cols-3 divide-x divide-white/10 rounded-lg border border-white/10 bg-black/15 py-3">
                         <div className="px-2 text-center">
-                          <Target className="mx-auto h-4 w-4 text-slate-400" />
-                          <span className="mt-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Goal</span>
+                          <Target className="mx-auto h-4 w-4 text-white/70" />
+                          <span className="mt-1 block text-[10px] font-bold uppercase tracking-wider text-white/70">Goal</span>
                           <strong className={`mt-1 block text-sm ${accent.value}`}>{isSequence ? `${g.size} taps` : `${g.target_matches} hits`}</strong>
                         </div>
                         <div className="px-2 text-center">
-                          <Clock className="mx-auto h-4 w-4 text-slate-400" />
-                          <span className="mt-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Time</span>
+                          <Clock className="mx-auto h-4 w-4 text-white/70" />
+                          <span className="mt-1 block text-[10px] font-bold uppercase tracking-wider text-white/70">Time</span>
                           <strong className="mt-1 block text-sm text-white">{g.time_limit_seconds}s</strong>
                         </div>
                         <div className="px-2 text-center">
                           <span className="block h-4 text-sm leading-4 text-slate-400">↻</span>
-                          <span className="mt-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Attempts</span>
+                          <span className="mt-1 block text-[10px] font-bold uppercase tracking-wider text-white/70">Attempts</span>
                           <strong className="mt-1 block text-sm text-white">{g.max_attempts || '∞'}</strong>
                         </div>
                       </div>
                       <div className="mt-auto flex w-full items-end justify-between gap-3 pt-5">
                         <div>
-                          <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Prize</span>
+                          <span className="block text-[10px] font-bold uppercase tracking-wider text-white/70">Prize</span>
                           <strong className={`mt-1 block text-2xl font-black ${accent.prize}`}>{money(g.prize_pence)}</strong>
                         </div>
                         <div className="text-right">
-                          <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Entry</span>
+                          <span className="block text-[10px] font-bold uppercase tracking-wider text-white/70">Entry</span>
                           <strong className="mt-1 inline-flex items-center gap-1 text-sm font-extrabold text-white"><Coins className="h-4 w-4 text-amber-300" /> {g.entry_tokens} {g.entry_tokens === 1 ? 'token' : 'tokens'}</strong>
                         </div>
                       </div>
@@ -287,7 +392,8 @@ export default function SpecialChallenge() {
                         <span>See rules &amp; play</span><ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                       </div>
                     </button>
-                  ))}
+                    );
+                  })}
                 </div>
               </section>
             );
@@ -306,17 +412,17 @@ export default function SpecialChallenge() {
           <p className="mt-2 text-sm leading-relaxed text-slate-300">{instructions}</p>
           <p className="mt-4 text-xs text-slate-400">Each attempt costs 1 token. You can win this game once every 24 hours; other games remain available.</p>
           {selectedCoolingDown && <p className="mt-4 rounded-lg border border-amber-300/20 bg-amber-300/10 p-3 text-sm text-amber-100">You already won this game. You can play it again after {selectedCooldownUntil.toLocaleString()}. Other games are still available. ⏳</p>}
-          <Button disabled={busy || selectedCoolingDown} onClick={start} className="mt-6 w-full bg-amber-500 font-black text-slate-950 hover:bg-amber-400" data-testid="challenge-paid-start">{busy ? 'Starting…' : selectedCoolingDown ? 'Available after cooldown' : `PLAY — 1 token 🪙`}</Button>
+          <Button disabled={busy || selectedCoolingDown || countdown !== null} onClick={requestStart} className="mt-6 w-full bg-amber-500 font-black text-slate-950 hover:bg-amber-400" data-testid="challenge-paid-start">{busy ? 'Starting…' : selectedCoolingDown ? 'Available after cooldown' : `PLAY — 1 token 🪙`}</Button>
         </div>}
         {selected && attempt && !result && <div className="mx-auto max-w-2xl">
           <div className="mb-4 flex justify-between text-sm text-slate-300"><span>{selected.name}</span><span>{selected.type === 'number_sequence' ? `Next: ${next}` : `Match ${round + 1} / ${attempt.target_matches}`}</span></div>
           {selected.type === 'number_sequence' ?
             <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${selected.size <= 25 ? 5 : selected.size <= 49 ? 7 : 10}, minmax(0, 1fr))` }}>
-              {grid.map(n => <button key={n} data-testid={`cell-${n}`} onClick={() => tap(n)} disabled={completedRef.current} className={`aspect-square rounded-md text-xs font-bold sm:text-base ${n < next ? 'bg-emerald-600 text-white' : 'bg-white text-slate-900 hover:bg-amber-100'}`}>{n}</button>)}
+              {grid.map(n => <button key={n} data-testid={`cell-${n}`} onClick={() => tap(n)} disabled={completedRef.current} className={`aspect-square rounded-md text-xs font-bold text-white shadow sm:text-base ${n < next ? 'bg-emerald-700 opacity-40' : `${CELL_COLOURS[n % CELL_COLOURS.length]} hover:brightness-110`}`}>{n}</button>)}
             </div> : <div className="rounded-2xl bg-slate-900 p-5 text-center">
               <p className="mb-3 text-sm text-slate-400">Tap the actual INK colour, not the word</p>
               <div className="mb-8 rounded-xl bg-slate-950 px-3 py-12 text-4xl font-black tracking-wider sm:text-6xl" style={{ color: question?.ink }}>{question?.word}</div>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{question?.options.map(option => <button key={option} disabled={busy} onClick={() => answer(option)} className="rounded-xl border border-white/20 bg-slate-800 px-2 py-5 font-black hover:bg-slate-700 disabled:opacity-50">{option}</button>)}</div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{question?.options.map((option, i) => <button key={option} disabled={busy} onClick={() => answer(option)} className={`rounded-xl bg-gradient-to-br ${OPTION_GRADIENTS[i % OPTION_GRADIENTS.length]} px-2 py-5 font-black text-white shadow hover:brightness-110 disabled:opacity-50`}>{option}</button>)}</div>
             </div>}
         </div>}
         {result && <section
@@ -355,8 +461,8 @@ export default function SpecialChallenge() {
             </Button>
             <Button
               className="h-12 bg-emerald-300 font-black text-emerald-950 hover:bg-emerald-200"
-              onClick={start}
-              disabled={busy}
+              onClick={requestStart}
+              disabled={busy || countdown !== null}
             >
               {busy ? 'Starting…' : 'Try again 🔄'}
             </Button>

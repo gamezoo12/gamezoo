@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { CalendarClock, CheckCircle2, Clock3, Gift, Ticket, Wallet } from 'lucide-react';
 import BackButton from '../components/BackButton';
 import { Button } from '../components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { api } from '../lib/api';
 
 const money = (value) => `£${Number(value || 0).toLocaleString('en-GB')}`;
@@ -15,7 +16,7 @@ function campaignState(campaign) {
   return campaign.is_live ? 'live' : 'paused';
 }
 
-function CampaignCard({ campaign, busy, onClaim }) {
+function CampaignCard({ campaign, busy, onClaim, onDetails }) {
   const state = campaignState(campaign);
   const Icon = campaign.campaign_type === 'token_credit' ? Wallet : campaign.campaign_type === 'ticket_draw' ? Ticket : Gift;
   const reward = campaign.campaign_type === 'token_credit'
@@ -31,7 +32,7 @@ function CampaignCard({ campaign, busy, onClaim }) {
   };
 
   return (
-    <article className="flex h-full flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <article className="flex h-full flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm" data-testid={`promotion-card-${campaign.promotion_id}`}>
       <div className="relative flex min-h-44 items-end overflow-hidden bg-[#101b26] p-5 text-white">
         {(campaign.desktop_image_url || campaign.tablet_image_url || campaign.mobile_image_url) && (
           <img src={campaign.desktop_image_url || campaign.tablet_image_url || campaign.mobile_image_url} alt="" className="absolute inset-0 h-full w-full object-cover opacity-55" />
@@ -59,7 +60,8 @@ function CampaignCard({ campaign, busy, onClaim }) {
             </div>
           )}
         </div>
-        <div className="mt-auto pt-4">
+        <div className="mt-auto space-y-2 pt-4">
+          <Button type="button" variant="outline" onClick={() => onDetails(campaign)} className="w-full font-bold" data-testid={`promotion-details-${campaign.promotion_id}`}>View details</Button>
           {campaign.joined ? (
             <Button disabled className="w-full bg-emerald-700 font-extrabold text-white">Claimed</Button>
           ) : state === 'live' ? (
@@ -82,6 +84,7 @@ export default function PromotionCampaignsPage() {
   const [busyId, setBusyId] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [selected, setSelected] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -137,12 +140,47 @@ export default function PromotionCampaignsPage() {
             <section key={title}>
               <h2 className="mb-4 text-xl font-black text-slate-900">{title}</h2>
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {rows.map((campaign) => <CampaignCard key={campaign.promotion_id} campaign={campaign} busy={busyId === campaign.promotion_id} onClaim={claim} />)}
+                {rows.map((campaign) => <CampaignCard key={campaign.promotion_id} campaign={campaign} busy={busyId === campaign.promotion_id} onClaim={claim} onDetails={setSelected} />)}
               </div>
             </section>
           ))}
         </div>
       )}
+      <Dialog open={!!selected} onOpenChange={(o) => { if (!o) setSelected(null); }}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg" data-testid="promotion-details-dialog">
+          {selected && (() => {
+            const state = campaignState(selected);
+            const img = selected.desktop_image_url || selected.tablet_image_url || selected.mobile_image_url;
+            const reward = selected.campaign_type === 'token_credit'
+              ? `${selected.reward_tokens} bonus tokens`
+              : selected.campaign_type === 'ticket_draw'
+                ? `${selected.prize_total_gbp ? money(selected.prize_total_gbp) : 'Prize'} ticket draw`
+                : `${selected.winner_count || 1} referral draw winner${Number(selected.winner_count) === 1 ? '' : 's'}`;
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle>{selected.name}</DialogTitle>
+                  <DialogDescription className="capitalize">{selected.campaign_type.replace(/_/g, ' ')} · {state}</DialogDescription>
+                </DialogHeader>
+                {img && <img src={img} alt="" className="max-h-56 w-full rounded-lg object-cover" />}
+                <p className="whitespace-pre-line text-sm leading-relaxed text-slate-600">{selected.description || 'See the offer details and claim while this promotion is open.'}</p>
+                <div className="space-y-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
+                  <div><span className="font-bold">Reward:</span> {reward}</div>
+                  <div><span className="font-bold">Opens:</span> {formatDate(selected.start_at)}</div>
+                  <div><span className="font-bold">Expires:</span> {formatDate(selected.end_at)}</div>
+                </div>
+                {selected.joined ? (
+                  <Button disabled className="w-full bg-emerald-700 font-extrabold text-white">Claimed</Button>
+                ) : state === 'live' ? (
+                  <Button onClick={async () => { await claim(selected); setSelected(null); }} disabled={busyId === selected.promotion_id} className="w-full bg-emerald-700 font-extrabold text-white hover:bg-emerald-600">
+                    {selected.campaign_type === 'token_credit' ? 'Claim tokens' : 'Claim promotion'}
+                  </Button>
+                ) : null}
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

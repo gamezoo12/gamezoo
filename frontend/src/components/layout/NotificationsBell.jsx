@@ -84,7 +84,7 @@ export default function NotificationsBell({ dark = false }) {
   if (!user) return null;
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="sm:relative" ref={ref}>
       <button
         onClick={toggle}
         data-testid="notifications-bell"
@@ -100,7 +100,7 @@ export default function NotificationsBell({ dark = false }) {
       </button>
 
       {open && (
-        <div data-testid="notifications-panel" className="absolute right-0 mt-2 w-[min(22rem,calc(100vw-1rem))] max-h-[min(32rem,calc(100vh-6rem))] overflow-y-auto bg-white rounded-xl shadow-2xl border border-slate-200 z-[10070]">
+        <div data-testid="notifications-panel" className="fixed left-2 right-2 top-16 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[22rem] max-h-[calc(100vh-5rem)] sm:max-h-[min(32rem,calc(100vh-6rem))] overflow-y-auto bg-white rounded-xl shadow-2xl border border-slate-200 z-[10070]">
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
             <div className="font-display font-bold text-slate-900">Notifications</div>
             <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-700"><X className="w-4 h-4" /></button>
