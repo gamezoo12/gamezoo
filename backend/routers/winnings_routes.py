@@ -186,11 +186,12 @@ async def _audit(db, action, actor_id, target, meta=None):
 DEFAULT_TIMES = {20: 8, 25: 10, 30: 12, 36: 14, 42: 16, 49: 18, 64: 23, 81: 30, 100: 40}
 DEFAULT_COLOUR_TIMES = {4: 8, 5: 9, 6: 10, 7: 11, 8: 12, 9: 13, 10: 14}
 PALETTE = [
-    {"name": "RED", "hex": "#ef4444"}, {"name": "BLUE", "hex": "#3b82f6"},
-    {"name": "GREEN", "hex": "#22c55e"}, {"name": "YELLOW", "hex": "#eab308"},
-    {"name": "PURPLE", "hex": "#a855f7"}, {"name": "ORANGE", "hex": "#f97316"},
-    {"name": "PINK", "hex": "#ec4899"}, {"name": "CYAN", "hex": "#06b6d4"},
-    {"name": "LIME", "hex": "#84cc16"}, {"name": "BROWN", "hex": "#92400e"},
+    {"name": "BLUE", "hex": "#0000ff"}, {"name": "RED", "hex": "#ff0000"},
+    {"name": "GREEN", "hex": "#00c853"}, {"name": "ORANGE", "hex": "#ff7900"},
+    {"name": "PINK", "hex": "#ff1493"}, {"name": "WHITE", "hex": "#ffffff"},
+    {"name": "YELLOW", "hex": "#ffff00"}, {"name": "BLACK", "hex": "#000000"},
+    {"name": "VIOLET", "hex": "#8f00ff"}, {"name": "LIGHT GREEN", "hex": "#7cfc00"},
+    {"name": "PALE YELLOW", "hex": "#fff3a3"},
 ]
 
 
@@ -657,7 +658,7 @@ async def save_challenge_game(game_id: str, body: ChallengeGameBody, request: Re
         raise HTTPException(400, "Invalid game ID")
     if body.type not in ("number_sequence", "colour_match"):
         raise HTTPException(400, "Unsupported game type")
-    if not (2 <= body.size <= (200 if body.type == "number_sequence" else 10)):
+    if not (2 <= body.size <= (200 if body.type == "number_sequence" else len(PALETTE))):
         raise HTTPException(400, "Invalid game size")
     if not (1 <= body.time_limit_seconds <= 3600):
         raise HTTPException(400, "Invalid timer")

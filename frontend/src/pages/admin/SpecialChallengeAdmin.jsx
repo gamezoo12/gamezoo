@@ -16,6 +16,9 @@ const fields = [
 ];
 const errorText = e => e?.response?.data?.detail || e?.message || 'Request failed';
 const money = pence => `£${(Number(pence || 0) / 100).toFixed(2)}`;
+const gamePayload = game => ({ ...game, size: Number(game.size), time_limit_seconds: Number(game.time_limit_seconds),
+  entry_tokens: Number(game.entry_tokens), prize_pence: Number(game.prize_pence),
+  max_attempts: Number(game.max_attempts), target_matches: Number(game.target_matches) });
 
 export default function SpecialChallengeAdmin() {
   const [games, setGames] = useState([]);
@@ -66,11 +69,18 @@ export default function SpecialChallengeAdmin() {
   const save = async (g) => {
     setSaving(g.game_id); setNotice('');
     try {
-      const payload = { ...g, size: Number(g.size), time_limit_seconds: Number(g.time_limit_seconds),
-        entry_tokens: Number(g.entry_tokens), prize_pence: Number(g.prize_pence),
-        max_attempts: Number(g.max_attempts), target_matches: Number(g.target_matches) };
-      await api.put(`/admin/winnings/challenge/games/${encodeURIComponent(g.game_id)}`, payload);
+      await api.put(`/admin/winnings/challenge/games/${encodeURIComponent(g.game_id)}`, gamePayload(g));
       setNotice(`${g.name} saved.`);
+    } catch (e) { setNotice(errorText(e)); }
+    finally { setSaving(''); }
+  };
+  const togglePublished = async (game) => {
+    const enabled = !game.enabled;
+    setSaving(game.game_id); setNotice('');
+    try {
+      await api.put(`/admin/winnings/challenge/games/${encodeURIComponent(game.game_id)}`, gamePayload({ ...game, enabled }));
+      edit(game.game_id, 'enabled', enabled);
+      setNotice(`${game.name} ${enabled ? 'started' : 'stopped'}. ${enabled ? 'New attempts are open.' : 'New attempts are blocked; active attempts can finish.'}`);
     } catch (e) { setNotice(errorText(e)); }
     finally { setSaving(''); }
   };
@@ -93,7 +103,7 @@ export default function SpecialChallengeAdmin() {
     {busy && <p>Loading…</p>}
     {['number_sequence', 'colour_match'].map(type => <section key={type} className="mb-8"><h2 className="mb-3 text-xl font-bold">{type === 'colour_match' ? 'Colour Match' : 'Number Sequence'}</h2>
       <div className="grid gap-4 lg:grid-cols-2">{games.filter(g => g.type === type).sort((a,b) => a.size-b.size).map(g => <div key={g.game_id} className="rounded-xl border bg-white p-4 shadow-sm">
-        <div className="mb-3 flex items-center justify-between gap-3"><div className="text-xs text-slate-500">{g.game_id}</div><label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={!!g.enabled} onChange={e => edit(g.game_id, 'enabled', e.target.checked)} /> Published</label></div>
+        <div className="mb-3 flex items-center justify-between gap-3"><div className="text-xs text-slate-500">{g.game_id}</div><div className="flex items-center gap-2"><span className={`text-xs font-bold ${g.enabled ? 'text-emerald-700' : 'text-slate-500'}`}>{g.enabled ? 'LIVE' : 'STOPPED'}</span><button type="button" onClick={() => togglePublished(g)} disabled={saving === g.game_id} data-testid={`challenge-game-toggle-${g.game_id}`} className={`rounded-lg px-3 py-1.5 text-sm font-bold text-white disabled:opacity-50 ${g.enabled ? 'bg-rose-700 hover:bg-rose-600' : 'bg-emerald-700 hover:bg-emerald-600'}`}>{saving === g.game_id ? 'Saving…' : g.enabled ? 'Stop game' : 'Start game'}</button></div></div>
         <div className="grid grid-cols-2 gap-3">{fields.filter(([name]) => type === 'colour_match' || name !== 'target_matches').map(([name, label, inputType]) => <label key={name} className="text-xs font-semibold text-slate-600">{label}<input type={inputType} min={inputType === 'number' ? 0 : undefined} value={g[name]} onChange={e => edit(g.game_id, name, inputType === 'number' ? e.target.value : e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900" /></label>)}</div>
         <p className="mt-3 text-xs text-slate-500">Existing game size/type cannot be changed after saving. Prize is stored in pence (50000 = £500). 0 attempts = unlimited.</p>
         <button disabled={saving === g.game_id} onClick={() => save(g)} className="mt-4 flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"><Save size={16} /> {saving === g.game_id ? 'Saving…' : 'Save game'}</button>

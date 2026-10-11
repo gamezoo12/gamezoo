@@ -66,7 +66,7 @@ function CampaignCard({ campaign, busy, onClaim, onDetails }) {
             <Button disabled className="w-full bg-emerald-700 font-extrabold text-white">Claimed</Button>
           ) : state === 'live' ? (
             <Button onClick={() => onClaim(campaign)} disabled={busy} className="w-full bg-emerald-700 font-extrabold text-white hover:bg-emerald-600" data-testid={`claim-promotion-${campaign.promotion_id}`}>
-              {busy ? 'Claiming…' : campaign.campaign_type === 'token_credit' ? 'Claim tokens' : 'Claim promotion'}
+                  {busy ? 'Joining…' : campaign.campaign_type === 'token_credit' ? 'Claim tokens' : 'Join contest'}
             </Button>
           ) : (
             <Button disabled className="w-full" variant="outline">{state === 'upcoming' ? 'Opens later' : state === 'expired' ? 'Expired' : 'Unavailable'}</Button>
@@ -90,14 +90,17 @@ export default function PromotionCampaignsPage() {
     setLoading(true);
     try {
       const { data } = await api.get('/promotion/campaigns');
-      setCampaigns(data.campaigns || []);
+      const rows = data.campaigns || [];
+      setCampaigns(rows);
       setError('');
+      return rows;
     } catch (requestError) {
       if (requestError?.response?.status === 401) {
         navigate('/login?next=%2Fmy-account%2Fpromotions', { replace: true });
         return;
       }
       setError(requestError?.response?.data?.detail || 'Promotions could not be loaded.');
+      return [];
     } finally {
       setLoading(false);
     }
@@ -111,8 +114,9 @@ export default function PromotionCampaignsPage() {
       const { data } = await api.post(`/promotion/campaigns/${encodeURIComponent(campaign.promotion_id)}/claim`);
       setNotice(data.claimed_tokens
         ? `${data.claimed_tokens} tokens added to your wallet.`
-        : 'Promotion claimed. Your entry is recorded.');
-      await load();
+        : 'You joined the contest. Your entry is recorded.');
+      const rows = await load();
+      setSelected(rows.find((row) => row.promotion_id === campaign.promotion_id) || null);
     } catch (requestError) {
       setError(requestError?.response?.data?.detail || 'Could not claim this promotion.');
     } finally {
@@ -147,7 +151,7 @@ export default function PromotionCampaignsPage() {
         </div>
       )}
       <Dialog open={!!selected} onOpenChange={(o) => { if (!o) setSelected(null); }}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg" data-testid="promotion-details-dialog">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl" data-testid="promotion-details-dialog">
           {selected && (() => {
             const state = campaignState(selected);
             const img = selected.desktop_image_url || selected.tablet_image_url || selected.mobile_image_url;
@@ -156,6 +160,8 @@ export default function PromotionCampaignsPage() {
               : selected.campaign_type === 'ticket_draw'
                 ? `${selected.prize_total_gbp ? money(selected.prize_total_gbp) : 'Prize'} ticket draw`
                 : `${selected.winner_count || 1} referral draw winner${Number(selected.winner_count) === 1 ? '' : 's'}`;
+              const tickets = Array.isArray(selected.tickets) ? selected.tickets : [];
+              const ticketCount = Number(selected.ticket_count ?? tickets.length);
             return (
               <>
                 <DialogHeader>
@@ -164,16 +170,54 @@ export default function PromotionCampaignsPage() {
                 </DialogHeader>
                 {img && <img src={img} alt="" className="max-h-56 w-full rounded-lg object-cover" />}
                 <p className="whitespace-pre-line text-sm leading-relaxed text-slate-600">{selected.description || 'See the offer details and claim while this promotion is open.'}</p>
-                <div className="space-y-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
+                <div className="grid gap-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-700 sm:grid-cols-2">
                   <div><span className="font-bold">Reward:</span> {reward}</div>
                   <div><span className="font-bold">Opens:</span> {formatDate(selected.start_at)}</div>
                   <div><span className="font-bold">Expires:</span> {formatDate(selected.end_at)}</div>
+                  {selected.campaign_type !== 'token_credit' && <div><span className="font-bold">Winners:</span> {selected.winner_count || 1}</div>}
+                  {Number(selected.prize_per_winner_gbp) > 0 && <div><span className="font-bold">Prize per winner:</span> {money(selected.prize_per_winner_gbp)}</div>}
+                  {Number(selected.prize_total_gbp) > 0 && <div><span className="font-bold">Total prize:</span> {money(selected.prize_total_gbp)}</div>}
                 </div>
+                {selected.campaign_type !== 'token_credit' && (
+                  <section className="rounded-lg border border-slate-200 p-4" data-testid="promotion-ticket-details">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="font-extrabold text-slate-900">Your tickets</h3>
+                      <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-black text-amber-900">{ticketCount} {ticketCount === 1 ? 'ticket' : 'tickets'}</span>
+                    </div>
+                    {tickets.length ? (
+                      <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                        {tickets.map((ticket) => (
+                          <li key={ticket.ticket_number} className="flex min-w-0 items-center justify-between gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm">
+                            <span className="truncate font-mono font-bold text-slate-900">{ticket.ticket_number}</span>
+                            <span className="shrink-0 text-xs capitalize text-slate-500">{ticket.source === 'referral' ? 'Referral' : 'Join entry'}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mt-2 text-sm text-slate-600">{selected.joined ? 'Your ticket is being prepared.' : 'Join the contest to receive your entry ticket.'}</p>
+                    )}
+                  </section>
+                )}
+                {selected.campaign_type === 'referral_draw' && (
+                  <section className="rounded-lg border border-cyan-200 bg-cyan-50 p-4">
+                    <h3 className="font-extrabold text-cyan-950">Earn extra tickets by referring friends</h3>
+                    <p className="mt-1 text-sm leading-relaxed text-cyan-900">An eligible friend must register through your referral link and join this promotion. Each qualifying friend adds one referral ticket to your entry.</p>
+                    <Button type="button" variant="outline" onClick={() => navigate('/refer')} className="mt-3 border-cyan-700 font-bold text-cyan-900" data-testid="promotion-refer-friends">Refer friends</Button>
+                  </section>
+                )}
+                {selected.campaign_type !== 'token_credit' && (
+                  <section className="space-y-2 rounded-lg border border-slate-200 p-4 text-sm leading-relaxed text-slate-600">
+                    <h3 className="font-extrabold text-slate-900">Promotion details</h3>
+                    <p>Join while the promotion is open to receive one base entry ticket. Each ticket is one chance in the draw. Repeatedly joining does not create additional base tickets.</p>
+                    {selected.campaign_type === 'referral_draw' && <p>Referral tickets are issued only after a referred friend registers through your referral relationship and joins this promotion. Sharing or clicking a link alone does not qualify.</p>}
+                    <p>Winners are selected from valid tickets after the promotion closes. The prize is {selected.prize_per_winner_gbp ? `${money(selected.prize_per_winner_gbp)} per winner` : 'as described above'}.</p>
+                  </section>
+                )}
                 {selected.joined ? (
-                  <Button disabled className="w-full bg-emerald-700 font-extrabold text-white">Claimed</Button>
+                  <Button disabled className="w-full bg-emerald-700 font-extrabold text-white">{selected.campaign_type === 'token_credit' ? 'Claimed' : 'Joined contest'}</Button>
                 ) : state === 'live' ? (
-                  <Button onClick={async () => { await claim(selected); setSelected(null); }} disabled={busyId === selected.promotion_id} className="w-full bg-emerald-700 font-extrabold text-white hover:bg-emerald-600">
-                    {selected.campaign_type === 'token_credit' ? 'Claim tokens' : 'Claim promotion'}
+                  <Button onClick={() => claim(selected)} disabled={busyId === selected.promotion_id} className="w-full bg-emerald-700 font-extrabold text-white hover:bg-emerald-600" data-testid={`promotion-join-${selected.promotion_id}`}>
+                    {busyId === selected.promotion_id ? 'Joining…' : selected.campaign_type === 'token_credit' ? 'Claim tokens' : 'Join contest'}
                   </Button>
                 ) : null}
               </>

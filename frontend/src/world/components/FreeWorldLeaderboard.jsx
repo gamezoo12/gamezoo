@@ -209,8 +209,8 @@ export default function FreeWorldLeaderboard({ open, onClose }) {
       {/* SLIM PRIZE LEAGUE BRAND BAR */}
       <header className="pl-global-lb-topbar" data-testid="lb-topbar">
         <div className="pl-global-lb-brand">
-          <img src={LOGO_URL} alt="Prize League" className="pl-global-lb-logo" />
-          <span className="pl-global-lb-wordmark"><b>PRIZE</b> LEAGUE</span>
+          <img src={LOGO_URL} alt="Leaderboard" className="pl-global-lb-logo" />
+          <span className="pl-global-lb-wordmark">LEADERBOARD</span>
         </div>
         <button className="pl-global-lb-back" onClick={() => onClose?.()} data-testid="lb-close" aria-label="Close leaderboard">
           <X size={18} /> <span>Back</span>

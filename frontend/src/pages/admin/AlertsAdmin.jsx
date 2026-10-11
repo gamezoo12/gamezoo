@@ -2467,6 +2467,23 @@ export default function AlertsAdmin() {
           <span className="mt-1 block text-right text-xs text-slate-400">{form.message.length} / 4000</span>
         </label>
 
+                        <section className="rounded-xl border border-slate-200 bg-slate-50 p-4" data-testid="alert-notification-preview" aria-live="polite">
+                              <div className="mb-3 flex items-center justify-between gap-3">
+                                    <h2 className="text-sm font-extrabold text-slate-900">Notification preview</h2>
+                                    <span className="text-xs font-semibold text-slate-500">In-app · updates as you type</span>
+                              </div>
+                              <article className="max-w-xl rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                                    <div className="flex items-start gap-3">
+                                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white"><Bell className="h-4 w-4" /></span>
+                                          <div className="min-w-0 flex-1">
+                                                <h3 className="break-words text-sm font-bold text-slate-900">{form.title.trim() || 'Your notification title'}</h3>
+                                                <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-600">{form.message.trim() || 'Your message will appear here.'}</p>
+                                                <time className="mt-2 block text-xs text-slate-400">Just now</time>
+                                          </div>
+                                    </div>
+                              </article>
+                        </section>
+
         <button disabled={loading || targetCount < 1 || targetCount > 10000} className="inline-flex items-center gap-2 rounded-xl bg-[#6C2BFF] px-5 py-3 font-bold text-white disabled:opacity-50">
           <Send className="h-4 w-4" /> {loading ? 'Sending…' : 'Send Alert'}
         </button>

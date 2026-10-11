@@ -19,10 +19,26 @@ const CELL_COLOURS = [
   'bg-rose-500', 'bg-orange-500', 'bg-amber-500', 'bg-lime-500', 'bg-emerald-500',
   'bg-cyan-500', 'bg-sky-500', 'bg-indigo-500', 'bg-violet-500', 'bg-fuchsia-500',
 ];
-const OPTION_GRADIENTS = [
-  'from-fuchsia-500 to-purple-600', 'from-cyan-500 to-blue-600', 'from-amber-500 to-orange-600',
-  'from-emerald-500 to-teal-600', 'from-rose-500 to-pink-600', 'from-indigo-500 to-violet-600',
-];
+const MATCH_COLOURS = {
+  BLUE: { hex: '#0000ff', text: '#ffffff', border: '#0000a8' },
+  RED: { hex: '#ff0000', text: '#ffffff', border: '#b00000' },
+  GREEN: { hex: '#00c853', text: '#071b0d', border: '#008c3a' },
+  ORANGE: { hex: '#ff7900', text: '#241000', border: '#bb5500' },
+  PINK: { hex: '#ff1493', text: '#ffffff', border: '#b00062' },
+  WHITE: { hex: '#ffffff', text: '#111827', border: '#94a3b8' },
+  YELLOW: { hex: '#ffff00', text: '#111827', border: '#b3a800' },
+  BLACK: { hex: '#000000', text: '#ffffff', border: '#64748b' },
+  VIOLET: { hex: '#8f00ff', text: '#ffffff', border: '#6000ad' },
+  'LIGHT GREEN': { hex: '#7cfc00', text: '#102000', border: '#559f00' },
+  'PALE YELLOW': { hex: '#fff3a3', text: '#302600', border: '#c6ae42' },
+};
+
+const isLightHex = (hex = '') => {
+  const value = hex.replace('#', '');
+  if (value.length !== 6) return true;
+  const channels = [0, 2, 4].map((index) => parseInt(value.slice(index, index + 2), 16));
+  return (channels[0] * 299 + channels[1] * 587 + channels[2] * 114) / 1000 > 145;
+};
 
 const shuffle = (values) => {
   const a = [...values];
@@ -252,7 +268,7 @@ export default function SpecialChallenge() {
                   type="button"
                   onClick={() => { reset(); setSelected(g); }}
                   data-testid={`game-tab-${g.game_id}`}
-                  className={`shrink-0 whitespace-nowrap rounded-full bg-gradient-to-r px-4 py-2 text-sm font-extrabold text-white shadow transition ${pal.card} ${active ? `ring-2 ring-offset-2 ring-offset-slate-950 ${pal.ring}` : 'opacity-80 hover:opacity-100'}`}
+                  className={`shrink-0 whitespace-nowrap rounded-full bg-gradient-to-r px-3 py-1.5 text-xs font-extrabold text-white shadow transition sm:px-3.5 ${pal.card} ${active ? `ring-2 ring-offset-2 ring-offset-slate-950 ${pal.ring}` : 'opacity-80 hover:opacity-100'}`}
                 >
                   {g.name}
                 </button>
@@ -342,7 +358,7 @@ export default function SpecialChallenge() {
                       key={g.game_id}
                       type="button"
                       onClick={() => { setSelected(g); setError(''); }}
-                      className={`group flex min-h-[340px] w-full flex-col rounded-xl border border-white/20 bg-gradient-to-br ${pal.card} p-5 text-left text-white shadow-lg transition duration-200 hover:-translate-y-1 hover:shadow-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white`}
+                      className={`group flex min-h-[300px] w-full flex-col rounded-xl border border-white/20 bg-gradient-to-br ${pal.card} p-4 text-left text-white shadow-lg transition duration-200 hover:-translate-y-1 hover:shadow-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white`}
                       data-testid={`game-${g.game_id}`}
                     >
                       <div className="flex w-full items-start justify-between gap-3">
@@ -421,8 +437,11 @@ export default function SpecialChallenge() {
               {grid.map(n => <button key={n} data-testid={`cell-${n}`} onClick={() => tap(n)} disabled={completedRef.current} className={`aspect-square rounded-md text-xs font-bold text-white shadow sm:text-base ${n < next ? 'bg-emerald-700 opacity-40' : `${CELL_COLOURS[n % CELL_COLOURS.length]} hover:brightness-110`}`}>{n}</button>)}
             </div> : <div className="rounded-2xl bg-slate-900 p-5 text-center">
               <p className="mb-3 text-sm text-slate-400">Tap the actual INK colour, not the word</p>
-              <div className="mb-8 rounded-xl bg-slate-950 px-3 py-12 text-4xl font-black tracking-wider sm:text-6xl" style={{ color: question?.ink }}>{question?.word}</div>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{question?.options.map((option, i) => <button key={option} disabled={busy} onClick={() => answer(option)} className={`rounded-xl bg-gradient-to-br ${OPTION_GRADIENTS[i % OPTION_GRADIENTS.length]} px-2 py-5 font-black text-white shadow hover:brightness-110 disabled:opacity-50`}>{option}</button>)}</div>
+              <div className="mb-8 rounded-xl border border-slate-400 px-3 py-12 text-4xl font-black tracking-wider sm:text-6xl" style={{ color: question?.ink, backgroundColor: isLightHex(question?.ink) ? '#1f2937' : '#f8fafc' }}>{question?.word}</div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{question?.options.map((option) => {
+                const swatch = MATCH_COLOURS[option] || { hex: '#64748b', text: '#ffffff', border: '#334155' };
+                return <button key={option} disabled={busy} onClick={() => answer(option)} className="rounded-xl border-2 px-2 py-5 text-base font-black shadow hover:brightness-110 disabled:opacity-50" style={{ backgroundColor: swatch.hex, color: swatch.text, borderColor: swatch.border }}>{option}</button>;
+              })}</div>
             </div>}
         </div>}
         {result && <section
