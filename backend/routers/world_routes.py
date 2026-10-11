@@ -3747,11 +3747,29 @@ async def _transition_contest(db, active_contest: dict | None):
 
 
 async def _champion_schedule_for(db, progress: dict, active_contest: dict | None) -> dict:
-    """Personal progression uses the same active-global-contest clock for every player."""
-    return _personal_champion_transition_schedule(
+    """Champion timing follows the live contest; next-stage L1 follows its global start."""
+    schedule = _personal_champion_transition_schedule(
         progress,
         await _transition_contest(db, active_contest),
     )
+    stage = int(progress.get("champion_stage") or 1)
+    next_stage = stage + 1
+    if next_stage > WORLD_CONTEST_COUNT:
+        schedule["next_start_at"] = None
+        return schedule
+
+    setting = await db.world_settings.find_one(
+        {"_id": "active_global_contest", "season_id": WORLD_SEASON_ID},
+        {"_id": 0, "season_start_at": 1, "championship_extensions": 1},
+    )
+    season_start = _ensure_aware_datetime((setting or {}).get("season_start_at"))
+    if season_start is not None:
+        extensions = (setting or {}).get("championship_extensions") or {}
+        next_window = championship_window(season_start, next_stage, extensions)
+        schedule["next_start_at"] = _serialize_datetime(
+            ensure_utc(next_window["start_at"])
+        )
+    return schedule
 
 
 def _personal_champion_transition_schedule(
