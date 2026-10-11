@@ -3938,7 +3938,7 @@ async def _assert_world_level_available(
     )
 
 
-async def _effective_level_config(
+async def _effective_level_config_base(
     db,
     level: int,
     champion_stage: Optional[int] = None,
@@ -4085,6 +4085,79 @@ async def _effective_level_config(
         merged["initial_free_attempts"] = 3
 
     return _apply_stage_override(merged)
+
+
+WORLD_COLOUR_PALETTE = [
+    {"name": "BLUE", "hex": "#0000ff"}, {"name": "RED", "hex": "#ff0000"},
+    {"name": "GREEN", "hex": "#00c853"}, {"name": "ORANGE", "hex": "#ff7900"},
+    {"name": "PINK", "hex": "#ff1493"}, {"name": "WHITE", "hex": "#ffffff"},
+    {"name": "YELLOW", "hex": "#ffff00"}, {"name": "BLACK", "hex": "#000000"},
+    {"name": "VIOLET", "hex": "#8f00ff"}, {"name": "LIGHT GREEN", "hex": "#7cfc00"},
+    {"name": "PALE YELLOW", "hex": "#fff3a3"},
+]
+
+# Global contests whose Free World game is Colour Match: colours per level 1-10 and for the Champion level.
+WORLD_COLOUR_MATCH_CONTESTS = {
+    3: {
+        "levels": {1: 2, 2: 2, 3: 3, 4: 3, 5: 4, 6: 5, 7: 6, 8: 7, 9: 8, 10: 9},
+        "level_rounds": 10,
+        "champion": 10,
+        "champion_rounds": 20,
+    },
+}
+
+
+def _colour_questions(colours: int, rounds: int):
+    palette = WORLD_COLOUR_PALETTE[:max(2, min(colours, len(WORLD_COLOUR_PALETTE)))]
+    names = [c["name"] for c in palette]
+    questions = []
+    expected = []
+    for _ in range(rounds):
+        ink = secrets.choice(palette)
+        word = secrets.choice([c for c in palette if c["name"] != ink["name"]])
+        options = names[:]
+        secrets.SystemRandom().shuffle(options)
+        questions.append({"word": word["name"], "ink": ink["hex"], "options": options})
+        expected.append(options.index(ink["name"]))
+    return questions, expected
+
+
+def _champion_colour_game(contest_number) -> Optional[dict]:
+    spec = WORLD_COLOUR_MATCH_CONTESTS.get(int(contest_number or 0))
+    if not spec or not spec.get("champion"):
+        return None
+    return {
+        "game_id": "colour_match",
+        "colours": int(spec["champion"]),
+        "rounds": int(spec["champion_rounds"]),
+    }
+
+
+async def _effective_level_config(
+    db,
+    level: int,
+    champion_stage: Optional[int] = None,
+) -> dict:
+    config = await _effective_level_config_base(db, level, champion_stage)
+    active = await _active_contest(db)
+    spec = (
+        WORLD_COLOUR_MATCH_CONTESTS.get(int(active.get("contest_number") or 0))
+        if active else None
+    )
+    colours = ((spec or {}).get("levels") or {}).get(int(level))
+    if not colours:
+        return config
+    return {
+        **config,
+        "game_id": "colour_match",
+        "demo_enabled": True,
+        "demo_skippable": True,
+        "game_config": {
+            "colours": int(colours),
+            "rounds": int(spec["level_rounds"]),
+            "timer_mode": (config.get("game_config") or {}).get("timer_mode", "countdown"),
+        },
+    }
 
 
 class FreeWorldSessionStartInput(BaseModel):
@@ -5827,19 +5900,30 @@ async def free_world_session_start(
             },
         )
 
-    target = int(
-        config[
-            "game_config"
-        ][
-            "target_number"
-        ]
-    )
+    colour_questions = None
+    colour_expected = None
 
-    challenge_numbers = (
-        _secure_shuffle_numbers(
-            target
+    if config.get("game_id") == "colour_match":
+        target = int(config["game_config"]["rounds"])
+        colour_questions, colour_expected = _colour_questions(
+            int(config["game_config"]["colours"]),
+            target,
         )
-    )
+        challenge_numbers = []
+    else:
+        target = int(
+            config[
+                "game_config"
+            ][
+                "target_number"
+            ]
+        )
+
+        challenge_numbers = (
+            _secure_shuffle_numbers(
+                target
+            )
+        )
 
     now = _utcnow()
 
@@ -5900,6 +5984,9 @@ async def free_world_session_start(
             None,
     }
 
+    if colour_expected is not None:
+        session["colour_expected"] = colour_expected
+
     await db.world_game_sessions.insert_one(
         dict(session)
     )
@@ -5914,13 +6001,21 @@ async def free_world_session_start(
         "game_id":
             config["game_id"],
 
-        "game_config": {
-            "target_number":
-                target,
+        "game_config": (
+            {
+                "colours": int(config["game_config"]["colours"]),
+                "rounds": target,
+                "questions": colour_questions,
+            }
+            if colour_questions is not None
+            else {
+                "target_number":
+                    target,
 
-            "numbers":
-                challenge_numbers,
-        },
+                "numbers":
+                    challenge_numbers,
+            }
+        ),
 
         "time_limit_seconds":
             session[
@@ -6214,10 +6309,14 @@ async def free_world_session_submit(
         ]
     )
 
-    expected_taps = list(
-        range(
-            1,
-            target + 1,
+    expected_taps = (
+        list(session.get("colour_expected") or [])
+        if session.get("game_id") == "colour_match"
+        else list(
+            range(
+                1,
+                target + 1,
+            )
         )
     )
 
@@ -7306,6 +7405,9 @@ async def champion_status(
 
         "attempts":
             attempts,
+
+        "champion_game":
+            _champion_colour_game(contest_number),
     }
 
 
@@ -7574,8 +7676,18 @@ async def champion_session_start(
         ) or {}
     )
 
-    # All Champion stages use Number Sequence 1-30.
+    # All Champion stages use Number Sequence 1-30 unless the contest is Colour Match.
     target = 30
+    colour_questions = None
+    colour_expected = None
+    colour_game = _champion_colour_game(contest_number)
+    if colour_game:
+        game_id = "colour_match"
+        target = colour_game["rounds"]
+        colour_questions, colour_expected = _colour_questions(
+            colour_game["colours"],
+            target,
+        )
 
     timer_mode = str(
         game_config.get(
@@ -7675,6 +7787,9 @@ async def champion_session_start(
             None,
     }
 
+    if colour_expected is not None:
+        session["colour_expected"] = colour_expected
+
     await db.world_champion_sessions.insert_one(
         dict(session)
     )
@@ -7714,13 +7829,21 @@ async def champion_session_start(
         "game_id":
             game_id,
 
-        "game_config": {
-            "target_number":
-                target,
+        "game_config": (
+            {
+                "colours": colour_game["colours"],
+                "rounds": target,
+                "questions": colour_questions,
+            }
+            if colour_questions is not None
+            else {
+                "target_number":
+                    target,
 
-            "numbers":
-                numbers,
-        },
+                "numbers":
+                    numbers,
+            }
+        ),
 
         "timer_mode":
             timer_mode,
@@ -8049,10 +8172,14 @@ async def champion_session_submit(
         or "stopwatch"
     ).strip().lower()
 
-    expected_taps = list(
-        range(
-            1,
-            target + 1,
+    expected_taps = (
+        list(session.get("colour_expected") or [])
+        if session.get("game_id") == "colour_match"
+        else list(
+            range(
+                1,
+                target + 1,
+            )
         )
     )
 

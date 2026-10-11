@@ -112,6 +112,73 @@ function getErrorMessage(
 }
 
 
+const COLOUR_SWATCHES = {
+  BLUE: { hex: '#0000ff', text: '#ffffff', border: '#0000a8' },
+  RED: { hex: '#ff0000', text: '#ffffff', border: '#b00000' },
+  GREEN: { hex: '#00c853', text: '#071b0d', border: '#008c3a' },
+  ORANGE: { hex: '#ff7900', text: '#241000', border: '#bb5500' },
+  PINK: { hex: '#ff1493', text: '#ffffff', border: '#b00062' },
+  WHITE: { hex: '#ffffff', text: '#111827', border: '#94a3b8' },
+  YELLOW: { hex: '#ffff00', text: '#111827', border: '#b3a800' },
+  BLACK: { hex: '#000000', text: '#ffffff', border: '#64748b' },
+  VIOLET: { hex: '#8f00ff', text: '#ffffff', border: '#6000ad' },
+  'LIGHT GREEN': { hex: '#7cfc00', text: '#102000', border: '#559f00' },
+  'PALE YELLOW': { hex: '#fff3a3', text: '#302600', border: '#c6ae42' },
+};
+
+const COLOUR_ORDER = Object.keys(COLOUR_SWATCHES);
+
+const makeDemoColourQuestions = (colours, count = 5) => {
+  const names = COLOUR_ORDER.slice(0, Math.max(2, Math.min(colours || 2, COLOUR_ORDER.length)));
+  return Array.from({ length: count }, () => {
+    const answer = names[Math.floor(Math.random() * names.length)];
+    const others = names.filter((name) => name !== answer);
+    const word = others[Math.floor(Math.random() * others.length)];
+    return { answer, word, ink: COLOUR_SWATCHES[answer].hex, options: shuffle([...names]) };
+  });
+};
+
+const isLightHex = (hex = '') => {
+  const value = hex.replace('#', '');
+  if (value.length !== 6) return true;
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(value.slice(i, i + 2), 16));
+  return (r * 299 + g * 587 + b * 114) / 1000 > 145;
+};
+
+let colourAudioContext;
+
+function playColourSelectSound(index = 0) {
+  if (typeof window === 'undefined') return;
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return;
+
+  try {
+    colourAudioContext ||= new AudioContextClass();
+    if (colourAudioContext.state === 'suspended') {
+      colourAudioContext.resume().catch(() => {});
+    }
+    const now = colourAudioContext.currentTime;
+    const oscillator = colourAudioContext.createOscillator();
+    const gain = colourAudioContext.createGain();
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(520 + (index % 5) * 35, now);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.07, now + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.085);
+    oscillator.connect(gain);
+    gain.connect(colourAudioContext.destination);
+    oscillator.start(now);
+    oscillator.stop(now + 0.09);
+    oscillator.onended = () => {
+      oscillator.disconnect();
+      gain.disconnect();
+    };
+  } catch {
+    return;
+  }
+}
+
+
 export default function FreeWorldNumberSequenceV3({
   selectedLevel,
   levelData,
@@ -124,12 +191,28 @@ export default function FreeWorldNumberSequenceV3({
   const level =
     levelData?.level || {};
 
-  const target =
+  const isColour =
+    level?.game_id === 'colour_match';
+
+  const colourCount =
     Number(
       level
         ?.game_config
-        ?.target_number || 20,
+        ?.colours || 0,
     );
+
+  const target =
+    isColour
+      ? Number(
+          level
+            ?.game_config
+            ?.rounds || 10,
+        )
+      : Number(
+          level
+            ?.game_config
+            ?.target_number || 20,
+        );
 
   const timerMode =
     championMode
@@ -178,6 +261,18 @@ export default function FreeWorldNumberSequenceV3({
 
   const [demoNext, setDemoNext] =
     useState(1);
+
+  const [demoColourQs, setDemoColourQs] =
+    useState([]);
+
+  const [demoColourIdx, setDemoColourIdx] =
+    useState(0);
+
+  const [demoColourFeedback, setDemoColourFeedback] =
+    useState(null);
+
+  const [demoColourScore, setDemoColourScore] =
+    useState(0);
 
   const [demoElapsedMs, setDemoElapsedMs] =
     useState(0);
@@ -371,6 +466,18 @@ export default function FreeWorldNumberSequenceV3({
   const replayDemo =
     useCallback(
       () => {
+        if (isColour) {
+          setDemoColourQs(
+            makeDemoColourQuestions(colourCount),
+          );
+          setDemoColourIdx(0);
+          setDemoColourFeedback(null);
+          setDemoColourScore(0);
+          setError('');
+          setStage('demo');
+          return;
+        }
+
         setDemoNumbers(
           shuffle(
             Array.from(
@@ -395,8 +502,55 @@ export default function FreeWorldNumberSequenceV3({
       },
       [
         target,
+        isColour,
+        colourCount,
       ],
     );
+
+
+  const answerDemoColour =
+    (name) => {
+      if (demoColourFeedback) {
+        return;
+      }
+
+      playColourSelectSound(COLOUR_ORDER.indexOf(name));
+
+      const question =
+        demoColourQs[demoColourIdx];
+
+      const ok =
+        name === question?.answer;
+
+      setDemoColourFeedback({
+        ok,
+        answer: question?.answer,
+      });
+
+      if (ok) {
+        setDemoColourScore((value) => value + 1);
+      }
+
+      window.setTimeout(
+        () => {
+          if (!mountedRef.current) {
+            return;
+          }
+
+          setDemoColourFeedback(null);
+
+          if (
+            demoColourIdx + 1 >=
+            demoColourQs.length
+          ) {
+            setStage('demo-complete');
+          } else {
+            setDemoColourIdx((value) => value + 1);
+          }
+        },
+        ok ? 450 : 1100,
+      );
+    };
 
 
   /*
@@ -1038,6 +1192,8 @@ if (
         return;
       }
 
+      playColourSelectSound(optionIndex);
+
       const nextTaps = [
         ...officialTaps,
         number,
@@ -1067,6 +1223,47 @@ if (
         (value) =>
           value + 1,
       );
+    };
+
+
+  const colourQuestions =
+    session?.game_config?.questions || [];
+
+  const colourIndex =
+    Math.min(
+      officialTaps.length,
+      Math.max(0, colourQuestions.length - 1),
+    );
+
+  const colourQuestion =
+    colourQuestions[colourIndex] || null;
+
+  const answerColour =
+    (optionIndex) => {
+      if (
+        stage !== 'official' ||
+        busy ||
+        !colourQuestion
+      ) {
+        return;
+      }
+
+      const nextTaps = [
+        ...officialTaps,
+        optionIndex,
+      ];
+
+      setOfficialTaps(nextTaps);
+
+      if (
+        nextTaps.length >=
+        colourQuestions.length
+      ) {
+        submitOfficial({
+          solved: true,
+          taps: nextTaps,
+        });
+      }
     };
 
 
@@ -1321,6 +1518,17 @@ if (
 
           <section className="fwv3-game-banner">
 
+            {isColour ? (
+              <div
+                className="fwv3-colour-icon"
+                aria-hidden="true"
+              >
+                <i style={{ background: '#0000ff' }} />
+                <i style={{ background: '#ff0000' }} />
+                <i style={{ background: '#00c853' }} />
+                <i style={{ background: '#ffff00' }} />
+              </div>
+            ) : (
             <div
               className="fwv3-number-icon"
               aria-hidden="true"
@@ -1330,6 +1538,7 @@ if (
               <span>3</span>
               <span>4</span>
             </div>
+            )}
 
 
             <div className="fwv3-game-banner-copy">
@@ -1339,7 +1548,7 @@ if (
               </span>
 
               <h2>
-                NUMBER SEQUENCE
+                {isColour ? 'COLOUR MATCH' : 'NUMBER SEQUENCE'}
               </h2>
 
             </div>
@@ -1399,11 +1608,11 @@ if (
                 </span>
 
                 <strong>
-                  1 to {target}
+                  {isColour ? `${colourCount} colours` : `1 to ${target}`}
                 </strong>
 
                 <small>
-                  SEQUENCE
+                  {isColour ? `${target} QUESTIONS` : 'SEQUENCE'}
                 </small>
 
               </div>
@@ -1444,9 +1653,17 @@ if (
               {
                 championMode
                   ? (
-                      `Complete 1 to ${target} as fast as possible. ` +
-                      'There is no countdown failure limit. ' +
-                      'Your verified server time determines your ranking.'
+                      isColour
+                        ? (
+                            `Answer ${target} colour questions as fast as possible. ` +
+                            'Tap the colour of the INK, not the word. ' +
+                            'Every answer must be correct; your verified server time ranks you.'
+                          )
+                        : (
+                            `Complete 1 to ${target} as fast as possible. ` +
+                            'There is no countdown failure limit. ' +
+                            'Your verified server time determines your ranking.'
+                          )
                     )
                   : (
                       'Pass the skill challenge to progress to the next ' +
@@ -1525,6 +1742,93 @@ if (
             </span>
 
           </footer>
+
+        </section>
+      </div>
+    );
+  }
+
+
+  /*
+   * ==========================================================
+   * PAGE 2 - COLOUR MATCH DEMO (practice, no attempt used)
+   * ==========================================================
+   */
+  if (
+    stage === 'demo' &&
+    isColour &&
+    demoColourQs.length > 0
+  ) {
+    const question =
+      demoColourQs[demoColourIdx];
+
+    return (
+      <div className="fwv3-overlay fwv3-play-overlay">
+        <section className="fwv3-card fwv3-play-card fwv3-colour-card">
+
+          <div className="fwv3-mode-label">
+            DEMO MODE
+          </div>
+
+          <div className="fwv3-colour-progress" aria-hidden="true">
+            <span style={{ width: `${(demoColourIdx / demoColourQs.length) * 100}%` }} />
+          </div>
+
+          <div className="fwv3-colour-count">
+            PRACTICE {demoColourIdx + 1} / {demoColourQs.length} - {demoColourScore} correct
+          </div>
+
+          <p className="fwv3-colour-hint">
+            Tap the colour of the INK, not the word
+          </p>
+
+          <div
+            className={`fwv3-colour-word ${isLightHex(question.ink) ? 'is-dark-bg' : ''}`}
+            style={{ color: question.ink }}
+          >
+            {question.word}
+          </div>
+
+          <div
+            className={`fwv3-colour-feedback ${demoColourFeedback ? (demoColourFeedback.ok ? 'is-ok' : 'is-bad') : ''}`}
+            aria-live="polite"
+          >
+            {demoColourFeedback
+              ? (demoColourFeedback.ok
+                  ? 'Correct!'
+                  : `Not quite - the ink was ${demoColourFeedback.answer}`)
+              : '\u00a0'}
+          </div>
+
+          <div
+            className="fwv3-colour-options"
+            style={{
+              gridTemplateColumns: `repeat(${question.options.length <= 4 ? 2 : 3}, minmax(0, 1fr))`,
+            }}
+          >
+            {question.options.map((name) => {
+              const swatch = COLOUR_SWATCHES[name];
+              return (
+                <button
+                  key={name}
+                  type="button"
+                  disabled={Boolean(demoColourFeedback)}
+                  onClick={() => answerDemoColour(name)}
+                  style={{ backgroundColor: swatch.hex, color: swatch.text, borderColor: swatch.border }}
+                >
+                  {name}
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            type="button"
+            className="fwv3-exit-game"
+            onClick={() => setStage('demo-complete')}
+          >
+            SKIP DEMO
+          </button>
 
         </section>
       </div>
@@ -1985,6 +2289,84 @@ if (
    * Same dimensions as Demo.
    * ==========================================================
    */
+  if (
+    stage === 'official' &&
+    session?.game_id === 'colour_match' &&
+    colourQuestion
+  ) {
+    const total = colourQuestions.length;
+
+    return (
+      <div className="fwv3-overlay fwv3-play-overlay">
+        <section className="fwv3-card fwv3-play-card fwv3-colour-card">
+
+          <div className="fwv3-mode-label">
+            {championMode ? 'CHAMPION RUN' : 'OFFICIAL ATTEMPT'}
+          </div>
+
+          <div className="fwv3-timer">
+            <Clock3 />
+            <strong>{formatElapsed(officialDisplayMs)}</strong>
+          </div>
+
+          <div className="fwv3-colour-progress" aria-hidden="true">
+            <span style={{ width: `${(colourIndex / total) * 100}%` }} />
+          </div>
+
+          <div className="fwv3-colour-count">
+            QUESTION {colourIndex + 1} / {total}
+          </div>
+
+          <p className="fwv3-colour-hint">
+            Tap the colour of the INK, not the word
+          </p>
+
+          <div
+            className={`fwv3-colour-word ${isLightHex(colourQuestion.ink) ? 'is-dark-bg' : ''}`}
+            style={{ color: colourQuestion.ink }}
+            data-testid="fw-colour-word"
+          >
+            {colourQuestion.word}
+          </div>
+
+          <div
+            className="fwv3-colour-options"
+            style={{
+              gridTemplateColumns: `repeat(${colourQuestion.options.length <= 4 ? 2 : 3}, minmax(0, 1fr))`,
+            }}
+          >
+            {colourQuestion.options.map((name, optionIndex) => {
+              const swatch = COLOUR_SWATCHES[name] || { hex: '#64748b', text: '#ffffff', border: '#334155' };
+              return (
+                <button
+                  key={name}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => answerColour(optionIndex)}
+                  style={{ backgroundColor: swatch.hex, color: swatch.text, borderColor: swatch.border }}
+                >
+                  {name}
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            type="button"
+            className="fwv3-exit-game"
+            disabled={busy}
+            onClick={() => {
+              submitOfficial({ solved: false, taps: officialTaps });
+            }}
+          >
+            EXIT GAME
+          </button>
+
+        </section>
+      </div>
+    );
+  }
+
   if (
     stage === 'official'
   ) {

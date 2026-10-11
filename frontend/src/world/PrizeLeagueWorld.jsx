@@ -271,11 +271,14 @@ export default function PrizeLeagueWorld() {
           // entry + "ready to play" screens show the correct count
           // BEFORE the official session starts.
           let championAttempts = null;
+          let championGame = null;
           try {
             const champStatus =
               await worldContestAPI.championStatus();
             championAttempts =
               champStatus?.attempts || null;
+            championGame =
+              champStatus?.champion_game || null;
           } catch (statusError) {
             championAttempts = null;
           }
@@ -321,25 +324,33 @@ export default function PrizeLeagueWorld() {
               ...champion,
 
               game_id:
-                'number_sequence',
+                championGame?.game_id || 'number_sequence',
 
-              game_config: {
-                ...(champion
-                  ?.game_config || {}),
+              game_config: championGame
+                ? {
+                    colours: championGame.colours,
+                    rounds: championGame.rounds,
+                    timer_mode: 'stopwatch',
+                  }
+                : {
+                    ...(champion
+                      ?.game_config || {}),
 
-                target_number:
-                  30,
+                    target_number:
+                      30,
 
-                timer_mode:
-                  'stopwatch',
-              },
+                    timer_mode:
+                      'stopwatch',
+                  },
 
               time_limit_seconds:
                 null,
 
               demo_enabled:
-                champion
-                  ?.demo_enabled !== false,
+                championGame
+                  ? true
+                  : champion
+                      ?.demo_enabled !== false,
 
               demo_skippable:
                 champion
@@ -665,7 +676,9 @@ export default function PrizeLeagueWorld() {
                       <strong>
                         {levelData.level?.game_id === 'number_sequence'
                           ? 'Number Sequence'
-                          : levelData.level?.game_id}
+                          : levelData.level?.game_id === 'colour_match'
+                            ? 'Colour Match'
+                            : levelData.level?.game_id}
                       </strong>
                     </div>
 

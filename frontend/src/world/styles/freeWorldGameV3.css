@@ -2064,3 +2064,120 @@ body:has(.fwv3-overlay) {
     overflow: hidden;
   }
 }
+
+
+/* COLOUR MATCH */
+
+.fwv3-colour-icon {
+  display: grid;
+  grid-template-columns: repeat(2, 42px);
+  gap: 5px;
+}
+
+.fwv3-colour-icon i {
+  display: block;
+  height: 42px;
+  border-radius: 12px;
+  border: 2px solid rgba(7, 18, 38, 0.18);
+  box-shadow: 0 6px 14px rgba(7, 18, 38, 0.16);
+}
+
+.fwv3-colour-card {
+  background: linear-gradient(180deg, #ffffff 0%, #f4efff 100%);
+}
+
+.fwv3-colour-progress {
+  height: 8px;
+  margin: 2px 4px 10px;
+  border-radius: 999px;
+  background: #e5dcfa;
+  overflow: hidden;
+}
+
+.fwv3-colour-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #6724c7, #ff1493, #ff7900);
+  transition: width 0.18s ease;
+}
+
+.fwv3-colour-count {
+  text-align: center;
+  color: #6724c7;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.fwv3-colour-hint {
+  margin: 4px 0 10px;
+  text-align: center;
+  color: #4b5563;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.fwv3-colour-word {
+  display: grid;
+  place-items: center;
+  min-height: 104px;
+  margin-bottom: 14px;
+  padding: 10px;
+  border: 2px solid #d8c8fa;
+  border-radius: 20px;
+  background: #ffffff;
+  font-size: clamp(34px, 11vw, 50px);
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  text-align: center;
+  box-shadow: inset 0 0 0 4px #f4efff;
+}
+
+.fwv3-colour-word.is-dark-bg {
+  background: #1f2937;
+  border-color: #111827;
+  box-shadow: inset 0 0 0 4px #374151;
+}
+
+.fwv3-colour-options {
+  display: grid;
+  gap: 10px;
+}
+
+.fwv3-colour-options button {
+  min-height: 54px;
+  padding: 6px 4px;
+  border: 3px solid;
+  border-radius: 16px;
+  font-size: clamp(12px, 3.4vw, 15px);
+  font-weight: 950;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  box-shadow: 0 6px 12px rgba(7, 18, 38, 0.18);
+  transition: transform 0.08s ease, filter 0.12s ease;
+}
+
+.fwv3-colour-options button:active {
+  transform: scale(0.95);
+}
+
+.fwv3-colour-options button:disabled {
+  opacity: 0.6;
+}
+
+.fwv3-colour-feedback {
+  min-height: 22px;
+  margin: -4px 0 10px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.fwv3-colour-feedback.is-ok {
+  color: #0a8f3c;
+}
+
+.fwv3-colour-feedback.is-bad {
+  color: #c62828;
+}
