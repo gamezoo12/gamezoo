@@ -3732,41 +3732,26 @@ def _personal_unlock_context(level: int, progress: dict, active_number: int | No
     }
 
 
-async def _transition_contest(db, progress: dict, active_contest: dict | None):
-    """Between contests none is active; keep anchoring to the player's closed contest."""
+async def _transition_contest(db, active_contest: dict | None):
+    """Use the active or most recently closed global contest for every player's clock."""
     if active_contest is not None:
         return active_contest
-    stage = int(progress.get("champion_stage") or 1)
     return await db.world_global_contests.find_one(
         {
             "season_id": WORLD_SEASON_ID,
-            "contest_number": stage,
             "status": {"$in": ["closed", "settled", "closed_settled"]},
         },
         {"_id": 0},
+        sort=[("contest_number", -1)],
     )
 
 
 async def _champion_schedule_for(db, progress: dict, active_contest: dict | None) -> dict:
-    """Next personal Championship opens 2h after the player's own contest closed, even if a later contest is live."""
-    schedule = _personal_champion_transition_schedule(
+    """Personal progression uses the same active-global-contest clock for every player."""
+    return _personal_champion_transition_schedule(
         progress,
-        await _transition_contest(db, progress, active_contest),
+        await _transition_contest(db, active_contest),
     )
-    stage = int(progress.get("champion_stage") or 1)
-    if active_contest is not None and int(active_contest.get("contest_number") or 0) != stage:
-        closed = await db.world_global_contests.find_one(
-            {
-                "season_id": WORLD_SEASON_ID,
-                "contest_number": stage,
-                "status": {"$in": ["closed", "settled", "closed_settled"]},
-            },
-            {"_id": 0, "end_at": 1},
-        )
-        end_at = _ensure_aware_datetime((closed or {}).get("end_at"))
-        if end_at is not None:
-            schedule["next_start_at"] = _serialize_datetime(end_at + timedelta(hours=2))
-    return schedule
 
 
 def _personal_champion_transition_schedule(
