@@ -15,6 +15,7 @@ const fields = [
   ['target_matches', 'Colour Match target', 'number'],
 ];
 const errorText = e => e?.response?.data?.detail || e?.message || 'Request failed';
+const money = pence => `£${(Number(pence || 0) / 100).toFixed(2)}`;
 
 export default function SpecialChallengeAdmin() {
   const [games, setGames] = useState([]);
