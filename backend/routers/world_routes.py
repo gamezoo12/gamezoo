@@ -3732,6 +3732,43 @@ def _personal_unlock_context(level: int, progress: dict, active_number: int | No
     }
 
 
+async def _transition_contest(db, progress: dict, active_contest: dict | None):
+    """Between contests none is active; keep anchoring to the player's closed contest."""
+    if active_contest is not None:
+        return active_contest
+    stage = int(progress.get("champion_stage") or 1)
+    return await db.world_global_contests.find_one(
+        {
+            "season_id": WORLD_SEASON_ID,
+            "contest_number": stage,
+            "status": {"$in": ["closed", "settled", "closed_settled"]},
+        },
+        {"_id": 0},
+    )
+
+
+async def _champion_schedule_for(db, progress: dict, active_contest: dict | None) -> dict:
+    """Next personal Championship opens 2h after the player's own contest closed, even if a later contest is live."""
+    schedule = _personal_champion_transition_schedule(
+        progress,
+        await _transition_contest(db, progress, active_contest),
+    )
+    stage = int(progress.get("champion_stage") or 1)
+    if active_contest is not None and int(active_contest.get("contest_number") or 0) != stage:
+        closed = await db.world_global_contests.find_one(
+            {
+                "season_id": WORLD_SEASON_ID,
+                "contest_number": stage,
+                "status": {"$in": ["closed", "settled", "closed_settled"]},
+            },
+            {"_id": 0, "end_at": 1},
+        )
+        end_at = _ensure_aware_datetime((closed or {}).get("end_at"))
+        if end_at is not None:
+            schedule["next_start_at"] = _serialize_datetime(end_at + timedelta(hours=2))
+    return schedule
+
+
 def _personal_champion_transition_schedule(
     progress: dict,
     active_contest: dict | None = None,
@@ -5454,10 +5491,7 @@ async def free_world_state(
         )
     )
 
-    champion_schedule = _personal_champion_transition_schedule(
-        progress,
-        active_contest,
-    )
+    champion_schedule = await _champion_schedule_for(db, progress, active_contest)
 
     # -------------------------------------------------------------------
     # PREVIOUS CHAMPIONSHIP MAP HISTORY (read-only, display only).
@@ -5511,12 +5545,23 @@ async def free_world_state(
                 }
             )
 
+    upcoming_championship_starts = {}
+    if season_start is not None:
+        extensions = (setting or {}).get("championship_extensions") or {}
+        for number in range(champion_stage + 1, min(WORLD_CONTEST_COUNT, champion_stage + 5) + 1):
+            window = championship_window(season_start, number, extensions)
+            upcoming_championship_starts[str(number)] = _serialize_datetime(
+                ensure_utc(window["start_at"])
+            )
+
     return {
         "season_id": WORLD_SEASON_ID,
         "arena": 1,
         "arena_name": "Royal Village",
 
         "championship_history": championship_history,
+
+        "upcoming_championship_starts": upcoming_championship_starts,
 
         "progress": {
             "current_level":
@@ -10832,7 +10877,12 @@ async def public_champion_winners():
                 or a.get("user_name")
                 or "Player"
             ),
-            "prize_amount": float(a.get("winning_amount") or 0),
+            "prize_amount": float(
+                _champion_final_prize(
+                    int(a.get("rank") or 0),
+                    int(a.get("champion_stage_snapshot") or 1),
+                )
+            ),
             "currency": a.get("currency") or WORLD_DEFAULT_CURRENCY,
         }
         for a in awards
@@ -11112,9 +11162,9 @@ async def _settle_world_champion_contest(
             ]
         )
 
-        winning_amount = (
-            base_rank_prize
-            * champion_stage
+        winning_amount = _champion_final_prize(
+            rank,
+            champion_stage,
         )
 
         frozen_award = {
@@ -11274,9 +11324,9 @@ async def _settle_world_champion_contest(
             ]
         )
 
-        expected_amount = (
-            expected_base
-            * expected_stage
+        expected_amount = _champion_final_prize(
+            rank,
+            expected_stage,
         )
 
         if (
@@ -12109,27 +12159,6 @@ async def continue_after_champion(
             },
         )
 
-    # C1 cannot be bypassed: the user must actually submit their personal
-    # Championship 1 Champion Challenge before moving to Championship 2.
-    if champion_stage == 1:
-        submitted_c1 = await db.world_champion_sessions.find_one(
-            {
-                "season_id": WORLD_SEASON_ID,
-                "user_id": user["user_id"],
-                "champion_stage_snapshot": 1,
-                "status": "submitted",
-            },
-            {"_id": 1},
-        )
-        if not submitted_c1:
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "code": "CHAMPION_PLAY_REQUIRED",
-                    "message": "Play and submit Championship 1 Champion Challenge before entering Championship 2.",
-                },
-            )
-
     # The user may advance only when THEIR matching global
     # Championship has closed. A later closed Championship must
     # never unlock an earlier personal Champion stage.
@@ -12154,34 +12183,16 @@ async def continue_after_champion(
         },
     )
 
-    if not stage_contest:
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "code":
-                    "CHAMPION_PERIOD_NOT_CLOSED",
-
-                "message":
-                    (
-                        "Your current Champion stage "
-                        "has not closed yet."
-                    ),
-
-                "champion_stage":
-                    champion_stage,
-            },
-        )
-
     now = _utcnow()
 
     # The personal map does not enter the next Championship until exactly
     # 48 hours after this user's Champion opens.  The Champion itself closes
     # after 46 hours, leaving the intended two-hour transition gap.  This does
     # not alter the global leaderboard/settlement schedule.
-    active_contest = await _active_contest(db)
-    personal_transition = _personal_champion_transition_schedule(
+    personal_transition = await _champion_schedule_for(
+        db,
         progress,
-        active_contest,
+        await _active_contest(db),
     )
     personal_next_open = _ensure_aware_datetime(
         personal_transition.get("next_start_at")
@@ -12194,6 +12205,18 @@ async def continue_after_champion(
                 "message": "Your next Championship Level 1 is not open yet.",
                 "champion_stage": champion_stage,
                 "next_level_opens_at": _serialize_datetime(personal_next_open),
+            },
+        )
+
+    # The Champion level may be skipped once its window has closed; the
+    # unlock time above is what gates entry to the next Championship.
+    if personal_next_open is None and not stage_contest:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "CHAMPION_PERIOD_NOT_CLOSED",
+                "message": "Your current Champion stage has not closed yet.",
+                "champion_stage": champion_stage,
             },
         )
 
@@ -12462,10 +12485,7 @@ async def free_world_access(
         )
     )
 
-    champion_schedule = _personal_champion_transition_schedule(
-        progress,
-        active,
-    )
+    champion_schedule = await _champion_schedule_for(db, progress, active)
 
     levels = []
 

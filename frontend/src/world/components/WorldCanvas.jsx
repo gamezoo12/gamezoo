@@ -1582,6 +1582,25 @@ function ChampionshipSection({
               championNextLevelMs >
                 worldNowMs;
 
+            const futureStartMs =
+              Date.parse(
+                worldState
+                  ?.upcoming_championship_starts
+                  ?.[championshipNumber] ?? '',
+              );
+
+            // Later Championships open with their global contest at 00:00.
+            const futureFirstLevelCountdown =
+              localLevel === 1 &&
+              championshipNumber > currentChampionship &&
+              Number.isFinite(futureStartMs) &&
+              futureStartMs > worldNowMs
+                ? formatWorldCountdown(
+                    futureStartMs,
+                    worldNowMs,
+                  )
+                : null;
+
             const levelCountdown =
               hasFutureUnlock &&
               (
@@ -1598,7 +1617,7 @@ function ChampionshipSection({
                           championNextLevelMs,
                           worldNowMs,
                         )
-                      : null
+                      : futureFirstLevelCountdown
                   );
 
             const canEarlyUnlock =

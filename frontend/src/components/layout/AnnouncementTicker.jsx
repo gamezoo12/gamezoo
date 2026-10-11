@@ -23,7 +23,8 @@ const PROMO_ITEMS = [
 
 function formatPrize(amount, currency) {
   const symbol = currency === 'GBP' ? '£' : '';
-  return `${symbol}${Number(amount).toLocaleString()}`;
+  const value = Number(amount);
+  return `${symbol}${value.toLocaleString('en-GB', { minimumFractionDigits: Number.isInteger(value) ? 0 : 2, maximumFractionDigits: 2 })}`;
 }
 
 export default function AnnouncementTicker({ mode = 'promo' }) {
