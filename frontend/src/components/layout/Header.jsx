@@ -19,6 +19,7 @@ const NAV = [
  { label: 'Leaderboard', href: '/leaderboard' },
  { label: 'How It Works', href: '/how-it-works' },
  { label: 'Refer & Earn', href: '/refer' },
+ { label: 'Free World', href: '/world' },
 ];
 
 export default function Header() {
