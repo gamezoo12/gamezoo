@@ -91,12 +91,12 @@ export default function SpecialChallengeAdmin() {
       const { data } = await api.post('/admin/winnings/challenge/games/launch-all');
       const { data: refreshed } = await api.get('/admin/winnings/challenge/games');
       setGames(refreshed.games || []);
-      setNotice(`${data.launched_count} games published with hard time limits. You can edit each game below.`);
+      setNotice(`${data.launched_count} games published. Their configured time limits were preserved.`);
     } catch (e) { setNotice(errorText(e)); }
     finally { setLaunching(false); }
   };
   return <div className="mx-auto max-w-6xl p-5 text-slate-900">
-    <div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-black">Special Challenge Games</h1><p className="text-sm text-slate-500">Configure entry, prize, difficulty, and availability independently.</p></div><div className="flex flex-wrap gap-2"><button onClick={launchAll} disabled={launching || busy} className="flex items-center gap-2 rounded-lg bg-emerald-700 px-3 py-2 font-bold text-white disabled:opacity-50"><Rocket size={16} /> {launching ? 'Launching…' : 'Launch all · hard timers'}</button><button onClick={load} className="flex items-center gap-2 rounded-lg border px-3 py-2"><RefreshCw size={16} /> Refresh</button></div></div>
+    <div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-black">Special Challenge Games</h1><p className="text-sm text-slate-500">Configure entry, prize, difficulty, and availability independently.</p></div><div className="flex flex-wrap gap-2"><button onClick={launchAll} disabled={launching || busy} className="flex items-center gap-2 rounded-lg bg-emerald-700 px-3 py-2 font-bold text-white disabled:opacity-50"><Rocket size={16} /> {launching ? 'Publishing…' : 'Publish all games'}</button><button onClick={load} className="flex items-center gap-2 rounded-lg border px-3 py-2"><RefreshCw size={16} /> Refresh</button></div></div>
     <p className="mb-5 text-sm font-semibold text-slate-600">Each attempt costs 1 token. A player can win each game once per rolling 24 hours.</p>
     <div className="mb-5 flex flex-wrap gap-2">{['number_sequence', 'colour_match'].map(type => <button key={type} onClick={() => setGames(items => [...items, newGame(type, items)])} className="flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white"><Plus size={16} /> Add {type === 'colour_match' ? 'Colour Match' : 'Number Sequence'}</button>)}</div>
     {notice && <p role="status" className="mb-4 rounded-lg bg-amber-50 p-3 text-sm">{notice}</p>}

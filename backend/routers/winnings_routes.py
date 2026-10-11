@@ -634,19 +634,11 @@ async def launch_all_challenge_games(request: Request):
     await require_admin(request)
     db = get_db()
     await _seed_challenges(db)
-    rows = await db.special_challenge_games.find(
-        {}, {"_id": 0, "game_id": 1, "type": 1, "size": 1}
-    ).to_list(1000)
+    rows = await db.special_challenge_games.find({}, {"_id": 0, "game_id": 1}).to_list(1000)
     for game in rows:
-        size = int(game.get("size", 0))
-        if game.get("type") == "colour_match":
-            hard_time_limit = size + 4
-        else:
-            hard_time_limit = max(4, round(size * 0.4))
         await db.special_challenge_games.update_one(
             {"game_id": game["game_id"]},
-            {"$set": {"enabled": True, "time_limit_seconds": hard_time_limit,
-                      "entry_tokens": 1}},
+            {"$set": {"enabled": True, "entry_tokens": 1}},
         )
     return {"launched_count": len(rows)}
 

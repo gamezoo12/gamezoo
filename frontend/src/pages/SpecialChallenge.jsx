@@ -108,9 +108,42 @@ export default function SpecialChallenge() {
   };
 
   useEffect(() => {
-    api.get('/winnings/challenge/games').then(({ data }) => setGames(data.games || []))
-      .catch(e => setError(messageOf(e))).finally(() => setLoading(false));
+    let active = true;
+    const loadGames = async () => {
+      try {
+        const { data } = await api.get('/winnings/challenge/games', { headers: { 'Cache-Control': 'no-cache' } });
+        if (active) setGames(data.games || []);
+      } catch (e) {
+        if (active) setError(messageOf(e));
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    const refreshIfVisible = () => {
+      if (document.visibilityState === 'visible') loadGames();
+    };
+    loadGames();
+    const poll = setInterval(refreshIfVisible, 10000);
+    document.addEventListener('visibilitychange', refreshIfVisible);
+    window.addEventListener('focus', loadGames);
+    return () => {
+      active = false;
+      clearInterval(poll);
+      document.removeEventListener('visibilitychange', refreshIfVisible);
+      window.removeEventListener('focus', loadGames);
+    };
   }, []);
+
+  useEffect(() => {
+    if (!selected) return;
+    const latest = games.find((game) => game.game_id === selected.game_id);
+    if (latest) {
+      if (latest !== selected) setSelected(latest);
+    } else if (!attemptRef.current) {
+      setSelected(null);
+      setError(`${selected.name} is no longer available. It may have been stopped by an admin.`);
+    }
+  }, [games, selected]);
 
   const complete = async (id, seq) => {
     if (!id || completedRef.current) return;
@@ -238,6 +271,7 @@ export default function SpecialChallenge() {
   const selectedCoolingDown = Boolean(
     selectedCooldownUntil && selectedCooldownUntil.getTime() > Date.now(),
   );
+  const selectedAvailable = Boolean(selected && games.some((game) => game.game_id === selected.game_id));
   const instructions = selected?.type === 'number_sequence'
     ? `Tap every number from 1 to ${selected.size} in ascending order before the timer runs out. Each grid is randomly shuffled. Wrong taps do not advance.`
     : `Ignore the written colour name. Tap the colour of the INK. Complete ${selected?.target_matches} correct matches before time runs out. One wrong answer ends the attempt. Every question is random.`;
@@ -481,9 +515,9 @@ export default function SpecialChallenge() {
             <Button
               className="h-12 bg-emerald-300 font-black text-emerald-950 hover:bg-emerald-200"
               onClick={requestStart}
-              disabled={busy || countdown !== null}
+              disabled={busy || countdown !== null || !selectedAvailable}
             >
-              {busy ? 'Starting…' : 'Try again 🔄'}
+              {busy ? 'Starting…' : selectedAvailable ? 'Try again 🔄' : 'Game stopped'}
             </Button>
           </div>
         </section>}
