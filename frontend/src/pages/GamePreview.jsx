@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, Navigate, useParams } from 'react-router-dom';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   ArrowRight,
@@ -15,6 +15,7 @@ import { resolveMediaUrl } from '../lib/media';
 
 export default function GamePreview() {
   const { gameId } = useParams();
+  const navigate = useNavigate();
 
   const [settings, setSettings] = useState(null);
   const [games, setGames] = useState([]);
@@ -77,13 +78,16 @@ export default function GamePreview() {
   return (
     <div className="bg-slate-50 min-h-screen">
       <div className="max-w-5xl mx-auto px-4 lg:px-8 py-8 md:py-12">
-        <Link
-          to="/games"
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          aria-label="Back to previous page"
+          data-page-back-control="true"
           className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-900"
         >
           <ArrowLeft className="w-4 h-4" />
-          All games
-        </Link>
+          Back
+        </button>
 
         <div className="mt-5 overflow-hidden rounded-3xl bg-slate-950 text-white">
           {promotionImage && (

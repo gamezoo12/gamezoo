@@ -364,11 +364,12 @@ async def contest_leaderboard(
 
     pipeline = [
         {'$match': {'contest_id': contest_id}},
+        {'$set': {'effective_duration_ms': {'$ifNull': ['$duration_ms_override', '$duration_ms']}}},
         {
             '$sort': {
                 'points': -1,
                 'accuracy': -1,
-                'duration_ms': 1,
+                'effective_duration_ms': 1,
                 'created_at': 1,
             }
         },
@@ -380,7 +381,9 @@ async def contest_leaderboard(
                 'user_name': {'$first': '$user_name'},
                 'points': {'$first': '$points'},
                 'accuracy': {'$first': '$accuracy'},
-                'duration_ms': {'$first': '$duration_ms'},
+                'duration_ms': {'$first': '$effective_duration_ms'},
+                'original_duration_ms': {'$first': '$duration_ms'},
+                'duration_ms_override': {'$first': '$duration_ms_override'},
                 'created_at': {'$first': '$created_at'},
                 'best_score_id': {'$first': '$score_id'},
                 'attempts': {'$sum': 1},

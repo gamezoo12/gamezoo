@@ -47,7 +47,7 @@ export default function PromotionFloatingBadge() {
       const x = saved?.x ?? window.innerWidth - width - 18;
       const y = saved?.y ?? Math.max(90, Math.round(window.innerHeight * 0.62));
       setPosition({
-        x: clamp(x, EDGE, Math.max(EDGE, window.innerWidth - width - EDGE)),
+        x: clamp(x, -width * 0.1, Math.max(-width * 0.1, window.innerWidth - width * 0.9)),
         y: clamp(y, EDGE, Math.max(EDGE, window.innerHeight - height - EDGE)),
       });
     };
@@ -93,8 +93,19 @@ export default function PromotionFloatingBadge() {
     const wasMoved = d.moved;
     dragRef.current = null;
     setDragging(false);
-    if (position) localStorage.setItem(STORAGE_KEY, JSON.stringify(position));
-    if (!wasMoved) {
+    if (wasMoved) {
+      const rect = badgeRef.current.getBoundingClientRect();
+      const dx = e.clientX - d.startX;
+      const dy = e.clientY - d.startY;
+      const droppedX = d.x + dx;
+      const dockLeft = droppedX + rect.width / 2 < window.innerWidth / 2;
+      const docked = {
+        x: dockLeft ? -rect.width * 0.1 : window.innerWidth - rect.width * 0.9,
+        y: clamp(d.y + dy, EDGE, Math.max(EDGE, window.innerHeight - rect.height - EDGE)),
+      };
+      setPosition(docked);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(docked));
+    } else {
       api.post('/promotion/event', {
         event: 'profile_view',
         page: location.pathname,
@@ -125,8 +136,14 @@ export default function PromotionFloatingBadge() {
           <Gift className="h-4 w-4 sm:h-5 sm:w-5" />
         </span>
         <span className="text-left leading-tight">
-          <span className="block text-[10px] sm:text-xs font-bold uppercase tracking-[0.12em] text-[#FFD54A]">Special Promo</span>
-          <span className="block text-xs sm:text-sm font-black whitespace-nowrap">WIN UP TO £1,000</span>
+          <span className="block max-w-40 truncate text-[10px] sm:text-xs font-bold uppercase text-[#FFD54A]">{cfg.name || 'Special Promotion'}</span>
+          <span className="block text-xs sm:text-sm font-black whitespace-nowrap">
+            {cfg.campaign_type === 'token_credit'
+              ? `CLAIM ${cfg.reward_tokens || 0} TOKENS`
+              : cfg.prize_total_gbp
+                ? `WIN UP TO £${Number(cfg.prize_total_gbp).toLocaleString('en-GB')}`
+                : 'CLAIM YOUR REWARD'}
+          </span>
         </span>
         <GripVertical className="h-4 w-4 text-white/45" />
       </span>

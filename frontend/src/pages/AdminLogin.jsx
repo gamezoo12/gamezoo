@@ -5,8 +5,9 @@ import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../hooks/use-toast';
-import { ShieldCheck, Lock, ArrowLeft } from 'lucide-react';
+import { ShieldCheck, Lock } from 'lucide-react';
 import PrizeLeagueLogo from '../components/layout/PrizeLeagueLogo';
+import BackButton from '../components/BackButton';
 
 export default function AdminLogin() {
  const { login } = useAuth();
@@ -38,7 +39,7 @@ export default function AdminLogin() {
  <div className="absolute bottom-0 right-0 w-[32rem] h-[32rem] bg-[#FFD54A]/15 rounded-full blur-3xl translate-x-1/2 translate-y-1/2" />
 
  <div className="relative w-full max-w-md">
- <Link to="/" className="inline-flex items-center gap-1 text-sm text-white/60 hover:text-[#FFD54A] mb-6"><ArrowLeft className="w-4 h-4" /> Back to public site</Link>
+ <BackButton className="mb-6 text-white/60 hover:text-[#FFD54A]" />
  <div className="pl-glass rounded-2xl shadow-2xl p-8">
  <div className="flex items-center gap-3 mb-6">
  <PrizeLeagueLogo size={44} />

@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import {
   Trophy,
   Medal,
   Award,
   Crown,
-  ArrowLeft,
   Flame,
   RefreshCw,
   Target,
@@ -13,6 +12,7 @@ import {
 } from 'lucide-react';
 import { gamesAPI, contestsAPI } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
+import BackButton from '../components/BackButton';
 
 const getScore = (row) =>
   Number(row.normalized_score ?? row.points ?? row.score ?? 0);
@@ -127,13 +127,7 @@ export default function ContestLeaderboard() {
       data-testid="contest-leaderboard-page"
     >
       <div className="flex items-center justify-between gap-3 mb-4">
-        <Link
-          to="/leaderboard"
-          className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Select contest
-        </Link>
+        <BackButton className="text-slate-500 hover:text-slate-800" />
 
         <button
           type="button"

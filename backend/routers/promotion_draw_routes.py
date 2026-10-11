@@ -10,8 +10,16 @@ def _utc(value):
  try:
   dt=datetime.fromisoformat(str(value).replace('Z','+00:00'));return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
  except ValueError:return None
-async def _cfg(db):
- doc=await db.promotion_config.find_one({'key':'freeworld'},{'_id':0}) or {};return {'promotion_id':doc.get('promotion_id','freeworld-2026-01'),'name':doc.get('name','Free World Promotion'),'winner_count':max(1,int(doc.get('winner_count',2))),'prize_per_winner_gbp':float(doc.get('prize_per_winner_gbp',500)),'end_at':doc.get('end_at'),'active':bool(doc.get('active'))}
+async def _cfg(db,promotion_id=None):
+ if promotion_id:
+  campaign=await db.promotion_campaigns.find_one({'promotion_id':promotion_id},{'_id':0})
+  if campaign:
+   return {'promotion_id':campaign['promotion_id'],'name':campaign.get('name','Promotion'),'winner_count':max(1,int(campaign.get('winner_count',1))),'prize_per_winner_gbp':float(campaign.get('prize_per_winner_gbp',0)),'end_at':campaign.get('end_at'),'active':bool(campaign.get('active')),'campaign_type':campaign.get('campaign_type')}
+  legacy=await db.promotion_config.find_one({'key':'freeworld','promotion_id':promotion_id},{'_id':0})
+  if not legacy:raise HTTPException(404,'Promotion campaign not found.')
+  doc=legacy
+ else:doc=await db.promotion_config.find_one({'key':'freeworld'},{'_id':0}) or {}
+ return {'promotion_id':doc.get('promotion_id','freeworld-2026-01'),'name':doc.get('name','Free World Promotion'),'winner_count':max(1,int(doc.get('winner_count',2))),'prize_per_winner_gbp':float(doc.get('prize_per_winner_gbp',500)),'end_at':doc.get('end_at'),'active':bool(doc.get('active')),'campaign_type':doc.get('campaign_type','referral_draw')}
 async def _eligible_snapshot(db,pid):
  tickets=await db.promotion_tickets.find({'promotion_id':pid},{'_id':0,'ticket_number':1,'user_id':1,'source':1,'referred_user_id':1,'created_at':1}).sort([('ticket_number',1)]).to_list(1000000);return[t for t in tickets if t.get('ticket_number') and t.get('user_id')]
 def _snapshot_hash(tickets):return hashlib.sha256(json.dumps([{'ticket_number':t['ticket_number'],'user_id':t['user_id']} for t in tickets],sort_keys=True,separators=(',',':')).encode()).hexdigest()
@@ -27,11 +35,12 @@ def _select_distinct_users(tickets,count,seed):
   idx,counter=_randbelow(seed,counter,len(pool));pick=pool[idx];winners.append(pick);pool=[t for t in pool if t['user_id']!=pick['user_id']]
  return winners,counter
 @router.get('/draw')
-async def draw_status(request:Request):
- await require_admin(request);db=get_db();cfg=await _cfg(db);pid=cfg['promotion_id'];existing=await db.promotion_draws.find_one({'promotion_id':pid},{'_id':0});tickets=await _eligible_snapshot(db,pid);unique_users=len({t['user_id'] for t in tickets});end_at=_utc(cfg.get('end_at'));now=datetime.now(timezone.utc);return {'promotion':cfg,'drawn':bool(existing),'draw':existing,'rng_algorithm':RNG_ALGORITHM,'eligible_ticket_count':len(tickets),'eligible_user_count':unique_users,'can_draw':bool(not existing and end_at and now>=end_at and unique_users>=cfg['winner_count']),'blocked_reason':('Draw already completed.' if existing else 'Promotion end date is not configured.' if not end_at else 'Promotion has not ended yet.' if now<end_at else 'Not enough unique eligible users.' if unique_users<cfg['winner_count'] else None)}
+async def draw_status(request:Request,promotion_id:str|None=None):
+ await require_admin(request);db=get_db();cfg=await _cfg(db,promotion_id);pid=cfg['promotion_id'];existing=await db.promotion_draws.find_one({'promotion_id':pid},{'_id':0});tickets=await _eligible_snapshot(db,pid);unique_users=len({t['user_id'] for t in tickets});end_at=_utc(cfg.get('end_at'));now=datetime.now(timezone.utc);ticket_campaign=cfg.get('campaign_type') in ('ticket_draw','referral_draw');return {'promotion':cfg,'drawn':bool(existing),'draw':existing,'rng_algorithm':RNG_ALGORITHM,'eligible_ticket_count':len(tickets),'eligible_user_count':unique_users,'can_draw':bool(ticket_campaign and not existing and end_at and now>=end_at and unique_users>=cfg['winner_count']),'blocked_reason':('This promotion does not use a ticket draw.' if not ticket_campaign else 'Draw already completed.' if existing else 'Promotion end date is not configured.' if not end_at else 'Promotion has not ended yet.' if now<end_at else 'Not enough unique eligible users.' if unique_users<cfg['winner_count'] else None)}
 @router.post('/draw')
-async def run_draw(request:Request):
- admin=await require_admin(request);db=get_db();cfg=await _cfg(db);pid=cfg['promotion_id'];now=datetime.now(timezone.utc)
+async def run_draw(request:Request,promotion_id:str|None=None):
+ admin=await require_admin(request);db=get_db();cfg=await _cfg(db,promotion_id);pid=cfg['promotion_id'];now=datetime.now(timezone.utc)
+ if cfg.get('campaign_type') not in ('ticket_draw','referral_draw'):raise HTTPException(400,'This promotion does not use a ticket draw.')
  if await db.promotion_draws.find_one({'promotion_id':pid},{'_id':1}):raise HTTPException(409,'This promotion has already been drawn.')
  end_at=_utc(cfg.get('end_at'))
  if not end_at or now<end_at:raise HTTPException(400,'Winners can only be drawn after the promotion end date.')
@@ -47,16 +56,16 @@ async def run_draw(request:Request):
   raise
  draw.pop('_id',None);return draw
 @router.post('/draw/winners/{place}/verify')
-async def verify_winner(place:int,request:Request):
- admin=await require_admin(request);db=get_db();cfg=await _cfg(db);pid=cfg['promotion_id'];draw=await db.promotion_draws.find_one({'promotion_id':pid},{'_id':0})
+async def verify_winner(place:int,request:Request,promotion_id:str|None=None):
+ admin=await require_admin(request);db=get_db();cfg=await _cfg(db,promotion_id);pid=cfg['promotion_id'];draw=await db.promotion_draws.find_one({'promotion_id':pid},{'_id':0})
  if not draw:raise HTTPException(404,'Draw not found.')
  winner=next((w for w in draw.get('winners',[]) if int(w.get('place',0))==place),None)
  if not winner:raise HTTPException(404,'Winner not found.')
  if winner.get('payment_status')=='paid':raise HTTPException(409,'Winner has already been paid.')
  actor=admin if isinstance(admin,dict) else {};now=datetime.now(timezone.utc);await db.promotion_draws.update_one({'promotion_id':pid,'winners':{'$elemMatch':{'place':place,'payment_status':{'$ne':'paid'}}}},{'$set':{'winners.$.verification_status':'verified','winners.$.verified_at':now,'winners.$.verified_by_user_id':actor.get('user_id')}});return {'ok':True,'status':'verified'}
 @router.post('/draw/winners/{place}/paid')
-async def mark_winner_paid(place:int,request:Request):
- admin=await require_admin(request);db=get_db();cfg=await _cfg(db);pid=cfg['promotion_id'];draw=await db.promotion_draws.find_one({'promotion_id':pid},{'_id':0})
+async def mark_winner_paid(place:int,request:Request,promotion_id:str|None=None):
+ admin=await require_admin(request);db=get_db();cfg=await _cfg(db,promotion_id);pid=cfg['promotion_id'];draw=await db.promotion_draws.find_one({'promotion_id':pid},{'_id':0})
  if not draw:raise HTTPException(404,'Draw not found.')
  winner=next((w for w in draw.get('winners',[]) if int(w.get('place',0))==place),None)
  if not winner:raise HTTPException(404,'Winner not found.')

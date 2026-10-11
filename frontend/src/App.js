@@ -1,6 +1,7 @@
 
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
-import { lazy, Suspense } from 'react';
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import './App.css';
 
 import { Toaster } from './components/ui/toaster';
@@ -32,7 +33,6 @@ import AuthCallback from './pages/AuthCallback';
 const FreeEntry = lazy(() => import('./pages/FreeEntry'));
 const VerifyFeed = lazy(() => import('./pages/VerifyFeed'));
 const AdminLogin = lazy(() => import('./pages/AdminLogin'));
-const PromotionPage = lazy(() => import('./pages/PromotionPage'));
 
 import AdminLayout from './components/admin/AdminLayout';
 const AdminDashboard = lazy(() => import('./pages/admin/Dashboard'));
@@ -52,6 +52,7 @@ const AdminSettings = lazy(() => import('./pages/admin/SettingsPage'));
 const AdminRoles = lazy(() => import('./pages/admin/RolesPage'));
 const AdminWallets = lazy(() => import('./pages/admin/WalletAdmin'));
 const AdminGames = lazy(() => import('./pages/admin/GamesAdmin'));
+const AdminLeaderboards = lazy(() => import('./pages/admin/AdminLeaderboards'));
 const AdminAuditLogs = lazy(() => import('./pages/admin/AuditLogsPage'));
 const AdminLegalDocs = lazy(() => import('./pages/admin/LegalDocsAdmin'));
 const CompanySettingsAdmin = lazy(() => import('./pages/admin/CompanySettings'));
@@ -59,9 +60,12 @@ const PostalEntriesAdmin = lazy(() => import('./pages/admin/PostalEntriesAdmin')
 const UserDetailsPage = lazy(() => import('./pages/admin/UserDetailsPage'));
 const ReferralsBonusesAdmin = lazy(() => import('./pages/admin/ReferralsBonusesAdmin'));
 const FreeWorldAdmin = lazy(() => import('./pages/admin/FreeWorldAdmin'));
+const SpecialChallengeAdmin = lazy(() => import('./pages/admin/SpecialChallengeAdmin'));
 const WinningsPayoutsAdmin = lazy(() => import('./pages/admin/WinningsPayoutsAdmin'));
 const CashOutAdmin = lazy(() => import('./pages/admin/CashOutAdmin'));
 const PromotionAdminShell = lazy(() => import('./pages/admin/PromotionAdminShell'));
+const PromotionCampaignsAdmin = lazy(() => import('./pages/admin/PromotionCampaignsAdmin'));
+const PromotionCampaignsPage = lazy(() => import('./pages/PromotionCampaignsPage'));
 const PromotionDrawStudio = lazy(() => import('./pages/admin/PromotionDrawStudio'));
 
 const LegalDocPage = lazy(() => import('./pages/legal/LegalDocPage'));
@@ -107,6 +111,56 @@ function RouteLoader() {
   );
 }
 
+function GlobalPageNavigation() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [hasPageBack, setHasPageBack] = useState(false);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location.key]);
+
+  useEffect(() => {
+    const root = document.getElementById('root') || document.body;
+    const update = () => setHasPageBack(Boolean(root.querySelector('[data-page-back-control="true"]')));
+    update();
+    const observer = new MutationObserver(update);
+    observer.observe(root, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [location.key]);
+
+  const canGoBack = window.history.length > 1;
+  if (
+    hasPageBack ||
+    location.pathname === '/world' ||
+    location.pathname === '/paid-leagues' ||
+    location.pathname === '/challenge' ||
+    location.hash.includes('session_id=')
+  ) {
+    return null;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => canGoBack && navigate(-1)}
+      disabled={!canGoBack}
+      aria-label="Back to previous page"
+      title={canGoBack ? 'Back to previous page' : 'No previous page'}
+      className="fixed left-4 z-[45] inline-flex h-11 items-center gap-2 rounded-full border border-white/15 bg-slate-950/90 px-4 text-sm font-bold text-white shadow-lg backdrop-blur transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-45"
+      style={{
+        bottom: location.pathname === '/world'
+          ? 'calc(env(safe-area-inset-bottom, 0px) + 88px)'
+          : 'calc(env(safe-area-inset-bottom, 0px) + 16px)',
+      }}
+      data-testid="global-back-button"
+    >
+      <ArrowLeft className="h-4 w-4" />
+      Back
+    </button>
+  );
+}
+
 
 function AppRouter() {
   const location = useLocation();
@@ -119,12 +173,18 @@ function AppRouter() {
     location.hash &&
     location.hash.includes('session_id=')
   ) {
-    return <AuthCallback />;
+    return (
+      <>
+        <AuthCallback />
+        <GlobalPageNavigation />
+      </>
+    );
   }
 
   return (
-    <Suspense fallback={<RouteLoader />}>
-    <Routes>
+    <>
+      <Suspense fallback={<RouteLoader />}>
+      <Routes>
 
       {/* =========================
           PUBLIC / USER ROUTES
@@ -150,6 +210,11 @@ function AppRouter() {
         <Route
           path="/free-world"
           element={<FreeWorldLanding />}
+        />
+
+        <Route
+          path="/challenge"
+          element={<SpecialChallenge />}
         />
 
         <Route
@@ -222,7 +287,7 @@ function AppRouter() {
 
         <Route
           path="/my-account/promotions"
-          element={<PromotionPage />}
+          element={<PromotionCampaignsPage />}
         />
 
 
@@ -360,16 +425,6 @@ function AppRouter() {
 
 
       {/* =========================
-          SPECIAL CHALLENGE
-      ========================== */}
-
-      <Route
-        path="/challenge"
-        element={<SpecialChallenge />}
-      />
-
-
-      {/* =========================
           ADMIN LOGIN
       ========================== */}
 
@@ -449,8 +504,18 @@ function AppRouter() {
         />
 
         <Route
+          path="leaderboards"
+          element={<AdminLeaderboards />}
+        />
+
+        <Route
           path="free-world"
           element={<FreeWorldAdmin />}
+        />
+
+        <Route
+          path="special-challenge"
+          element={<SpecialChallengeAdmin />}
         />
 
 
@@ -459,6 +524,11 @@ function AppRouter() {
         <Route
           path="promotion"
           element={<PromotionAdminShell />}
+        />
+
+        <Route
+          path="promotion-campaigns"
+          element={<PromotionCampaignsAdmin />}
         />
 
 
@@ -581,8 +651,10 @@ function AppRouter() {
 
       </Route>
 
-    </Routes>
-    </Suspense>
+      </Routes>
+      </Suspense>
+      <GlobalPageNavigation />
+    </>
   );
 }
 

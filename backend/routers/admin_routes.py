@@ -21,12 +21,184 @@ _WIPEABLE_COLLECTIONS = (
     'tickets', 'user_sessions', 'wallet_tx', 'winners',
 )
 
+_ADMIN_TIME_RANGES = {
+    '1h': timedelta(hours=1),
+    '6h': timedelta(hours=6),
+    '24h': timedelta(hours=24),
+    '7d': timedelta(days=7),
+    '1m': timedelta(days=30),
+    '6m': timedelta(days=182),
+    '1y': timedelta(days=365),
+    'lifetime': None,
+}
+
+
+def _range_match(period, field='created_at'):
+    duration = _ADMIN_TIME_RANGES.get(period)
+    if period not in _ADMIN_TIME_RANGES or duration is None:
+        return {}, None
+    since = datetime.now(timezone.utc) - duration
+    return {field: {'$gte': since}}, since
+
 
 async def _require_role(request: Request, allowed):
     user = await get_current_user(request)
     if user.get('role') not in allowed:
         raise HTTPException(status_code=403, detail=f'Requires one of: {allowed}')
     return user
+
+
+@router.get('/leaderboards/contests')
+async def admin_leaderboard_contests(request: Request):
+    await require_admin(request)
+    from deps import get_db
+    db = get_db()
+    paid = await db.contests.find(
+        {}, {'_id': 0, 'contest_id': 1, 'title': 1, 'status': 1, 'entry_mode': 1,
+            'game_type': 1, 'start_date': 1, 'end_date': 1},
+    ).sort([('start_date', -1), ('title', 1)]).to_list(1000)
+    free_world = await db.world_global_contests.find(
+        {'season_id': 'season-1'},
+        {'_id': 0, 'contest_number': 1, 'status': 1, 'start_at': 1, 'end_at': 1},
+    ).sort('contest_number', 1).to_list(1000)
+    return {'paid_contests': paid, 'free_world_contests': free_world}
+
+
+@router.get('/leaderboards/paid/{contest_id}')
+async def admin_paid_leaderboard(contest_id: str, request: Request, limit: int = 1000):
+    await require_admin(request)
+    from deps import get_db
+    db = get_db()
+    contest = await db.contests.find_one(
+        {'contest_id': contest_id},
+        {'_id': 0, 'contest_id': 1, 'title': 1, 'status': 1},
+    )
+    if not contest:
+        raise HTTPException(status_code=404, detail='Contest not found')
+    pipeline = [
+        {'$match': {'contest_id': contest_id}},
+        {'$set': {'effective_duration_ms': {'$ifNull': ['$duration_ms_override', '$duration_ms']}}},
+        {'$sort': {'points': -1, 'accuracy': -1, 'effective_duration_ms': 1, 'created_at': 1}},
+        {'$group': {
+            '_id': {'$ifNull': ['$ticket_id', '$user_id']},
+            'ticket_id': {'$first': '$ticket_id'},
+            'user_id': {'$first': '$user_id'},
+            'user_name': {'$first': '$user_name'},
+            'score_id': {'$first': '$score_id'},
+            'points': {'$first': '$points'},
+            'accuracy': {'$first': '$accuracy'},
+            'original_duration_ms': {'$first': '$duration_ms'},
+            'duration_ms': {'$first': '$effective_duration_ms'},
+            'duration_ms_override': {'$first': '$duration_ms_override'},
+            'duration_override_reason': {'$first': '$duration_override_reason'},
+            'created_at': {'$first': '$created_at'},
+            'attempts': {'$sum': 1},
+        }},
+        {'$sort': {'points': -1, 'accuracy': -1, 'duration_ms': 1, 'created_at': 1}},
+        {'$limit': max(1, min(int(limit), 5000))},
+    ]
+    rows = await db.game_scores.aggregate(pipeline).to_list(None)
+    user_ids = list({row.get('user_id') for row in rows if row.get('user_id')})
+    users = await db.users.find(
+        {'user_id': {'$in': user_ids}},
+        {'_id': 0, 'user_id': 1, 'name': 1, 'username': 1, 'email': 1, 'public_id': 1},
+    ).to_list(len(user_ids)) if user_ids else []
+    user_map = {user['user_id']: user for user in users}
+    for rank, row in enumerate(rows, 1):
+        row.pop('_id', None)
+        row['rank'] = rank
+        row['user'] = user_map.get(row.get('user_id'), {})
+    return {'contest': contest, 'leaderboard': rows}
+
+
+@router.get('/leaderboards/free-world/{contest_number}')
+async def admin_free_world_leaderboard(contest_number: int, request: Request, limit: int = 1000):
+    await require_admin(request)
+    if not 1 <= contest_number <= 100:
+        raise HTTPException(status_code=400, detail='Invalid Free World contest number')
+    from deps import get_db
+    db = get_db()
+    contest = await db.world_global_contests.find_one(
+        {'season_id': 'season-1', 'contest_number': contest_number}, {'_id': 0},
+    )
+    if not contest:
+        raise HTTPException(status_code=404, detail='Free World contest not found')
+    pipeline = [
+        {'$match': {'season_id': 'season-1', 'global_contest_number': contest_number, 'eligible': True}},
+        {'$set': {'effective_duration_ms': {'$ifNull': ['$duration_ms_override', '$duration_ms']}}},
+        {'$sort': {'score': -1, 'effective_duration_ms': 1, 'submitted_at': 1}},
+        {'$limit': max(1, min(int(limit), 5000))},
+    ]
+    rows = await db.world_champion_scores.aggregate(pipeline).to_list(None)
+    user_ids = list({row.get('user_id') for row in rows if row.get('user_id')})
+    users = await db.users.find(
+        {'user_id': {'$in': user_ids}},
+        {'_id': 0, 'user_id': 1, 'name': 1, 'username': 1, 'email': 1, 'public_id': 1},
+    ).to_list(len(user_ids)) if user_ids else []
+    user_map = {user['user_id']: user for user in users}
+    leaderboard = []
+    for rank, row in enumerate(rows, 1):
+        row.pop('_id', None)
+        row['rank'] = rank
+        row['original_duration_ms'] = row.get('duration_ms')
+        row['duration_ms'] = row.pop('effective_duration_ms', row.get('duration_ms'))
+        row['user'] = user_map.get(row.get('user_id'), {})
+        leaderboard.append(row)
+    return {'contest': contest, 'leaderboard': leaderboard}
+
+
+async def _override_leaderboard_time(collection, score_id, payload, request, world):
+    admin = await _require_role(request, ['super_admin'])
+    duration_ms = payload.get('duration_ms')
+    reason = (payload.get('reason') or '').strip()
+    if isinstance(duration_ms, bool) or not isinstance(duration_ms, int) or not 100 <= duration_ms <= 1200000:
+        raise HTTPException(status_code=400, detail='Time must be between 100 and 1,200,000 milliseconds')
+    if len(reason) < 10:
+        raise HTTPException(status_code=400, detail='A reason of at least 10 characters is required')
+    from deps import get_db
+    db = get_db()
+    score = await getattr(db, collection).find_one({'score_id': score_id}, {'_id': 0})
+    if not score:
+        raise HTTPException(status_code=404, detail='Leaderboard score not found')
+    previous = int(score.get('duration_ms_override', score.get('duration_ms', 0)))
+    if previous == duration_ms:
+        return {'ok': True, 'unchanged': True, 'duration_ms': duration_ms}
+    now = datetime.now(timezone.utc)
+    update = await getattr(db, collection).update_one(
+        {'score_id': score_id},
+        {'$set': {
+            'duration_ms_override': duration_ms,
+            'duration_override_reason': reason,
+            'duration_override_at': now,
+            'duration_override_by': admin.get('user_id'),
+        }},
+    )
+    if update.matched_count == 0:
+        raise HTTPException(status_code=404, detail='Leaderboard score not found')
+    await db.leaderboard_override_audit.insert_one({
+        'score_id': score_id,
+        'world': 'free_world' if world else 'paid',
+        'contest_id': score.get('contest_id'),
+        'contest_number': score.get('global_contest_number'),
+        'user_id': score.get('user_id'),
+        'previous_duration_ms': previous,
+        'duration_ms': duration_ms,
+        'reason': reason,
+        'actor_user_id': admin.get('user_id'),
+        'actor_email': admin.get('email'),
+        'created_at': now,
+    })
+    return {'ok': True, 'previous_duration_ms': previous, 'duration_ms': duration_ms}
+
+
+@router.put('/leaderboards/paid/{score_id}/time')
+async def override_paid_leaderboard_time(score_id: str, payload: dict, request: Request):
+    return await _override_leaderboard_time('game_scores', score_id, payload, request, False)
+
+
+@router.put('/leaderboards/free-world/{score_id}/time')
+async def override_free_world_leaderboard_time(score_id: str, payload: dict, request: Request):
+    return await _override_leaderboard_time('world_champion_scores', score_id, payload, request, True)
 
 
 @router.get('/stats')
@@ -48,6 +220,264 @@ async def stats(request: Request):
         'tickets_sold': tickets_count, 'revenue': revenue, 'prize_pool': prize_pool,
         'kyc_pending': kyc_pending,
     }
+
+
+@router.get('/dashboard/summary')
+async def dashboard_summary(request: Request, period: str = '24h', window_hours: int = None):
+    await require_admin(request)
+    from deps import get_db
+    db = get_db()
+    if window_hours is not None:
+        window_hours = max(1, min(int(window_hours), 8760))
+        period = 'lifetime' if window_hours >= 8760 else '24h' if window_hours == 24 else f'{window_hours}h'
+    if period not in _ADMIN_TIME_RANGES:
+        raise HTTPException(status_code=400, detail='Unsupported dashboard period')
+    user_match, since = _range_match(period)
+    order_match, _ = _range_match(period, 'created_at')
+    ticket_match, _ = _range_match(period, 'created_at')
+    score_match, _ = _range_match(period, 'created_at')
+    free_score_match, _ = _range_match(period, 'submitted_at')
+    award_match, _ = _range_match(period, 'created_at')
+    paid_winner_match, _ = _range_match(period, 'drawn_at')
+
+    users = await db.users.count_documents(user_match)
+    orders = await db.orders.count_documents(order_match)
+    orders_total = await db.orders.aggregate([
+        {'$match': order_match},
+        {'$group': {'_id': None, 'total': {'$sum': '$total'}}},
+    ]).to_list(1)
+    revenue = (orders_total[0]['total'] if orders_total else 0)
+    tickets = await db.tickets.count_documents(ticket_match)
+    visits = await db.acquisition_visits.count_documents(order_match)
+    page_views = await db.acquisition_page_views.count_documents(order_match)
+    unique_visitors = await db.acquisition_visits.aggregate([
+        {'$match': order_match},
+        {'$group': {'_id': '$visitor_id'}},
+        {'$count': 'n'},
+    ]).to_list(1)
+    signups = users
+    paid_scores = await db.game_scores.count_documents(score_match)
+    free_world_scores = await db.world_champion_scores.count_documents(free_score_match)
+    free_world_level_attempts = await db.world_level_attempts.count_documents(order_match)
+    free_world_token_unlock_cost = await db.world_level_unlock_reservations.aggregate([
+        {'$match': {**order_match, 'token_cost': {'$exists': True}}},
+        {'$group': {'_id': None, 'total': {'$sum': '$token_cost'}}},
+    ]).to_list(1)
+    free_world_token_retry_cost = await db.world_token_retry_reservations.aggregate([
+        {'$match': {**order_match, 'token_cost': {'$exists': True}}},
+        {'$group': {'_id': None, 'total': {'$sum': '$token_cost'}}},
+    ]).to_list(1)
+    free_world_winnings_total = await db.world_winner_awards.aggregate([
+        {'$match': award_match},
+        {'$group': {'_id': None, 'total': {'$sum': '$winning_amount'}}},
+    ]).to_list(1)
+    paid_world_winnings_total = await db.winners.aggregate([
+        {'$match': paid_winner_match},
+        {'$group': {'_id': None, 'total': {'$sum': '$prize_amount'}}},
+    ]).to_list(1)
+
+    return {
+        'period': period,
+        'since': since.isoformat() if since else None,
+        'summary': {
+            'users': users,
+            'signups': signups,
+            'orders': orders,
+            'revenue': revenue,
+            'tickets': tickets,
+            'visits': visits,
+            'page_views': page_views,
+            'unique_visitors': unique_visitors[0]['n'] if unique_visitors else 0,
+        },
+        'paid_world': {
+            'scores': paid_scores,
+            'orders': orders,
+            'revenue': revenue,
+            'winnings_paid': (paid_world_winnings_total[0]['total'] if paid_world_winnings_total else 0),
+        },
+        'free_world': {
+            'scores': free_world_scores,
+            'level_attempts': free_world_level_attempts,
+            'token_spend': (free_world_token_unlock_cost[0]['total'] if free_world_token_unlock_cost else 0) + (free_world_token_retry_cost[0]['total'] if free_world_token_retry_cost else 0),
+            'winnings_paid': (free_world_winnings_total[0]['total'] if free_world_winnings_total else 0),
+        },
+    }
+
+
+@router.get('/dashboard/details')
+@router.get('/dashboard/details')
+async def dashboard_details(
+    request: Request,
+    metric: str,
+    period: str = '24h',
+    skip: int = 0,
+    limit: int = 100,
+):
+    await require_admin(request)
+    from deps import get_db
+    if period not in _ADMIN_TIME_RANGES:
+        raise HTTPException(status_code=400, detail='Unsupported dashboard period')
+    db = get_db()
+    skip = max(0, int(skip))
+    limit = max(1, min(int(limit), 500))
+    sources = {
+        'users': ('users', 'created_at'),
+        'signups': ('users', 'created_at'),
+        'orders': ('orders', 'created_at'),
+        'revenue': ('orders', 'created_at'),
+        'tickets': ('tickets', 'created_at'),
+        'visitors': ('acquisition_visits', 'created_at'),
+        'page_views': ('acquisition_page_views', 'created_at'),
+        'paid_scores': ('game_scores', 'created_at'),
+        'free_scores': ('world_champion_scores', 'submitted_at'),
+        'free_level_attempts': ('world_level_attempts', 'created_at'),
+        'free_winnings': ('world_winner_awards', 'created_at'),
+        'paid_winnings': ('winners', 'drawn_at'),
+    }
+
+    if metric == 'visitors':
+        match, _ = _range_match(period)
+        totals = await db.acquisition_visits.aggregate([
+            {'$match': match},
+            {'$group': {'_id': '$visitor_id'}},
+            {'$count': 'total'},
+        ]).to_list(1)
+        items = await db.acquisition_visits.aggregate([
+            {'$match': match},
+            {'$sort': {'created_at': -1}},
+            {'$group': {
+                '_id': '$visitor_id',
+                'visitor_id': {'$first': '$visitor_id'},
+                'user_id': {'$first': '$user_id'},
+                'source': {'$first': '$source'},
+                'channel': {'$first': '$channel'},
+                'landing_path': {'$first': '$landing_path'},
+                'last_seen': {'$max': '$created_at'},
+                'visit_count': {'$sum': 1},
+            }},
+            {'$sort': {'last_seen': -1}},
+            {'$skip': skip}, {'$limit': limit},
+            {'$project': {'_id': 0}},
+        ]).to_list(limit)
+        user_ids = list({row.get('user_id') for row in items if row.get('user_id')})
+        users = await db.users.find(
+            {'user_id': {'$in': user_ids}},
+            {'_id': 0, 'user_id': 1, 'name': 1, 'email': 1},
+        ).to_list(len(user_ids)) if user_ids else []
+        user_map = {user['user_id']: user for user in users}
+        for row in items:
+            row['user'] = user_map.get(row.get('user_id'), {})
+        return {'metric': metric, 'period': period, 'total': totals[0]['total'] if totals else 0, 'skip': skip, 'limit': limit, 'items': items}
+
+    if metric == 'free_token_spend':
+        combined = []
+        for collection_name, kind in (
+            ('world_level_unlock_reservations', 'level_unlock'),
+            ('world_token_retry_reservations', 'level_retry'),
+        ):
+            date_match, _ = _range_match(period)
+            rows = await getattr(db, collection_name).find(
+                {**date_match, 'token_cost': {'$exists': True}}, {'_id': 0},
+            ).sort('created_at', -1).to_list(10000)
+            combined.extend({**row, 'event_type': kind} for row in rows)
+        combined.sort(key=lambda row: str(row.get('created_at') or ''), reverse=True)
+        return {'metric': metric, 'period': period, 'total': len(combined), 'skip': skip, 'limit': limit, 'items': combined[skip:skip + limit]}
+
+    source = sources.get(metric)
+    if not source:
+        raise HTTPException(status_code=400, detail='Unsupported dashboard detail metric')
+    collection_name, date_field = source
+    date_match, _ = _range_match(period, date_field)
+    collection = getattr(db, collection_name)
+    total = await collection.count_documents(date_match)
+    projection = {'_id': 0, 'password_hash': 0}
+    items = await collection.find(date_match, projection).sort(date_field, -1).skip(skip).limit(limit).to_list(limit)
+
+    if metric in ('orders', 'revenue'):
+        items = await _enrich_orders_with_user(db, items)
+    elif metric in ('users', 'signups'):
+        for item in items:
+            item.pop('password_hash', None)
+    elif metric in ('tickets', 'paid_scores', 'free_scores', 'free_level_attempts', 'free_winnings', 'paid_winnings'):
+        user_ids = list({item.get('user_id') for item in items if item.get('user_id')})
+        users = await db.users.find(
+            {'user_id': {'$in': user_ids}},
+            {'_id': 0, 'user_id': 1, 'name': 1, 'username': 1, 'email': 1, 'public_id': 1},
+        ).to_list(len(user_ids)) if user_ids else []
+        user_map = {user['user_id']: user for user in users}
+        for item in items:
+            item['user'] = user_map.get(item.get('user_id'), {})
+    return {'metric': metric, 'period': period, 'total': total, 'skip': skip, 'limit': limit, 'items': items}
+
+
+async def dashboard_details(
+    request: Request,
+    metric: str,
+    period: str = '24h',
+    skip: int = 0,
+    limit: int = 100,
+):
+    await require_admin(request)
+    from deps import get_db
+    if period not in _ADMIN_TIME_RANGES:
+        raise HTTPException(status_code=400, detail='Unsupported dashboard period')
+    db = get_db()
+    skip = max(0, int(skip))
+    limit = max(1, min(int(limit), 500))
+
+    collection_fields = {
+        'users': ('users', 'created_at'),
+        'signups': ('users', 'created_at'),
+        'orders': ('orders', 'created_at'),
+        'revenue': ('orders', 'created_at'),
+        'tickets': ('tickets', 'created_at'),
+        'visitors': ('acquisition_visits', 'created_at'),
+        'page_views': ('acquisition_page_views', 'created_at'),
+        'paid_scores': ('game_scores', 'created_at'),
+        'free_scores': ('world_champion_scores', 'submitted_at'),
+        'free_level_attempts': ('world_level_attempts', 'created_at'),
+        'free_winnings': ('world_winner_awards', 'created_at'),
+        'paid_winnings': ('winners', 'drawn_at'),
+    }
+    if metric == 'free_token_spend':
+        combined = []
+        for collection_name, date_field, kind in (
+            ('world_level_unlock_reservations', 'created_at', 'level_unlock'),
+            ('world_token_retry_reservations', 'created_at', 'level_retry'),
+        ):
+            date_query, _ = _range_match(period, date_field)
+            rows = await getattr(db, collection_name).find(
+                {**date_query, 'token_cost': {'$exists': True}}, {'_id': 0},
+            ).sort(date_field, -1).to_list(5000)
+            combined.extend([{**row, 'event_type': kind, 'event_at': row.get(date_field)} for row in rows])
+        combined.sort(key=lambda row: str(row.get('event_at') or ''), reverse=True)
+        return {'metric': metric, 'period': period, 'total': len(combined), 'items': combined[skip:skip + limit]}
+
+    config = collection_fields.get(metric)
+    if not config:
+        raise HTTPException(status_code=400, detail='Unsupported dashboard detail metric')
+    collection_name, date_field = config
+    match, _ = _range_match(period, date_field)
+    collection = getattr(db, collection_name)
+    total = await collection.count_documents(match)
+    items = await collection.find(match, {'_id': 0, 'password_hash': 0}).sort(date_field, -1).skip(skip).limit(limit).to_list(limit)
+
+    if metric in ('orders', 'revenue'):
+        items = await _enrich_orders_with_user(db, items)
+    elif metric in ('users', 'signups'):
+        for item in items:
+            item.pop('password_hash', None)
+    elif metric in ('tickets', 'paid_scores', 'free_scores', 'free_winnings', 'paid_winnings'):
+        user_ids = list({item.get('user_id') for item in items if item.get('user_id')})
+        users = await db.users.find(
+            {'user_id': {'$in': user_ids}},
+            {'_id': 0, 'user_id': 1, 'name': 1, 'username': 1, 'email': 1, 'public_id': 1},
+        ).to_list(len(user_ids)) if user_ids else []
+        user_map = {user['user_id']: user for user in users}
+        for item in items:
+            item['user'] = user_map.get(item.get('user_id'), {})
+
+    return {'metric': metric, 'period': period, 'total': total, 'skip': skip, 'limit': limit, 'items': items}
 
 
 @router.get('/audit-logs')

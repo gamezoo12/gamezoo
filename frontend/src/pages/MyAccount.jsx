@@ -84,6 +84,7 @@ export default function MyAccount() {
 
   const [tickets, setTickets] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [notificationFilter, setNotificationFilter] = useState('all');
   const [kyc, setKyc] = useState({ status: 'none' });
   const [profile, setProfile] = useState({ name: '', email: '', phone: '', username: '', user_id: '', public_id: '', dob: '', address: '', phone_verified: false });
   const [wallet, setWallet] = useState(null);
@@ -246,6 +247,17 @@ export default function MyAccount() {
     }
   };
 
+  const updateNotificationRead = async (notification, read) => {
+    try {
+      if (read) await userAPI.markNotificationRead(notification.notification_id);
+      else await userAPI.markNotificationUnread(notification.notification_id);
+      setNotifications(current => current.map(item => item.notification_id === notification.notification_id ? { ...item, read } : item));
+      window.dispatchEvent(new CustomEvent('pl-notifications-refresh'));
+    } catch (error) {
+      toast({ title: 'Could not update notification', description: error?.response?.data?.detail || 'Please try again.' });
+    }
+  };
+
   const selectToken = (id) => {
     if (id === 'signout') { setSignOutOpen(true); return; }
     // Each token opens as its own dedicated page
@@ -257,10 +269,20 @@ export default function MyAccount() {
     return <div className="max-w-6xl mx-auto p-10 text-slate-500">Loading…</div>;
   }
   const isPasswordAccount = user.method !== 'google';
+  const accountBackTo = active === 'winnings'
+    ? '/world'
+    : active
+      ? '/my-account'
+      : '/';
+  const accountBackLabel = active === 'winnings'
+    ? 'Back'
+    : active
+      ? 'Back to menu'
+      : 'Back to home';
 
   return (
     <div className="max-w-6xl mx-auto px-4 lg:px-8 py-6" data-testid="my-account-page">
-      <BackButton to={active ? '/my-account' : '/'} label={active ? 'Back to menu' : 'Back to home'} className="mb-4" />
+      <BackButton to={accountBackTo} label={accountBackLabel} className="mb-4" />
 
       {/* MENU MODE — 12 stacked full-width tabs, only shown on /my-account root */}
       {!active && (
@@ -429,10 +451,14 @@ export default function MyAccount() {
                               <Sparkles className="w-3 h-3 mr-1" /> Play now
                             </Button>
                           </Link>
-                        ) : (
-                          <Link to={c.slug ? `/contests/${c.slug}` : '/contests'} className="flex-1">
+                        ) : isSkill ? (
+                          <Link to={c.slug ? `/competition/${c.slug}` : '/competitions'} className="flex-1">
                             <Button size="sm" variant="outline" className="w-full h-8" data-testid={`ticket-view-${t.ticket_id}`}>View contest</Button>
                           </Link>
+                        ) : (
+                          <div className="flex-1 rounded-md bg-slate-50 px-2 py-2 text-center text-[11px] font-semibold text-slate-500">
+                            Random draw entry · see Draw Centre
+                          </div>
                         )}
                       </div>
                     </div>
@@ -449,16 +475,27 @@ export default function MyAccount() {
 
         {active === 'notifications' && (
           <div className="bg-white rounded-2xl border border-slate-100 p-6" data-testid="panel-notifications">
-            {notifications.length === 0 ? (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="font-display font-bold text-lg">Notifications</h3>
+                <p className="text-xs text-slate-500">Unread notifications stay unread until you mark them read.</p>
+              </div>
+              <div className="inline-flex rounded-lg border border-slate-200 p-1" role="tablist" aria-label="Notification status">
+                {['all', 'unread', 'read'].map(filter => (
+                  <button key={filter} type="button" role="tab" aria-selected={notificationFilter === filter} onClick={() => setNotificationFilter(filter)} className={`rounded-md px-3 py-1.5 text-xs font-bold capitalize ${notificationFilter === filter ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>{filter}</button>
+                ))}
+              </div>
+            </div>
+            {notifications.filter(n => notificationFilter === 'all' || (notificationFilter === 'unread' ? !n.read : n.read)).length === 0 ? (
               <div className="py-8 text-center">
                 <Bell className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                <p className="text-slate-500 text-sm">No notifications yet. Winners announcements will appear here.</p>
+                <p className="text-slate-500 text-sm">{notificationFilter === 'unread' ? 'No unread notifications.' : notificationFilter === 'read' ? 'No read notifications yet.' : 'No notifications yet. Winners announcements will appear here.'}</p>
               </div>
             ) : (
               <ul className="divide-y divide-slate-100">
-                {notifications.map(n => (
-                  <li key={n.notification_id} className="py-3 flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center shrink-0">
+                {notifications.filter(n => notificationFilter === 'all' || (notificationFilter === 'unread' ? !n.read : n.read)).map(n => (
+                  <li key={n.notification_id} className={`py-3 flex items-start gap-3 ${n.read ? '' : 'bg-indigo-50/50'}`}>
+                    <div className={`w-10 h-10 rounded-xl text-white flex items-center justify-center shrink-0 ${n.read ? 'bg-slate-400' : 'bg-gradient-to-br from-indigo-500 to-violet-600'}`}>
                       <Trophy className="w-5 h-5" />
                     </div>
                     <div className="flex-1">
@@ -466,6 +503,9 @@ export default function MyAccount() {
                       <div className="text-sm text-slate-600 mt-0.5">{n.body}</div>
                       <div className="text-xs text-slate-400 mt-1">{new Date(n.created_at).toLocaleString('en-GB')}</div>
                     </div>
+                    <button type="button" onClick={() => updateNotificationRead(n, !n.read)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-white" data-testid={`notification-toggle-read-${n.notification_id}`}>
+                      {n.read ? 'Mark unread' : 'Mark read'}
+                    </button>
                   </li>
                 ))}
               </ul>

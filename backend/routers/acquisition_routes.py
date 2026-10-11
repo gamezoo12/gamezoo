@@ -32,6 +32,25 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+TIME_RANGES = {
+    '1h': timedelta(hours=1), '6h': timedelta(hours=6),
+    '24h': timedelta(hours=24), '7d': timedelta(days=7),
+    '1m': timedelta(days=30), '6m': timedelta(days=182),
+    '1y': timedelta(days=365), 'lifetime': None,
+}
+
+
+def _range_query(period: Optional[str], days: int):
+    if period is not None:
+        if period not in TIME_RANGES:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=400, detail='Unsupported acquisition time range')
+        duration = TIME_RANGES[period]
+        return ({'created_at': {'$gte': _now() - duration}} if duration else {}, period)
+    days = max(1, min(int(days), 365))
+    return {'created_at': {'$gte': _now() - timedelta(days=days)}}, f'{days}d'
+
+
 def _host(url: str) -> str:
     if not url:
         return ''
@@ -114,6 +133,12 @@ class TrackInput(BaseModel):
     language: Optional[str] = Field(default='', max_length=40)
 
 
+class TrackPageViewInput(BaseModel):
+    visitor_id: str = Field(min_length=4, max_length=80)
+    view_id: str = Field(min_length=8, max_length=120)
+    page_path: str = Field(min_length=1, max_length=600)
+
+
 @public_router.post('/track')
 async def track_visit(payload: TrackInput, request: Request):
     from deps import get_db
@@ -182,6 +207,30 @@ async def track_visit(payload: TrackInput, request: Request):
     return {'ok': True, 'recorded': True, 'source': source, 'channel': channel}
 
 
+@public_router.post('/page-view')
+async def track_page_view(payload: TrackPageViewInput, request: Request):
+    from deps import get_db
+    db = get_db()
+    user_id = None
+    try:
+        user_id = (await get_current_user(request)).get('user_id')
+    except Exception:
+        pass
+    now = _now()
+    await db.acquisition_page_views.update_one(
+        {'view_id': payload.view_id},
+        {'$setOnInsert': {
+            'view_id': payload.view_id,
+            'visitor_id': payload.visitor_id,
+            'user_id': user_id,
+            'page_path': payload.page_path,
+            'created_at': now,
+        }},
+        upsert=True,
+    )
+    return {'ok': True}
+
+
 async def _bucket(db, match, field, limit=15):
     pipeline = [
         {'$match': match},
@@ -197,16 +246,15 @@ async def _bucket(db, match, field, limit=15):
 
 
 @admin_router.get('/summary')
-async def acquisition_summary(request: Request, days: int = 30):
+async def acquisition_summary(request: Request, days: int = 30, period: Optional[str] = None):
     await require_admin(request)
     from deps import get_db
     db = get_db()
 
-    days = max(1, min(int(days), 365))
-    since = _now() - timedelta(days=days)
-    match = {'created_at': {'$gte': since}}
+    match, period_label = _range_query(period, days)
 
     total_visits = await db.acquisition_visits.count_documents(match)
+    page_views = await db.acquisition_page_views.count_documents(match)
 
     unique_rows = await db.acquisition_visits.aggregate([
         {'$match': match},
@@ -228,10 +276,11 @@ async def acquisition_summary(request: Request, days: int = 30):
     by_landing = await _bucket(db, match, 'landing_path')
 
     # Daily trend.
+    trend_format = '%Y-%m' if period_label in ('6m', '1y', 'lifetime') else '%Y-%m-%d'
     trend_rows = await db.acquisition_visits.aggregate([
         {'$match': match},
         {'$group': {
-            '_id': '$day_key',
+            '_id': {'$dateToString': {'format': trend_format, 'date': '$created_at'}},
             'visits': {'$sum': 1},
             'visitors': {'$addToSet': '$visitor_id'},
         }},
@@ -296,8 +345,10 @@ async def acquisition_summary(request: Request, days: int = 30):
     )
 
     return {
-        'days': days,
+        'days': None,
+        'period': period_label,
         'total_visits': total_visits,
+        'page_views': page_views,
         'unique_visitors': unique_visitors,
         'visits_from_signed_in': signups,
         'converted_visitors': converted_visitors,
@@ -318,6 +369,7 @@ async def acquisition_summary(request: Request, days: int = 30):
 async def acquisition_visits(
     request: Request,
     days: int = 30,
+    period: Optional[str] = None,
     source: Optional[str] = None,
     skip: int = 0,
     limit: int = 50,
@@ -326,9 +378,7 @@ async def acquisition_visits(
     from deps import get_db
     db = get_db()
 
-    days = max(1, min(int(days), 365))
-    since = _now() - timedelta(days=days)
-    q = {'created_at': {'$gte': since}}
+    q, period_label = _range_query(period, days)
     if source:
         q['source'] = source
 
@@ -340,4 +390,28 @@ async def acquisition_visits(
         q, {'_id': 0},
     ).sort('created_at', -1).skip(skip).limit(limit).to_list(limit)
 
-    return {'visits': docs, 'total': total, 'skip': skip, 'limit': limit}
+    return {'visits': docs, 'total': total, 'skip': skip, 'limit': limit, 'period': period_label}
+
+
+@admin_router.get('/page-views')
+async def acquisition_page_views(
+    request: Request,
+    period: Optional[str] = None,
+    days: int = 30,
+    skip: int = 0,
+    limit: int = 100,
+):
+    await require_admin(request)
+    from deps import get_db
+    db = get_db()
+    query, period_label = _range_query(period, days)
+    skip = max(0, int(skip))
+    limit = max(1, min(int(limit), 500))
+    total = await db.acquisition_page_views.count_documents(query)
+    pages = await db.acquisition_page_views.find(query, {'_id': 0}).sort('created_at', -1).skip(skip).limit(limit).to_list(limit)
+    user_ids = list({page.get('user_id') for page in pages if page.get('user_id')})
+    users = await db.users.find({'user_id': {'$in': user_ids}}, {'_id': 0, 'user_id': 1, 'name': 1, 'email': 1}).to_list(len(user_ids)) if user_ids else []
+    user_map = {user['user_id']: user for user in users}
+    for page in pages:
+        page['user'] = user_map.get(page.get('user_id'), {})
+    return {'page_views': pages, 'total': total, 'skip': skip, 'limit': limit, 'period': period_label}

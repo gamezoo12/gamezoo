@@ -5,7 +5,10 @@ import {
   Search, Share2, Link2, TrendingUp, RefreshCw, Target, UserCheck,
 } from 'lucide-react';
 
-const DAY_OPTIONS = [7, 30, 90, 365];
+const TIME_OPTIONS = [
+  ['1 hour', '1h'], ['6 hours', '6h'], ['24 hours', '24h'], ['7 days', '7d'],
+  ['1 month', '1m'], ['6 months', '6m'], ['1 year', '1y'], ['Lifetime', 'lifetime'],
+];
 
 const CHANNEL_LABELS = {
   direct: 'Direct',
@@ -67,26 +70,29 @@ function BarList({ title, icon: Icon, items, total, labelMap }) {
 }
 
 export default function AcquisitionAdmin() {
-  const [days, setDays] = useState(30);
+  const [period, setPeriod] = useState('1m');
   const [data, setData] = useState(null);
   const [visits, setVisits] = useState([]);
+  const [pageViews, setPageViews] = useState([]);
   const [state, setState] = useState('loading');
 
   const load = () => {
     setState('loading');
     Promise.all([
-      acquisitionAdminAPI.summary(days),
-      acquisitionAdminAPI.visits({ days, limit: 30 }),
+      acquisitionAdminAPI.summary(period),
+      acquisitionAdminAPI.visits({ period, limit: 30 }),
+      acquisitionAdminAPI.pageViews({ period, limit: 30 }),
     ])
-      .then(([summary, v]) => {
+      .then(([summary, v, pv]) => {
         setData(summary);
         setVisits(v.visits || []);
+        setPageViews(pv.page_views || []);
         setState('ok');
       })
       .catch(() => setState('error'));
   };
 
-  useEffect(load, [days]);
+  useEffect(load, [period]);
 
   const trendMax = Math.max(1, ...((data?.trend || []).map(t => t.visits)));
 
@@ -103,18 +109,18 @@ export default function AcquisitionAdmin() {
         </div>
         <div className="flex items-center gap-2">
           <div className="flex bg-white border border-slate-200 rounded-xl p-1">
-            {DAY_OPTIONS.map((d) => (
+            {TIME_OPTIONS.map(([label, value]) => (
               <button
-                key={d}
-                onClick={() => setDays(d)}
-                data-testid={`acq-days-${d}`}
+                key={value}
+                onClick={() => setPeriod(value)}
+                data-testid={`acq-period-${value}`}
                 className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
-                  days === d
+                  period === value
                     ? 'bg-gradient-to-r from-[#8B5CFF] to-[#6C2BFF] text-white'
                     : 'text-slate-600 hover:bg-slate-50'
                 }`}
               >
-                {d === 365 ? '1y' : `${d}d`}
+                {label}
               </button>
             ))}
           </div>
@@ -139,18 +145,19 @@ export default function AcquisitionAdmin() {
       {state === 'ok' && data && (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-            <StatCard label="Total visits" value={data.total_visits} icon={MousePointerClick} tone="indigo" />
+            <StatCard label="Visits" value={data.total_visits} icon={MousePointerClick} tone="indigo" />
+            <StatCard label="Page views" value={data.page_views || 0} icon={Globe} tone="blue" />
             <StatCard label="Unique visitors" value={data.unique_visitors} icon={Users} tone="fuchsia" />
             <StatCard label="Players (signed up)" value={data.converted_visitors ?? 0} icon={UserCheck} tone="emerald" />
             <StatCard label="Conversion rate" value={`${data.overall_conversion_rate ?? 0}%`} icon={Target} tone="rose" />
-            <StatCard label="Window" value={`${data.days}d`} icon={TrendingUp} tone="amber" />
+            <StatCard label="Window" value={data.period || period} icon={TrendingUp} tone="amber" />
           </div>
 
           {/* Daily trend */}
           <div className="bg-white rounded-2xl border border-slate-200 p-5">
             <div className="flex items-center gap-2 mb-4">
               <TrendingUp className="w-4 h-4 text-indigo-600" />
-              <h2 className="font-display font-bold text-base">Daily visits</h2>
+              <h2 className="font-display font-bold text-base">{['6m', '1y', 'lifetime'].includes(period) ? 'Monthly visits' : ['1h', '6h', '24h'].includes(period) ? 'Visits by hour window' : 'Daily visits'}</h2>
             </div>
             {!data.trend?.length ? (
               <div className="text-sm text-slate-400">No visits recorded yet.</div>
@@ -260,6 +267,29 @@ export default function AcquisitionAdmin() {
                       </tr>
                     ))}
                   </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white rounded-2xl border border-slate-200 p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Globe className="w-4 h-4 text-blue-600" />
+              <h2 className="font-display font-bold text-base">Recent page views</h2>
+              <span className="text-xs text-slate-400">Individual route navigations</span>
+            </div>
+            {!pageViews.length ? (
+              <div className="text-sm text-slate-400">No page views in this range.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-50 text-slate-500"><tr><th className="px-3 py-2 text-left">When</th><th className="px-3 py-2 text-left">Page</th><th className="px-3 py-2 text-left">Visitor</th><th className="px-3 py-2 text-left">User</th></tr></thead>
+                  <tbody>{pageViews.map((view) => <tr key={view.view_id} className="border-t border-slate-100">
+                    <td className="px-3 py-2 whitespace-nowrap">{view.created_at ? new Date(view.created_at).toLocaleString('en-GB') : '—'}</td>
+                    <td className="px-3 py-2 font-mono">{view.page_path}</td>
+                    <td className="px-3 py-2">{view.visitor_id}</td>
+                    <td className="px-3 py-2">{view.user?.email || view.user_id || 'Guest'}</td>
+                  </tr>)}</tbody>
                 </table>
               </div>
             )}

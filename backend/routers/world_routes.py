@@ -797,36 +797,29 @@ async def world_public_leaderboard(
         min(int(limit), 500),
     )
 
-    rows = await db.world_champion_scores.find(
-        {
+    rows = await db.world_champion_scores.aggregate([
+        {"$match": {
             "season_id": WORLD_SEASON_ID,
-            "global_contest_number":
-                contest_number,
+            "global_contest_number": contest_number,
             "eligible": True,
-        },
-        {
+        }},
+        {"$set": {
+            "effective_duration_ms": {
+                "$ifNull": ["$duration_ms_override", "$duration_ms"],
+            },
+        }},
+        {"$sort": {"score": -1, "effective_duration_ms": 1, "submitted_at": 1}},
+        {"$limit": safe_limit},
+        {"$project": {
             "_id": 0,
-
-            # PUBLIC SAFE FIELDS ONLY
             "user_id": 1,
             "user_name": 1,
             "score": 1,
-            "duration_ms": 1,
+            "duration_ms": "$effective_duration_ms",
             "accuracy": 1,
             "submitted_at": 1,
-
-            # Intentionally NOT projected:
-            # champion_stage_snapshot
-            # prize_amount_snapshot
-            # prize_currency_snapshot
-        },
-    ).sort(
-        [
-            ("score", -1),
-            ("duration_ms", 1),
-            ("submitted_at", 1),
-        ]
-    ).to_list(safe_limit)
+        }},
+    ]).to_list(safe_limit)
 
     leaderboard = []
 
@@ -8424,7 +8417,13 @@ async def champion_session_submit(
                     replace_filter,
                     {
                         "$set":
-                            candidate_score
+                            candidate_score,
+                        "$unset": {
+                            "duration_ms_override": "",
+                            "duration_override_reason": "",
+                            "duration_override_at": "",
+                            "duration_override_by": "",
+                        },
                     },
                 )
 
@@ -10569,37 +10568,20 @@ async def public_champion_leaderboard(
             detail="Champion Contest not found.",
         )
 
-    rows = await db.world_champion_scores.find(
-        {
-            "season_id":
-                WORLD_SEASON_ID,
-
-            "global_contest_number":
-                int(contest_number),
-
-            # Only server-verified, leaderboard-eligible
-            # Champion results may affect public ranking.
-            "eligible":
-                True,
-        },
-        {
-            "_id": 0,
-        },
-    ).sort(
-        [
-            ("score", -1),
-            ("duration_ms", 1),
-            ("submitted_at", 1),
-        ]
-    ).to_list(
-        max(
-            1,
-            min(
-                int(limit),
-                1000,
-            ),
-        )
-    )
+    safe_limit = max(1, min(int(limit), 1000))
+    rows = await db.world_champion_scores.aggregate([
+        {"$match": {
+            "season_id": WORLD_SEASON_ID,
+            "global_contest_number": int(contest_number),
+            "eligible": True,
+        }},
+        {"$set": {
+            "original_duration_ms": "$duration_ms",
+            "duration_ms": {"$ifNull": ["$duration_ms_override", "$duration_ms"]},
+        }},
+        {"$sort": {"score": -1, "duration_ms": 1, "submitted_at": 1}},
+        {"$limit": safe_limit},
+    ]).to_list(safe_limit)
 
     settled = (
         contest.get("status")

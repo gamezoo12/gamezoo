@@ -45,6 +45,8 @@ function ProfileManagementCard({ userId, identity, onReload }) {
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState('');
   const [savingConsent, setSavingConsent] = useState(false);
+  const [savingEmailConsent, setSavingEmailConsent] = useState(false);
+  const [emailConsentEvidence, setEmailConsentEvidence] = useState('');
 
   const makeForm = () => ({
     name: identity?.name || '',
@@ -239,6 +241,28 @@ function ProfileManagementCard({ userId, identity, onReload }) {
       });
     } finally {
       setSavingConsent(false);
+    }
+  };
+
+  const setEmailConsent = async (consent) => {
+    const evidence = emailConsentEvidence.trim();
+    if (consent && evidence.length < 10) {
+      toast({ title: 'Consent evidence required', description: 'Record how and when the user agreed to receive marketing emails (at least 10 characters).' });
+      return;
+    }
+    try {
+      setSavingEmailConsent(true);
+      await api.post(`/admin/users/${userId}/email-consent`, { consent, evidence: consent ? evidence : null });
+      toast({
+        title: consent ? 'Email consent granted' : 'Email consent revoked',
+        description: consent ? 'Marketing email consent has been recorded and audited.' : 'Marketing email consent has been revoked.',
+      });
+      setEmailConsentEvidence('');
+      await onReload();
+    } catch (e) {
+      toast({ title: 'Could not update email consent', description: e?.response?.data?.detail || 'Please try again.' });
+    } finally {
+      setSavingEmailConsent(false);
     }
   };
 
@@ -513,6 +537,44 @@ function ProfileManagementCard({ userId, identity, onReload }) {
         </div>
 
 
+        <div className="rounded-xl border border-slate-100 p-4" data-testid="admin-email-consent-card">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="font-bold text-sm">Email Marketing Consent</div>
+              <div className="text-xs text-slate-500 mt-1">
+                Required before sending promotional email campaigns. Grant only when the user has actually opted in.
+              </div>
+            </div>
+            {identity?.marketing_email_consent && !identity?.marketing_email_unsubscribed ? (
+              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700" data-testid="email-consent-status">Granted</span>
+            ) : (
+              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600" data-testid="email-consent-status">Not granted</span>
+            )}
+          </div>
+          {!identity?.erased && (
+            <div className="mt-4 space-y-3">
+              {identity?.marketing_email_consent && !identity?.marketing_email_unsubscribed ? (
+                <Button variant="outline" size="sm" onClick={() => setEmailConsent(false)} disabled={savingEmailConsent} data-testid="revoke-email-consent">
+                  {savingEmailConsent ? 'Saving…' : 'Revoke Email consent'}
+                </Button>
+              ) : (
+                <>
+                  <div>
+                    <label htmlFor="email-consent-evidence" className="block text-xs font-bold text-slate-600 mb-1.5">Evidence of user's email marketing opt-in</label>
+                    <textarea id="email-consent-evidence" rows={2} value={emailConsentEvidence} onChange={e => setEmailConsentEvidence(e.target.value)} placeholder="When and how the user explicitly agreed to marketing emails" className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm" data-testid="email-consent-evidence" />
+                  </div>
+                  <Button size="sm" onClick={() => setEmailConsent(true)} disabled={savingEmailConsent || !identity?.email || emailConsentEvidence.trim().length < 10} data-testid="grant-email-consent">
+                    {savingEmailConsent ? 'Saving…' : 'Grant Email consent'}
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
+          {identity?.marketing_email_unsubscribed && (
+            <p className="text-[11px] text-rose-600 mt-2">User previously unsubscribed. Only re-grant after fresh, documented opt-in.</p>
+          )}
+        </div>
+
         {(identity?.phone_verified_at ||
           identity?.email_verified_at) && (
           <div className="text-xs text-slate-500 border-t pt-4">
@@ -602,10 +664,12 @@ export default function UserDetailsPage() {
     identity, kyc, wallet, stats, orders, tickets, scores,
     wallet_transactions, notifications, support_cases, referrals,
     referral_joined_via, referrer_user, signup_bonus,
-    sessions, admin_actions, world,
+    sessions, admin_actions, world, special_challenge,
   } = data;
   const suspended = !!identity.suspended;
   const erased = !!identity.erased;
+  const totalDeposits = (wallet_transactions || []).reduce((sum, tx) => sum + (Number(tx.amount) > 0 ? Number(tx.amount) : 0), 0);
+  const totalSpend = (wallet_transactions || []).reduce((sum, tx) => sum + (Number(tx.amount) < 0 ? Math.abs(Number(tx.amount)) : 0), 0);
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6" data-testid="user-360-page">
@@ -656,11 +720,11 @@ export default function UserDetailsPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3" data-testid="user-stats">
         <StatCard label="Wallet" value={gbp(wallet?.balance || 0)} tone="emerald" />
-        <StatCard label="Tickets" value={stats.tickets_count} tone="teal" />
-        <StatCard label="Scores" value={stats.scores_count} tone="indigo" />
-        <StatCard label="Orders" value={stats.orders_count} tone="amber" />
-        <StatCard label="Support" value={stats.support_cases_count} tone="rose" />
-        <StatCard label="Referrals" value={stats.referrals_count} tone="fuchsia" />
+        <StatCard label="Deposits" value={gbp(totalDeposits || 0)} tone="teal" />
+        <StatCard label="Spend" value={gbp(totalSpend || 0)} tone="rose" />
+        <StatCard label="Tickets" value={stats.tickets_count} tone="indigo" />
+        <StatCard label="Paid scores" value={stats.scores_count} tone="amber" />
+        <StatCard label="Free World" value={world?.stats?.level_attempts_count || 0} tone="fuchsia" />
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
@@ -677,26 +741,38 @@ export default function UserDetailsPage() {
 
         <Section title="Wallet" icon={Wallet}>
           <div className="text-3xl font-black text-emerald-700">{gbp(wallet?.balance || 0)}</div>
-          <div className="text-xs text-slate-500">Lifetime top-up: {gbp(wallet?.lifetime_topup || 0)} · Lifetime spend: {gbp(wallet?.lifetime_spend || 0)}</div>
+          <div className="text-xs text-slate-500">Lifetime top-up: {gbp(wallet?.lifetime_topup || 0)} · Lifetime spend: {gbp(wallet?.lifetime_spend || 0)} · Deposits: {gbp(totalDeposits || 0)} · Spend: {gbp(totalSpend || 0)}</div>
           <div className="mt-3 max-h-40 overflow-y-auto text-xs">
             {wallet_transactions.length === 0 ? <div className="text-slate-400">No wallet transactions.</div> :
               wallet_transactions.slice(0, 20).map((t, i) => (
                 <div key={i} className="flex items-center justify-between border-b border-slate-100 py-1">
                   <span>{t.kind} · {t.method || '—'}</span>
-                  <span className={t.amount > 0 ? 'text-emerald-700' : 'text-rose-700'}>{gbp(t.amount)}</span>
+                  <span className={Number(t.amount) > 0 ? 'text-emerald-700' : 'text-rose-700'}>{gbp(t.amount)}</span>
                 </div>
               ))
             }
           </div>
         </Section>
 
-        <Section title="Tickets & Scores" icon={Ticket}>
+        <Section title="Paid World" icon={Ticket}>
           <div className="text-xs text-slate-500">Tickets: {tickets.length} · Scores: {scores.length}</div>
           <div className="mt-2 max-h-52 overflow-y-auto text-xs space-y-1">
             {scores.slice(0, 20).map((s, i) => (
               <div key={i} className="flex items-center justify-between border-b border-slate-100 py-1">
                 <span>{s.contest_id}</span>
                 <span>#{s.ticket_number} · {s.points ?? '—'}pt</span>
+              </div>
+            ))}
+          </div>
+        </Section>
+
+        <Section title="Free World" icon={Trophy}>
+          <div className="text-xs text-slate-500">Attempts: {world?.stats?.level_attempts_count || 0} · Wins: {world?.stats?.winnings_count || 0} · Token events: {world?.stats?.token_events_count || 0}</div>
+          <div className="mt-2 max-h-52 overflow-y-auto text-xs space-y-1">
+            {(world?.token_history || []).slice(0, 12).map((event, i) => (
+              <div key={`${event.kind}-${event.at}-${i}`} className="flex items-center justify-between border-b border-slate-100 py-1">
+                <span>{event.kind} · {event.level || event.champion_stage || '—'}</span>
+                <span className="text-slate-600">{event.token_cost ? `-${event.token_cost}` : '—'}</span>
               </div>
             ))}
           </div>
@@ -712,6 +788,31 @@ export default function UserDetailsPage() {
           }
         </Section>
       </div>
+
+      <Section title="Impossible Challenges" icon={Swords}>
+        <div className="grid md:grid-cols-2 gap-5">
+          <div className="rounded-xl border border-slate-200 p-4">
+            <div className="font-bold text-sm mb-3">Challenge attempts</div>
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between"><span className="text-slate-500">Attempts</span><span className="font-semibold">{special_challenge?.stats?.attempts_count || 0}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Rewards</span><span className="font-semibold">{special_challenge?.stats?.rewards_count || 0}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Tokens spent</span><span className="font-semibold">{special_challenge?.stats?.total_tokens_spent || 0}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Credit total</span><span className="font-semibold">{gbp((special_challenge?.stats?.total_rewards_pence || 0) / 100)}</span></div>
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-200 p-4">
+            <div className="font-bold text-sm mb-3">Recent challenge activity</div>
+            <div className="max-h-52 overflow-y-auto text-xs space-y-2">
+              {(special_challenge?.attempts || []).slice(0, 8).map((attempt, i) => (
+                <div key={attempt.attempt_id || i} className="border-b border-slate-100 pb-2">
+                  <div className="font-semibold">{attempt.challenge_id}</div>
+                  <div className="text-slate-500">{attempt.result || attempt.status} · {attempt.elapsed_ms ? `${Math.round(attempt.elapsed_ms / 1000)}s` : '—'}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Section>
 
       <Section title="Bonuses & Referrals" icon={Gift}>
         <div className="grid md:grid-cols-2 gap-5">

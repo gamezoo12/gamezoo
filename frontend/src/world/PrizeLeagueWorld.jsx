@@ -139,6 +139,12 @@ export default function PrizeLeagueWorld() {
       setLevelBusy(true);
 
       try {
+        if (loading) {
+          setLevelError(
+            'Account check is still in progress. Please try again shortly.',
+          );
+          return;
+        }
 
         /*
          * Logged-out visitors may try Level 1 once.
@@ -236,6 +242,7 @@ export default function PrizeLeagueWorld() {
   }, [
     navigate,
     user,
+    loading,
   ]);
 
 
@@ -384,22 +391,6 @@ export default function PrizeLeagueWorld() {
   ]);
 
 
-  if (loading) {
-    return (
-      <div className="pl-world-loading">
-        <div className="pl-world-loading-orb" />
-
-        <div className="pl-world-loading-title">
-          Opening the Kingdom
-        </div>
-
-        <div className="pl-world-loading-subtitle">
-          Preparing Prize League World…
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="pl-world-page">
       <WorldAlertPopup />
@@ -408,11 +399,23 @@ export default function PrizeLeagueWorld() {
 <WorldCanvas />
       )}
 
-      {/* Something Special — animated, colourful popping surprise symbol → Winnings / £500 challenge */}
+      {selectedLevel && (levelBusy || levelError) && (
+        <div
+          className={`pl2d-progress-status${levelError && !levelBusy ? ' is-error' : ''}`}
+          role={levelError && !levelBusy ? 'alert' : 'status'}
+          aria-live="polite"
+        >
+          {levelBusy
+            ? `Opening ${selectedLevel.name}…`
+            : levelError}
+        </div>
+      )}
+
+      {/* Rounded-square entry point to the unlimited Special Challenges */}
       <button
         type="button"
         onClick={() => navigate(user ? '/my-account/winnings' : '/login')}
-        aria-label="Something Special — win £500"
+        aria-label="Unlimited games — explore Special Challenges and win rewards"
         data-testid="something-special-fab"
         className="pl-special-fab"
       >
@@ -422,8 +425,9 @@ export default function PrizeLeagueWorld() {
           <span className="pl-special-fab-gift">
             <Gift />
           </span>
-          <span className="pl-special-fab-amount">{'\u00A3'}500</span>
-          <span className="pl-special-fab-tag">INSTANT</span>
+          <span className="pl-special-fab-title">UNLIMITED</span>
+          <span className="pl-special-fab-title pl-special-fab-title-strong">GAMES</span>
+          <span className="pl-special-fab-tag">PLAY · WIN · REPEAT</span>
         </span>
       </button>
 

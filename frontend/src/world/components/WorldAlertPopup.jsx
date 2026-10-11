@@ -84,6 +84,14 @@ export default function WorldAlertPopup() {
     });
   }, []);
 
+  useEffect(() => {
+    if (!current || expanded) return undefined;
+    const timeout = window.setTimeout(() => {
+      advance();
+    }, 10000);
+    return () => window.clearTimeout(timeout);
+  }, [current, expanded, advance]);
+
   const dismiss = useCallback(async () => {
     const id = current?.notification_id;
     setExpanded(false);

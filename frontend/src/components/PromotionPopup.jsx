@@ -5,6 +5,7 @@ import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 
 const ATTR = 'fw_promo_attribution';
+const money = (amount) => `£${Number(amount || 0).toLocaleString('en-GB')}`;
 
 const visitorId = () => {
   let id = localStorage.getItem('fw_promo_visitor');
@@ -99,12 +100,13 @@ const attribution = () => {
   return fresh;
 };
 
-const track = (name, path) => {
+const track = (name, path, promotionId) => {
   const a = attribution();
 
   return api
     .post('/promotion/event', {
       event: name,
+      promotion_id: promotionId,
       visitor_id: visitorId(),
       page:
         path ||
@@ -212,7 +214,7 @@ export default function PromotionPopup() {
 
     setOpen(true);
 
-    track('impression', path);
+    track('impression', path, cfg?.promotion_id);
   }, [
     cfg?.promotion_id,
     cfg?.is_live,
@@ -230,7 +232,7 @@ export default function PromotionPopup() {
   }
 
   const dismiss = () => {
-    track('close', path);
+    track('close', path, cfg?.promotion_id);
 
     if (seenKey) {
       sessionStorage.setItem(
@@ -283,10 +285,7 @@ export default function PromotionPopup() {
       next
     );
 
-    track(
-      'signup_start',
-      path
-    );
+    track('signup_start', path, cfg?.promotion_id);
 
     nav(
       `/login?tab=signup&promo=${encodeURIComponent(
@@ -298,10 +297,7 @@ export default function PromotionPopup() {
   };
 
   const join = () => {
-    track(
-      'join_click',
-      path
-    );
+    track('join_click', path, cfg?.promotion_id);
 
     if (seenKey) {
       sessionStorage.setItem(
@@ -333,10 +329,7 @@ export default function PromotionPopup() {
   };
 
   const refer = () => {
-    track(
-      'refer_click',
-      path
-    );
+    track('refer_click', path, cfg?.promotion_id);
 
     if (seenKey) {
       sessionStorage.setItem(
@@ -546,8 +539,17 @@ export default function PromotionPopup() {
                 2xl:text-2xl
               "
             >
-              Promotion artwork will
-              appear here
+              <div>
+                <div className="text-2xl font-black text-white">{cfg.name || 'Promotion'}</div>
+                {cfg.description && <p className="mx-auto mt-2 max-w-xl text-sm text-white/70">{cfg.description}</p>}
+                <div className="mt-4 text-sm font-bold text-yellow-300">
+                  {cfg.campaign_type === 'token_credit'
+                    ? `${cfg.reward_tokens || 0} bonus tokens`
+                    : cfg.prize_total_gbp
+                      ? `Prize pool ${money(cfg.prize_total_gbp)}`
+                      : 'Claim your promotion entry'}
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -563,7 +565,7 @@ export default function PromotionPopup() {
 
             grid
             grid-cols-1
-            sm:grid-cols-2
+            sm:grid-cols-1
 
             gap-3
             2xl:gap-6
@@ -597,10 +599,14 @@ export default function PromotionPopup() {
               2xl:text-2xl
             "
           >
-            JOIN CONTEST
+            {cfg.campaign_type === 'token_credit'
+              ? 'CLAIM TOKEN REWARD'
+              : cfg.campaign_type === 'ticket_draw'
+                ? 'CLAIM YOUR ENTRY'
+                : 'JOIN PROMOTION'}
           </button>
 
-          <button
+          {cfg.campaign_type !== 'token_credit' && cfg.campaign_type !== 'ticket_draw' && <button
             onClick={refer}
             className="
               w-full
@@ -624,7 +630,7 @@ export default function PromotionPopup() {
             "
           >
             REFER A FRIEND
-          </button>
+          </button>}
         </div>
       </div>
     </div>

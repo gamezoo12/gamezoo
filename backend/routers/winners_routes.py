@@ -32,6 +32,13 @@ async def _require_payout_role(request: Request) -> dict:
     return user
 
 
+async def _require_super_admin(request: Request) -> dict:
+    user = await get_current_user(request)
+    if user.get('role') != 'super_admin':
+        raise HTTPException(status_code=403, detail='Only Super Admin can decide or correct a winner')
+    return user
+
+
 async def _log(db, contest_id: str, actor: dict, action: str, payload: dict):
     await db.winner_audit.insert_one({
         'contest_id': contest_id,
@@ -102,7 +109,7 @@ async def random_draw(contest_id: str, request: Request):
 
 @winners_router.post('/{contest_id}/manual')
 async def manual_pick(contest_id: str, payload: dict, request: Request):
-    admin = await _require_payout_role(request)
+    admin = await _require_super_admin(request)
     ticket_number = payload.get('ticket_number')
     reason = (payload.get('reason') or '').strip()
     if not ticket_number:
@@ -180,7 +187,7 @@ async def publish_winner(contest_id: str, request: Request):
 
 @winners_router.post('/{contest_id}/correct')
 async def correct_winner(contest_id: str, payload: dict, request: Request):
-    admin = await _require_payout_role(request)
+    admin = await _require_super_admin(request)
     ticket_number = payload.get('ticket_number')
     reason = (payload.get('reason') or '').strip()
     if not ticket_number:

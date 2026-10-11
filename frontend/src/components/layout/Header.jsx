@@ -15,7 +15,6 @@ import { tokenCount } from '../../lib/format';
 
 const NAV = [
  { label: 'Home', href: '/' },
- { label: 'Free World', href: '/world' },
  { label: 'Contests', href: '/competitions' },
  { label: 'Leaderboard', href: '/leaderboard' },
  { label: 'How It Works', href: '/how-it-works' },
@@ -268,26 +267,6 @@ const minimalWorldHeader =
  <span className="hidden lg:inline"><PrizeLeagueLogo size={60} /></span>
  </Link>
 
- {isFreeWorldHeader && (
-  <div
-    data-testid="world-header-prize"
-    className="absolute left-[53%] -translate-x-1/2 whitespace-nowrap pointer-events-none z-10"
-  >
-    <strong
-      className="block text-[23px] sm:text-[28px] md:text-[32px] leading-none font-black tracking-[-0.03em] text-white"
-      style={{
-        WebkitTextFillColor: '#FFFFFF',
-        color: '#FFFFFF',
-        WebkitTextStroke: '0.25px rgba(255,213,74,0.95)',
-        textShadow:
-          '0 0 1px #FFFFFF, 0 0 4px rgba(255,213,74,0.90), 0 0 8px rgba(255,190,0,0.45)',
-      }}
-    >
-      £257,500
-    </strong>
-  </div>
-)}
-
  {/* Desktop nav */}
  <nav className={isFreeWorldHeader ? "hidden" : "hidden lg:flex items-center gap-8"} aria-label="Main">
  {NAV.map((l) => (
@@ -316,19 +295,7 @@ const minimalWorldHeader =
  </Link>
  )}
 
- {/* Free World — tablet/mobile quick access */}
-{!isFreeWorldHeader && (
-<Link
-  to="/world"
-  data-testid="mobile-header-free-world"
-  className="lg:hidden inline-flex items-center justify-center px-3 py-2 rounded-lg border border-[#FFD54A]/40 bg-[#FFD54A]/10 text-[#FFD54A] text-xs font-extrabold whitespace-nowrap hover:bg-[#FFD54A]/20 transition"
->
-  FREE WORLD
-</Link>
-)}
-
-{/* Desktop notifications kept unchanged */}
- <span className={isFreeWorldHeader ? "hidden" : "hidden sm:inline-flex"}><NotificationsBell /></span>
+ <span className="inline-flex"><NotificationsBell dark={isFreeWorldHeader} /></span>
 
  {/* Draw Centre icon — desktop only kept unchanged */}
  <Link to="/draw-centre" className={isFreeWorldHeader ? "hidden" : "hidden md:inline-flex relative p-2 rounded-lg hover:bg-white/5"} aria-label="Draw centre" data-testid="header-draw-centre">

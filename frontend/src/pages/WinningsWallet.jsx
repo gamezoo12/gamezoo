@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Gift, Wallet } from 'lucide-react';
+import { ArrowUpRight, Gamepad2, Gift, Sparkles, Wallet } from 'lucide-react';
 import { winningsAPI } from '../lib/api';
 import { Button } from '../components/ui/button';
 import { useToast } from '../hooks/use-toast';
@@ -12,7 +12,11 @@ export default function WinningsWallet() {
   const navigate = useNavigate();
   const [wallet, setWallet] = useState(null);
   const [ledger, setLedger] = useState([]);
-  const [alreadyWon, setAlreadyWon] = useState(false);
+  const [challengeGames, setChallengeGames] = useState([]);
+  const [challengeGamesLoading, setChallengeGamesLoading] = useState(true);
+  const [challengeAttempts, setChallengeAttempts] = useState([]);
+  const [attemptsLoading, setAttemptsLoading] = useState(true);
+  const [attemptsError, setAttemptsError] = useState('');
 
   // withdrawal
   const [wOpen, setWOpen] = useState(false);
@@ -29,10 +33,24 @@ export default function WinningsWallet() {
         winningsAPI.wallet(), winningsAPI.ledger(), winningsAPI.myWithdrawals(),
       ]);
       setWallet(w); setLedger(l.items || []); setMyWd(wd.items || []);
-      setAlreadyWon((l.items || []).some((x) => x.type === 'challenge_reward'));
     } catch (e) { /* not logged in / transient */ }
   }, []);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    winningsAPI.challengeGames()
+      .then((data) => setChallengeGames(data.games || []))
+      .catch(() => setChallengeGames([]))
+      .finally(() => setChallengeGamesLoading(false));
+    winningsAPI.challengeAttempts()
+      .then((data) => setChallengeAttempts(data.items || []))
+      .catch((error) => setAttemptsError(error?.response?.data?.detail || 'Spending history is temporarily unavailable.'))
+      .finally(() => setAttemptsLoading(false));
+  }, []);
+
+  const highestChallengePrize = challengeGames.reduce(
+    (highest, game) => Math.max(highest, Number(game.prize_pence) || 0),
+    0,
+  );
 
   const submitWithdraw = async () => {
     const pence = Math.round(parseFloat(amount || '0') * 100);
@@ -50,28 +68,55 @@ export default function WinningsWallet() {
 
   return (
     <div className="space-y-6" data-testid="winnings-page">
-      {/* Instant £500 card */}
-      <div className="rounded-2xl border-2 border-amber-300 bg-gradient-to-br from-amber-50 to-white p-5"
-        data-testid="something-special-card">
-        <div className="flex items-center gap-2 text-amber-700 font-black uppercase tracking-widest text-xs">
-          <Gift className="w-4 h-4" /> Instant £500
-        </div>
-        <h2 className="text-2xl font-extrabold text-slate-900 mt-1">100 Number Sequence Challenge 🎁</h2>
-        <p className="text-sm text-slate-600 mt-2">
-          Spend just 1 token and complete the 100-number sequence challenge within 90 seconds to win £500 instantly.
-          One token is charged per attempt. One £500 reward per eligible user.
-        </p>
-        {alreadyWon ? (
-          <div className="mt-3 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-emerald-800 font-bold text-sm"
-            data-testid="challenge-already-won">
-            Challenge completed — £500 credited to your Winnings Wallet. You can still play for practice (no further reward).
+      {/* Special Challenge promotion */}
+      <section
+        className="relative isolate overflow-hidden rounded-2xl border border-emerald-300/25 bg-[#071b1a] text-white shadow-xl"
+        data-testid="something-special-card"
+      >
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 opacity-25"
+          style={{
+            backgroundImage: 'linear-gradient(rgba(148, 255, 225, .16) 1px, transparent 1px), linear-gradient(90deg, rgba(148, 255, 225, .16) 1px, transparent 1px)',
+            backgroundSize: '34px 34px',
+          }}
+        />
+        <div className="relative grid gap-7 p-6 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-center">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200/25 bg-emerald-200/10 px-3 py-1.5 text-xs font-black uppercase tracking-[0.16em] text-emerald-200">
+              <Sparkles className="h-4 w-4" /> Special Challenges
+            </div>
+            <h2 className="mt-4 max-w-2xl text-3xl font-black leading-tight sm:text-4xl">
+              Play more games.
+              <span className="block text-emerald-300">Win instant rewards.</span>
+            </h2>
+            <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/70 sm:text-base">
+              Take on a skill challenge, beat the target and earn rewards directly into your Winnings Wallet.
+            </p>
+            <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
+              <div className="flex items-center gap-2">
+                <Gamepad2 className="h-5 w-5 text-emerald-300" />
+                <span className="text-sm font-bold">
+                  {challengeGamesLoading ? 'Loading games' : `${challengeGames.length} live games`}
+                </span>
+              </div>
+              {highestChallengePrize > 0 && (
+                <div className="flex items-center gap-2 border-l border-white/15 pl-6">
+                  <Gift className="h-5 w-5 text-amber-300" />
+                  <span className="text-sm font-bold">Prizes up to {gbp(highestChallengePrize)}</span>
+                </div>
+              )}
+            </div>
           </div>
-        ) : null}
-        <Button className="mt-4 bg-amber-500 hover:bg-amber-600 text-white font-extrabold"
-          onClick={() => navigate('/challenge')} data-testid="start-challenge-button">
-          {alreadyWon ? 'Play again — 1 Token' : 'Play with 1 Token'}
-        </Button>
-      </div>
+          <Button
+            className="h-12 gap-2 bg-emerald-300 px-5 font-black text-emerald-950 hover:bg-emerald-200"
+            onClick={() => navigate('/challenge')}
+            data-testid="start-challenge-button"
+          >
+            Explore challenges <ArrowUpRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </section>
 
       {/* Winnings Wallet */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5" data-testid="winnings-wallet-card">
@@ -99,6 +144,57 @@ export default function WinningsWallet() {
           </div>
         </div>
       </div>
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white" data-testid="challenge-spending-history">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+          <div>
+            <h3 className="font-extrabold text-lg text-slate-900">Challenge spending</h3>
+            <p className="mt-1 text-sm text-slate-500">Token entry costs for your challenge attempts</p>
+          </div>
+          {!attemptsLoading && !attemptsError && (
+            <span className="text-xs font-bold text-slate-500">{challengeAttempts.length} attempts</span>
+          )}
+        </div>
+        {attemptsLoading ? (
+          <p className="px-5 py-4 text-sm text-slate-500" role="status">Loading challenge spending…</p>
+        ) : attemptsError ? (
+          <p className="px-5 py-4 text-sm text-rose-700" role="alert">{attemptsError}</p>
+        ) : challengeAttempts.length === 0 ? (
+          <p className="px-5 py-4 text-sm text-slate-500">No challenge attempts or entry costs yet.</p>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {challengeAttempts.map((attempt) => {
+              const outcome = attempt.result === 'success'
+                ? 'Won'
+                : attempt.result === 'fail'
+                  ? 'Not completed'
+                  : 'In progress';
+              const outcomeClass = attempt.result === 'success'
+                ? 'text-emerald-700 bg-emerald-50'
+                : attempt.result === 'fail'
+                  ? 'text-rose-700 bg-rose-50'
+                  : 'text-amber-700 bg-amber-50';
+              return (
+                <div key={attempt.attempt_id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+                  <div className="min-w-0">
+                    <p className="truncate font-bold text-slate-900">{attempt.game_name || attempt.challenge_id}</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {attempt.started_at ? new Date(attempt.started_at).toLocaleString() : 'Date unavailable'}
+                      {attempt.size ? ` · ${attempt.size} ${attempt.type === 'colour_match' ? 'colours' : 'numbers'}` : ''}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${outcomeClass}`}>{outcome}</span>
+                    <span className="min-w-20 text-right text-sm font-extrabold text-slate-900">
+                      {attempt.tokens_spent > 0 ? `-${attempt.tokens_spent} tokens` : 'Free'}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       {/* Withdrawal form */}
       {wOpen && (

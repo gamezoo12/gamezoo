@@ -1,36 +1,48 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Package, ShoppingBag, Trophy, BarChart3, LogOut, Shield, CreditCard, Settings as SettingsIcon, ShieldCheck, Wallet as WalletIcon, Gamepad2, Menu, X, ClipboardList, FileText, Building2, Mailbox, Gift, Banknote, Bell } from 'lucide-react';
+import { LayoutDashboard, Users, Package, ShoppingBag, Trophy, BarChart3, LogOut, Shield, CreditCard, Settings as SettingsIcon, ShieldCheck, Wallet as WalletIcon, Gamepad2, Menu, X, ClipboardList, FileText, Building2, Mailbox, Gift, Banknote, Bell, Medal } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import PrizeLeagueLogo from '../layout/PrizeLeagueLogo';
 import MeeraChat from '../MeeraChat';
 
 const LINKS = [
- { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
- { to: '/admin/users', label: 'Users', icon: Users },
- { to: '/admin/alerts', label: 'Alerts', icon: Bell },
- { to: '/admin/referrals', label: 'Referrals & Bonuses', icon: Gift },
- { to: '/admin/roles', label: 'Roles & Permissions', icon: ShieldCheck },
- { to: '/admin/kyc', label: 'KYC', icon: Shield },
- { to: '/admin/competitions', label: 'Contests', icon: Package },
- { to: '/admin/live-contests', label: 'Live Contests', icon: ClipboardList },
- { to: '/admin/games', label: 'Games', icon: Gamepad2 },
- { to: '/admin/free-world', label: 'Free World', icon: Trophy },
- { to: '/admin/promotion', label: 'Promotion', icon: Gift },
- { to: '/admin/wallets', label: 'Wallets', icon: WalletIcon },
- { to: '/admin/winnings-payouts', label: 'Winnings Payouts', icon: Banknote },
- { to: '/admin/cash-out', label: 'Cash Out', icon: Banknote },
- { to: '/admin/orders', label: 'Orders', icon: ShoppingBag },
- { to: '/admin/payments', label: 'Payments', icon: CreditCard },
- { to: '/admin/winners', label: 'Winners', icon: Trophy },
- { to: '/admin/winner-selection', label: 'Winner Selection', icon: Trophy },
- { to: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
- { to: '/admin/acquisition', label: 'Acquisition', icon: BarChart3 },
- { to: '/admin/settings', label: 'Settings', icon: SettingsIcon },
- { to: '/admin/audit-logs', label: 'Audit logs', icon: ClipboardList },
- { to: '/admin/legal', label: 'Legal Docs', icon: FileText },
- { to: '/admin/company', label: 'Company Settings', icon: Building2 },
- { to: '/admin/postal', label: 'Postal Entries', icon: Mailbox },
+ { group: 'Overview', items: [
+   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
+   { to: '/admin/users', label: 'Users', icon: Users },
+   { to: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
+   { to: '/admin/audit-logs', label: 'Audit logs', icon: ClipboardList },
+   { to: '/admin/settings', label: 'Settings', icon: SettingsIcon },
+ ] },
+ { group: 'Paid World', items: [
+   { to: '/admin/competitions', label: 'Contests', icon: Package },
+   { to: '/admin/live-contests', label: 'Live Contests', icon: ClipboardList },
+   { to: '/admin/games', label: 'Games', icon: Gamepad2 },
+   { to: '/admin/leaderboards', label: 'All Leaderboards', icon: Medal },
+   { to: '/admin/orders', label: 'Orders', icon: ShoppingBag },
+   { to: '/admin/payments', label: 'Payments', icon: CreditCard },
+   { to: '/admin/winners', label: 'Winners', icon: Trophy },
+   { to: '/admin/winner-selection', label: 'Winner Selection', icon: Trophy },
+   { to: '/admin/wallets', label: 'Wallets', icon: WalletIcon },
+   { to: '/admin/winnings-payouts', label: 'Winnings Payouts', icon: Banknote },
+   { to: '/admin/cash-out', label: 'Cash Out', icon: Banknote },
+ ] },
+ { group: 'Free World', items: [
+   { to: '/admin/free-world', label: 'Free World', icon: Trophy },
+   { to: '/admin/leaderboards', label: 'Leaderboard', icon: Medal },
+   { to: '/admin/special-challenge', label: 'Special Challenge', icon: Trophy },
+ ] },
+ { group: 'Operations', items: [
+   { to: '/admin/alerts', label: 'Alerts', icon: Bell },
+   { to: '/admin/referrals', label: 'Referrals & Bonuses', icon: Gift },
+   { to: '/admin/roles', label: 'Roles & Permissions', icon: ShieldCheck },
+   { to: '/admin/kyc', label: 'KYC', icon: Shield },
+   { to: '/admin/acquisition', label: 'Acquisition', icon: BarChart3 },
+  { to: '/admin/promotion', label: 'Legacy Promotion Draw', icon: Gift },
+  { to: '/admin/promotion-campaigns', label: 'Promotion Campaigns', icon: Gift },
+   { to: '/admin/legal', label: 'Legal Docs', icon: FileText },
+   { to: '/admin/company', label: 'Company Settings', icon: Building2 },
+   { to: '/admin/postal', label: 'Postal Entries', icon: Mailbox },
+ ] },
 ];
 
 /**
@@ -60,16 +72,22 @@ export default function AdminLayout() {
  <PrizeLeagueLogo size={40} />
  </Link>
  <div className="px-5 pt-4 pb-2 text-[10px] uppercase tracking-widest text-[#FFD54A]/70 font-bold">Admin Panel</div>
- <nav className="flex-1 p-3 space-y-1 overflow-y-auto" onClick={onNav}>
- {LINKS.map(l => (
- <NavLink
- key={l.to}
- to={l.to}
- end={l.end}
- className={({ isActive }) => `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${isActive ? 'bg-gradient-to-r from-[#8B5CFF] to-[#6C2BFF] text-white shadow-lg shadow-[#6C2BFF]/30' : 'text-white/70 hover:bg-white/5 hover:text-white'}`}
- >
- <l.icon className="w-4 h-4" /> {l.label}
- </NavLink>
+ <nav className="flex-1 p-3 space-y-3 overflow-y-auto" onClick={onNav}>
+ {LINKS.map((group, index) => (
+   <div key={group.group} className="space-y-1">
+     <div className="px-2 pb-1 pt-1 text-[10px] uppercase tracking-[0.18em] text-white/40">{group.group}</div>
+     {group.items.map((l) => (
+       <NavLink
+         key={l.to}
+         to={l.to}
+         end={l.end}
+         className={({ isActive }) => `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${isActive ? 'bg-gradient-to-r from-[#8B5CFF] to-[#6C2BFF] text-white shadow-lg shadow-[#6C2BFF]/30' : 'text-white/70 hover:bg-white/5 hover:text-white'}`}
+       >
+         <l.icon className="w-4 h-4" /> {l.label}
+       </NavLink>
+     ))}
+     {index < LINKS.length - 1 && <div className="mt-2 border-t border-white/10" />}
+   </div>
  ))}
  </nav>
  <div className="p-3 border-t border-white/10 space-y-1" onClick={onNav}>
@@ -108,7 +126,7 @@ export default function AdminLayout() {
  <header className="h-14 bg-white border-b border-slate-200 px-4 md:px-6 flex items-center justify-between">
  <div className="flex items-center gap-3">
  <button className="md:hidden text-slate-700" onClick={() => setOpen(true)} aria-label="Menu"><Menu className="w-5 h-5" /></button>
- <Link to="/" className="font-display font-bold text-slate-900 hover:text-[#6C2BFF] text-sm">← Prize League</Link>
+ <Link to="/admin" className="font-display font-bold text-slate-900 hover:text-[#6C2BFF] text-sm">← Admin home</Link>
  </div>
  <div className="flex items-center gap-3">
  <div className="text-sm text-slate-600 hidden sm:block">{user.email}</div>

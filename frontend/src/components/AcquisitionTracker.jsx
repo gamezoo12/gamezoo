@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { acquisitionAPI } from '../lib/api';
 
 const VISITOR_KEY = 'pl-visitor-id';
@@ -22,6 +23,9 @@ function getVisitorId() {
  * the page if the request fails.
  */
 export default function AcquisitionTracker() {
+  const location = useLocation();
+  const lastPageKey = useRef('');
+
   useEffect(() => {
     if (sessionStorage.getItem(SESSION_KEY) === '1') {
       return;
@@ -46,6 +50,18 @@ export default function AcquisitionTracker() {
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    const path = location.pathname;
+    if (path.startsWith('/admin') || path.startsWith('/production') || path.startsWith('/auth-callback')) return;
+    if (!path || lastPageKey.current === location.key) return;
+    lastPageKey.current = location.key;
+    acquisitionAPI.pageView({
+      visitor_id: getVisitorId(),
+      view_id: `${getVisitorId()}-${location.key}-${Date.now()}`,
+      page_path: path,
+    }).catch(() => {});
+  }, [location.key, location.pathname]);
 
   return null;
 }

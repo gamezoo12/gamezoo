@@ -13,8 +13,8 @@ import uuid
 import logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field
+from typing import Literal, Optional
 
 from auth import require_admin, verify_password
 
@@ -28,6 +28,15 @@ class DeleteRequest(BaseModel):
     admin_password: str  # re-authentication
 
 
+class BulkUserActionRequest(BaseModel):
+    user_ids: list[str] = Field(min_length=1, max_length=200)
+    action: Literal['credit', 'sms_grant', 'sms_revoke']
+    batch_id: str = Field(min_length=16, max_length=64)
+    amount: Optional[float] = None
+    note: str = Field(default='', max_length=500)
+    consent_evidence: str = Field(default='', max_length=2000)
+
+
 async def _sanitise(doc: dict) -> dict:
     if not doc:
         return {}
@@ -35,6 +44,107 @@ async def _sanitise(doc: dict) -> dict:
     d.pop('_id', None)
     d.pop('password_hash', None)
     return d
+
+
+@router.post('/bulk-actions')
+async def bulk_user_actions(payload: BulkUserActionRequest, request: Request):
+    admin = await require_admin(request)
+    if admin.get('role') not in ('admin', 'super_admin'):
+        raise HTTPException(status_code=403, detail='Only admin or super-admin can run bulk user actions')
+
+    user_ids = list(dict.fromkeys(user_id.strip() for user_id in payload.user_ids if user_id.strip()))
+    if not user_ids:
+        raise HTTPException(status_code=400, detail='Select at least one user')
+    if payload.action == 'credit':
+        if payload.amount is None or not 0 < float(payload.amount) <= 500:
+            raise HTTPException(status_code=400, detail='Credit must be greater than 0 and at most 500 tokens per user')
+        if len(payload.note.strip()) < 10:
+            raise HTTPException(status_code=400, detail='A credit reason of at least 10 characters is required')
+    elif payload.action == 'sms_grant':
+        if len(payload.consent_evidence.strip()) < 20:
+            raise HTTPException(status_code=400, detail='Documented consent evidence of at least 20 characters is required')
+    elif len(payload.note.strip()) < 10:
+        raise HTTPException(status_code=400, detail='A revocation reason of at least 10 characters is required')
+
+    from deps import get_db
+    from routers.wallet_routes import _apply_tx_idempotent
+    db = get_db()
+    users = await db.users.find(
+        {'user_id': {'$in': user_ids}},
+        {'_id': 0, 'user_id': 1, 'name': 1, 'email': 1, 'phone': 1,
+         'phone_verified': 1, 'sms_consent': 1, 'erased': 1},
+    ).to_list(len(user_ids))
+    user_map = {user['user_id']: user for user in users}
+    batch_id = payload.batch_id
+    now = datetime.now(timezone.utc)
+    items = []
+
+    for user_id in user_ids:
+        user = user_map.get(user_id)
+        if not user:
+            items.append({'user_id': user_id, 'status': 'skipped', 'reason': 'User not found'})
+            continue
+        if user.get('erased'):
+            items.append({'user_id': user_id, 'status': 'skipped', 'reason': 'Account erased'})
+            continue
+
+        if payload.action == 'credit':
+            try:
+                await _apply_tx_idempotent(
+                    db, user_id, 'admin_adjust', float(payload.amount),
+                    note=f"Bulk credit by {admin.get('email')}: {payload.note.strip()}",
+                    ref_order_id=f'bulk_admin_credit:{batch_id}:{user_id}',
+                )
+                await db.audit_log.insert_one({
+                    'audit_id': f'aud_{uuid.uuid4().hex[:12]}',
+                    'kind': 'admin_bulk_wallet_credit',
+                    'admin_user_id': admin.get('user_id'),
+                    'admin_email': admin.get('email'),
+                    'target_user_id': user_id,
+                    'amount': float(payload.amount),
+                    'reason': payload.note.strip(),
+                    'batch_id': batch_id,
+                    'at': now,
+                })
+                items.append({'user_id': user_id, 'status': 'success', 'amount': float(payload.amount)})
+            except Exception as exc:
+                items.append({'user_id': user_id, 'status': 'failed', 'reason': str(exc)[:200]})
+            continue
+
+        if payload.action == 'sms_grant' and (not user.get('phone') or not user.get('phone_verified')):
+            items.append({'user_id': user_id, 'status': 'skipped', 'reason': 'Verified phone required'})
+            continue
+
+        updates = {
+            'sms_consent': payload.action == 'sms_grant',
+            'sms_consent_at': now,
+            'sms_consent_source': 'admin_bulk',
+        }
+        if payload.action == 'sms_grant':
+            updates.update({'sms_opt_out': False, 'sms_consent_evidence': payload.consent_evidence.strip()})
+        await db.users.update_one({'user_id': user_id}, {'$set': updates})
+        await db.audit_log.insert_one({
+            'audit_id': f'aud_{uuid.uuid4().hex[:12]}',
+            'kind': 'admin_bulk_sms_consent_change',
+            'admin_user_id': admin.get('user_id'),
+            'admin_email': admin.get('email'),
+            'target_user_id': user_id,
+            'consent': payload.action == 'sms_grant',
+            'reason': payload.consent_evidence.strip() if payload.action == 'sms_grant' else payload.note.strip(),
+            'batch_id': batch_id,
+            'at': now,
+        })
+        items.append({'user_id': user_id, 'status': 'success'})
+
+    return {
+        'batch_id': batch_id,
+        'action': payload.action,
+        'selected': len(user_ids),
+        'succeeded': sum(item['status'] == 'success' for item in items),
+        'skipped': sum(item['status'] == 'skipped' for item in items),
+        'failed': sum(item['status'] == 'failed' for item in items),
+        'items': items,
+    }
 
 
 @router.get('/{user_id}/360')
@@ -163,6 +273,18 @@ async def user_360(user_id: str, request: Request):
         {'user_id': user_id}, {'_id': 0},
     ).sort('created_at', -1).limit(200).to_list(200)
 
+    challenge_attempts = await db.special_challenge_attempts.find(
+        {'user_id': user_id}, {'_id': 0},
+    ).sort('started_at', -1).limit(200).to_list(200)
+
+    challenge_rewards = await db.special_challenge_rewards.find(
+        {'user_id': user_id}, {'_id': 0},
+    ).sort('created_at', -1).limit(200).to_list(200)
+
+    challenge_cooldowns = await db.special_challenge_cooldowns.find(
+        {'user_id': user_id}, {'_id': 0},
+    ).sort('next_allowed_at', -1).limit(200).to_list(200)
+
     # Normalise token history into a single, sorted, display-friendly list.
     world_token_history = []
     for r in world_level_unlocks:
@@ -233,6 +355,18 @@ async def user_360(user_id: str, request: Request):
                 'token_events_count': len(world_token_history),
                 'champion_stage': (world_progress or {}).get('champion_stage'),
                 'current_level': (world_progress or {}).get('current_level'),
+            },
+        },
+        'special_challenge': {
+            'attempts': challenge_attempts,
+            'rewards': challenge_rewards,
+            'cooldowns': challenge_cooldowns,
+            'stats': {
+                'attempts_count': len(challenge_attempts),
+                'rewards_count': len(challenge_rewards),
+                'cooldowns_count': len(challenge_cooldowns),
+                'total_rewards_pence': sum(int(r.get('reward_pence') or 0) for r in challenge_rewards),
+                'total_tokens_spent': sum(int(r.get('entry_tokens') or 0) for r in challenge_attempts),
             },
         },
     }
@@ -567,6 +701,54 @@ async def admin_set_sms_consent(
 
 
 
+
+
+# User 360 Email Marketing consent (admin, consent-evidence required)
+class AdminEmailConsentRequest(BaseModel):
+    consent: bool
+    evidence: Optional[str] = None
+
+
+@router.post('/{user_id}/email-consent')
+async def admin_set_email_consent(user_id: str, payload: AdminEmailConsentRequest, request: Request):
+    admin = await require_admin(request)
+    if payload.consent and (not payload.evidence or len(payload.evidence.strip()) < 10):
+        raise HTTPException(400, 'Record how and when the user agreed to marketing emails (at least 10 characters).')
+    from deps import get_db
+    db = get_db()
+    user = await db.users.find_one({'user_id': user_id}, {'_id': 0, 'erased': 1, 'email': 1})
+    if not user:
+        raise HTTPException(404, 'User not found')
+    if user.get('erased'):
+        raise HTTPException(400, 'Cannot change an erased account')
+    if payload.consent and not user.get('email'):
+        raise HTTPException(400, 'User has no email address')
+    now = datetime.now(timezone.utc)
+    changes = {
+        'marketing_email_consent': payload.consent,
+        'email_marketing_opt_in': payload.consent,
+        'marketing_email_consent_at': now,
+        'marketing_email_consent_source': 'admin_verified_evidence' if payload.consent else 'admin_revoke',
+    }
+    if payload.consent:
+        changes['marketing_email_unsubscribed'] = False
+    else:
+        changes['marketing_email_unsubscribed'] = True
+        changes['marketing_email_unsubscribed_at'] = now
+    await db.users.update_one({'user_id': user_id}, {'$set': changes})
+    await db.audit_log.insert_one({
+        'audit_id': f'aud_{uuid.uuid4().hex[:12]}',
+        'kind': 'admin_email_marketing_consent_change',
+        'admin_email': admin.get('email'),
+        'admin_user_id': admin.get('user_id'),
+        'target_user_id': user_id,
+        'consent': payload.consent,
+        'evidence': payload.evidence.strip() if payload.consent else None,
+        'at': now,
+    })
+    return {'ok': True, 'marketing_email_consent': payload.consent}
+
+
 @router.post('/{user_id}/suspend')
 async def suspend_user(user_id: str, payload: DeleteRequest, request: Request):
     admin = await require_admin(request)
@@ -697,7 +879,9 @@ class AdminAlertCreateRequest(BaseModel):
 # User fields loaded for every recipient (shared projection).
 _ALERT_USER_PROJECTION = {
     '_id': 0, 'user_id': 1, 'email': 1, 'phone': 1,
-    'phone_verified': 1, 'sms_consent': 1, 'created_at': 1,
+    'phone_verified': 1, 'sms_consent': 1, 'sms_opt_out': 1,
+    'marketing_email_consent': 1, 'marketing_email_unsubscribed': 1,
+    'created_at': 1,
     'public_id': 1, 'name': 1,
 }
 
@@ -917,6 +1101,115 @@ async def _recount_campaign(db, campaign_id: str) -> None:
     )
 
 
+def _campaign_email_configured() -> bool:
+    """Marketing campaigns require their own SendGrid credentials and sender."""
+    return bool(
+        os.environ.get('SENDGRID_API_KEY')
+        and (os.environ.get('SENDGRID_FROM_EMAIL') or os.environ.get('FROM_EMAIL'))
+    )
+
+
+def _send_sendgrid_campaign_email(
+    to_email: str,
+    title: str,
+    message: str,
+    unsubscribe_url: str,
+):
+    """Submit to SendGrid; HTTP 202 means accepted, not delivered."""
+    import json
+    from urllib.request import Request as UrlRequest, urlopen
+    from urllib.error import HTTPError
+    from html import escape
+
+    sender = os.environ.get('SENDGRID_FROM_EMAIL') or os.environ.get('FROM_EMAIL')
+    text_body = message + "\n\nUnsubscribe from marketing emails: " + unsubscribe_url
+    html_body = '<div style="white-space:pre-wrap">' + escape(message) + '</div>' + (
+        '<p><a href="' + escape(unsubscribe_url, quote=True) +
+        '">Unsubscribe or manage email preferences</a></p>'
+    )
+    data = json.dumps({
+        'personalizations': [{'to': [{'email': to_email}]}],
+        'from': {'email': sender},
+        'subject': title,
+        'headers': {'List-Unsubscribe': f'<{unsubscribe_url}>'},
+        'content': [
+            {'type': 'text/plain', 'value': text_body},
+            {'type': 'text/html', 'value': html_body},
+        ],
+        'mail_settings': {'sandbox_mode': {'enable': False}},
+    }).encode('utf-8')
+    req = UrlRequest(
+        'https://api.sendgrid.com/v3/mail/send',
+        data=data,
+        headers={
+            'Authorization': 'Bearer ' + os.environ['SENDGRID_API_KEY'],
+            'Content-Type': 'application/json',
+        },
+        method='POST',
+    )
+    try:
+        with urlopen(req, timeout=20) as response:
+            return response.status, response.headers.get('X-Message-Id')
+    except HTTPError as exc:
+        # Do not log recipient addresses or credentials.
+        raise RuntimeError('SendGrid rejected request (HTTP %s)' % exc.code) from exc
+
+
+async def _send_campaign_email(campaign_id: str, title: str, message: str, sends: list) -> None:
+    """Send opted-in campaign email; persist provider acceptance, not delivery."""
+    import asyncio
+    from deps import get_db
+    db = get_db()
+    if not _campaign_email_configured():
+        await db.alert_deliveries.update_many(
+            {'campaign_id': campaign_id, 'channel': 'email', 'status': 'pending'},
+            {'$set': {'status': 'skipped', 'reason': 'email_not_configured',
+                      'updated_at': datetime.now(timezone.utc)}},
+        )
+        await _recount_campaign(db, campaign_id)
+        return
+
+    public_site_url = (
+        os.environ.get('PUBLIC_SITE_URL') or 'https://prizeleague.co.uk'
+    ).rstrip('/')
+
+    for item in sends:
+        delivery_id = item['delivery_id']
+        claimed = await db.alert_deliveries.find_one_and_update(
+            {'delivery_id': delivery_id, 'status': 'pending'},
+            {'$set': {'status': 'sending', 'updated_at': datetime.now(timezone.utc)}},
+        )
+        if not claimed:
+            continue
+        try:
+            unsubscribe_url = (
+                f"{public_site_url}/api/marketing/unsubscribe/"
+                f"{item['unsubscribe_token']}"
+            )
+            status_code, provider_id = await asyncio.to_thread(
+                _send_sendgrid_campaign_email,
+                item['email'], title, message, unsubscribe_url,
+            )
+            await db.alert_deliveries.update_one(
+                {'delivery_id': delivery_id},
+                {'$set': {
+                    'status': 'accepted' if status_code == 202 else 'failed',
+                    'provider_status': 'accepted' if status_code == 202 else 'unexpected_response',
+                    'provider_message_id': provider_id,
+                    'reason': None if status_code == 202 else 'provider_unexpected_response',
+                    'updated_at': datetime.now(timezone.utc),
+                }},
+            )
+        except Exception as exc:
+            logger.warning('Campaign %s email send failed: %s', campaign_id, exc)
+            await db.alert_deliveries.update_one(
+                {'delivery_id': delivery_id},
+                {'$set': {'status': 'failed', 'reason': 'email_send_error',
+                          'updated_at': datetime.now(timezone.utc)}},
+            )
+    await _recount_campaign(db, campaign_id)
+
+
 async def _send_campaign_sms(campaign_id: str, message: str, sends: list) -> None:
     """Background delivery of campaign SMS via the Twilio Messaging Service.
 
@@ -1014,9 +1307,9 @@ async def create_alert_campaign(
     Example: user_from=1, user_to=1000 targets the first 1000 registered
     non-erased users. The same ordering is used for preview and send.
 
-    In-app delivery is performed immediately using the existing notifications
-    collection. Email/SMS are recorded as pending until a delivery provider is
-    connected; they are never falsely reported as sent.
+    In-app notifications are created immediately. Email is submitted to SendGrid
+    only for opted-in users; accepted is not the same as delivered. SMS uses
+    the separately configured Twilio Messaging Service.
     """
     admin = await require_admin(request)
 
@@ -1118,6 +1411,7 @@ async def create_alert_campaign(
     notification_docs = []
     delivery_docs = []
     pending_sms = []
+    pending_email = []
 
     for position, user in enumerate(users, start=(camp_from or 1)):
         user_id = user.get('user_id')
@@ -1126,6 +1420,7 @@ async def create_alert_campaign(
 
         for channel in campaign['channels']:
             delivery_id = f'ald_{uuid.uuid4().hex[:18]}'
+            unsubscribe_token = None
 
             if channel == 'in_app':
                 notification_id = f'ntf_{uuid.uuid4().hex[:18]}'
@@ -1143,9 +1438,23 @@ async def create_alert_campaign(
                 status = 'sent'
                 reason = None
             elif channel == 'email':
-                # Do not claim delivery until an email provider is connected.
-                status = 'pending' if user.get('email') else 'skipped'
-                reason = None if user.get('email') else 'no_email'
+                if not user.get('email'):
+                    status, reason = 'skipped', 'no_email'
+                elif user.get('marketing_email_unsubscribed') is True:
+                    status, reason = 'skipped', 'email_unsubscribed'
+                elif user.get('marketing_email_consent') is not True:
+                    status, reason = 'skipped', 'no_email_consent'
+                elif not _campaign_email_configured():
+                    status, reason = 'skipped', 'email_not_configured'
+                else:
+                    status, reason = 'pending', None
+                    unsubscribe_token = uuid.uuid4().hex + uuid.uuid4().hex
+                    pending_email.append({
+                        'delivery_id': delivery_id,
+                        'user_id': user_id,
+                        'email': user['email'],
+                        'unsubscribe_token': unsubscribe_token,
+                    })
             else:  # sms
                 has_verified_phone = bool(
                     user.get('phone') and user.get('phone_verified')
@@ -1176,7 +1485,7 @@ async def create_alert_campaign(
                         'phone': user.get('phone'),
                     })
 
-            delivery_docs.append({
+            delivery = {
                 'delivery_id': delivery_id,
                 'campaign_id': campaign_id,
                 'user_id': user_id,
@@ -1186,7 +1495,10 @@ async def create_alert_campaign(
                 'reason': reason,
                 'created_at': now,
                 'updated_at': now,
-            })
+            }
+            if unsubscribe_token:
+                delivery['unsubscribe_token'] = unsubscribe_token
+            delivery_docs.append(delivery)
 
     if notification_docs:
         await db.notifications.insert_many(notification_docs)
@@ -1225,6 +1537,15 @@ async def create_alert_campaign(
         'at': now,
     })
 
+    if pending_email:
+        background_tasks.add_task(
+            _send_campaign_email,
+            campaign_id,
+            campaign['title'],
+            campaign['message'],
+            pending_email,
+        )
+
     # Send SMS in the background so bulk campaigns never block the API
     # response. Each delivery is claimed atomically to prevent duplicates.
     if pending_sms:
@@ -1242,6 +1563,8 @@ async def create_alert_campaign(
         'counts': counts,
         'sms_configured': sms_configured,
         'sms_queued': len(pending_sms),
+        'email_configured': _campaign_email_configured(),
+        'email_queued': len(pending_email),
     }
 
 
@@ -1331,7 +1654,7 @@ async def get_alert_deliveries(
     total = await db.alert_deliveries.count_documents(q)
     docs = await db.alert_deliveries.find(
         q,
-        {'_id': 0},
+        {'_id': 0, 'unsubscribe_token': 0},
     ).sort([('user_position', 1), ('channel', 1)]).skip(
         skip
     ).limit(limit).to_list(limit)

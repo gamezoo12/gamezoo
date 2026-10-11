@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../components/ui/button';
-import { ArrowLeft, Mail, ShieldCheck, Printer } from 'lucide-react';
+import { Mail, ShieldCheck, Printer } from 'lucide-react';
 import { api } from '../lib/api';
 import { COMPANY as FALLBACK_COMPANY } from '../lib/brand';
+import BackButton from '../components/BackButton';
 
 export default function FreeEntry() {
   const [c, setC] = useState(null);
@@ -32,9 +33,7 @@ export default function FreeEntry() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 lg:px-8 py-12" data-testid="free-entry-page">
-      <Link to="/" className="inline-flex items-center gap-1 text-sm text-teal-600 hover:underline mb-6">
-        <ArrowLeft className="w-4 h-4" /> Back to home
-      </Link>
+      <BackButton className="mb-6" />
 
       <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold mb-3">
         <ShieldCheck className="w-3.5 h-3.5" /> UK-COMPLIANT · FREE ENTRY ROUTE

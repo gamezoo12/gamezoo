@@ -15,6 +15,7 @@ import { Button } from '../components/ui/button';
 import { useToast } from '../hooks/use-toast';
 import { authAPI } from '../lib/api';
 import PrizeLeagueLogo from '../components/layout/PrizeLeagueLogo';
+import BackButton from '../components/BackButton';
 
 export default function ForgotPassword() {
   const nav = useNavigate();
@@ -205,13 +206,7 @@ export default function ForgotPassword() {
                 {busy ? 'Sending…' : 'Send reset code'}
               </Button>
 
-              <Link
-                to="/login"
-                className="flex items-center justify-center gap-1 text-sm font-semibold text-slate-500 hover:text-slate-900"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Back to login
-              </Link>
+              <BackButton className="justify-center text-sm font-semibold text-slate-500 hover:text-slate-900" />
             </form>
           )}
 

@@ -105,3 +105,16 @@ async def mark_one_read(notification_id: str, request: Request):
         {'$set': {'read': True}},
     )
     return {'ok': True, 'updated': r.modified_count}
+
+
+@notif_router.post('/{notification_id}/unread')
+async def mark_one_unread(notification_id: str, request: Request):
+    """Restore unread state for a notification previously read by the user."""
+    user = await get_current_user(request)
+    from deps import get_db
+    db = get_db()
+    r = await db.notifications.update_one(
+        {'user_id': user['user_id'], 'notification_id': notification_id},
+        {'$set': {'read': False}},
+    )
+    return {'ok': True, 'updated': r.modified_count}

@@ -84,6 +84,7 @@ export const userAPI = {
   notifications: (onlyUnread = false) => api.get('/users/notifications', { params: { only_unread: onlyUnread } }).then(r => r.data),
   markAllRead: () => api.post('/users/notifications/mark-read').then(r => r.data),
   markNotificationRead: (id) => api.post(`/users/notifications/${id}/read`).then(r => r.data),
+  markNotificationUnread: (id) => api.post(`/users/notifications/${id}/unread`).then(r => r.data),
   acceptTerms: () => api.post('/users/me/accept-terms').then(r => r.data),
 };
 
@@ -94,8 +95,11 @@ export const productionAPI = {
 
 export const adminAPI = {
   stats: () => api.get('/admin/stats').then(r => r.data),
+  dashboardSummary: (period = '24h') => api.get('/admin/dashboard/summary', { params: { period } }).then(r => r.data),
+  dashboardDetails: ({ metric, period = '24h', skip = 0, limit = 100 } = {}) => api.get('/admin/dashboard/details', { params: { metric, period, skip, limit } }).then(r => r.data),
   users: () => api.get('/admin/users').then(r => r.data),
   updateUser: (id, data) => api.put(`/admin/users/${id}`, data).then(r => r.data),
+  bulkUserActions: (payload) => api.post('/admin/users/bulk-actions', payload).then(r => r.data),
   user360: (id) => api.get(`/admin/users/${id}/360`).then(r => r.data),
   sendUserPhoneOtp: (id) =>
     api.post(`/admin/users/${id}/phone/send-otp`).then(r => r.data),
@@ -109,6 +113,11 @@ export const adminAPI = {
   refundOrder: (id) => api.post(`/admin/orders/${id}/refund`).then(r => r.data),
   payments: () => api.get('/admin/payments').then(r => r.data),
   contests: () => api.get('/admin/contests').then(r => r.data),
+  leaderboardContests: () => api.get('/admin/leaderboards/contests').then(r => r.data),
+  paidLeaderboard: (contestId) => api.get(`/admin/leaderboards/paid/${encodeURIComponent(contestId)}`).then(r => r.data),
+  freeWorldLeaderboard: (contestNumber) => api.get(`/admin/leaderboards/free-world/${contestNumber}`).then(r => r.data),
+  overridePaidLeaderboardTime: (scoreId, payload) => api.put(`/admin/leaderboards/paid/${encodeURIComponent(scoreId)}/time`, payload).then(r => r.data),
+  overrideFreeWorldLeaderboardTime: (scoreId, payload) => api.put(`/admin/leaderboards/free-world/${encodeURIComponent(scoreId)}/time`, payload).then(r => r.data),
   updateContest: (id, data) => api.put(`/admin/contests/${id}`, data).then(r => r.data),
   createContest: (data) => api.post('/admin/contests', data).then(r => r.data),
   winners: () => api.get('/admin/winners').then(r => r.data),
@@ -514,6 +523,12 @@ export const gamesAPI = {
 };
 
 export const winningsAPI = {
+  challengeGames: () =>
+    api.get('/winnings/challenge/games').then(r => r.data),
+
+  challengeAttempts: () =>
+    api.get('/winnings/challenge/attempts').then(r => r.data),
+
   startChallenge: () =>
     api.post('/winnings/challenge/start').then(r => r.data),
 
@@ -558,16 +573,32 @@ export const winningsAdminAPI = {
 export const acquisitionAPI = {
   track: (payload) =>
     api.post('/acquisition/track', payload).then(r => r.data),
+  pageView: (payload) =>
+    api.post('/acquisition/page-view', payload).then(r => r.data),
 };
 
 export const acquisitionAdminAPI = {
-  summary: (days = 30) =>
+  summary: (period = '1m') =>
     api.get('/admin/acquisition/summary', {
-      params: { days },
+      params: { period },
     }).then(r => r.data),
 
-  visits: ({ days = 30, source, skip = 0, limit = 50 } = {}) =>
+  visits: ({ period = '1m', source, skip = 0, limit = 50 } = {}) =>
     api.get('/admin/acquisition/visits', {
-      params: { days, source, skip, limit },
+      params: { period, source, skip, limit },
     }).then(r => r.data),
+  pageViews: ({ period = '1m', skip = 0, limit = 100 } = {}) =>
+    api.get('/admin/acquisition/page-views', { params: { period, skip, limit } }).then(r => r.data),
+};
+
+export const promotionCampaignAPI = {
+  list: () => api.get('/promotion/campaigns').then(r => r.data),
+  claim: (promotionId) => api.post(`/promotion/campaigns/${encodeURIComponent(promotionId)}/claim`).then(r => r.data),
+  adminList: () => api.get('/admin/promotion/campaigns').then(r => r.data),
+  create: (payload) => api.post('/admin/promotion/campaigns', payload).then(r => r.data),
+  update: (promotionId, payload) => api.put(`/admin/promotion/campaigns/${encodeURIComponent(promotionId)}`, payload).then(r => r.data),
+  drawStatus: (promotionId) => api.get('/admin/promotion/draw', { params: promotionId ? { promotion_id: promotionId } : {} }).then(r => r.data),
+  runDraw: (promotionId) => api.post('/admin/promotion/draw', null, { params: promotionId ? { promotion_id: promotionId } : {} }).then(r => r.data),
+  verifyWinner: (promotionId, place) => api.post(`/admin/promotion/draw/winners/${place}/verify`, null, { params: promotionId ? { promotion_id: promotionId } : {} }).then(r => r.data),
+  payWinner: (promotionId, place) => api.post(`/admin/promotion/draw/winners/${place}/paid`, null, { params: promotionId ? { promotion_id: promotionId } : {} }).then(r => r.data),
 };

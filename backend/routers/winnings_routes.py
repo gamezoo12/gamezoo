@@ -1,4 +1,4 @@
-"""Winnings Wallet + Something Special £50 challenge.
+"""Winnings Wallet + configurable Something Special challenges.
 
 Money is stored in integer PENNIES only. A per-user `winnings_wallets` cache
 document is mutated atomically (conditional $inc) to guarantee no negative or
@@ -7,8 +7,12 @@ Completely separate from token/normal/entry/payment wallets.
 """
 
 import uuid
+import secrets
+import re
+from pymongo import ReturnDocument
+from pymongo.errors import DuplicateKeyError, OperationFailure
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
@@ -40,7 +44,17 @@ def _iso(dt):
         return None
     if isinstance(dt, str):
         return dt
-    return dt.astimezone(timezone.utc).isoformat()
+    return _as_utc(dt).isoformat()
+
+
+def _as_utc(dt):
+    if not dt:
+        return None
+    if isinstance(dt, str):
+        dt = datetime.fromisoformat(dt.replace("Z", "+00:00"))
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
 def _mask_account(acct: str) -> str:
@@ -54,17 +68,82 @@ async def _ensure_indexes(db):
     global _indexes_ready
     if _indexes_ready:
         return
+    reward_indexes = await db.special_challenge_rewards.index_information()
+    for name, index in reward_indexes.items():
+        keys = list(index.get("key", []))
+        if index.get("unique") and keys == [("user_id", 1), ("challenge_id", 1)]:
+            try:
+                await db.special_challenge_rewards.drop_index(name)
+            except OperationFailure as exc:
+                if exc.code != 27:
+                    raise
     await db.special_challenge_rewards.create_index(
+        [("user_id", 1), ("challenge_id", 1), ("created_at", -1)],
+        name="challenge_reward_history",
+    )
+    await db.special_challenge_cooldowns.create_index(
         [("user_id", 1), ("challenge_id", 1)], unique=True,
-        name="uniq_user_challenge_reward",
+        name="uniq_user_game_cooldown",
     )
     await db.special_challenge_attempts.create_index([("user_id", 1), ("created_at", -1)])
+    await db.special_challenge_attempts.create_index([("user_id", 1), ("started_at", -1)])
+    await db.special_challenge_attempts.create_index([("attempt_id", 1)], unique=True)
+    await db.special_challenge_games.create_index([("game_id", 1)], unique=True)
     await db.winnings_ledger.create_index([("user_id", 1), ("created_at", -1)])
     await db.winnings_ledger.create_index([("type", 1)])
     await db.withdrawal_requests.create_index([("user_id", 1), ("created_at", -1)])
     await db.withdrawal_requests.create_index([("status", 1), ("created_at", -1)])
     await db.winnings_wallets.create_index([("user_id", 1)], unique=True)
     _indexes_ready = True
+
+
+async def _game_cooldown_until(db, user_id, game_id, now=None):
+    now = now or _now()
+    cooldown = await db.special_challenge_cooldowns.find_one(
+        {"user_id": user_id, "challenge_id": game_id},
+        {"_id": 0, "next_allowed_at": 1},
+    )
+    cooldown_until = _as_utc((cooldown or {}).get("next_allowed_at"))
+
+    recent_reward = await db.special_challenge_rewards.find_one(
+        {"user_id": user_id, "challenge_id": game_id,
+         "created_at": {"$gte": now - timedelta(hours=24)}},
+        {"_id": 0, "created_at": 1},
+        sort=[("created_at", -1)],
+    )
+    if recent_reward:
+        reward_until = _as_utc(recent_reward.get("created_at")) + timedelta(hours=24)
+        if not cooldown_until or reward_until > cooldown_until:
+            try:
+                await db.special_challenge_cooldowns.update_one(
+                    {"user_id": user_id, "challenge_id": game_id},
+                    {"$max": {"next_allowed_at": reward_until},
+                     "$setOnInsert": {"user_id": user_id, "challenge_id": game_id}},
+                    upsert=True,
+                )
+            except DuplicateKeyError:
+                pass
+            cooldown_until = reward_until
+    return cooldown_until if cooldown_until and cooldown_until > now else None
+
+
+async def _claim_game_win_cooldown(db, user_id, game_id, attempt_id, now):
+    next_allowed_at = now + timedelta(hours=24)
+    try:
+        claimed = await db.special_challenge_cooldowns.find_one_and_update(
+            {"user_id": user_id, "challenge_id": game_id,
+             "$or": [{"next_allowed_at": {"$lte": now}},
+                     {"next_allowed_at": {"$exists": False}}]},
+            {"$set": {"next_allowed_at": next_allowed_at,
+                      "last_win_attempt_id": attempt_id,
+                      "updated_at": now},
+             "$setOnInsert": {"user_id": user_id, "challenge_id": game_id}},
+            upsert=True,
+            return_document=ReturnDocument.AFTER,
+        )
+        return claimed is not None
+    except DuplicateKeyError:
+        return False
 
 
 async def _get_wallet(db, user_id):
@@ -102,50 +181,214 @@ async def _audit(db, action, actor_id, target, meta=None):
     })
 
 
-# ------------------------- Something Special challenge -------------------------
+# ------------------------- Configurable Special Challenges -------------------------
+# Each attempt snapshots settings so later admin edits cannot change a paid game.
+DEFAULT_TIMES = {20: 8, 25: 10, 30: 12, 36: 14, 42: 16, 49: 18, 64: 23, 81: 30, 100: 40}
+DEFAULT_COLOUR_TIMES = {4: 8, 5: 9, 6: 10, 7: 11, 8: 12, 9: 13, 10: 14}
+PALETTE = [
+    {"name": "RED", "hex": "#ef4444"}, {"name": "BLUE", "hex": "#3b82f6"},
+    {"name": "GREEN", "hex": "#22c55e"}, {"name": "YELLOW", "hex": "#eab308"},
+    {"name": "PURPLE", "hex": "#a855f7"}, {"name": "ORANGE", "hex": "#f97316"},
+    {"name": "PINK", "hex": "#ec4899"}, {"name": "CYAN", "hex": "#06b6d4"},
+    {"name": "LIME", "hex": "#84cc16"}, {"name": "BROWN", "hex": "#92400e"},
+]
 
-@router.post("/challenge/start")
-async def start_challenge(request: Request):
+
+def _default_games():
+    rows = []
+    for count, seconds in DEFAULT_TIMES.items():
+        rows.append({"game_id": CHALLENGE_ID if count == 100 else f"number-sequence-{count}",
+                     "type": "number_sequence", "size": count, "name": f"{count} Number Sequence",
+                     "time_limit_seconds": seconds, "entry_tokens": 1, "prize_pence": 50000,
+                     "max_attempts": 0, "target_matches": 0, "enabled": True})
+    for count, seconds in DEFAULT_COLOUR_TIMES.items():
+        rows.append({"game_id": f"colour-match-{count}", "type": "colour_match", "size": count,
+                     "name": f"{count} Colour Match", "time_limit_seconds": seconds,
+                     "entry_tokens": 1, "prize_pence": 50000, "max_attempts": 0,
+                     "target_matches": 10, "enabled": True})
+    return rows
+
+
+async def _seed_challenges(db):
+    for item in _default_games():
+        await db.special_challenge_games.update_one(
+            {"game_id": item["game_id"]}, {"$setOnInsert": item}, upsert=True)
+
+
+def _public_game(g):
+    game = {k: g[k] for k in ("game_id", "type", "size", "name", "time_limit_seconds",
+                              "entry_tokens", "prize_pence", "max_attempts", "target_matches", "enabled")}
+    game["entry_tokens"] = 1
+    return game
+
+
+def _question(size):
+    colours = PALETTE[:size]
+    ink = secrets.choice(colours)
+    words = [c for c in colours if c["name"] != ink["name"]]
+    word = secrets.choice(words)
+    options = [c["name"] for c in colours]
+    # Server retains the answer; client receives only the question and choices.
+    return {"word": word["name"], "ink": ink["hex"], "answer": ink["name"],
+            "options": secrets.SystemRandom().sample(options, len(options))}
+
+
+def _question_public(q):
+    return {"word": q["word"], "ink": q["ink"], "options": q["options"]}
+
+
+def _elapsed_ms(attempt):
+    started = attempt["started_at"]
+    if isinstance(started, str):
+        started = datetime.fromisoformat(started)
+    if started.tzinfo is None:
+        started = started.replace(tzinfo=timezone.utc)
+    return int((_now() - started).total_seconds() * 1000)
+
+
+async def _finalise(db, attempt, success):
+    """Atomically close an active attempt; only the winner of that transition can award."""
+    await _ensure_indexes(db)
+    elapsed = _elapsed_ms(attempt)
+    success = bool(success and elapsed <= attempt["time_limit_seconds"] * 1000)
+    updated = await db.special_challenge_attempts.find_one_and_update(
+        {"attempt_id": attempt["attempt_id"], "user_id": attempt["user_id"], "status": "active"},
+        {"$set": {"status": "complete", "completed_at": _now(), "elapsed_ms": elapsed,
+                  "result": "success" if success else "fail", "question": None}},
+        return_document=ReturnDocument.BEFORE)
+    if not updated:
+        latest = await db.special_challenge_attempts.find_one({"attempt_id": attempt["attempt_id"]})
+        return {"result": latest.get("result", "fail"), "elapsed_ms": latest.get("elapsed_ms", elapsed),
+                "reward_pence": 0, "already_rewarded": True, "finished": True}
+    prize = int(attempt["prize_pence"])
+    rewarded = False
+    if success:
+        now = _now()
+        cooldown_until = await _game_cooldown_until(
+            db, attempt["user_id"], attempt["challenge_id"], now,
+        )
+        claimed = not cooldown_until and await _claim_game_win_cooldown(
+            db, attempt["user_id"], attempt["challenge_id"],
+            attempt["attempt_id"], now,
+        )
+        if not claimed:
+            await db.special_challenge_attempts.update_one(
+                {"attempt_id": attempt["attempt_id"]},
+                {"$set": {"result": "fail", "cooldown_blocked": True}},
+            )
+            return {"result": "fail", "elapsed_ms": elapsed, "reward_pence": 0,
+                    "cooldown_blocked": True, "finished": True}
+        if prize > 0:
+            try:
+                await db.special_challenge_rewards.insert_one({
+                    "reward_id": uuid.uuid4().hex, "user_id": attempt["user_id"],
+                    "challenge_id": attempt["challenge_id"], "attempt_id": attempt["attempt_id"],
+                    "reward_pence": prize, "reward_status": "pending", "created_at": now})
+                # Idempotent wallet credit protects against retries. If credit fails, retain
+                # a pending reward for operational reconciliation rather than losing it.
+                await credit_withdrawable(db, attempt["user_id"], prize / 100.0,
+                                         note="Something Special challenge winnings",
+                                         ref_order_id=f"challenge_reward:{attempt['attempt_id']}")
+                await db.special_challenge_rewards.update_one(
+                    {"attempt_id": attempt["attempt_id"]},
+                    {"$set": {"reward_status": "credited", "credited_at": _now()}})
+                await _ledger(db, attempt["user_id"], "challenge_reward", prize,
+                              reference=attempt["attempt_id"])
+                await _audit(db, "challenge_reward", attempt["user_id"], attempt["attempt_id"],
+                             {"amount_pence": prize})
+                rewarded = True
+            except Exception as exc:
+                logger.exception("Special Challenge reward requires review: %s", exc)
+    return {"result": "success" if success else "fail", "elapsed_ms": elapsed,
+            "reward_pence": prize if rewarded else 0,
+            "already_rewarded": success and prize > 0 and not rewarded, "finished": True}
+
+
+@router.get("/challenge/games")
+async def list_challenge_games(request: Request):
     user = await get_current_user(request)
     db = get_db()
-
-
     await _ensure_indexes(db)
+    await _seed_challenges(db)
+    rows = await db.special_challenge_games.find({"enabled": True}, {"_id": 0}).to_list(1000)
+    games = []
+    for row in rows:
+        game = _public_game(row)
+        game["cooldown_until"] = _iso(
+            await _game_cooldown_until(db, user["user_id"], row["game_id"])
+        )
+        games.append(game)
+    return {"games": games}
+
+
+@router.get("/challenge/attempts")
+async def list_challenge_attempts(request: Request, limit: int = 500):
+    user = await get_current_user(request)
+    db = get_db()
+    rows = await db.special_challenge_attempts.find(
+        {"user_id": user["user_id"]},
+        {"_id": 0, "attempt_id": 1, "challenge_id": 1, "entry_tokens": 1,
+         "started_at": 1, "completed_at": 1, "elapsed_ms": 1, "status": 1,
+         "result": 1, "type": 1, "size": 1, "prize_pence": 1},
+    ).sort("started_at", -1).to_list(max(1, min(limit, 1000)))
+    game_ids = list({row.get("challenge_id") for row in rows if row.get("challenge_id")})
+    games = await db.special_challenge_games.find(
+        {"game_id": {"$in": game_ids}}, {"_id": 0, "game_id": 1, "name": 1}
+    ).to_list(len(game_ids)) if game_ids else []
+    game_names = {game["game_id"]: game.get("name") for game in games}
+    for row in rows:
+        row["game_name"] = game_names.get(row.get("challenge_id"), row.get("challenge_id"))
+        row["tokens_spent"] = int(row.pop("entry_tokens", 0) or 0)
+        row["started_at"] = _iso(row.get("started_at"))
+        row["completed_at"] = _iso(row.get("completed_at"))
+    return {"items": rows}
+
+
+class StartChallengeBody(BaseModel):
+    game_id: str = CHALLENGE_ID
+
+
+@router.post("/challenge/start")
+async def start_challenge(request: Request, body: StartChallengeBody = None):
+    user = await get_current_user(request)
+    db = get_db()
+    await _ensure_indexes(db)
+    await _seed_challenges(db)
+    game_id = body.game_id if body else CHALLENGE_ID
+    game = await db.special_challenge_games.find_one({"game_id": game_id, "enabled": True})
+    if not game:
+        raise HTTPException(404, "Challenge not available")
+    user_id = user["user_id"]
+    cooldown_until = await _game_cooldown_until(db, user_id, game_id)
+    if cooldown_until:
+        raise HTTPException(
+            429,
+            f"You already won this game. You can play it again after {cooldown_until.isoformat()}. Other games are still available.",
+        )
+    limit = int(game["max_attempts"])
+    if limit:
+        used = await db.special_challenge_attempts.count_documents({"user_id": user_id, "challenge_id": game_id})
+        if used >= limit:
+            raise HTTPException(403, "Attempt limit reached")
     attempt_id = uuid.uuid4().hex
-
-    # Impossible Challenge entry fee.
-    # One token per newly-created attempt.
-    # The attempt ID is also the idempotency key so a
-    # repeated request cannot debit this attempt twice.
-    await _apply_tx_idempotent(
-        db,
-        user['user_id'],
-        'spend',
-        -1.0,
-        note='Impossible Challenge entry - 1 token',
-        ref_order_id=f'impossible_challenge_entry:{attempt_id}',
-    )
-
-    await db.special_challenge_attempts.insert_one({
-        "attempt_id": attempt_id,
-        "challenge_id": CHALLENGE_ID,
-        "user_id": user["user_id"],
-        "started_at": _now(),
-        "completed_at": None,
-        "elapsed_ms": None,
-        "result": None,
-        "status": "active",
-    })
-    already = await db.special_challenge_rewards.find_one(
-        {"user_id": user["user_id"], "challenge_id": CHALLENGE_ID}, {"_id": 0}
-    )
-    return {
-        "attempt_id": attempt_id,
-        "challenge_id": CHALLENGE_ID,
-        "duration_ms": CHALLENGE_DURATION_MS,
-        "reward_pence": CHALLENGE_REWARD_PENCE,
-        "already_rewarded": bool(already),
-    }
+    cost = 1
+    if cost:
+        await _apply_tx_idempotent(db, user_id, "spend", -float(cost),
+                                   note=f"Special Challenge entry - {game['name']}",
+                                   ref_order_id=f"impossible_challenge_entry:{attempt_id}")
+    q = _question(game["size"]) if game["type"] == "colour_match" else None
+    attempt = {"attempt_id": attempt_id, "challenge_id": game_id, "user_id": user_id,
+               "type": game["type"], "size": game["size"], "target_matches": game["target_matches"],
+               "time_limit_seconds": game["time_limit_seconds"], "prize_pence": game["prize_pence"],
+               "entry_tokens": cost, "started_at": _now(), "completed_at": None,
+               "elapsed_ms": None, "result": None, "status": "active", "round": 0,
+               "question": q}
+    await db.special_challenge_attempts.insert_one(attempt)
+    return {"attempt_id": attempt_id, "challenge_id": game_id,
+            "duration_ms": game["time_limit_seconds"] * 1000,
+            "reward_pence": game["prize_pence"], "already_rewarded": False,
+            "question": _question_public(q) if q else None, "round": 0,
+            "target_matches": game["target_matches"]}
 
 
 class CompleteBody(BaseModel):
@@ -158,78 +401,283 @@ async def complete_challenge(body: CompleteBody, request: Request):
     user = await get_current_user(request)
     db = get_db()
     await _ensure_indexes(db)
-
     attempt = await db.special_challenge_attempts.find_one(
-        {"attempt_id": body.attempt_id, "user_id": user["user_id"]}
-    )
+        {"attempt_id": body.attempt_id, "user_id": user["user_id"]})
     if not attempt:
         raise HTTPException(404, "Attempt not found")
+    if attempt.get("type", "number_sequence") != "number_sequence":
+        raise HTTPException(400, "Use the colour match answer endpoint")
+    if attempt.get("status") != "active":
+        return {"result": attempt.get("result", "fail"), "reward_pence": 0,
+                "already_rewarded": True, "finished": True}
+    size = int(attempt.get("size", 100))
+    return await _finalise(db, attempt, body.sequence == list(range(1, size + 1)))
 
-    now = _now()
-    started = attempt["started_at"]
-    if isinstance(started, str):
-        started = datetime.fromisoformat(started)
-    if started.tzinfo is None:
-        started = started.replace(tzinfo=timezone.utc)
-    elapsed_ms = int((now - started).total_seconds() * 1000)
 
-    # Server-authoritative success: correct 1..100 order AND within 60s.
-    correct = list(body.sequence) == EXPECTED_SEQUENCE
-    in_time = elapsed_ms <= CHALLENGE_DURATION_MS
-    success = correct and in_time
+class ColourAnswerBody(BaseModel):
+    attempt_id: str
+    answer: str
+    round: int
 
-    if attempt.get("status") == "active":
-        await db.special_challenge_attempts.update_one(
-            {"attempt_id": body.attempt_id},
-            {"$set": {
-                "completed_at": now, "elapsed_ms": elapsed_ms,
-                "result": "success" if success else "fail",
-                "status": "complete",
-            }},
-        )
 
-    reward_pence = 0
-    already_rewarded = False
-    if success:
-        try:
-            await db.special_challenge_rewards.insert_one({
-                "reward_id": uuid.uuid4().hex,
-                "user_id": user["user_id"],
-                "challenge_id": CHALLENGE_ID,
-                "attempt_id": body.attempt_id,
-                "reward_pence": CHALLENGE_REWARD_PENCE,
-                "reward_status": "credited",
-                "credited_at": now,
-                "created_at": now,
-            })
-            # Unique insert succeeded → first ever reward → credit as
-            # WITHDRAWABLE tokens in the main token wallet (1 token = £1).
-            await credit_withdrawable(
-                db, user["user_id"], CHALLENGE_REWARD_PENCE / 100.0,
-                note="Something Special challenge winnings",
-                ref_order_id=f"challenge_reward:{body.attempt_id}",
-            )
-            await _ledger(db, user["user_id"], "challenge_reward",
-                          CHALLENGE_REWARD_PENCE, reference=body.attempt_id)
-            await _audit(db, "challenge_reward", user["user_id"],
-                         body.attempt_id, {"amount_pence": CHALLENGE_REWARD_PENCE})
-            reward_pence = CHALLENGE_REWARD_PENCE
-        except Exception as e:
-            # Duplicate key (already rewarded) → idempotent no-op, £0.
-            if "duplicate" in str(e).lower() or e.__class__.__name__ == "DuplicateKeyError":
-                already_rewarded = True
-            else:
-                logger.warning(f"reward credit issue: {e}")
-                already_rewarded = True
+@router.post("/challenge/colour-answer")
+async def colour_answer(body: ColourAnswerBody, request: Request):
+    user = await get_current_user(request)
+    db = get_db()
+    attempt = await db.special_challenge_attempts.find_one(
+        {"attempt_id": body.attempt_id, "user_id": user["user_id"]})
+    if not attempt:
+        raise HTTPException(404, "Attempt not found")
+    if attempt.get("type") != "colour_match":
+        raise HTTPException(400, "Not a Colour Match attempt")
+    if attempt.get("status") != "active":
+        return {"finished": True, "result": attempt.get("result", "fail"), "reward_pence": 0}
+    if _elapsed_ms(attempt) > int(attempt["time_limit_seconds"]) * 1000:
+        return await _finalise(db, attempt, False)
+    if body.round != attempt["round"]:
+        raise HTTPException(409, "Outdated question; refresh not permitted during a paid attempt")
+    if body.answer.upper() != attempt["question"]["answer"]:
+        return await _finalise(db, attempt, False)
+    if attempt["round"] + 1 >= attempt["target_matches"]:
+        return await _finalise(db, attempt, True)
+    next_q = _question(attempt["size"])
+    changed = await db.special_challenge_attempts.update_one(
+        {"attempt_id": body.attempt_id, "user_id": user["user_id"], "status": "active",
+         "round": body.round},
+        {"$set": {"question": next_q}, "$inc": {"round": 1}})
+    if changed.modified_count != 1:
+        raise HTTPException(409, "Answer already processed")
+    return {"finished": False, "round": body.round + 1,
+            "question": _question_public(next_q), "target_matches": attempt["target_matches"]}
 
-    wallet = await _get_or_create_wallet(db, user["user_id"])
-    return {
-        "result": "success" if success else "fail",
-        "elapsed_ms": elapsed_ms,
-        "reward_pence": reward_pence,
-        "already_rewarded": already_rewarded,
-        "available_pence": int(round(wallet["available_to_cash_out"] * 100)),
+
+class ChallengeGameBody(BaseModel):
+    game_id: str
+    type: str
+    size: int
+    name: str
+    time_limit_seconds: int
+    entry_tokens: int
+    prize_pence: int
+    max_attempts: int = 0
+    target_matches: int = 10
+    enabled: bool = True
+
+
+@admin_router.get("/challenge/games")
+async def admin_challenge_games(request: Request):
+    await require_admin(request)
+    db = get_db()
+    await _seed_challenges(db)
+    rows = await db.special_challenge_games.find({}, {"_id": 0}).to_list(1000)
+    return {"games": [_public_game(r) for r in rows]}
+
+
+@admin_router.get("/challenge/report")
+async def admin_challenge_report(
+    request: Request,
+    game_id: str = None,
+    search: str = None,
+    skip: int = 0,
+    limit: int = 500,
+):
+    await require_admin(request)
+    db = get_db()
+    await _ensure_indexes(db)
+    await _seed_challenges(db)
+
+    attempt_match = {}
+    matched_user_ids = None
+    if game_id:
+        attempt_match["challenge_id"] = game_id
+    if search:
+        safe_search = re.escape(search.strip())
+        users = await db.users.find(
+            {"$or": [
+                {"name": {"$regex": safe_search, "$options": "i"}},
+                {"username": {"$regex": safe_search, "$options": "i"}},
+                {"email": {"$regex": safe_search, "$options": "i"}},
+                {"public_id": {"$regex": safe_search, "$options": "i"}},
+                {"user_id": {"$regex": safe_search, "$options": "i"}},
+            ]},
+            {"_id": 0, "user_id": 1},
+        ).to_list(5000)
+        matched_user_ids = [user["user_id"] for user in users]
+        attempt_match["user_id"] = {"$in": matched_user_ids}
+
+    group_stage = {"$group": {
+        "_id": {"user_id": "$user_id", "game_id": "$challenge_id"},
+        "attempt_count": {"$sum": 1},
+        "tokens_spent": {"$sum": {"$ifNull": ["$entry_tokens", 0]}},
+        "wins": {"$sum": {"$cond": [{"$eq": ["$result", "success"]}, 1, 0]}},
+        "last_attempt": {"$max": {"$ifNull": ["$started_at", "$created_at"]}},
+    }}
+    count_rows = await db.special_challenge_attempts.aggregate([
+        {"$match": attempt_match}, group_stage, {"$count": "total"},
+    ]).to_list(1)
+    grouped_rows = await db.special_challenge_attempts.aggregate([
+        {"$match": attempt_match}, group_stage,
+        {"$sort": {"tokens_spent": -1, "attempt_count": -1}},
+        {"$skip": max(0, skip)}, {"$limit": max(1, min(limit, 1000))},
+    ]).to_list(None)
+
+    game_match = {"challenge_id": game_id} if game_id else {}
+    if matched_user_ids is not None:
+        game_match["user_id"] = {"$in": matched_user_ids}
+    game_totals = await db.special_challenge_attempts.aggregate([
+        {"$match": game_match},
+        {"$group": {
+            "_id": "$challenge_id",
+            "attempt_count": {"$sum": 1},
+            "tokens_spent": {"$sum": {"$ifNull": ["$entry_tokens", 0]}},
+            "wins": {"$sum": {"$cond": [{"$eq": ["$result", "success"]}, 1, 0]}},
+        }},
+    ]).to_list(None)
+
+    user_ids = list({row["_id"]["user_id"] for row in grouped_rows})
+    game_ids = list({row["_id"]["game_id"] for row in grouped_rows})
+    users = await db.users.find(
+        {"user_id": {"$in": user_ids}},
+        {"_id": 0, "user_id": 1, "public_id": 1, "name": 1, "username": 1, "email": 1},
+    ).to_list(len(user_ids)) if user_ids else []
+    games = await db.special_challenge_games.find(
+        {"game_id": {"$in": game_ids}},
+        {"_id": 0, "game_id": 1, "name": 1},
+    ).to_list(len(game_ids)) if game_ids else []
+    user_map = {user["user_id"]: user for user in users}
+    game_map = {game["game_id"]: game.get("name", game["game_id"]) for game in games}
+
+    reward_totals = await db.special_challenge_rewards.aggregate([
+        {"$match": {
+            "user_id": {"$in": user_ids},
+            "challenge_id": {"$in": game_ids},
+            "reward_status": "credited",
+        }},
+        {"$group": {
+            "_id": {"user_id": "$user_id", "game_id": "$challenge_id"},
+            "credited_winnings_pence": {"$sum": "$reward_pence"},
+        }},
+    ]).to_list(None) if user_ids and game_ids else []
+    winnings_map = {
+        (row["_id"]["user_id"], row["_id"]["game_id"]): row["credited_winnings_pence"]
+        for row in reward_totals
     }
+    game_reward_match = {"reward_status": "credited"}
+    if game_id:
+        game_reward_match["challenge_id"] = game_id
+    if matched_user_ids is not None:
+        game_reward_match["user_id"] = {"$in": matched_user_ids}
+    game_winnings = await db.special_challenge_rewards.aggregate([
+        {"$match": game_reward_match},
+        {"$group": {
+            "_id": "$challenge_id",
+            "credited_winnings_pence": {"$sum": "$reward_pence"},
+        }},
+    ]).to_list(None)
+    game_winnings_map = {row["_id"]: row["credited_winnings_pence"] for row in game_winnings}
+    cooldown_rows = await db.special_challenge_cooldowns.find(
+        {"user_id": {"$in": user_ids}, "challenge_id": {"$in": game_ids}},
+        {"_id": 0, "user_id": 1, "challenge_id": 1, "next_allowed_at": 1},
+    ).to_list(None) if user_ids and game_ids else []
+    cooldown_map = {
+        (row["user_id"], row["challenge_id"]): _iso(row.get("next_allowed_at"))
+        for row in cooldown_rows
+    }
+    recent_rewards = await db.special_challenge_rewards.find(
+        {"user_id": {"$in": user_ids}, "challenge_id": {"$in": game_ids},
+         "created_at": {"$gte": _now() - timedelta(hours=24)}},
+        {"_id": 0, "user_id": 1, "challenge_id": 1, "created_at": 1},
+    ).sort("created_at", -1).to_list(None) if user_ids and game_ids else []
+    for reward in recent_rewards:
+        key = (reward["user_id"], reward["challenge_id"])
+        effective_until = (_as_utc(reward["created_at"]) + timedelta(hours=24)).isoformat()
+        current_until = _as_utc(cooldown_map.get(key))
+        if not current_until or datetime.fromisoformat(effective_until) > current_until:
+            cooldown_map[key] = effective_until
+
+    items = []
+    for row in grouped_rows:
+        uid = row["_id"]["user_id"]
+        gid = row["_id"]["game_id"]
+        user = user_map.get(uid, {"user_id": uid})
+        items.append({
+            **user,
+            "game_id": gid,
+            "game_name": game_map.get(gid, gid),
+            "attempt_count": row["attempt_count"],
+            "tokens_spent": row["tokens_spent"],
+            "wins": row["wins"],
+            "credited_winnings_pence": winnings_map.get((uid, gid), 0),
+            "cooldown_until": cooldown_map.get((uid, gid)),
+            "last_attempt": _iso(row.get("last_attempt")),
+        })
+
+    return {
+        "items": items,
+        "total_rows": count_rows[0]["total"] if count_rows else 0,
+        "skip": max(0, skip),
+        "limit": max(1, min(limit, 1000)),
+        "games": [{
+            "game_id": row["_id"],
+            "game_name": game_map.get(row["_id"], row["_id"]),
+            "attempt_count": row["attempt_count"],
+            "tokens_spent": row["tokens_spent"],
+            "wins": row["wins"],
+            "credited_winnings_pence": game_winnings_map.get(row["_id"], 0),
+        } for row in game_totals],
+    }
+
+
+@admin_router.post("/challenge/games/launch-all")
+async def launch_all_challenge_games(request: Request):
+    await require_admin(request)
+    db = get_db()
+    await _seed_challenges(db)
+    rows = await db.special_challenge_games.find(
+        {}, {"_id": 0, "game_id": 1, "type": 1, "size": 1}
+    ).to_list(1000)
+    for game in rows:
+        size = int(game.get("size", 0))
+        if game.get("type") == "colour_match":
+            hard_time_limit = size + 4
+        else:
+            hard_time_limit = max(4, round(size * 0.4))
+        await db.special_challenge_games.update_one(
+            {"game_id": game["game_id"]},
+            {"$set": {"enabled": True, "time_limit_seconds": hard_time_limit,
+                      "entry_tokens": 1}},
+        )
+    return {"launched_count": len(rows)}
+
+
+@admin_router.put("/challenge/games/{game_id}")
+async def save_challenge_game(game_id: str, body: ChallengeGameBody, request: Request):
+    await require_admin(request)
+    if body.game_id != game_id or not re.fullmatch(r"[a-z0-9-]{3,80}", game_id):
+        raise HTTPException(400, "Invalid game ID")
+    if body.type not in ("number_sequence", "colour_match"):
+        raise HTTPException(400, "Unsupported game type")
+    if not (2 <= body.size <= (200 if body.type == "number_sequence" else 10)):
+        raise HTTPException(400, "Invalid game size")
+    if not (1 <= body.time_limit_seconds <= 3600):
+        raise HTTPException(400, "Invalid timer")
+    if body.entry_tokens != 1:
+        raise HTTPException(400, "Each challenge attempt costs exactly 1 token")
+    if not (0 <= body.prize_pence <= 100000000) or not (0 <= body.max_attempts <= 100000):
+        raise HTTPException(400, "Invalid prize or attempt limit")
+    if not (1 <= body.target_matches <= 500):
+        raise HTTPException(400, "Target matches must be 1–500")
+    if not body.name.strip() or len(body.name) > 100:
+        raise HTTPException(400, "Invalid name")
+    db = get_db()
+    await _seed_challenges(db)
+    existing = await db.special_challenge_games.find_one({"game_id": game_id})
+    if existing and (existing["type"] != body.type or existing["size"] != body.size):
+        raise HTTPException(400, "Cannot change the type or size of an existing game")
+    row = body.model_dump() if hasattr(body, "model_dump") else body.dict()
+    row["entry_tokens"] = 1
+    await db.special_challenge_games.update_one({"game_id": game_id}, {"$set": row}, upsert=True)
+    return {"game": row}
 
 
 # ------------------------------ Winnings wallet -------------------------------

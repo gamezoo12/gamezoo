@@ -4,6 +4,7 @@ import { useToast } from '../../hooks/use-toast';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Trophy, Dice5, Hand, ShieldCheck, ScrollText, Lock, AlertTriangle } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 /**
  * Admin — Random-ticket Winner Selection.
@@ -12,6 +13,8 @@ import { Trophy, Dice5, Hand, ShieldCheck, ScrollText, Lock, AlertTriangle } fro
  */
 export default function WinnerSelectionAdmin() {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'super_admin';
   const [contests, setContests] = useState([]);
   const [selCid, setSelCid] = useState('');
   const [tickets, setTickets] = useState([]);
@@ -81,7 +84,7 @@ export default function WinnerSelectionAdmin() {
     <div className="space-y-6" data-testid="winner-selection-page">
       <div>
         <h2 className="font-display text-2xl font-extrabold flex items-center gap-2"><Trophy className="w-6 h-6 text-[#6C2BFF]" /> Winner Selection</h2>
-        <p className="text-slate-500 text-sm mt-1">Random-ticket contests only. Full audit log kept. Publication locks the winner.</p>
+        <p className="text-slate-500 text-sm mt-1">Random-ticket contests only. Manual winner decisions and corrections are restricted to Super Admin and audited.</p>
       </div>
 
       <div>
@@ -119,18 +122,18 @@ export default function WinnerSelectionAdmin() {
                 <p className="text-xs text-slate-500 mt-1">Cryptographically-secure random selection from all {tickets.length} paid tickets.</p>
                 <Button onClick={doDraw} disabled={busy || tickets.length === 0} data-testid="ws-draw" className="mt-3 pl-btn-purple">Run random draw</Button>
               </div>
-              <div className="rounded-2xl border border-slate-200 p-5">
+              {isSuperAdmin && <div className="rounded-2xl border border-slate-200 p-5">
                 <div className="font-bold text-slate-900 flex items-center gap-2"><Hand className="w-5 h-5 text-[#6C2BFF]" /> Manual pick</div>
                 <div className="grid gap-2 mt-2">
                   <Input placeholder="Ticket number" type="number" value={manualTn} onChange={e => setManualTn(e.target.value)} data-testid="ws-manual-tn" />
                   <Input placeholder="Reason (10+ chars, required)" value={manualReason} onChange={e => setManualReason(e.target.value)} data-testid="ws-manual-reason" />
                   <Button onClick={doManual} disabled={busy} className="bg-slate-900 text-white" data-testid="ws-manual-submit">Set manual winner</Button>
                 </div>
-              </div>
+              </div>}
             </div>
           )}
 
-          {published && (
+          {published && isSuperAdmin && (
             <div className="rounded-2xl border-2 border-rose-200 bg-rose-50 p-5">
               <div className="font-bold text-rose-900 flex items-center gap-2"><ShieldCheck className="w-5 h-5" /> Post-publish correction</div>
               <p className="text-xs text-rose-700/70 mt-1">Only use if the published winner is genuinely wrong. This is publicly visible in the audit log.</p>

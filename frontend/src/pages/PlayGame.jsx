@@ -261,9 +261,7 @@ export default function PlayGame() {
           <p className="text-slate-500 mt-2">
             This ticket remains available in My Tickets.
           </p>
-          <Link to="/my-account/tickets">
-            <Button className="mt-4">Back to My Tickets</Button>
-          </Link>
+          <Button className="mt-4" onClick={() => nav(-1)}>Back</Button>
         </div>
       </div>
     );
@@ -275,14 +273,16 @@ export default function PlayGame() {
       data-testid="play-game-page"
     >
       <div className="flex items-center justify-between gap-3 mb-6">
-        <Link
-          to="/my-account/tickets"
+        <button
+          type="button"
+          onClick={() => nav(-1)}
           data-testid="play-later-btn"
+          data-page-back-control="true"
           className="text-sm text-slate-500 hover:text-slate-800 inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-slate-200 hover:border-slate-400 bg-white"
         >
           <ArrowLeft className="w-4 h-4" />
-          Play later
-        </Link>
+          Back
+        </button>
 
         <Link
           to={`/leaderboard/${contestId}`}
@@ -664,10 +664,10 @@ export default function PlayGame() {
               </Button>
             ) : (
               <Button
-                onClick={() => nav('/my-account/tickets')}
+                onClick={() => nav(-1)}
                 className="h-12 pl-btn-purple text-white font-extrabold"
               >
-                Back to My Tickets
+                Back
               </Button>
             )}
           </div>

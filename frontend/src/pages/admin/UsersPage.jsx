@@ -8,7 +8,7 @@ import { gbp } from '../../lib/format';
 import {
   Search, Users as UsersIcon, ShieldAlert, ShieldCheck,
   Phone, Check, X, SlidersHorizontal, RotateCcw,
-  Wallet, Trophy, Ticket, Gift, UserPlus,
+  Wallet, Trophy, Ticket, Gift, UserPlus, Coins, MessageSquare, CheckSquare, Square,
 } from 'lucide-react';
 
 const ROLES = ['user', 'operator', 'support', 'admin', 'super_admin'];
@@ -75,6 +75,10 @@ function num(v) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function newBulkBatchId() {
+  return window.crypto?.randomUUID?.() || `bulk-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 function moneyRange(value, min, max) {
   const n = num(value);
 
@@ -103,6 +107,13 @@ export default function UsersPage() {
   const [editing, setEditing] = useState(null);
   const [showFilters, setShowFilters] = useState(true);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [selectedUserIds, setSelectedUserIds] = useState(() => new Set());
+  const [bulkAction, setBulkAction] = useState('');
+  const [bulkBatchId, setBulkBatchId] = useState('');
+  const [bulkAmount, setBulkAmount] = useState('1');
+  const [bulkNote, setBulkNote] = useState('');
+  const [consentEvidence, setConsentEvidence] = useState('');
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const { toast } = useToast();
 
@@ -125,6 +136,87 @@ export default function UsersPage() {
   const clearFilters = () => {
     setQ('');
     setFilters(EMPTY_FILTERS);
+  };
+
+  const toggleUserSelection = (userId) => {
+    setSelectedUserIds((current) => {
+      const next = new Set(current);
+      if (next.has(userId)) next.delete(userId);
+      else if (next.size < 200) next.add(userId);
+      else toast({ title: 'Selection limit reached', description: 'Bulk actions are limited to 200 users per batch.' });
+      return next;
+    });
+  };
+
+  const selectFilteredUsers = () => {
+    setSelectedUserIds((current) => new Set([...current, ...list.map((u) => u.user_id)].slice(0, 200)));
+  };
+
+  const clearSelection = () => setSelectedUserIds(new Set());
+
+  const openBulkAction = (action) => {
+    setBulkBatchId(newBulkBatchId());
+    setBulkAction(action);
+    setBulkNote('');
+    setConsentEvidence('');
+  };
+
+  const submitBulkAction = async () => {
+    const userIds = Array.from(selectedUserIds).slice(0, 200);
+    if (!userIds.length) return;
+    if (bulkAction === 'credit') {
+      const amount = Number(bulkAmount);
+      if (!Number.isFinite(amount) || amount <= 0 || amount > 500) {
+        toast({ title: 'Invalid credit', description: 'Enter an amount greater than 0 and up to 500 tokens per user.' });
+        return;
+      }
+      if (bulkNote.trim().length < 10) {
+        toast({ title: 'Reason required', description: 'Enter a reason of at least 10 characters.' });
+        return;
+      }
+      if (!window.confirm(`Credit ${amount} tokens to ${userIds.length} users? Total credit: ${amount * userIds.length} tokens.`)) return;
+    }
+    if (bulkAction === 'sms_grant') {
+      if (consentEvidence.trim().length < 20) {
+        toast({ title: 'Consent evidence required', description: 'Document the users’ explicit opt-in (at least 20 characters).' });
+        return;
+      }
+      if (!window.confirm(`Enable SMS consent for up to ${userIds.length} selected users with verified phone numbers? This does not send a message.`)) return;
+    }
+    if (bulkAction === 'sms_revoke') {
+      if (bulkNote.trim().length < 10) {
+        toast({ title: 'Reason required', description: 'Enter a reason of at least 10 characters.' });
+        return;
+      }
+      if (!window.confirm(`Revoke SMS consent for ${userIds.length} selected users?`)) return;
+    }
+
+    setBulkBusy(true);
+    try {
+      const result = await adminAPI.bulkUserActions({
+        batch_id: bulkBatchId || newBulkBatchId(),
+        user_ids: userIds,
+        action: bulkAction,
+        amount: bulkAction === 'credit' ? Number(bulkAmount) : undefined,
+        note: bulkNote.trim(),
+        consent_evidence: consentEvidence.trim(),
+      });
+      toast({
+        title: 'Bulk action complete',
+        description: `${result.succeeded} succeeded · ${result.skipped} skipped · ${result.failed} failed.`,
+      });
+      const processedIds = new Set((result.items || []).filter((item) => item.status === 'success').map((item) => item.user_id));
+      setSelectedUserIds((current) => new Set([...current].filter((id) => !processedIds.has(id))));
+      setBulkAction('');
+      setBulkBatchId('');
+      setBulkNote('');
+      setConsentEvidence('');
+      await load();
+    } catch (error) {
+      toast({ title: 'Bulk action failed', description: error?.response?.data?.detail || 'Unable to complete the selected action.' });
+    } finally {
+      setBulkBusy(false);
+    }
   };
 
   const setRole = async (id, role) => {
@@ -451,6 +543,83 @@ export default function UsersPage() {
         />
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3">
+        <div className="text-sm font-semibold text-slate-700">
+          {selectedUserIds.size} selected <span className="font-normal text-slate-500">(max 200 per batch)</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" onClick={selectFilteredUsers} disabled={!list.length}>
+            Select filtered ({Math.min(list.length, 200)})
+          </Button>
+          <Button type="button" variant="outline" onClick={clearSelection} disabled={!selectedUserIds.size}>
+            Clear selection
+          </Button>
+          <Button type="button" variant="outline" onClick={() => { openBulkAction('credit'); setBulkAmount('1'); }} disabled={!selectedUserIds.size}>
+            <Coins className="mr-2 h-4 w-4" /> Credit tokens
+          </Button>
+          <Button type="button" variant="outline" onClick={() => openBulkAction('sms_grant')} disabled={!selectedUserIds.size}>
+            <MessageSquare className="mr-2 h-4 w-4" /> Grant SMS consent
+          </Button>
+          <Button type="button" variant="outline" onClick={() => openBulkAction('sms_revoke')} disabled={!selectedUserIds.size}>
+            Revoke SMS consent
+          </Button>
+        </div>
+      </div>
+
+      {bulkAction && (
+        <section className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/70 p-4" data-testid="bulk-user-action-panel">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="font-bold text-slate-900">
+                {bulkAction === 'credit' ? 'Bulk token credit' : bulkAction === 'sms_grant' ? 'Bulk SMS consent grant' : 'Bulk SMS consent revoke'}
+              </h3>
+              <p className="mt-1 text-xs text-slate-600">
+                {bulkAction === 'credit'
+                  ? `Credit each selected wallet; up to ${selectedUserIds.size} users will receive the same amount.`
+                  : bulkAction === 'sms_grant'
+                    ? 'This records consent only; it does not send SMS. Verified phone and documented express opt-in are required.'
+                    : 'This revokes SMS consent for selected accounts and is individually audited.'}
+              </p>
+            </div>
+            <button type="button" onClick={() => setBulkAction('')} className="text-sm font-semibold text-slate-500 hover:text-slate-900">Close</button>
+          </div>
+
+          {bulkAction === 'credit' && (
+            <div className="grid gap-3 sm:grid-cols-[180px_1fr]">
+              <label className="text-xs font-bold text-slate-600">
+                Tokens per user
+                <Input type="number" min="0.01" max="500" step="0.01" value={bulkAmount} onChange={event => setBulkAmount(event.target.value)} className="mt-1 bg-white" data-testid="bulk-credit-amount" />
+              </label>
+              <label className="text-xs font-bold text-slate-600">
+                Reason (10+ characters)
+                <Input value={bulkNote} onChange={event => setBulkNote(event.target.value)} placeholder="Document why these wallets are being credited" className="mt-1 bg-white" data-testid="bulk-credit-reason" />
+              </label>
+            </div>
+          )}
+
+          {bulkAction === 'sms_grant' && (
+            <label className="block text-xs font-bold text-slate-600">
+              Explicit consent evidence (20+ characters)
+              <textarea value={consentEvidence} onChange={event => setConsentEvidence(event.target.value)} placeholder="Record where and when each selected user opted in. Only users with verified phones will be updated." rows={3} className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-normal" data-testid="bulk-sms-evidence" />
+            </label>
+          )}
+
+          {bulkAction === 'sms_revoke' && (
+            <label className="block text-xs font-bold text-slate-600">
+              Reason (10+ characters)
+              <Input value={bulkNote} onChange={event => setBulkNote(event.target.value)} placeholder="Document the reason for revocation" className="mt-1 bg-white" data-testid="bulk-sms-revoke-reason" />
+            </label>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setBulkAction('')} disabled={bulkBusy}>Cancel</Button>
+            <Button type="button" onClick={submitBulkAction} disabled={bulkBusy} data-testid="bulk-user-action-submit">
+              {bulkBusy ? 'Applying…' : `Apply to ${selectedUserIds.size} users`}
+            </Button>
+          </div>
+        </section>
+      )}
+
       {showFilters && (
         <div className="bg-white border border-slate-100 rounded-2xl p-4 space-y-5">
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
@@ -727,6 +896,19 @@ export default function UsersPage() {
           <table className="w-full text-sm min-w-[1750px]">
             <thead className="bg-slate-50 text-slate-600">
               <tr>
+                <th className="p-3 w-10">
+                  <button
+                    type="button"
+                    onClick={() => list.every(user => selectedUserIds.has(user.user_id)) ? setSelectedUserIds(new Set()) : selectFilteredUsers()}
+                    aria-label="Select filtered users"
+                    title="Select filtered users"
+                    className="text-slate-500 hover:text-indigo-700"
+                  >
+                    {list.length > 0 && list.every(user => selectedUserIds.has(user.user_id))
+                      ? <CheckSquare className="h-4 w-4" />
+                      : <Square className="h-4 w-4" />}
+                  </button>
+                </th>
                 <th className="text-left p-3">Public ID</th>
                 <th className="text-left p-3">User</th>
                 <th className="text-left p-3">Contact</th>
@@ -756,6 +938,16 @@ export default function UsersPage() {
                   className="border-t border-slate-100 hover:bg-slate-50"
                   data-testid={`user-row-${u.user_id}`}
                 >
+                  <td className="p-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedUserIds.has(u.user_id)}
+                      onChange={() => toggleUserSelection(u.user_id)}
+                      aria-label={`Select ${u.name || u.email || 'user'}`}
+                      data-testid={`select-user-${u.user_id}`}
+                      className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                  </td>
                   <td className="p-3 font-mono text-xs font-bold text-indigo-700">
                     <Link
                       to={`/admin/users/${u.user_id}`}
