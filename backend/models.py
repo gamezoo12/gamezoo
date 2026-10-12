@@ -179,6 +179,7 @@ class User(BaseModel):
     method: Literal['email', 'google'] = 'email'
     role: Literal['user', 'admin', 'super_admin', 'operator', 'support'] = 'user'
     must_change_password: bool = False  # forced on Super Admin first login
+    free_world_started_global_contest: Optional[int] = None
     referral_code: str = Field(default_factory=lambda: uuid.uuid4().hex[:8].upper())
     referred_by: Optional[str] = None  # user_id of referrer
 

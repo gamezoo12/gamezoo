@@ -418,7 +418,7 @@ function ChampionshipPrizePopup({
       <div className="pl2d-prize-rays" />
 
       <small>
-        CHAMPIONSHIP {championshipNumber}
+        ARENA {championshipNumber}
       </small>
 
       <strong>
@@ -429,8 +429,8 @@ function ChampionshipPrizePopup({
 
       <span>
         {revealed
-          ? 'CHAMPIONSHIP PRIZE'
-          : 'Reach this Championship to reveal'}
+          ? 'ARENA PRIZE'
+          : 'Reach this Arena to reveal'}
       </span>
     </div>
   );
@@ -469,7 +469,7 @@ function Castle({
       </div>
 
       <div className="pl2d-castle-number">
-        Castle {championshipNumber}
+        Arena {championshipNumber}
       </div>
 
     </div>
@@ -624,19 +624,19 @@ function ChampionshipSection({
   const isPastChampionship =
     championshipNumber < currentChampionship;
 
+  const championshipHistoryEntry =
+    (championshipHistory || []).find(
+      (entry) => Number(entry.championship) === Number(championshipNumber),
+    ) || null;
+
   const historyLevelMap =
     useMemo(() => {
       const map = new Map();
-      const entry = (championshipHistory || []).find(
-        (h) =>
-          Number(h.championship) ===
-          Number(championshipNumber),
-      );
-      (entry?.levels || []).forEach((l) => {
-        map.set(Number(l.level), l.status);
+      (championshipHistoryEntry?.levels || []).forEach((level) => {
+        map.set(Number(level.level), level.status);
       });
       return map;
-    }, [championshipHistory, championshipNumber]);
+    }, [championshipHistoryEntry]);
 
   const startLevel =
     ((championshipNumber - 1) * 10) + 1;
@@ -658,11 +658,14 @@ function ChampionshipSection({
   const championCompleted =
     isCurrentChampionship &&
     worldState?.champion?.completed === true;
+  const championReady =
+    isCurrentChampionship &&
+    worldState?.progress?.champion_ready === true;
   const nextChampionshipOpensMs = Date.parse(
     worldState?.champion?.next_level_opens_at ?? '',
   );
   const canContinueChampion =
-    championCompleted &&
+    championReady &&
     Number.isFinite(nextChampionshipOpensMs) &&
     worldNowMs >= nextChampionshipOpensMs &&
     championshipNumber < 100;
@@ -969,7 +972,14 @@ function ChampionshipSection({
         championSlot &&
         levelTenSlot
       ) {
-        if (champion.completed === true) {
+        if (
+          champion.completed === true ||
+          (
+            championReady &&
+            Number.isFinite(championClosesMs) &&
+            worldNowMs >= championClosesMs
+          )
+        ) {
           return {
             left:
               PL1000_ROAD_X[10] ??
@@ -1423,6 +1433,7 @@ function ChampionshipSection({
                   className={[
                     'pl1000-special-slot',
                     'pl1000-champion-level',
+                    canContinueChampion ? 'can-continue' : '',
                     championCompletedForNode
                       ? 'is-completed-history'
                       : '',
@@ -1525,9 +1536,15 @@ function ChampionshipSection({
                     </span>
                   )}
 
-                  {(isPastChampionship || championCompletedForNode) && (
+                  {(isPastChampionship || championCompletedForNode || canContinueChampion) && (
                     <span className="pl1000-history-badge is-done">
-                      {canContinueChampion ? 'CONTINUE' : 'COMPLETED'}
+                      {canContinueChampion
+                        ? 'CONTINUE'
+                        : championCompletedForNode || championshipHistoryEntry?.champion_status === 'passed'
+                          ? 'PASSED'
+                          : championshipHistoryEntry?.champion_status === 'not_recorded'
+                            ? 'NO PASS RECORDED'
+                            : 'COMPLETED'}
                     </span>
                   )}
 
@@ -1583,9 +1600,21 @@ function ChampionshipSection({
                 currentGlobalLevel;
 
             const locked =
+              !isPastChampionship &&
               !completed &&
               !available &&
               !skippedHistory;
+
+            const currentPersonalLevel = Number(
+              worldState?.progress?.current_level ?? 1,
+            );
+            const followingEarlyUnlockedLevel =
+              localLevel === currentPersonalLevel + 1 &&
+              (worldState?.levels || []).some(
+                (level) =>
+                  Number(level?.level ?? level?.level_number) === currentPersonalLevel &&
+                  level?.token_unlocked === true,
+              );
 
             const levelUnlockMs =
               worldUnlockTimeForLevel(
@@ -1595,7 +1624,10 @@ function ChampionshipSection({
 
             const hasFutureUnlock =
               locked &&
-              backendState?.sequence_available === true &&
+              (
+                backendState?.sequence_available === true ||
+                followingEarlyUnlockedLevel
+              ) &&
               backendState?.lock_reason === 'time' &&
               Number.isFinite(
                 levelUnlockMs,
@@ -1661,6 +1693,7 @@ function ChampionshipSection({
               hasFutureUnlock &&
               (
                 isCurrent ||
+                followingEarlyUnlockedLevel ||
                 nextChampionshipCountdown
               )
                 ? formatWorldCountdown(
@@ -2099,11 +2132,18 @@ export default function WorldCanvas({
   const [worldNowMs, setWorldNowMs] =
     useState(() => Date.now());
 
+  const serverClockAnchorRef = useRef(null);
+
   useEffect(() => {
     const timerId =
       window.setInterval(
         () => {
-          setWorldNowMs(Date.now());
+          const anchor = serverClockAnchorRef.current;
+          setWorldNowMs(
+            anchor
+              ? anchor.serverNowMs + (performance.now() - anchor.performanceNow)
+              : Date.now(),
+          );
         },
         1000,
       );
@@ -2283,6 +2323,15 @@ export default function WorldCanvas({
   const setStateAndCountdowns =
     (response) => {
       setWorldState(response);
+
+      const serverNowMs = Date.parse(response?.server_now || '');
+      if (Number.isFinite(serverNowMs)) {
+        serverClockAnchorRef.current = {
+          serverNowMs,
+          performanceNow: performance.now(),
+        };
+        setWorldNowMs(serverNowMs);
+      }
 
       const next = {};
 

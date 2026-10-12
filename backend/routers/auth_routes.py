@@ -13,9 +13,44 @@ from auth import (
 )
 from models import RegisterInput, LoginInput, User, UserPublic
 from counters import allocate_user_public_id
+from services.world_championship_schedule import championship_for_time, ensure_utc
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix='/api/auth', tags=['auth'])
+WORLD_SEASON_ID = 'season-1'
+
+
+async def _world_signup_contest(db, registered_at: datetime) -> int:
+    setting = await db.world_settings.find_one(
+        {'_id': 'active_global_contest', 'season_id': WORLD_SEASON_ID},
+        {'_id': 0, 'season_start_at': 1, 'championship_extensions': 1, 'contest_number': 1},
+    ) or {}
+    season_start = setting.get('season_start_at')
+    if season_start:
+        resolved = championship_for_time(
+            ensure_utc(season_start),
+            ensure_utc(registered_at),
+            setting.get('championship_extensions') or {},
+        )
+        number = resolved.get('championship_number')
+        if number:
+            return max(1, int(number))
+        if resolved.get('phase') == 'before_season':
+            return 1
+
+    active_number = setting.get('contest_number')
+    if active_number:
+        active = await db.world_global_contests.find_one(
+            {
+                'season_id': WORLD_SEASON_ID,
+                'contest_number': int(active_number),
+                'status': 'active',
+            },
+            {'_id': 0, 'contest_number': 1},
+        )
+        if active:
+            return int(active['contest_number'])
+    return 1
 
 
 def _to_public(user_doc: dict) -> dict:
@@ -189,6 +224,8 @@ async def register(inp: RegisterInput, request: Request):
 
     username = await _generate_username(db, inp.name, inp.dob)
     public_id = await allocate_user_public_id(db)
+    registered_at = datetime.now(timezone.utc)
+    started_global = await _world_signup_contest(db, registered_at)
 
     user = User(
         email=normalized_email,
@@ -200,6 +237,7 @@ async def register(inp: RegisterInput, request: Request):
         password_hash=hash_password(inp.password),
         method='email',
         role='user',
+        free_world_started_global_contest=started_global,
         referred_by=referred_by,
         signup_bonus_offer_eligible=True,
         phone=normalized_phone,
@@ -496,6 +534,8 @@ async def google_session(request: Request):
     user = await db.users.find_one({'email': email}, {'_id': 0})
     if not user:
         public_id = await allocate_user_public_id(db)
+        registered_at = datetime.now(timezone.utc)
+        started_global = await _world_signup_contest(db, registered_at)
         user_obj = User(
             email=email,
             email_verified=True,
@@ -505,6 +545,7 @@ async def google_session(request: Request):
             picture=data.get('picture'),
             method='google',
             role='user',
+            free_world_started_global_contest=started_global,
         )
         doc = user_obj.model_dump()
         await db.users.insert_one(doc)
@@ -601,6 +642,11 @@ async def finalize_google_signup(inp: GoogleFinalizeInput, request: Request):
     if inp.marketing_email_consent:
         _fin_set['marketing_email_consent_at'] = datetime.now(timezone.utc)
         _fin_set['marketing_email_consent_source'] = 'google_registration'
+    if user.get('free_world_started_global_contest') is None:
+        _fin_set['free_world_started_global_contest'] = await _world_signup_contest(
+            db,
+            user.get('created_at') or datetime.now(timezone.utc),
+        )
     await db.users.update_one(
         {'user_id': user['user_id']},
         {'$set': _fin_set},

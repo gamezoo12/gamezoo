@@ -24,6 +24,7 @@ from world.season1 import SEASON_1_CHAMPIONSHIP_COUNT
 
 from services.world_championship_schedule import (
     championship_window,
+    championship_for_time,
     level_unlock_at,
     ensure_utc,
 )
@@ -3252,6 +3253,14 @@ def _validate_world_champion_config(
 def _ensure_aware_datetime(
     value,
 ):
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(
+                value.replace("Z", "+00:00")
+            )
+        except ValueError:
+            return None
+
     if not isinstance(
         value,
         datetime,
@@ -3626,9 +3635,8 @@ def _next_unpassed_level(progress: dict) -> int:
     return 0
 
 
-async def _personal_unlock_context(db, level: int, progress: dict, active_number: int | None = None, active_start_at=None):
-    """Current-contest cohorts wait 24h after passing the preceding level;
-    earlier cohorts catch up sequentially with Skip."""
+def _personal_unlock_context(level: int, progress: dict, active_number: int | None = None, active_start_at=None):
+    """Current-contest cohorts share the global daily unlock schedule; earlier cohorts catch up with Skip."""
     now = _utcnow()
     stage = int(progress.get("champion_stage") or 1)
     started = int(progress.get("free_world_started_global_contest") or 1)
@@ -3655,39 +3663,10 @@ async def _personal_unlock_context(db, level: int, progress: dict, active_number
     anchor = _ensure_aware_datetime(active_start_at) or now
 
     unlock_at = level_unlock_at(anchor, max(0, level - 1))
-    if not catchup and level > 1:
-        stage_started_at = _ensure_aware_datetime(
-            progress.get("personal_stage_started_at")
-        )
-        previous_attempt_filter = {
-            "season_id": WORLD_SEASON_ID,
-            "user_id": progress.get("user_id"),
-            "level": level - 1,
-            "passed": True,
-            "completed_at": {"$exists": True, "$ne": None},
-            "$or": [
-                {"champion_stage": stage},
-                {"champion_stage": {"$exists": False}},
-            ],
-        }
-        if stage_started_at is not None:
-            previous_attempt_filter["completed_at"]["$gte"] = stage_started_at
-        previous_attempt = await db.world_level_attempts.find_one(
-            previous_attempt_filter,
-            {"_id": 0, "completed_at": 1},
-            sort=[("completed_at", -1)],
-        )
-        passed_at = _ensure_aware_datetime(
-            (previous_attempt or {}).get("completed_at")
-        )
-        if passed_at is not None:
-            unlock_at = passed_at + timedelta(hours=24)
-
     scheduled_time_available = now >= unlock_at
     time_available = bool(scheduled_time_available or token_unlocked)
 
-    # Earlier cohorts catch up sequentially. Current-contest cohorts use
-    # per-player completion timers below.
+    # Earlier global-contest cohorts catch up sequentially.
     if catchup and 1 <= level <= 10:
         time_available = True
         scheduled_time_available = True
@@ -3821,7 +3800,7 @@ def _personal_champion_transition_schedule(
         ) or now
 
     level_10_unlock_at = level_unlock_at(anchor, 9)
-    champion_opens_at = level_10_unlock_at + timedelta(hours=24)
+    champion_opens_at = level_unlock_at(anchor, 10)
 
     # Champion close is authoritative from the active Global Contest's end_at
     # (the scheduler keeps this in sync with any admin 24h extensions). Only
@@ -3868,8 +3847,7 @@ async def _resolve_unlock_context(db, level: int, progress: dict):
     if active_number is None:
         return await _world_unlock_context(db, level, progress)
 
-    return await _personal_unlock_context(
-        db,
+    return _personal_unlock_context(
         level,
         progress,
         active_number,
@@ -4236,6 +4214,120 @@ def _secure_shuffle_numbers(target: int):
     return values
 
 
+async def _free_world_signup_contest(db, user_id: str, fallback: int | None = None) -> int:
+    user = await db.users.find_one(
+        {"user_id": user_id},
+        {"_id": 0, "created_at": 1, "free_world_started_global_contest": 1},
+    ) or {}
+    stored_cohort = user.get("free_world_started_global_contest")
+    if stored_cohort is not None:
+        return max(1, int(stored_cohort))
+
+    registered_at = user.get("created_at")
+    if isinstance(registered_at, str):
+        try:
+            registered_at = datetime.fromisoformat(registered_at.replace("Z", "+00:00"))
+        except ValueError:
+            registered_at = None
+    registered_at = _ensure_aware_datetime(registered_at)
+
+    setting = await db.world_settings.find_one(
+        {"_id": "active_global_contest", "season_id": WORLD_SEASON_ID},
+        {"_id": 0, "season_start_at": 1, "championship_extensions": 1},
+    ) or {}
+    season_start = _ensure_aware_datetime(setting.get("season_start_at"))
+    if registered_at is not None and season_start is not None:
+        resolved = championship_for_time(
+            season_start,
+            registered_at,
+            setting.get("championship_extensions") or {},
+        )
+        number = resolved.get("championship_number")
+        if number:
+            return max(1, int(number))
+        if resolved.get("phase") == "before_season":
+            return 1
+
+    number = max(1, int(fallback)) if fallback is not None else None
+    if number is None:
+        active = await _active_contest(db)
+        number = max(1, int(active["contest_number"])) if active and active.get("contest_number") else 1
+
+    await db.users.update_one(
+        {
+            "user_id": user_id,
+            "$or": [
+                {"free_world_started_global_contest": {"$exists": False}},
+                {"free_world_started_global_contest": None},
+            ],
+        },
+        {"$set": {"free_world_started_global_contest": number}},
+    )
+    refreshed = await db.users.find_one(
+        {"user_id": user_id},
+        {"_id": 0, "free_world_started_global_contest": 1},
+    ) or {}
+    return max(1, int(refreshed.get("free_world_started_global_contest") or number))
+
+
+async def _reconcile_verified_level_history(db, user_id: str, progress: dict) -> dict:
+    stage = int(progress.get("champion_stage") or 1)
+    stage_started_at = _ensure_aware_datetime(
+        progress.get("personal_stage_started_at") or progress.get("created_at")
+    )
+    legacy_filter = (
+        {
+            "champion_stage": {"$exists": False},
+            "completed_at": {"$gte": stage_started_at},
+        }
+        if stage_started_at is not None
+        else None
+    )
+    stage_filters = [{"champion_stage": stage}]
+    if legacy_filter:
+        stage_filters.append(legacy_filter)
+
+    passed_rows = await db.world_level_attempts.find(
+        {
+            "season_id": WORLD_SEASON_ID,
+            "user_id": user_id,
+            "level": {"$gte": 1, "$lte": 10},
+            "passed": True,
+            "completed_at": {"$exists": True, "$ne": None},
+            "$or": stage_filters,
+        },
+        {"_id": 0, "level": 1},
+    ).to_list(100)
+    skip_rows = await db.world_level_skips.find(
+        {
+            "season_id": WORLD_SEASON_ID,
+            "user_id": user_id,
+            "champion_stage": stage,
+            "level": {"$gte": 1, "$lte": 10},
+        },
+        {"_id": 0, "level": 1},
+    ).to_list(20)
+
+    verified = set(int(x) for x in (progress.get("completed_levels") or []))
+    verified.update(int(row["level"]) for row in passed_rows)
+    skipped = set(int(x) for x in (progress.get("skipped_levels") or []))
+    skipped.update(int(row["level"]) for row in skip_rows)
+
+    changed = {}
+    if sorted(verified) != sorted(progress.get("completed_levels") or []):
+        changed["completed_levels"] = sorted(verified)
+    if sorted(skipped) != sorted(progress.get("skipped_levels") or []):
+        changed["skipped_levels"] = sorted(skipped)
+    if changed:
+        changed["updated_at"] = _utcnow()
+        await db.world_progress.update_one(
+            {"season_id": WORLD_SEASON_ID, "user_id": user_id},
+            {"$set": changed},
+        )
+        progress.update(changed)
+    return progress
+
+
 async def _free_world_progress(
     db,
     user_id: str,
@@ -4275,10 +4367,14 @@ async def _free_world_progress(
         if "token_unlocked_levels" not in progress:
             patch["token_unlocked_levels"] = []
 
-        # New personal-progression state (additive, migration-safe).
-        # Existing users predate Championship 2 -> started at global contest 1.
-        if "free_world_started_global_contest" not in progress:
-            patch["free_world_started_global_contest"] = 1
+        # Registration time defines cohort so delayed first visits don't move users into a later GC.
+        started_global = await _free_world_signup_contest(
+            db,
+            user_id,
+            progress.get("free_world_started_global_contest"),
+        )
+        if progress.get("free_world_started_global_contest") != started_global:
+            patch["free_world_started_global_contest"] = started_global
 
         if "skipped_levels" not in progress:
             patch["skipped_levels"] = []
@@ -4305,20 +4401,10 @@ async def _free_world_progress(
 
             progress.update(patch)
 
-        return progress
+        return await _reconcile_verified_level_history(db, user_id, progress)
 
     now = _utcnow()
-
-    # New users join at whatever Championship is globally active NOW. This is
-    # the old/new boundary: users created at/after Championship 2 start get the
-    # current global contest number here; existing users are backfilled to 1
-    # above. Personal Champion stage still starts at 1 regardless.
-    active = await _active_contest(db)
-    started_global = (
-        int(active.get("contest_number"))
-        if active and active.get("contest_number")
-        else 1
-    )
+    started_global = await _free_world_signup_contest(db, user_id)
 
     progress = {
         "season_id": WORLD_SEASON_ID,
@@ -4356,7 +4442,7 @@ async def _free_world_progress(
         upsert=True,
     )
 
-    return await db.world_progress.find_one(
+    progress = await db.world_progress.find_one(
         {
             "season_id": WORLD_SEASON_ID,
             "user_id": user_id,
@@ -4365,6 +4451,7 @@ async def _free_world_progress(
             "_id": 0,
         },
     )
+    return await _reconcile_verified_level_history(db, user_id, progress)
 
 
 async def _free_attempt_counter(
@@ -5467,22 +5554,6 @@ async def free_world_state(
     # were already passed. Preserve explicit skips as skips; every other
     # prior level must render as completed. This does not write to the DB,
     # award anything, consume attempts, or change progression.
-    current_stage_skips = {
-        int(x)
-        for x in (progress.get("skipped_levels") or [])
-    }
-    current_stage_completed = {
-        int(x)
-        for x in (progress.get("completed_levels") or [])
-    }
-    for passed_level in range(1, current_level):
-        if passed_level not in current_stage_skips:
-            current_stage_completed.add(passed_level)
-
-    # Feed the repaired current-stage completion view through the existing
-    # unlock/state renderer so C2 L1/L2 show completed when the user is on L3.
-    progress["completed_levels"] = sorted(current_stage_completed)
-
     current_config = (
         await _effective_level_config(
             db,
@@ -5596,19 +5667,26 @@ async def free_world_state(
 
     champion_schedule = await _champion_schedule_for(db, progress, active_contest)
 
-    # -------------------------------------------------------------------
-    # PREVIOUS CHAMPIONSHIP MAP HISTORY (read-only, display only).
-    #
-    # For every personal Championship the user has already advanced past
-    # (stage < current champion_stage), all 10 levels were passed to reach
-    # the next stage. Levels recorded in world_level_skips were catch-up
-    # SKIPPED; every other level is a genuine COMPLETED. This never changes
-    # progression, scores, attempts, prizes or historical records — it only
-    # lets the map render past sections correctly instead of "locked".
-    # -------------------------------------------------------------------
+    # Historical map status uses verified attempts and explicit Skip records.
     championship_history = []
 
     if user and champion_stage > 1:
+        passed_attempts = await db.world_level_attempts.find(
+            {
+                "season_id": WORLD_SEASON_ID,
+                "user_id": user["user_id"],
+                "champion_stage": {"$lt": champion_stage},
+                "passed": True,
+                "level": {"$gte": 1, "$lte": 10},
+            },
+            {"_id": 0, "champion_stage": 1, "level": 1},
+        ).to_list(4000)
+        passed_by_stage = {}
+        for row in passed_attempts:
+            passed_by_stage.setdefault(
+                int(row["champion_stage"]), set()
+            ).add(int(row["level"]))
+
         skip_rows = await db.world_level_skips.find(
             {
                 "season_id": WORLD_SEASON_ID,
@@ -5628,23 +5706,38 @@ async def free_world_state(
             if st and lv:
                 skipped_by_stage.setdefault(st, set()).add(lv)
 
+        passed_champion_rows = await db.world_champion_sessions.find(
+            {
+                "season_id": WORLD_SEASON_ID,
+                "user_id": user["user_id"],
+                "champion_stage_snapshot": {"$lt": champion_stage},
+                "status": "submitted",
+                "passed": True,
+            },
+            {"_id": 0, "champion_stage_snapshot": 1},
+        ).to_list(1000)
+        passed_champions = {
+            int(row["champion_stage_snapshot"])
+            for row in passed_champion_rows
+        }
+
         for stage_number in range(1, champion_stage):
             stage_skips = skipped_by_stage.get(stage_number, set())
+            stage_passes = passed_by_stage.get(stage_number, set())
             championship_history.append(
                 {
                     "championship": stage_number,
                     "levels": [
                         {
                             "level": lv,
-                            "status": (
-                                "skipped"
-                                if lv in stage_skips
-                                else "completed"
-                            ),
+                            "status": "completed" if lv in stage_passes else "skipped",
                         }
                         for lv in range(1, 11)
+                        if lv in stage_passes or lv in stage_skips
                     ],
-                    "champion_status": "completed",
+                    "champion_status": (
+                        "passed" if stage_number in passed_champions else "not_recorded"
+                    ),
                 }
             )
 
@@ -5659,6 +5752,7 @@ async def free_world_state(
 
     return {
         "season_id": WORLD_SEASON_ID,
+        "server_now": _serialize_datetime(_utcnow()),
         "arena": 1,
         "arena_name": "Royal Village",
 
@@ -5745,7 +5839,9 @@ async def free_world_state(
                         )
                         or 1
                     )
-                    <= champion_stage
+                    < int(
+                        active_contest.get("contest_number") or 0
+                    )
                 ),
         },
 
@@ -12186,6 +12282,16 @@ async def free_world_skip_level(level: int, request: Request):
         )
 
     next_level = _next_unpassed_level(progress)
+    if level in set(int(x) for x in (progress.get("skipped_levels") or [])):
+        return {
+            "skipped": level,
+            "already_skipped": True,
+            "champion_stage": stage,
+            "current_level": int(progress.get("current_level") or 1),
+            "champion_ready": bool(progress.get("champion_ready", False)),
+            "next_level": next_level,
+        }
+
     if level != next_level:
         raise HTTPException(
             status_code=409,
@@ -12247,10 +12353,35 @@ async def free_world_skip_level(level: int, request: Request):
             )
             champion_ready = False
 
-    await db.world_progress.update_one(
-        {"season_id": WORLD_SEASON_ID, "user_id": user_id},
+    update_result = await db.world_progress.update_one(
+        {
+            "season_id": WORLD_SEASON_ID,
+            "user_id": user_id,
+            "champion_stage": stage,
+            "current_level": progress.get("current_level", 1),
+            "highest_unlocked_level": progress.get("highest_unlocked_level", 1),
+            "completed_levels": progress.get("completed_levels", []),
+            "skipped_levels": progress.get("skipped_levels", []),
+        },
         {"$set": patch},
     )
+
+    if update_result.modified_count != 1:
+        refreshed = await _free_world_progress(db, user_id)
+        refreshed_skips = set(int(x) for x in (refreshed.get("skipped_levels") or []))
+        if level not in refreshed_skips:
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "SKIP_PROGRESS_CHANGED", "message": "Progress changed; refresh and try again."},
+            )
+        return {
+            "skipped": level,
+            "already_skipped": True,
+            "champion_stage": int(refreshed.get("champion_stage") or stage),
+            "current_level": int(refreshed.get("current_level") or 1),
+            "champion_ready": bool(refreshed.get("champion_ready", False)),
+            "next_level": _next_unpassed_level(refreshed),
+        }
 
     await db.world_level_skips.insert_one(
         {
@@ -12347,6 +12478,16 @@ async def continue_after_champion(
         },
     )
 
+    if not stage_contest:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "CHAMPION_PERIOD_NOT_CLOSED",
+                "message": "Your current Champion stage has not closed yet.",
+                "champion_stage": champion_stage,
+            },
+        )
+
     now = _utcnow()
 
     # The personal map does not enter the next Championship until exactly
@@ -12372,14 +12513,14 @@ async def continue_after_champion(
             },
         )
 
-    # The Champion level may be skipped once its window has closed; the
-    # unlock time above is what gates entry to the next Championship.
-    if personal_next_open is None and not stage_contest:
+    # The Champion attempt may be skipped after the matching contest closes;
+    # the next global Championship start still gates entry.
+    if personal_next_open is None:
         raise HTTPException(
             status_code=409,
             detail={
-                "code": "CHAMPION_PERIOD_NOT_CLOSED",
-                "message": "Your current Champion stage has not closed yet.",
+                "code": "NEXT_CHAMPIONSHIP_NOT_SCHEDULED",
+                "message": "The next Championship opening is not scheduled yet.",
                 "champion_stage": champion_stage,
             },
         )
