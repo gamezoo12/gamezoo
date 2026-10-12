@@ -3636,7 +3636,7 @@ def _next_unpassed_level(progress: dict) -> int:
 
 
 def _personal_unlock_context(level: int, progress: dict, active_number: int | None = None, active_start_at=None):
-    """Current-contest cohorts share the global daily unlock schedule; earlier cohorts catch up with Skip."""
+    """Every user follows the active GC's midnight schedule; catch-up only adds sequential Skip."""
     now = _utcnow()
     stage = int(progress.get("champion_stage") or 1)
     started = int(progress.get("free_world_started_global_contest") or 1)
@@ -3666,12 +3666,6 @@ def _personal_unlock_context(level: int, progress: dict, active_number: int | No
     scheduled_time_available = now >= unlock_at
     time_available = bool(scheduled_time_available or token_unlocked)
 
-    # Earlier global-contest cohorts catch up sequentially.
-    if catchup and 1 <= level <= 10:
-        time_available = True
-        scheduled_time_available = True
-        unlock_at = None
-
     seconds_until_unlock = (
         0
         if time_available
@@ -3686,6 +3680,9 @@ def _personal_unlock_context(level: int, progress: dict, active_number: int | No
         seconds_until_unlock = 0
 
     available = bool(completed or (time_available and sequence_available))
+    skipped = level in set(
+        int(x) for x in (progress.get("skipped_levels") or [])
+    )
 
     if completed:
         lock_reason = None
@@ -3724,6 +3721,17 @@ def _personal_unlock_context(level: int, progress: dict, active_number: int | No
         "token_unlocked": token_unlocked,
         "personal_mode": "catchup" if catchup else "daily",
         "skippable": skippable,
+        "global_contest_number": active_number,
+        "championship_number": stage,
+        "level": level,
+        "remaining_seconds": seconds_until_unlock,
+        "time_gate_open": time_available,
+        "progression_gate_open": sequence_available,
+        "can_play": available,
+        "can_skip": skippable,
+        "passed": completed,
+        "skipped": skipped,
+        "early_unlocked": token_unlocked,
     }
 
 
@@ -3830,9 +3838,9 @@ async def _resolve_unlock_context(db, level: int, progress: dict):
     """
     Route to the correct availability model.
 
-        - The active global Championship determines the game. Current-cohort users
-            unlock Levels 2-10 24h after passing the preceding level; earlier cohorts
-            behind the live global Championship use sequential catch-up Play/Skip.
+        - The active global Championship determines the game and the fixed
+            midnight unlock schedule for every user; personal progression gates
+            order and earlier cohorts additionally get sequential catch-up Skip.
       This never changes the global scheduler, Championship windows,
       leaderboard, settlement or prizes.
     - Fallback (no active contest) -> existing _world_unlock_context.
@@ -12299,6 +12307,16 @@ async def free_world_skip_level(level: int, request: Request):
                 "code": "SKIP_OUT_OF_ORDER",
                 "message": "You can only skip the next level in sequence.",
                 "next_level": next_level,
+            },
+        )
+
+    skip_access = await _resolve_unlock_context(db, level, progress)
+    if not skip_access["time_available"]:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "LEVEL_TIME_LOCKED",
+                "message": "This level has not reached its scheduled opening time.",
             },
         )
 
