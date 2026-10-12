@@ -160,15 +160,15 @@ function playColourSelectSound(index = 0) {
     const now = colourAudioContext.currentTime;
     const oscillator = colourAudioContext.createOscillator();
     const gain = colourAudioContext.createGain();
-    oscillator.type = 'sine';
+    oscillator.type = 'triangle';
     oscillator.frequency.setValueAtTime(520 + (index % 5) * 35, now);
     gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.07, now + 0.012);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.085);
+    gain.gain.exponentialRampToValueAtTime(0.25, now + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
     oscillator.connect(gain);
     gain.connect(colourAudioContext.destination);
     oscillator.start(now);
-    oscillator.stop(now + 0.09);
+    oscillator.stop(now + 0.17);
     oscillator.onended = () => {
       oscillator.disconnect();
       gain.disconnect();
@@ -1192,7 +1192,7 @@ if (
         return;
       }
 
-      playColourSelectSound(optionIndex);
+      playColourSelectSound(number);
 
       const nextTaps = [
         ...officialTaps,
@@ -1247,6 +1247,8 @@ if (
       ) {
         return;
       }
+
+      playColourSelectSound(optionIndex);
 
       const nextTaps = [
         ...officialTaps,
