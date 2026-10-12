@@ -3456,11 +3456,9 @@ export default function WorldCanvas({
                 championship={championship}
                 sectionIndex={sectionIndex}
                 worldState={worldState}
-                countdowns={countdowns}
                 currentGlobalLevel={currentGlobalLevel}
                 currentChampionship={currentChampionship}
                 journeyStarted={journeyStarted}
-                worldNowMs={worldNowMs}
                 canUseTokens={Boolean(user)}
                 championshipHistory={worldState?.championship_history || []}
                 onRequestUnlock={setUnlockModal}
