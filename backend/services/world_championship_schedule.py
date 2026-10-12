@@ -42,7 +42,13 @@ CHAMPION_CLOSE_HOUR = 22
 CHAMPION_CLOSE_MINUTE = 0
 
 
-def ensure_utc(value: datetime) -> datetime:
+def ensure_utc(value: datetime | str) -> datetime:
+    if isinstance(value, str):
+        cleaned = value.strip()
+        if cleaned.endswith("Z"):
+            cleaned = cleaned[:-1] + "+00:00"
+        value = datetime.fromisoformat(cleaned)
+
     if value.tzinfo is None:
         value = value.replace(
             tzinfo=timezone.utc
