@@ -2885,25 +2885,40 @@ export default function WorldCanvas({
       return;
     }
 
-    const positionWorld = () => {
-      if (isAtJourneyStart) {
-        viewport.scrollTop =
-          Math.max(
-            0,
-            viewport.scrollHeight -
-            viewport.clientHeight,
-          );
-
-        initialScrollDoneRef.current =
-        true;
-
-      setInitialPositionReady(
-        true,
-      );
-
+    const positionNodeInViewport = (
+      node,
+    ) => {
+      if (!node) {
         return;
       }
 
+      const viewportRect =
+        viewport.getBoundingClientRect();
+
+      const nodeRect =
+        node.getBoundingClientRect();
+
+      const relativeTop =
+        nodeRect.top -
+        viewportRect.top;
+
+      const targetTop =
+        viewport.scrollTop +
+        relativeTop -
+        (
+          viewport.clientHeight / 2
+        ) +
+        (
+          nodeRect.height / 2
+        );
+
+      viewport.scrollTo({
+        top: Math.max(0, targetTop),
+        behavior: 'auto',
+      });
+    };
+
+    const positionWorld = () => {
       const targetChampion =
         Math.max(
           1,
@@ -2915,9 +2930,36 @@ export default function WorldCanvas({
           ),
         );
 
-      ensureSectionVisible(
-        targetChampion,
-      );
+      const targetSection =
+        document.getElementById(
+          `pl2d-championship-${targetChampion}`,
+        ) || document.querySelector(
+          `[data-championship="${targetChampion}"]`,
+        );
+
+      if (isAtJourneyStart) {
+        const seasonStart =
+          document.getElementById(
+            'pl2d-season-start',
+          );
+
+        positionNodeInViewport(
+          seasonStart || targetSection,
+        );
+
+        initialScrollDoneRef.current = true;
+        setInitialPositionReady(true);
+        return;
+      }
+
+      if (targetSection) {
+        positionNodeInViewport(
+          targetSection,
+        );
+      }
+
+      ensureSectionVisible(targetChampion);
+      setInitialPositionReady(true);
     };
 
     requestAnimationFrame(() => {
@@ -3415,7 +3457,18 @@ export default function WorldCanvas({
           '--world-zoom': zoom,
         }}
       >
-        <SeasonFinish />
+        <SeasonStart
+          showAvatar={
+            isAtJourneyStart &&
+            !journeyWalking
+          }
+          journeyWalking={
+            journeyWalking
+          }
+          onStartJourney={
+            startJourney
+          }
+        />
 
         {virtualizedChampionships.map(
           ({
@@ -3468,18 +3521,7 @@ export default function WorldCanvas({
           },
         )}
 
-        <SeasonStart
-          showAvatar={
-            isAtJourneyStart &&
-            !journeyWalking
-          }
-          journeyWalking={
-            journeyWalking
-          }
-          onStartJourney={
-            startJourney
-          }
-        />
+        <SeasonFinish />
       </div>
       
       <FreeWorldLeaderboard
