@@ -30,6 +30,101 @@ import InstallPrompt from './InstallPrompt';
 import '../styles/world2d.css';
 
 const CHAMPIONSHIP_HEIGHT = 3500;
+const VIRTUAL_SECTION_OVERSCAN = 1;
+const FINISH_HEIGHT = 390;
+const OVERSCAN_BUFFER_PX = 3500;
+
+function ChampionCountdownBadge({
+  opensMs,
+  closesMs,
+  serverClockAnchorRef,
+}) {
+  const getNow = () => {
+    const anchor = serverClockAnchorRef?.current;
+    return anchor
+      ? anchor.serverNowMs + (performance.now() - anchor.performanceNow)
+      : Date.now();
+  };
+
+  const [nowMs, setNowMs] = useState(getNow);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNowMs(getNow());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [serverClockAnchorRef]);
+
+  if (Number.isFinite(opensMs) && nowMs < opensMs) {
+    const val = formatWorldCountdown(opensMs, nowMs);
+    return (
+      <span
+        className="pl1000-champion-countdown"
+        aria-label={`STARTS IN ${val}`}
+      >
+        <span>STARTS IN</span>
+        <b>{val}</b>
+      </span>
+    );
+  }
+
+  if (
+    Number.isFinite(opensMs) &&
+    nowMs >= opensMs &&
+    Number.isFinite(closesMs) &&
+    nowMs < closesMs
+  ) {
+    const val = formatWorldCountdown(closesMs, nowMs);
+    return (
+      <span
+        className="pl1000-champion-countdown"
+        aria-label={`CLOSES IN ${val}`}
+      >
+        <span>CLOSES IN</span>
+        <b>{val}</b>
+      </span>
+    );
+  }
+
+  return null;
+}
+
+function LevelCountdownBadge({
+  targetMs,
+  testId,
+  serverClockAnchorRef,
+}) {
+  const getNow = () => {
+    const anchor = serverClockAnchorRef?.current;
+    return anchor
+      ? anchor.serverNowMs + (performance.now() - anchor.performanceNow)
+      : Date.now();
+  };
+
+  const [nowMs, setNowMs] = useState(getNow);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNowMs(getNow());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [serverClockAnchorRef]);
+
+  if (!Number.isFinite(targetMs) || nowMs >= targetMs) {
+    return null;
+  }
+
+  const val = formatWorldCountdown(targetMs, nowMs);
+
+  return (
+    <span
+      className="pl1000-node-timer"
+      data-testid={testId}
+    >
+      {val}
+    </span>
+  );
+}
 
 /*
  * 10 normal levels + 1 Special Slot.
@@ -604,17 +699,19 @@ function Road() {
     </svg>
   );
 }
-function ChampionshipSection({
+
+const ChampionshipSection = React.memo(function ChampionshipSection({
   championship,
   sectionIndex,
   worldState,
   currentGlobalLevel,
   currentChampionship,
   journeyStarted,
-  worldNowMs,
+  serverClockAnchorRef,
   onRequestUnlock,
   canUseTokens,
   championshipHistory,
+  dataBgLoaded = 'true',
 }) {
   const championshipNumber =
     championship.championshipNumber ??
@@ -702,36 +799,11 @@ function ChampionshipSection({
           level10State?.sequence_available === true
         );
 
-      if (
-        level10Unlocked &&
-        Number.isFinite(opensMs) &&
-        worldNowMs < opensMs
-      ) {
-        return {
-          label: 'STARTS IN',
-          value: formatWorldCountdown(
-            opensMs,
-            worldNowMs,
-          ),
-        };
+      if (!level10Unlocked || !Number.isFinite(opensMs)) {
+        return null;
       }
 
-      if (
-        Number.isFinite(opensMs) &&
-        worldNowMs >= opensMs &&
-        Number.isFinite(closesMs) &&
-        worldNowMs < closesMs
-      ) {
-        return {
-          label: 'CLOSES IN',
-          value: formatWorldCountdown(
-            closesMs,
-            worldNowMs,
-          ),
-        };
-      }
-
-      return null;
+      return { opensMs, closesMs };
     })();
 
   const backendLevels =
@@ -936,6 +1008,10 @@ function ChampionshipSection({
         championReady ||
         levelTenCompleted;
 
+      const nowMs = serverClockAnchorRef?.current
+        ? serverClockAnchorRef.current.serverNowMs + (performance.now() - serverClockAnchorRef.current.performanceNow)
+        : Date.now();
+
       /*
        * CHAMPION AVATAR STATE
        *
@@ -965,7 +1041,7 @@ function ChampionshipSection({
           (
             championReady &&
             Number.isFinite(championClosesMs) &&
-            worldNowMs >= championClosesMs
+            nowMs >= championClosesMs
           )
         ) {
           return {
@@ -988,7 +1064,7 @@ function ChampionshipSection({
 
             waiting:
               Number.isFinite(nextLevelOpensMs) &&
-              worldNowMs < nextLevelOpensMs,
+              nowMs < nextLevelOpensMs,
 
             afterChampion: true,
           };
@@ -1001,7 +1077,7 @@ function ChampionshipSection({
           Number.isFinite(
             championOpensMs,
           ) &&
-          worldNowMs <
+          nowMs <
             championOpensMs
         ) {
           return {
@@ -1028,7 +1104,7 @@ function ChampionshipSection({
           !Number.isFinite(
             championClosesMs,
           ) ||
-          worldNowMs <
+          nowMs <
             championClosesMs
         ) {
           return {
@@ -1061,7 +1137,7 @@ function ChampionshipSection({
           Number.isFinite(
             nextLevelOpensMs,
           ) &&
-          worldNowMs <
+          nowMs <
             nextLevelOpensMs
         ) {
           return {
@@ -1194,7 +1270,7 @@ function ChampionshipSection({
       currentGlobalLevel,
       backendLevelMap,
       worldState,
-      worldNowMs,
+      serverClockAnchorRef,
     ]);
 
   return (
@@ -1202,12 +1278,17 @@ function ChampionshipSection({
       className={[
         'pl1000-section',
         `pl2d-biome-${biome}`,
+        'is-bg-loaded',
       ].join(' ')}
       data-championship={
         championshipNumber
       }
+      data-bg-loaded={dataBgLoaded}
+      id={`pl2d-championship-${championshipNumber}`}
       style={{
         minHeight:
+          `${CHAMPIONSHIP_HEIGHT}px`,
+        height:
           `${CHAMPIONSHIP_HEIGHT}px`,
       }}
     >
@@ -1506,18 +1587,11 @@ function ChampionshipSection({
                   </span>
 
                   {championTimer && (
-                    <span
-                      className="pl1000-champion-countdown"
-                      aria-label={`${championTimer.label} ${championTimer.value}`}
-                    >
-                      <span>
-                        {championTimer.label}
-                      </span>
-
-                      <b>
-                        {championTimer.value}
-                      </b>
-                    </span>
+                    <ChampionCountdownBadge
+                      opensMs={championTimer.opensMs}
+                      closesMs={championTimer.closesMs}
+                      serverClockAnchorRef={serverClockAnchorRef}
+                    />
                   )}
 
                   {championResultLabel && (
@@ -1600,6 +1674,10 @@ function ChampionshipSection({
                 localLevel,
               );
 
+            const now = serverClockAnchorRef?.current
+              ? serverClockAnchorRef.current.serverNowMs + (performance.now() - serverClockAnchorRef.current.performanceNow)
+              : Date.now();
+
             const hasFutureUnlock =
               locked &&
               (
@@ -1611,7 +1689,7 @@ function ChampionshipSection({
                 levelUnlockMs,
               ) &&
               levelUnlockMs >
-                worldNowMs;
+                now;
 
             // Normally only the user's immediate next progression
             // level shows a countdown. Exception: while the Champion
@@ -1641,12 +1719,12 @@ function ChampionshipSection({
             const nextChampionshipCountdown =
               isNextChampionshipFirstLevel &&
               Number.isFinite(championOpensMs) &&
-              worldNowMs >= championOpensMs &&
+              now >= championOpensMs &&
               Number.isFinite(
                 championNextLevelMs,
               ) &&
               championNextLevelMs >
-                worldNowMs;
+                now;
 
             const futureStartMs =
               Date.parse(
@@ -1660,32 +1738,28 @@ function ChampionshipSection({
               localLevel === 1 &&
               championshipNumber > currentChampionship &&
               Number.isFinite(futureStartMs) &&
-              futureStartMs > worldNowMs
+              futureStartMs > now
                 ? formatWorldCountdown(
                     futureStartMs,
-                    worldNowMs,
+                    now,
                   )
                 : null;
 
-            const levelCountdown =
+            let countdownTargetMs = null;
+            if (
               hasFutureUnlock &&
               (
                 isCurrent ||
                 followingEarlyUnlockedLevel ||
                 nextChampionshipCountdown
               )
-                ? formatWorldCountdown(
-                    levelUnlockMs,
-                    worldNowMs,
-                  )
-                : (
-                    nextChampionshipCountdown
-                      ? formatWorldCountdown(
-                          championNextLevelMs,
-                          worldNowMs,
-                        )
-                      : futureFirstLevelCountdown
-                  );
+            ) {
+              countdownTargetMs = levelUnlockMs;
+            } else if (nextChampionshipCountdown) {
+              countdownTargetMs = championNextLevelMs;
+            } else if (futureFirstLevelCountdown) {
+              countdownTargetMs = futureStartMs;
+            }
 
             const canEarlyUnlock =
               canUseTokens &&
@@ -1761,15 +1835,14 @@ function ChampionshipSection({
                       : globalLevel}
                   </span>
 
-                  {levelCountdown && (
-                    <span
-                      className="pl1000-node-timer"
-                      data-testid={
+                  {countdownTargetMs && (
+                    <LevelCountdownBadge
+                      targetMs={countdownTargetMs}
+                      testId={
                         `free-world-level-timer-${globalLevel}`
                       }
-                    >
-                      {levelCountdown}
-                    </span>
+                      serverClockAnchorRef={serverClockAnchorRef}
+                    />
                   )}
                 </span>
 
@@ -1905,7 +1978,8 @@ function ChampionshipSection({
       </div>
     </section>
   );
-}
+});
+
 function SeasonStart({
   showAvatar,
   journeyWalking,
@@ -2128,30 +2202,8 @@ export default function WorldCanvas({
   const [unlockBusy, setUnlockBusy] =
     useState(false);
 
-  const [worldNowMs, setWorldNowMs] =
-    useState(() => Date.now());
-
   const serverClockAnchorRef = useRef(null);
   const lastGcBoundaryRefreshRef = useRef(null);
-
-  useEffect(() => {
-    const timerId =
-      window.setInterval(
-        () => {
-          const anchor = serverClockAnchorRef.current;
-          setWorldNowMs(
-            anchor
-              ? anchor.serverNowMs + (performance.now() - anchor.performanceNow)
-              : Date.now(),
-          );
-        },
-        1000,
-      );
-
-    return () => {
-      window.clearInterval(timerId);
-    };
-  }, []);
 
   const navigate =
     useNavigate();
@@ -2193,36 +2245,6 @@ export default function WorldCanvas({
   const [stateError, setStateError] =
     useState('');
 
-  const [countdowns, setCountdowns] =
-    useState(() => {
-      const initial = {};
-
-      (
-        previewState?.levels ?? []
-      ).forEach(
-        (levelState, index) => {
-          const localLevel =
-            Number(
-              levelState?.level ??
-              levelState?.level_number ??
-              index + 1,
-            );
-
-          initial[localLevel] =
-            Math.max(
-              0,
-              Number(
-                levelState
-                  ?.seconds_until_unlock ??
-                0,
-              ),
-            );
-        },
-      );
-
-      return initial;
-    });
-
   const [journeyStarted, setJourneyStarted] =
     useState(false);
 
@@ -2247,6 +2269,238 @@ export default function WorldCanvas({
             return bNumber - aNumber;
           }),
       [],
+    );
+
+  const initialVirtualRange =
+    useMemo(() => {
+      const currentIndex =
+        orderedChampionships.findIndex(
+          (item) =>
+            Number(
+              item?.championshipNumber ??
+              item?.number ??
+              0,
+            ) ===
+            Number(
+              worldState?.progress
+                ?.champion_stage ??
+              1,
+            ),
+        );
+
+      const activeIndex =
+        currentIndex >= 0
+          ? currentIndex
+          : 0;
+
+      return {
+        start: Math.max(
+          0,
+          activeIndex - VIRTUAL_SECTION_OVERSCAN,
+        ),
+        end: Math.min(
+          orderedChampionships.length - 1,
+          activeIndex + VIRTUAL_SECTION_OVERSCAN + 2,
+        ),
+      };
+    }, [
+      orderedChampionships,
+      worldState?.progress
+        ?.champion_stage,
+    ]);
+
+  const [virtualSectionRange, setVirtualSectionRange] =
+    useState(initialVirtualRange);
+
+  useEffect(() => {
+    setVirtualSectionRange(
+      initialVirtualRange,
+    );
+  }, [initialVirtualRange]);
+
+  useEffect(() => {
+    const viewport =
+      viewportRef.current;
+
+    if (
+      !viewport ||
+      !orderedChampionships.length
+    ) {
+      return undefined;
+    }
+
+    const updateVirtualRange = () => {
+      const scrollTop =
+        viewport.scrollTop || 0;
+
+      const viewportHeight =
+        viewport.clientHeight || 1;
+
+      const startIndex =
+        Math.max(
+          0,
+          Math.floor(
+            scrollTop / CHAMPIONSHIP_HEIGHT,
+          ) - VIRTUAL_SECTION_OVERSCAN,
+        );
+
+      const endIndex =
+        Math.min(
+          orderedChampionships.length - 1,
+          Math.ceil(
+            (scrollTop + viewportHeight) /
+              CHAMPIONSHIP_HEIGHT,
+          ) + VIRTUAL_SECTION_OVERSCAN,
+        );
+
+      setVirtualSectionRange(
+        (previous) => {
+          if (
+            previous.start ===
+              startIndex &&
+            previous.end ===
+              endIndex
+          ) {
+            return previous;
+          }
+
+          return {
+            start: startIndex,
+            end: endIndex,
+          };
+        },
+      );
+    };
+
+    updateVirtualRange();
+
+    let rafId = null;
+    const onScroll = () => {
+      if (rafId !== null) {
+        return;
+      }
+
+      rafId =
+        window.requestAnimationFrame(
+          () => {
+            rafId = null;
+            updateVirtualRange();
+          },
+        );
+    };
+
+    viewport.addEventListener(
+      'scroll',
+      onScroll,
+      {
+        passive: true,
+      },
+    );
+
+    const resizeObserver =
+      typeof ResizeObserver !==
+        'undefined'
+        ? new ResizeObserver(
+            updateVirtualRange,
+          )
+        : null;
+
+    if (resizeObserver) {
+      resizeObserver.observe(
+        viewport,
+      );
+    }
+
+    return () => {
+      viewport.removeEventListener(
+        'scroll',
+        onScroll,
+      );
+
+      if (rafId !== null) {
+        window.cancelAnimationFrame(
+          rafId,
+        );
+      }
+
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+    };
+  }, [orderedChampionships]);
+
+  const ensureSectionVisible =
+    (championshipNumber) => {
+      const index =
+        orderedChampionships.findIndex(
+          (item) =>
+            Number(
+              item?.championshipNumber ??
+              item?.number ??
+              0,
+            ) ===
+            Number(championshipNumber),
+        );
+
+      if (index < 0) {
+        return;
+      }
+
+      setVirtualSectionRange(
+        (previous) => {
+          const nextStart =
+            Math.max(
+              0,
+              Math.min(
+                index - VIRTUAL_SECTION_OVERSCAN,
+                previous.start,
+              ),
+            );
+
+          const nextEnd =
+            Math.min(
+              orderedChampionships.length - 1,
+              Math.max(
+                index + VIRTUAL_SECTION_OVERSCAN,
+                previous.end,
+              ),
+            );
+
+          if (
+            previous.start ===
+              nextStart &&
+            previous.end ===
+              nextEnd
+          ) {
+            return previous;
+          }
+
+          return {
+            start: nextStart,
+            end: nextEnd,
+          };
+        },
+      );
+    };
+
+  const virtualizedChampionships =
+    useMemo(
+      () =>
+        orderedChampionships.map(
+          (championship, index) => ({
+            championship,
+            index,
+            sectionIndex:
+              orderedChampionships.length - index - 1,
+            visible:
+              index >= virtualSectionRange.start &&
+              index <= virtualSectionRange.end,
+          }),
+        ),
+      [
+        orderedChampionships,
+        virtualSectionRange,
+      ],
     );
 
   const currentChampionship =
@@ -2320,7 +2574,7 @@ export default function WorldCanvas({
     journeyStarted,
   ]);
 
-  const setStateAndCountdowns =
+  const setStateAndCountdowns = React.useCallback(
     (response) => {
       setWorldState(response);
 
@@ -2330,36 +2584,10 @@ export default function WorldCanvas({
           serverNowMs,
           performanceNow: performance.now(),
         };
-        setWorldNowMs(serverNowMs);
       }
-
-      const next = {};
-
-      (
-        response?.levels ?? []
-      ).forEach(
-        (levelState, index) => {
-          const localLevel =
-            Number(
-              levelState?.level ??
-              levelState?.level_number ??
-              index + 1,
-            );
-
-          next[localLevel] =
-            Math.max(
-              0,
-              Number(
-                levelState
-                  ?.seconds_until_unlock ??
-                0,
-              ),
-            );
-        },
-      );
-
-      setCountdowns(next);
-    };
+    },
+    [],
+  );
 
   const refreshBalance = React.useCallback(() => {
     if (!user) {
@@ -2577,7 +2805,6 @@ export default function WorldCanvas({
 
     const interval =
       window.setInterval(() => {
-        let reachedZero = false;
         const nextGcOpenMs = Date.parse(
           worldState?.champion?.next_level_opens_at ?? '',
         );
@@ -2598,58 +2825,26 @@ export default function WorldCanvas({
             .catch(() => {});
         }
 
-        setCountdowns(
-          (previous) => {
-            const next = {
-              ...previous,
-            };
+        const levels = worldState?.levels ?? [];
+        let anyUnlocked = false;
+        for (let i = 0; i < levels.length; i += 1) {
+          const unlockMs = Date.parse(levels[i]?.unlock_at ?? '');
+          if (
+            Number.isFinite(unlockMs) &&
+            currentServerMs >= unlockMs &&
+            !levels[i]?.available &&
+            !levels[i]?.completed
+          ) {
+            anyUnlocked = true;
+            break;
+          }
+        }
 
-            Object.keys(next)
-              .forEach((key) => {
-                const before =
-                  Number(
-                    next[key] ?? 0,
-                  );
-
-                if (before <= 0) {
-                  return;
-                }
-
-                const after =
-                  Math.max(
-                    0,
-                    before - 1,
-                  );
-
-                next[key] = after;
-
-                if (
-                  before > 0 &&
-                  after === 0
-                ) {
-                  reachedZero = true;
-                }
-              });
-
-            return next;
-          },
-        );
-
-        if (
-          reachedZero &&
-          !previewState
-        ) {
+        if (anyUnlocked && !previewState) {
           worldAPI
             .state()
-            .then(
-              setStateAndCountdowns,
-            )
-            .catch(() => {
-              /*
-               * Server stays authoritative.
-               * Do not fake-unlock locally.
-               */
-            });
+            .then(setStateAndCountdowns)
+            .catch(() => {});
         }
       }, 1000);
 
@@ -2661,6 +2856,7 @@ export default function WorldCanvas({
   }, [
     worldState,
     previewState,
+    setStateAndCountdowns,
   ]);
 
   /*
@@ -2708,25 +2904,19 @@ export default function WorldCanvas({
         return;
       }
 
-      const node =
-        document.getElementById(
-          `pl2d-level-${currentGlobalLevel}`,
+      const targetChampion =
+        Math.max(
+          1,
+          Math.min(
+            100,
+            Number(
+              currentChampionship,
+            ),
+          ),
         );
 
-      if (!node) {
-        return;
-      }
-
-      node.scrollIntoView({
-        behavior: 'auto',
-        block: 'center',
-      });
-
-      initialScrollDoneRef.current =
-        true;
-
-      setInitialPositionReady(
-        true,
+      ensureSectionVisible(
+        targetChampion,
       );
     };
 
@@ -2824,6 +3014,11 @@ export default function WorldCanvas({
         return;
       }
 
+      if (!isAtJourneyStart) {
+        ensureSectionVisible(
+          currentChampionship,
+        );
+      }
 
       requestAnimationFrame(() => {
 
@@ -3222,52 +3417,57 @@ export default function WorldCanvas({
       >
         <SeasonFinish />
 
-        {orderedChampionships.map(
-          (
+        {virtualizedChampionships.map(
+          ({
             championship,
             index,
-          ) => (
-            <ChampionshipSection
-              key={
-                championship.id ??
-                championship
-                  .championshipNumber ??
-                index
-              }
-              championship={
-                championship
-              }
-              sectionIndex={
-                orderedChampionships
-                  .length -
-                index -
-                1
-              }
-              worldState={
-                worldState
-              }
-              countdowns={
-                countdowns
-              }
-              currentGlobalLevel={
-                currentGlobalLevel
-              }
-              currentChampionship={
-                currentChampionship
-              }
-              journeyStarted={
-                journeyStarted
-              }
-              worldNowMs={worldNowMs}
-              canUseTokens={Boolean(user)}
-              championshipHistory={
-                worldState?.championship_history || []
-              }
-              onRequestUnlock={
-                setUnlockModal
-              }
-            />
-          ),
+            sectionIndex,
+            visible,
+          }) => {
+            const championshipNumber =
+              Number(
+                championship?.championshipNumber ??
+                championship?.number ??
+                index + 1,
+              );
+
+            if (!visible) {
+              return (
+                <div
+                  key={`championship-placeholder-${championshipNumber}`}
+                  className="pl1000-section pl1000-section-placeholder"
+                  data-championship={championshipNumber}
+                  aria-hidden="true"
+                  style={{
+                    height: `${CHAMPIONSHIP_HEIGHT}px`,
+                    minHeight: `${CHAMPIONSHIP_HEIGHT}px`,
+                  }}
+                />
+              );
+            }
+
+            return (
+              <ChampionshipSection
+                key={
+                  championship.id ??
+                  championship.championshipNumber ??
+                  index
+                }
+                championship={championship}
+                sectionIndex={sectionIndex}
+                worldState={worldState}
+                countdowns={countdowns}
+                currentGlobalLevel={currentGlobalLevel}
+                currentChampionship={currentChampionship}
+                journeyStarted={journeyStarted}
+                worldNowMs={worldNowMs}
+                canUseTokens={Boolean(user)}
+                championshipHistory={worldState?.championship_history || []}
+                onRequestUnlock={setUnlockModal}
+                dataBgLoaded="true"
+              />
+            );
+          },
         )}
 
         <SeasonStart

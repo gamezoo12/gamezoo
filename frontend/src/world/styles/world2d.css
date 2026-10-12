@@ -12769,6 +12769,12 @@
 .pl1000-section[data-championship="9"]  { background-image: url('../assets/champ-9.jpg')  !important; }
 .pl1000-section[data-championship="10"] { background-image: url('../assets/champ-10.jpg') !important; }
 
+.pl1000-section-placeholder,
+.pl1000-section.pl1000-section-placeholder {
+  background-image: none !important;
+  background-color: #0e1630 !important;
+}
+
 /* Hide the old CSS scenery so the painted map reads cleanly. */
 .pl2d-mountains,
 .pl2d-clouds,
