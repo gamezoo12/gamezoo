@@ -28,6 +28,7 @@ from services.world_championship_schedule import (
     SEASON_CHAMPIONSHIP_COUNT,
     championship_for_time,
     championship_window,
+    ordered_contest_sequence,
 )
 
 
@@ -558,6 +559,14 @@ async def tick_free_world(
                 "legacy_mode",
         }
 
+    configured_contests = await db.world_global_contests.find(
+        {"season_id": WORLD_SEASON_ID},
+        {"_id": 0, "contest_number": 1},
+    ).sort("contest_number", 1).to_list(SEASON_CHAMPIONSHIP_COUNT)
+    contest_sequence = ordered_contest_sequence(
+        row.get("contest_number") for row in configured_contests
+    )
+
     resolved = (
         championship_for_time(
             season_start,
@@ -570,7 +579,7 @@ async def tick_free_world(
         "phase"
     ]
 
-    number = resolved.get(
+    schedule_slot = resolved.get(
         "championship_number"
     )
 
@@ -594,16 +603,22 @@ async def tick_free_world(
         phase ==
         "season_complete"
     ):
-        if number:
+        contest_number = (
+            contest_sequence[int(schedule_slot) - 1]
+            if schedule_slot
+            and int(schedule_slot) <= len(contest_sequence)
+            else None
+        )
+        if contest_number:
             await _close_contest(
                 db,
-                number,
+                contest_number,
                 now,
             )
 
             await _attempt_settlement(
                 db,
-                number,
+                contest_number,
                 now=now,
             )
 
@@ -615,7 +630,7 @@ async def tick_free_world(
                 "season_complete",
         }
 
-    if not number or not window:
+    if not schedule_slot or not window:
         return {
             "ok":
                 True,
@@ -624,6 +639,15 @@ async def tick_free_world(
                 "nothing",
         }
 
+    if int(schedule_slot) > len(contest_sequence):
+        return {
+            "ok": True,
+            "action": "contest_not_configured",
+            "schedule_slot": int(schedule_slot),
+        }
+
+    contest_number = contest_sequence[int(schedule_slot) - 1]
+
     # ------------------------------------------------------
     # RESULTS GAP
     # ------------------------------------------------------
@@ -631,13 +655,13 @@ async def tick_free_world(
     if phase == "results_gap":
         await _close_contest(
             db,
-            number,
+            contest_number,
             now,
         )
 
         await _attempt_settlement(
             db,
-            number,
+            contest_number,
             now=now,
         )
 
@@ -649,7 +673,7 @@ async def tick_free_world(
                 "results_gap",
 
             "championship_number":
-                number,
+                contest_number,
         }
 
     # ------------------------------------------------------
@@ -663,7 +687,7 @@ async def tick_free_world(
                     WORLD_SEASON_ID,
 
                 "contest_number":
-                    number,
+                    contest_number,
             },
             {
                 "_id":
@@ -707,7 +731,7 @@ async def tick_free_world(
                 "contest_number"
             )
             or 0
-        ) == number
+        ) == contest_number
     )
 
     if not already_correct:
@@ -715,7 +739,7 @@ async def tick_free_world(
             await _activate_contest(
                 db,
                 contest_number=
-                    number,
+                    contest_number,
 
                 start_at=
                     expected_start,
@@ -731,20 +755,19 @@ async def tick_free_world(
         if activated:
             log.info(
                 "[world-scheduler] Championship %s active; phase=%s",
-                number,
+                contest_number,
                 phase,
             )
 
     # Previous Championship may need settlement after rollover.
-    previous = (
-        number - 1
-    )
+    previous_index = int(schedule_slot) - 2
 
-    if previous >= 1:
+    if previous_index >= 0:
+        previous = contest_sequence[previous_index]
         previous_window = (
             championship_window(
                 season_start,
-                previous,
+                previous_index + 1,
                 extensions,
             )
         )
@@ -798,7 +821,7 @@ async def tick_free_world(
             "active",
 
         "championship_number":
-            number,
+            contest_number,
 
         "phase":
             phase,

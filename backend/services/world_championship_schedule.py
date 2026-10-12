@@ -482,3 +482,105 @@ def level_unlock_at(
         championship_start,
         int(unlock_after_days),
     )
+
+
+def expected_personal_championship(
+    active_global_contest: int,
+    registration_global_contest: int | None,
+    contest_sequence: list[int] | None = None,
+) -> int:
+    """Resolve the user's personal Championship from the active GC and cohort.
+
+    Business rule: personal championship = active_gc - registration_gc + 1,
+    but only after validating the cohort and ordered contest sequence.
+    """
+    active = max(1, int(active_global_contest or 1))
+    reg = max(1, int(registration_global_contest or active))
+
+    if contest_sequence:
+        ordered = list(dict.fromkeys(
+            max(1, int(item))
+            for item in contest_sequence
+            if item is not None
+        ))
+        if ordered:
+            if active not in ordered or reg not in ordered:
+                raise ValueError("Active contest or registration cohort is missing from the configured sequence.")
+            active_index = ordered.index(active)
+            reg_index = ordered.index(reg)
+            if active_index < reg_index:
+                return 1
+            return max(1, active_index - reg_index + 1)
+
+    if active < reg:
+        return 1
+    return max(1, active - reg + 1)
+
+
+def ordered_contest_sequence(contest_sequence) -> list[int]:
+    """Normalize configured GC IDs without changing their configured order."""
+    if not contest_sequence:
+        return []
+    result = []
+    seen = set()
+    for item in contest_sequence:
+        try:
+            number = int(item)
+        except (TypeError, ValueError):
+            continue
+        if number < 1 or number in seen:
+            continue
+        result.append(number)
+        seen.add(number)
+    return result
+
+
+def contest_for_time(
+    season_start: datetime,
+    now: datetime,
+    contest_sequence: list[int] | None = None,
+    extensions=None,
+) -> dict:
+    """Map the calendar slot at ``now`` to its configured Global Contest ID."""
+    sequence = ordered_contest_sequence(contest_sequence)
+    resolved = championship_for_time(season_start, now, extensions)
+    slot = resolved.get("championship_number")
+
+    if not sequence:
+        return {
+            **resolved,
+            "global_contest_number": slot,
+        }
+
+    if resolved.get("phase") == "before_season":
+        global_number = sequence[0]
+    elif slot is not None and 1 <= int(slot) <= len(sequence):
+        global_number = sequence[int(slot) - 1]
+    else:
+        global_number = None
+
+    return {
+        **resolved,
+        "global_contest_number": global_number,
+    }
+
+
+def global_contest_for_stage(
+    registration_global_contest: int,
+    personal_championship: int,
+    contest_sequence: list[int] | None = None,
+) -> int | None:
+    """Resolve a user's personal Championship to its configured GC ID."""
+    sequence = ordered_contest_sequence(contest_sequence)
+    registration = int(registration_global_contest)
+    stage = max(1, int(personal_championship))
+    if not sequence:
+        return registration + stage - 1
+    try:
+        registration_index = sequence.index(registration)
+    except ValueError:
+        return None
+    target_index = registration_index + stage - 1
+    if target_index >= len(sequence):
+        return None
+    return sequence[target_index]

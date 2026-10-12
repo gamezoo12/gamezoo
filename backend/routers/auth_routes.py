@@ -13,7 +13,11 @@ from auth import (
 )
 from models import RegisterInput, LoginInput, User, UserPublic
 from counters import allocate_user_public_id
-from services.world_championship_schedule import championship_for_time, ensure_utc
+from services.world_championship_schedule import (
+    contest_for_time,
+    ensure_utc,
+    ordered_contest_sequence,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix='/api/auth', tags=['auth'])
@@ -27,16 +31,24 @@ async def _world_signup_contest(db, registered_at: datetime) -> int:
     ) or {}
     season_start = setting.get('season_start_at')
     if season_start:
-        resolved = championship_for_time(
+        configured = await db.world_global_contests.find(
+            {'season_id': WORLD_SEASON_ID},
+            {'_id': 0, 'contest_number': 1},
+        ).sort('contest_number', 1).to_list(100)
+        sequence = ordered_contest_sequence(
+            row.get('contest_number') for row in configured
+        )
+        resolved = contest_for_time(
             ensure_utc(season_start),
             ensure_utc(registered_at),
+            sequence,
             setting.get('championship_extensions') or {},
         )
-        number = resolved.get('championship_number')
+        number = resolved.get('global_contest_number')
         if number:
             return max(1, int(number))
         if resolved.get('phase') == 'before_season':
-            return 1
+            return sequence[0] if sequence else 1
 
     active_number = setting.get('contest_number')
     if active_number:

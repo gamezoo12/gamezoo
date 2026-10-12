@@ -654,21 +654,9 @@ function ChampionshipSection({
     championshipNumber ===
     currentChampionship;
 
-  const [continuingChampion, setContinuingChampion] = useState(false);
   const championCompleted =
     isCurrentChampionship &&
     worldState?.champion?.completed === true;
-  const championReady =
-    isCurrentChampionship &&
-    worldState?.progress?.champion_ready === true;
-  const nextChampionshipOpensMs = Date.parse(
-    worldState?.champion?.next_level_opens_at ?? '',
-  );
-  const canContinueChampion =
-    championReady &&
-    Number.isFinite(nextChampionshipOpensMs) &&
-    worldNowMs >= nextChampionshipOpensMs &&
-    championshipNumber < 100;
 
   const championTimer =
     (() => {
@@ -1423,6 +1411,24 @@ function ChampionshipSection({
                 worldState?.progress?.champion_ready === true;
               const championCompletedForNode =
                 championCompleted;
+              const historicalChampionStatus =
+                championshipHistoryEntry?.champion_status;
+              const championResultStatus = isCurrentChampionship
+                ? worldState?.champion?.result_status
+                : isPastChampionship
+                  ? historicalChampionStatus
+                  : null;
+              const championResultLabel = {
+                passed: 'PASSED',
+                failed: 'FAILED',
+                missed: 'MISSED',
+                pending: 'PENDING',
+              }[championResultStatus];
+              const championResultClass = championResultStatus === 'passed'
+                ? 'is-done'
+                : championResultStatus
+                  ? `is-${championResultStatus}`
+                  : '';
 
               return (
                 <button
@@ -1433,7 +1439,6 @@ function ChampionshipSection({
                   className={[
                     'pl1000-special-slot',
                     'pl1000-champion-level',
-                    canContinueChampion ? 'can-continue' : '',
                     championCompletedForNode
                       ? 'is-completed-history'
                       : '',
@@ -1454,26 +1459,7 @@ function ChampionshipSection({
                     championshipNumber
                   }
                   onClick={async () => {
-                    if (!championUnlocked) {
-                      return;
-                    }
-                    if (canContinueChampion) {
-                      if (continuingChampion) return;
-                      setContinuingChampion(true);
-                      try {
-                        await worldAPI.continueAfterChampion();
-                        window.dispatchEvent(new CustomEvent('pl-world-progress-refresh'));
-                        toast.success(`Championship ${championshipNumber + 1} is now open`);
-                      } catch (error) {
-                        const detail = error?.response?.data?.detail;
-                        toast.error(
-                          typeof detail === 'string'
-                            ? detail
-                            : detail?.message || 'Unable to continue yet.',
-                        );
-                      } finally {
-                        setContinuingChampion(false);
-                      }
+                    if (!championUnlocked || championCompletedForNode) {
                       return;
                     }
                     window.dispatchEvent(
@@ -1496,9 +1482,7 @@ function ChampionshipSection({
                     );
                   }}
                   aria-label={
-                    canContinueChampion
-                      ? `Continue to Championship ${championshipNumber + 1}`
-                      : `Championship ${championshipNumber} ${championName}`
+                    `Championship ${championshipNumber} ${championName}`
                   }
                 >
                   <span className="pl1000-champion-rays" />
@@ -1536,24 +1520,14 @@ function ChampionshipSection({
                     </span>
                   )}
 
-                  {(isPastChampionship || championCompletedForNode || canContinueChampion) && (
-                    <span className="pl1000-history-badge is-done">
-                      {canContinueChampion
-                        ? 'CONTINUE'
-                        : championCompletedForNode || championshipHistoryEntry?.champion_status === 'passed'
-                          ? 'PASSED'
-                          : championshipHistoryEntry?.champion_status === 'not_recorded'
-                            ? 'NO PASS RECORDED'
-                            : 'COMPLETED'}
+                  {championResultLabel && (
+                    <span className={`pl1000-history-badge ${championResultClass}`}>
+                      {championResultLabel}
                     </span>
                   )}
 
                   <small>
-                    {canContinueChampion
-                      ? continuingChampion
-                        ? 'OPENING…'
-                        : `CONTINUE TO C${championshipNumber + 1}`
-                      : 'CHAMPION LEVEL'}
+                    CHAMPION LEVEL
                   </small>
                 </button>
               );
@@ -1579,6 +1553,10 @@ function ChampionshipSection({
 
             const skippedHistory =
               historyStatus === 'skipped';
+            const missedHistory =
+              historyStatus === 'missed';
+            const pendingHistory =
+              historyStatus === 'pending';
 
             const completed =
               isCurrentChampionship
@@ -1738,6 +1716,12 @@ function ChampionshipSection({
                   skippedHistory
                     ? 'is-skipped-history'
                     : '',
+                  missedHistory
+                    ? 'is-missed-history'
+                    : '',
+                  pendingHistory
+                    ? 'is-pending-history'
+                    : '',
                   isCurrent
                     ? 'is-current'
                     : '',
@@ -1842,6 +1826,24 @@ function ChampionshipSection({
                       PLAY
                     </span>
                   )}
+
+                {missedHistory && (
+                  <span
+                    className="pl1000-history-badge is-missed"
+                    data-testid={`free-world-history-missed-${globalLevel}`}
+                  >
+                    MISSED
+                  </span>
+                )}
+
+                {pendingHistory && (
+                  <span
+                    className="pl1000-history-badge is-pending"
+                    data-testid={`free-world-history-pending-${globalLevel}`}
+                  >
+                    PENDING
+                  </span>
+                )}
 
               </button>
             );
@@ -2126,13 +2128,11 @@ export default function WorldCanvas({
   const [unlockBusy, setUnlockBusy] =
     useState(false);
 
-  const [catchupSkipBusy, setCatchupSkipBusy] =
-    useState(false);
-
   const [worldNowMs, setWorldNowMs] =
     useState(() => Date.now());
 
   const serverClockAnchorRef = useRef(null);
+  const lastGcBoundaryRefreshRef = useRef(null);
 
   useEffect(() => {
     const timerId =
@@ -2361,34 +2361,6 @@ export default function WorldCanvas({
       setCountdowns(next);
     };
 
-  const catchupSkipLevel =
-    (worldState?.levels || []).find(
-      (level) => level?.skippable === true,
-    );
-
-  const skipCatchupLevel = async () => {
-    if (!catchupSkipLevel || catchupSkipBusy) return;
-    setCatchupSkipBusy(true);
-    try {
-      const result = await worldAPI.skipLevel(Number(catchupSkipLevel.level));
-      const fresh = await worldAPI.state();
-      setStateAndCountdowns(fresh);
-      window.dispatchEvent(new CustomEvent('pl-world-progress-refresh'));
-      toast.success(`Level ${result.skipped} skipped`, {
-        description: 'Your progression has advanced to the next level.',
-      });
-    } catch (error) {
-      const detail = error?.response?.data?.detail;
-      toast.error(
-        typeof detail === 'string'
-          ? detail
-          : detail?.message || 'Unable to skip this level.',
-      );
-    } finally {
-      setCatchupSkipBusy(false);
-    }
-  };
-
   const refreshBalance = React.useCallback(() => {
     if (!user) {
       return;
@@ -2442,9 +2414,7 @@ export default function WorldCanvas({
     };
   }, [previewState, refreshBalance]);
 
-  // Champion progression is never triggered automatically by opening the map.
-  // A player must finish their Champion Challenge before the server can
-  // authorize moving to the next Championship.
+  // Championship assignment is server-authoritative and refreshes at the GC boundary.
 
   const confirmEarlyUnlock = async () => {
     if (!unlockModal || unlockBusy) {
@@ -2608,6 +2578,25 @@ export default function WorldCanvas({
     const interval =
       window.setInterval(() => {
         let reachedZero = false;
+        const nextGcOpenMs = Date.parse(
+          worldState?.champion?.next_level_opens_at ?? '',
+        );
+        const clockAnchor = serverClockAnchorRef.current;
+        const currentServerMs = clockAnchor
+          ? clockAnchor.serverNowMs + (performance.now() - clockAnchor.performanceNow)
+          : Date.now();
+        if (
+          !previewState &&
+          Number.isFinite(nextGcOpenMs) &&
+          currentServerMs >= nextGcOpenMs &&
+          lastGcBoundaryRefreshRef.current !== nextGcOpenMs
+        ) {
+          lastGcBoundaryRefreshRef.current = nextGcOpenMs;
+          worldAPI
+            .state()
+            .then(setStateAndCountdowns)
+            .catch(() => {});
+        }
 
         setCountdowns(
           (previous) => {
@@ -3180,22 +3169,6 @@ export default function WorldCanvas({
       {stateError && (
         <div className="pl2d-progress-status is-error">
           {stateError}
-        </div>
-      )}
-
-      {catchupSkipLevel && (
-        <div className="pl2d-catchup-skip" data-testid="catchup-skip-panel">
-          <span>
-            Behind the live contest? Skip Level {catchupSkipLevel.level} to catch up.
-          </span>
-          <button
-            type="button"
-            onClick={skipCatchupLevel}
-            disabled={catchupSkipBusy}
-            data-testid="catchup-skip-button"
-          >
-            {catchupSkipBusy ? 'Skipping…' : `Skip Level ${catchupSkipLevel.level}`}
-          </button>
         </div>
       )}
 

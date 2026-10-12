@@ -6251,6 +6251,21 @@
   color: #fff7e6;
 }
 
+.pl1000-history-badge.is-missed {
+  background: linear-gradient(180deg, #8b98a8, #4d5967);
+  color: #ffffff;
+}
+
+.pl1000-history-badge.is-failed {
+  background: linear-gradient(180deg, #e06b67, #8d2929);
+  color: #ffffff;
+}
+
+.pl1000-history-badge.is-pending {
+  background: linear-gradient(180deg, #e9bf58, #967018);
+  color: #ffffff;
+}
+
 .pl1000-special-slot.is-completed-history {
   filter: saturate(0.85);
   cursor: default;
@@ -6259,39 +6274,6 @@
 .pl1000-special-slot.is-completed-history .pl1000-history-badge {
   bottom: -6px;
 }
-
-.pl1000-champion-level.can-continue {
-  filter: none;
-  cursor: pointer;
-  z-index: 20;
-}
-
-.pl1000-champion-level.can-continue .pl1000-history-badge {
-  bottom: -34px;
-  padding: 10px 22px;
-  font-size: 16px;
-  letter-spacing: 0.1em;
-  border: 3px solid #ffffff;
-  background: linear-gradient(180deg, #19c37d, #0a6b43);
-  color: #ffffff;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
-  box-shadow: 0 0 0 4px rgba(10, 30, 60, 0.85), 0 0 18px rgba(25, 195, 125, 0.9);
-  animation: pl1000-continue-pulse 1.4s ease-in-out infinite;
-}
-
-.pl1000-champion-level.can-continue > small {
-  font-size: 13px;
-  font-weight: 900;
-  color: #ffffff;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
-}
-
-@keyframes pl1000-continue-pulse {
-  0%, 100% { transform: translateX(-50%) scale(1); }
-  50% { transform: translateX(-50%) scale(1.08); }
-}
-
-
 
 /* ---------------------------------------------------------
    LOCK

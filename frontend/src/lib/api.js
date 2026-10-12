@@ -496,15 +496,6 @@ export const worldAPI = {
       },
     ).then(r => r.data),
 
-  continueAfterChampion: () =>
-    api.post(
-      '/world/champion/continue',
-    ).then(r => r.data),
-
-  skipLevel: (level) =>
-    api.post(
-      `/world/level/${level}/skip`,
-    ).then(r => r.data),
 };
 
 export const gamesAPI = {
