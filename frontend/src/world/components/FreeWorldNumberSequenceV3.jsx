@@ -360,6 +360,10 @@ export default function FreeWorldNumberSequenceV3({
   const submittingRef =
     useRef(false);
 
+  // Freeze the official clock at the terminal action, not after the API responds.
+  const officialFinishedAtRef =
+    useRef(null);
+
 
   const attempts =
     attemptSummary?.attempts ||
@@ -580,6 +584,10 @@ export default function FreeWorldNumberSequenceV3({
 
     const tick =
       (now) => {
+        if (submittingRef.current || officialFinishedAtRef.current !== null) {
+          return;
+        }
+
         const elapsed =
           Math.max(
             0,
@@ -725,6 +733,8 @@ export default function FreeWorldNumberSequenceV3({
 
         setOfficialNext(1);
         setOfficialTaps([]);
+        officialFinishedAtRef.current = null;
+        submittingRef.current = false;
         setOfficialElapsedMs(0);
         setCountdown(3);
 
@@ -769,6 +779,8 @@ export default function FreeWorldNumberSequenceV3({
 
         setOfficialNext(1);
         setOfficialTaps([]);
+        officialFinishedAtRef.current = null;
+        submittingRef.current = false;
         setOfficialElapsedMs(0);
         setCountdown(3);
 
@@ -836,6 +848,7 @@ export default function FreeWorldNumberSequenceV3({
             begunAtRef.current =
               performance.now();
 
+            officialFinishedAtRef.current = null;
             setOfficialElapsedMs(0);
 
             setStage(
@@ -872,6 +885,7 @@ if (
           begunAtRef.current =
             performance.now();
 
+          officialFinishedAtRef.current = null;
           setOfficialElapsedMs(0);
 
           setStage(
@@ -928,23 +942,25 @@ if (
           return;
         }
 
-        submittingRef.current =
-          true;
+        // Capture completion synchronously so rendering and network latency
+        // cannot add time to a successful Colour Match / Number Sequence run.
+        const finishedAt = performance.now();
+        const elapsed = Math.max(
+          0,
+          finishedAt - (begunAtRef.current ?? finishedAt),
+        );
+        const limitMs = isStopwatch
+          ? null
+          : Number(session?.time_limit_seconds ?? timeLimitSeconds) * 1000;
+        const durationMs = Math.max(100, Math.floor(elapsed));
 
+        submittingRef.current = true;
+        officialFinishedAtRef.current = finishedAt;
+        setOfficialElapsedMs(
+          isStopwatch ? elapsed : Math.min(limitMs, elapsed),
+        );
         setBusy(true);
         setError('');
-
-        const durationMs =
-          Math.max(
-            100,
-            Math.floor(
-              performance.now() -
-              Number(
-                begunAtRef.current ||
-                performance.now(),
-              ),
-            ),
-          );
 
         try {
           if (guestMode) {
@@ -1092,6 +1108,8 @@ if (
         championMode,
         selectedLevel?.level,
         session,
+        isStopwatch,
+        timeLimitSeconds,
       ],
     );
 
@@ -1103,7 +1121,9 @@ if (
    */
   useEffect(() => {
     if (
-      stage !== 'official'
+      stage !== 'official' ||
+      submittingRef.current ||
+      officialFinishedAtRef.current !== null
     ) {
       return undefined;
     }
@@ -1121,6 +1141,10 @@ if (
 
     const tick =
       (now) => {
+        if (submittingRef.current || officialFinishedAtRef.current !== null) {
+          return;
+        }
+
         const elapsed =
           Math.max(
             0,
@@ -1187,6 +1211,7 @@ if (
       if (
         stage !== 'official' ||
         busy ||
+        submittingRef.current ||
         number !== officialNext
       ) {
         return;
@@ -1243,6 +1268,7 @@ if (
       if (
         stage !== 'official' ||
         busy ||
+        submittingRef.current ||
         !colourQuestion
       ) {
         return;
@@ -1275,6 +1301,8 @@ if (
       setSession(null);
       setOfficialNext(1);
       setOfficialTaps([]);
+      officialFinishedAtRef.current = null;
+      submittingRef.current = false;
       setOfficialElapsedMs(0);
       setError('');
 

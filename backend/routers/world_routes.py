@@ -2173,6 +2173,64 @@ async def admin_set_stage_level_config(
     }
 
 
+async def _admin_world_championship_snapshot(db, user, progress, active_number, contest_sequence, settings):
+    """READ ONLY: distinguish active GC, cohort, stored C, and expected C.
+
+    Never calls _free_world_progress or _free_world_signup_contest because both
+    may write. Missing or ambiguous cohort is reported, not guessed.
+    """
+    stored = int(progress.get("champion_stage") or 1)
+    cohort_raw = user.get("free_world_started_global_contest")
+    if cohort_raw is None:
+        cohort_raw = progress.get("free_world_started_global_contest")
+    cohort_source = "stored" if cohort_raw is not None else "unknown"
+    if cohort_raw is None:
+        created = user.get("created_at")
+        if isinstance(created, str):
+            try:
+                created = datetime.fromisoformat(created.replace("Z", "+00:00"))
+            except ValueError:
+                created = None
+        created = _ensure_aware_datetime(created)
+        start = _ensure_aware_datetime(settings.get("season_start_at"))
+        if created is not None and start is not None and contest_sequence:
+            resolved = contest_for_time(
+                start, created, contest_sequence,
+                settings.get("championship_extensions") or {},
+            )
+            if resolved.get("global_contest_number") is not None:
+                cohort_raw = resolved["global_contest_number"]
+                cohort_source = "registration_timestamp"
+            elif resolved.get("phase") == "before_season":
+                cohort_raw = contest_sequence[0]
+                cohort_source = "before_season"
+    cohort = None
+    expected = None
+    warning = None
+    try:
+        if cohort_raw is not None:
+            cohort = int(cohort_raw)
+        if active_number is not None and cohort is not None:
+            expected = expected_personal_championship(
+                int(active_number), cohort, contest_sequence,
+            )
+    except (ValueError, TypeError) as exc:
+        warning = str(exc)
+    if expected is None and warning is None:
+        warning = "Cannot verify championship: active GC or registration GC is missing"
+    elif expected is not None and expected != stored:
+        warning = f"Stored C{stored} differs from calculated C{expected}"
+    return {
+        "current_global_contest": active_number,
+        "registration_global_contest": cohort,
+        "registration_gc_source": cohort_source,
+        "stored_personal_championship": stored,
+        "calculated_personal_championship": expected,
+        "championship_mismatch": expected is not None and expected != stored,
+        "championship_warning": warning,
+    }
+
+
 @admin_router.get("/users")
 async def admin_world_users(
     request: Request,
@@ -2265,6 +2323,17 @@ async def admin_world_users(
 
     active = await _active_contest(db)
     active_number = active.get("contest_number") if active else None
+    settings = await db.world_settings.find_one(
+        {"_id": "active_global_contest", "season_id": WORLD_SEASON_ID},
+        {"_id": 0, "season_start_at": 1, "championship_extensions": 1},
+    ) or {}
+    contests = await db.world_global_contests.find(
+        {"season_id": WORLD_SEASON_ID},
+        {"_id": 0, "contest_number": 1},
+    ).sort("contest_number", 1).to_list(WORLD_CONTEST_COUNT)
+    contest_sequence = ordered_contest_sequence(
+        c.get("contest_number") for c in contests
+    )
 
     items = []
     for r in rows:
@@ -2278,7 +2347,11 @@ async def admin_world_users(
         uid = r.get("user_id")
         per_level = level_counts.get(uid, {})
         per_contest = champion_counts.get(uid, {})
+        snapshot = await _admin_world_championship_snapshot(
+            db, u, r, active_number, contest_sequence, settings,
+        )
         items.append({
+            **snapshot,
             "level_attempts_by_level": per_level,
             "level_attempts_total": sum(per_level.values()),
             "champion_attempts_by_contest": per_contest,
@@ -2368,21 +2441,40 @@ async def admin_get_user_progress(user_id: str, request: Request):
     await require_admin(request)
     db = get_db()
 
-    progress = await _free_world_progress(db, user_id)
+    progress = await db.world_progress.find_one(
+        {"season_id": WORLD_SEASON_ID, "user_id": user_id}, {"_id": 0},
+    )
+    if progress is None:
+        raise HTTPException(status_code=404, detail="No World progress record for user")
 
     user = await db.users.find_one(
         {"user_id": user_id},
         {"_id": 0, "user_id": 1, "name": 1, "display_name": 1,
-         "email": 1, "public_id": 1, "fw_last_login_at": 1,
+         "email": 1, "public_id": 1, "created_at": 1,
+         "free_world_started_global_contest": 1, "fw_last_login_at": 1,
          "fw_last_visit_at": 1, "fw_last_gameplay_at": 1},
     ) or {}
 
     active = await _active_contest(db)
+    active_number = active.get("contest_number") if active else None
+    settings = await db.world_settings.find_one(
+        {"_id": "active_global_contest", "season_id": WORLD_SEASON_ID},
+        {"_id": 0, "season_start_at": 1, "championship_extensions": 1},
+    ) or {}
+    contests = await db.world_global_contests.find(
+        {"season_id": WORLD_SEASON_ID},
+        {"_id": 0, "contest_number": 1},
+    ).sort("contest_number", 1).to_list(WORLD_CONTEST_COUNT)
+    sequence = ordered_contest_sequence(c.get("contest_number") for c in contests)
+    snapshot = await _admin_world_championship_snapshot(
+        db, user, progress, active_number, sequence, settings,
+    )
     completed_levels = sorted(
         int(x) for x in (progress.get("completed_levels") or [])
     )
 
     return {
+        **snapshot,
         "user": {
             "user_id": user_id,
             "public_id": user.get("public_id"),
@@ -2416,6 +2508,42 @@ async def admin_get_user_progress(user_id: str, request: Request):
         },
         "audit": await _world_progress_audit(db, user_id),
         "server_time": _serialize_datetime(_utcnow()),
+    }
+
+
+@admin_router.get("/user-history/{user_id}")
+async def admin_world_user_history(user_id: str, request: Request, page: int = 1, page_size: int = 50):
+    """READ ONLY: real attempt and Champion-session records for one user."""
+    await require_admin(request)
+    db = get_db()
+    page = max(1, int(page))
+    page_size = max(1, min(int(page_size), 100))
+    query = {"season_id": WORLD_SEASON_ID, "user_id": user_id}
+
+    def serial(value):
+        if isinstance(value, datetime):
+            return _serialize_datetime(value)
+        if isinstance(value, dict):
+            return {str(k): serial(v) for k, v in value.items() if k != "_id"}
+        if isinstance(value, list):
+            return [serial(v) for v in value]
+        return value
+
+    attempts = await db.world_level_attempts.find(
+        query, {"_id": 0}
+    ).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
+    champions = await db.world_champion_sessions.find(
+        query, {"_id": 0}
+    ).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size).to_list(page_size)
+    return {
+        "user_id": user_id,
+        "page": page,
+        "page_size": page_size,
+        "level_attempts_total": await db.world_level_attempts.count_documents(query),
+        "champion_sessions_total": await db.world_champion_sessions.count_documents(query),
+        "level_attempts": serial(attempts),
+        "champion_sessions": serial(champions),
+        "note": "Raw verified records only; absent attempts are not inferred or marked passed.",
     }
 
 

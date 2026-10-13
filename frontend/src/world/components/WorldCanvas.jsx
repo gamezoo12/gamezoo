@@ -2204,6 +2204,7 @@ export default function WorldCanvas({
 
   const serverClockAnchorRef = useRef(null);
   const lastGcBoundaryRefreshRef = useRef(null);
+  const lastUnlockRefreshRef = useRef(null);
 
   const navigate =
     useNavigate();
@@ -2446,41 +2447,10 @@ export default function WorldCanvas({
         return;
       }
 
-      setVirtualSectionRange(
-        (previous) => {
-          const nextStart =
-            Math.max(
-              0,
-              Math.min(
-                index - VIRTUAL_SECTION_OVERSCAN,
-                previous.start,
-              ),
-            );
-
-          const nextEnd =
-            Math.min(
-              orderedChampionships.length - 1,
-              Math.max(
-                index + VIRTUAL_SECTION_OVERSCAN,
-                previous.end,
-              ),
-            );
-
-          if (
-            previous.start ===
-              nextStart &&
-            previous.end ===
-              nextEnd
-          ) {
-            return previous;
-          }
-
-          return {
-            start: nextStart,
-            end: nextEnd,
-          };
-        },
-      );
+      setVirtualSectionRange({
+        start: Math.max(0, index - VIRTUAL_SECTION_OVERSCAN),
+        end: Math.min(orderedChampionships.length - 1, index + VIRTUAL_SECTION_OVERSCAN),
+      });
     };
 
   const virtualizedChampionships =
@@ -2827,20 +2797,25 @@ export default function WorldCanvas({
 
         const levels = worldState?.levels ?? [];
         let anyUnlocked = false;
+        let pendingUnlockMs = null;
         for (let i = 0; i < levels.length; i += 1) {
           const unlockMs = Date.parse(levels[i]?.unlock_at ?? '');
           if (
             Number.isFinite(unlockMs) &&
             currentServerMs >= unlockMs &&
             !levels[i]?.available &&
-            !levels[i]?.completed
+            !levels[i]?.completed &&
+            levels[i]?.sequence_available === true &&
+            lastUnlockRefreshRef.current !== unlockMs
           ) {
             anyUnlocked = true;
+            pendingUnlockMs = unlockMs;
             break;
           }
         }
 
         if (anyUnlocked && !previewState) {
+          lastUnlockRefreshRef.current = pendingUnlockMs;
           worldAPI
             .state()
             .then(setStateAndCountdowns)
@@ -2952,14 +2927,24 @@ export default function WorldCanvas({
         return;
       }
 
-      if (targetSection) {
-        positionNodeInViewport(
-          targetSection,
+      const targetLevel = document.getElementById(
+        `pl2d-level-${currentGlobalLevel}`,
+      );
+      if (targetLevel) {
+        positionNodeInViewport(targetLevel);
+        initialScrollDoneRef.current = true;
+        setInitialPositionReady(true);
+      } else {
+        // Jump to the correct virtualized section first, then position
+        // the actual level once React has mounted its nodes.
+        const targetIndex = orderedChampionships.findIndex(
+          (item) => Number(item?.championshipNumber ?? item?.number) === targetChampion,
         );
+        if (targetIndex >= 0) {
+          viewport.scrollTop = targetIndex * CHAMPIONSHIP_HEIGHT;
+          ensureSectionVisible(targetChampion);
+        }
       }
-
-      ensureSectionVisible(targetChampion);
-      setInitialPositionReady(true);
     };
 
     requestAnimationFrame(() => {
@@ -2971,6 +2956,7 @@ export default function WorldCanvas({
     worldState,
     currentGlobalLevel,
     isAtJourneyStart,
+    virtualSectionRange,
   ]);
 
   /*
@@ -3509,6 +3495,7 @@ export default function WorldCanvas({
                 championship={championship}
                 sectionIndex={sectionIndex}
                 worldState={worldState}
+                serverClockAnchorRef={serverClockAnchorRef}
                 currentGlobalLevel={currentGlobalLevel}
                 currentChampionship={currentChampionship}
                 journeyStarted={journeyStarted}
