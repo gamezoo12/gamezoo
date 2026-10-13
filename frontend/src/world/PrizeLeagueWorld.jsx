@@ -266,8 +266,8 @@ export default function PrizeLeagueWorld() {
           const champion =
             state?.champion || {};
 
-          // Authoritative Champion attempts (3 free for Champion 1,
-          // 1 free for Champion 2+). Injected into the level so the
+          // Authoritative Champion attempts (3 free in every Championship).
+          // Injected into the level so the
           // entry + "ready to play" screens show the correct count
           // BEFORE the official session starts.
           let championAttempts = null;
@@ -290,6 +290,16 @@ export default function PrizeLeagueWorld() {
               'Complete Level 10 before entering the Champion Level.',
             );
 
+            return;
+          }
+
+          const closesAt = Date.parse(champion?.champion_closes_at || '');
+          const opensAt = Date.parse(champion?.champion_opens_at || '');
+          const serverNow = Date.parse(state?.server_now || '');
+          const now = Number.isFinite(serverNow) ? serverNow : Date.now();
+          if ((Number.isFinite(opensAt) && now < opensAt) ||
+              (Number.isFinite(closesAt) && now >= closesAt)) {
+            setLevelError('Champion Level is outside its playing window.');
             return;
           }
 

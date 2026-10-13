@@ -2704,7 +2704,7 @@ if (
 
 
           {
-            success ? (
+            success && !championMode ? (
               <button
                 type="button"
                 className="fwv3-button fwv3-button-primary fwv3-full"

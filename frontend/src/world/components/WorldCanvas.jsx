@@ -975,10 +975,7 @@ const ChampionshipSection = React.memo(function ChampionshipSection({
 
             return (
               completedLevel === endLevel ||
-              (
-                completedLevel === 10 &&
-                championshipNumber === 1
-              )
+                completedLevel === 10
             );
           },
         );
@@ -1487,6 +1484,12 @@ const ChampionshipSection = React.memo(function ChampionshipSection({
                   championshipNumber,
                 );
 
+              const championOpensAtMs = Date.parse(
+                worldState?.champion?.champion_opens_at ?? '',
+              );
+              const championClosesAtMs = Date.parse(
+                worldState?.champion?.champion_closes_at ?? '',
+              );
               const championUnlocked =
                 isCurrentChampionship &&
                 worldState?.progress?.champion_ready === true;
@@ -1540,7 +1543,20 @@ const ChampionshipSection = React.memo(function ChampionshipSection({
                     championshipNumber
                   }
                   onClick={async () => {
-                    if (!championUnlocked || championCompletedForNode) {
+                    const clockAnchor = serverClockAnchorRef?.current;
+                    const nowMs = clockAnchor
+                      ? clockAnchor.serverNowMs +
+                        (performance.now() - clockAnchor.performanceNow)
+                      : Date.now();
+                    if (
+                      !championUnlocked ||
+                      championCompletedForNode ||
+                      ['passed', 'failed', 'missed'].includes(championResultStatus) ||
+                      !Number.isFinite(championOpensAtMs) ||
+                      !Number.isFinite(championClosesAtMs) ||
+                      nowMs < championOpensAtMs ||
+                      nowMs >= championClosesAtMs
+                    ) {
                       return;
                     }
                     window.dispatchEvent(
@@ -2610,7 +2626,7 @@ export default function WorldCanvas({
         onProgressRefresh,
       );
     };
-  }, [previewState, refreshBalance]);
+  }, [previewState, refreshBalance, setStateAndCountdowns]);
 
   // Championship assignment is server-authoritative and refreshes at the GC boundary.
 
