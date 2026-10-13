@@ -2173,6 +2173,39 @@ async def admin_set_stage_level_config(
     }
 
 
+def _resolve_registration_cohort(user, progress, settings, contest_sequence):
+    created = user.get("created_at")
+    if isinstance(created, str):
+        try:
+            created = datetime.fromisoformat(created.replace("Z", "+00:00"))
+        except ValueError:
+            created = None
+    created = _ensure_aware_datetime(created)
+    start = _ensure_aware_datetime(settings.get("season_start_at"))
+    if created is not None and start is not None and contest_sequence:
+        resolved = contest_for_time(
+            start,
+            created,
+            contest_sequence,
+            settings.get("championship_extensions") or {},
+        )
+        if resolved.get("global_contest_number") is not None:
+            return int(resolved["global_contest_number"]), "registration_timestamp"
+        if resolved.get("phase") == "before_season":
+            return int(contest_sequence[0]), "before_season"
+
+    for source, value in (
+        ("stored", user.get("free_world_started_global_contest")),
+        ("progress_stored", progress.get("free_world_started_global_contest")),
+    ):
+        if value is not None:
+            try:
+                return max(1, int(value)), source
+            except (TypeError, ValueError):
+                pass
+    return None, "unknown"
+
+
 async def _admin_world_championship_snapshot(db, user, progress, active_number, contest_sequence, settings):
     """READ ONLY: distinguish active GC, cohort, stored C, and expected C.
 
@@ -2180,54 +2213,46 @@ async def _admin_world_championship_snapshot(db, user, progress, active_number, 
     may write. Missing or ambiguous cohort is reported, not guessed.
     """
     stored = int(progress.get("champion_stage") or 1)
-    cohort_raw = user.get("free_world_started_global_contest")
-    if cohort_raw is None:
-        cohort_raw = progress.get("free_world_started_global_contest")
-    cohort_source = "stored" if cohort_raw is not None else "unknown"
-    if cohort_raw is None:
-        created = user.get("created_at")
-        if isinstance(created, str):
-            try:
-                created = datetime.fromisoformat(created.replace("Z", "+00:00"))
-            except ValueError:
-                created = None
-        created = _ensure_aware_datetime(created)
-        start = _ensure_aware_datetime(settings.get("season_start_at"))
-        if created is not None and start is not None and contest_sequence:
-            resolved = contest_for_time(
-                start, created, contest_sequence,
-                settings.get("championship_extensions") or {},
-            )
-            if resolved.get("global_contest_number") is not None:
-                cohort_raw = resolved["global_contest_number"]
-                cohort_source = "registration_timestamp"
-            elif resolved.get("phase") == "before_season":
-                cohort_raw = contest_sequence[0]
-                cohort_source = "before_season"
-    cohort = None
+    stored_cohort = user.get("free_world_started_global_contest")
+    if stored_cohort is None:
+        stored_cohort = progress.get("free_world_started_global_contest")
+    cohort, cohort_source = _resolve_registration_cohort(
+        user, progress, settings, contest_sequence,
+    )
+    registration_cohort_mismatch = False
     expected = None
-    warning = None
+    warnings = []
     try:
-        if cohort_raw is not None:
-            cohort = int(cohort_raw)
         if active_number is not None and cohort is not None:
             expected = expected_personal_championship(
                 int(active_number), cohort, contest_sequence,
             )
     except (ValueError, TypeError) as exc:
-        warning = str(exc)
-    if expected is None and warning is None:
-        warning = "Cannot verify championship: active GC or registration GC is missing"
-    elif expected is not None and expected != stored:
-        warning = f"Stored C{stored} differs from calculated C{expected}"
+        warnings.append(str(exc))
+    if expected is None and not warnings:
+        warnings.append("Cannot verify championship: active GC or registration GC is missing")
+    if stored_cohort is not None and cohort is not None:
+        try:
+            if int(stored_cohort) != cohort:
+                registration_cohort_mismatch = True
+                warnings.append(
+                    f"Stored registration GC{stored_cohort} differs from timestamp-derived GC{cohort}"
+                )
+        except (TypeError, ValueError):
+            registration_cohort_mismatch = True
+            warnings.append("Stored registration GC is invalid")
+    if expected is not None and expected != stored:
+        warnings.append(f"Stored C{stored} differs from calculated C{expected}")
     return {
         "current_global_contest": active_number,
         "registration_global_contest": cohort,
         "registration_gc_source": cohort_source,
+        "stored_registration_global_contest": stored_cohort,
+        "registration_cohort_mismatch": registration_cohort_mismatch,
         "stored_personal_championship": stored,
         "calculated_personal_championship": expected,
         "championship_mismatch": expected is not None and expected != stored,
-        "championship_warning": warning,
+        "championship_warning": "; ".join(warnings) or None,
     }
 
 
@@ -4453,18 +4478,6 @@ async def _free_world_signup_contest(db, user_id: str, fallback: int | None = No
         {"user_id": user_id},
         {"_id": 0, "created_at": 1, "free_world_started_global_contest": 1},
     ) or {}
-    stored_cohort = user.get("free_world_started_global_contest")
-    if stored_cohort is not None:
-        return max(1, int(stored_cohort))
-
-    registered_at = user.get("created_at")
-    if isinstance(registered_at, str):
-        try:
-            registered_at = datetime.fromisoformat(registered_at.replace("Z", "+00:00"))
-        except ValueError:
-            registered_at = None
-    registered_at = _ensure_aware_datetime(registered_at)
-
     setting = await db.world_settings.find_one(
         {"_id": "active_global_contest", "season_id": WORLD_SEASON_ID},
         {"_id": 0, "season_start_at": 1, "championship_extensions": 1},
@@ -4477,39 +4490,25 @@ async def _free_world_signup_contest(db, user_id: str, fallback: int | None = No
     contest_sequence = ordered_contest_sequence(
         row.get("contest_number") for row in configured_contests
     )
-    number = max(1, int(fallback)) if fallback is not None else None
-    if number is None and registered_at is not None and season_start is not None:
-        resolved = contest_for_time(
-            season_start,
-            registered_at,
-            contest_sequence,
-            setting.get("championship_extensions") or {},
-        )
-        number = resolved.get("global_contest_number")
-        if number:
-            number = max(1, int(number))
-        elif resolved.get("phase") == "before_season":
-            number = contest_sequence[0] if contest_sequence else 1
+    number, _source = _resolve_registration_cohort(
+        user,
+        {"free_world_started_global_contest": fallback},
+        {**setting, "season_start_at": season_start},
+        contest_sequence,
+    )
+    if number is None and fallback is not None:
+        number = max(1, int(fallback))
 
     if number is None:
         active = await _active_contest(db)
         number = max(1, int(active["contest_number"])) if active and active.get("contest_number") else 1
 
-    await db.users.update_one(
-        {
-            "user_id": user_id,
-            "$or": [
-                {"free_world_started_global_contest": {"$exists": False}},
-                {"free_world_started_global_contest": None},
-            ],
-        },
-        {"$set": {"free_world_started_global_contest": number}},
-    )
-    refreshed = await db.users.find_one(
-        {"user_id": user_id},
-        {"_id": 0, "free_world_started_global_contest": 1},
-    ) or {}
-    return max(1, int(refreshed.get("free_world_started_global_contest") or number))
+    if user.get("free_world_started_global_contest") != number:
+        await db.users.update_one(
+            {"user_id": user_id},
+            {"$set": {"free_world_started_global_contest": number}},
+        )
+    return number
 
 
 def _verified_level_progress(levels) -> dict:

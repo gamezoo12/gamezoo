@@ -20,6 +20,7 @@ from services.world_championship_schedule import (
     global_contest_for_stage,
     london_calendar_datetime,
 )
+from services import world_championship_scheduler
 
 
 def test_expected_personal_championship_gc1_to_gc2():
@@ -32,6 +33,73 @@ def test_expected_personal_championship_gc2_to_gc3_for_gc1_user():
 
 def test_expected_personal_championship_gc3_for_gc2_user():
     assert expected_personal_championship(3, 2) == 2
+
+
+def test_registration_timestamp_overrides_stale_gc1_cohort():
+    settings = {
+        "season_start_at": datetime(2026, 9, 14, 23, tzinfo=timezone.utc),
+    }
+    user = {
+        "created_at": datetime(2026, 10, 8, 18, tzinfo=timezone.utc),
+        "free_world_started_global_contest": 1,
+    }
+    progress = {"free_world_started_global_contest": 1}
+    cohort, source = world_routes._resolve_registration_cohort(
+        user, progress, settings, [1, 2, 3, 4],
+    )
+
+    assert (cohort, source) == (2, "registration_timestamp")
+    assert expected_personal_championship(3, cohort, [1, 2, 3, 4]) == 2
+
+
+def test_admin_championship_snapshot_reports_timestamp_cohort_and_stale_stage():
+    settings = {
+        "season_start_at": datetime(2026, 9, 14, 23, tzinfo=timezone.utc),
+    }
+    user = {
+        "created_at": datetime(2026, 10, 8, 18, tzinfo=timezone.utc),
+        "free_world_started_global_contest": 1,
+    }
+    progress = {
+        "champion_stage": 3,
+        "free_world_started_global_contest": 1,
+    }
+
+    snapshot = asyncio.run(world_routes._admin_world_championship_snapshot(
+        None, user, progress, 3, [1, 2, 3, 4], settings,
+    ))
+
+    assert snapshot["registration_global_contest"] == 2
+    assert snapshot["calculated_personal_championship"] == 2
+    assert snapshot["stored_personal_championship"] == 3
+    assert snapshot["championship_mismatch"] is True
+    assert snapshot["registration_cohort_mismatch"] is True
+    assert "timestamp-derived GC2" in snapshot["championship_warning"]
+
+
+def test_gc_boundary_rollover_targets_expected_stage_without_touching_ledgers():
+    progress = {
+        "champion_stage": 3,
+        "current_level": 7,
+        "highest_unlocked_level": 8,
+        "completed_levels": [1, 2, 3, 4, 5, 6],
+        "free_world_started_global_contest": 1,
+        "verified_passes": [1, 2, 3, 4, 5, 6],
+    }
+    now = datetime(2026, 10, 9, 23, tzinfo=timezone.utc)
+
+    patch = world_championship_scheduler._personal_stage_rollover_patch(
+        progress, expected_stage=2, registration_gc=2,
+        active_start=now, now=now,
+    )
+
+    assert patch["champion_stage"] == 2
+    assert patch["current_level"] == 1
+    assert patch["completed_levels"] == []
+    assert patch["free_world_started_global_contest"] == 2
+    assert "verified_passes" not in patch
+    assert "wallet" not in patch
+    assert "prizes" not in patch
 
 
 def test_expected_personal_championship_before_registration_cohort():

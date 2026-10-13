@@ -28,6 +28,9 @@ from services.world_championship_schedule import (
     SEASON_CHAMPIONSHIP_COUNT,
     championship_for_time,
     championship_window,
+    contest_for_time,
+    ensure_utc,
+    expected_personal_championship,
     ordered_contest_sequence,
 )
 
@@ -510,6 +513,155 @@ async def _activate_contest(
     return True
 
 
+def _personal_stage_rollover_patch(progress, expected_stage, registration_gc, active_start, now):
+    current_stage = int(progress.get("champion_stage") or 1)
+    cohort_changed = int(progress.get("free_world_started_global_contest") or 0) != registration_gc
+    if current_stage == expected_stage and not cohort_changed:
+        return None
+    patch = {
+        "free_world_started_global_contest": registration_gc,
+        "updated_at": now,
+    }
+    if current_stage != expected_stage:
+        patch.update({
+            "champion_stage": expected_stage,
+            "current_level": 1,
+            "highest_unlocked_level": 1,
+            "completed_levels": [],
+            "skipped_levels": [],
+            "token_unlocked_levels": [],
+            "champion_ready": False,
+            "season_complete": False,
+            "personal_stage_started_at": active_start,
+        })
+    return patch
+
+
+async def _reconcile_personal_progress(db, active_gc, active_start, contest_sequence, setting, now):
+    """Align stored personal stages once per GC, without touching history ledgers."""
+    state = await db.world_settings.find_one(
+        {"_id": "active_global_contest", "season_id": WORLD_SEASON_ID},
+        {"_id": 0, "personal_progress_reconciled_gc": 1},
+    ) or {}
+    if int(state.get("personal_progress_reconciled_gc") or 0) >= int(active_gc):
+        return {"updated": 0, "skipped": 0, "already_reconciled": True}
+
+    progress_rows = await db.world_progress.find(
+        {"season_id": WORLD_SEASON_ID},
+        {"_id": 0},
+    ).to_list(None)
+    user_ids = [row.get("user_id") for row in progress_rows if row.get("user_id")]
+    users = await db.users.find(
+        {"user_id": {"$in": user_ids}},
+        {"_id": 0, "user_id": 1, "created_at": 1,
+         "free_world_started_global_contest": 1},
+    ).to_list(None) if user_ids else []
+    users_by_id = {row.get("user_id"): row for row in users}
+    updated = 0
+    skipped = 0
+
+    for progress in progress_rows:
+        user_id = progress.get("user_id")
+        user = users_by_id.get(user_id)
+        if not user:
+            log.warning("[world-scheduler] rollover skipped; user missing user_id=%s", user_id)
+            skipped += 1
+            continue
+
+        registered_at = user.get("created_at")
+        if isinstance(registered_at, str):
+            try:
+                registered_at = datetime.fromisoformat(registered_at.replace("Z", "+00:00"))
+            except ValueError:
+                registered_at = None
+        cohort = None
+        if registered_at is not None and setting.get("season_start_at"):
+            resolved = contest_for_time(
+                ensure_utc(setting["season_start_at"]),
+                ensure_utc(registered_at),
+                contest_sequence,
+                setting.get("championship_extensions") or {},
+            )
+            cohort = resolved.get("global_contest_number")
+            if cohort is None and resolved.get("phase") == "before_season":
+                cohort = contest_sequence[0] if contest_sequence else None
+        if cohort is None:
+            cohort = (
+                user.get("free_world_started_global_contest")
+                or progress.get("free_world_started_global_contest")
+            )
+        try:
+            cohort = int(cohort)
+            expected_stage = expected_personal_championship(
+                int(active_gc), cohort, contest_sequence,
+            )
+        except (TypeError, ValueError) as exc:
+            log.warning(
+                "[world-scheduler] rollover skipped; cohort unresolved user_id=%s error=%s",
+                user_id, exc,
+            )
+            skipped += 1
+            continue
+
+        patch = _personal_stage_rollover_patch(
+            progress, expected_stage, cohort, active_start, now,
+        )
+        if patch is None:
+            continue
+        current_stage = int(progress.get("champion_stage") or 1)
+        stage_filter = current_stage if progress.get("champion_stage") is not None else {"$exists": False}
+        result = await db.world_progress.update_one(
+            {
+                "season_id": WORLD_SEASON_ID,
+                "user_id": user_id,
+                "champion_stage": stage_filter,
+            },
+            {"$set": patch},
+        )
+        if result.modified_count != 1:
+            continue
+
+        user_cohort = user.get("free_world_started_global_contest")
+        if user_cohort != cohort:
+            await db.users.update_one(
+                {"user_id": user_id},
+                {"$set": {"free_world_started_global_contest": cohort}},
+            )
+        changes = [
+            {
+                "field": field,
+                "before": progress.get(field),
+                "after": value,
+            }
+            for field, value in patch.items()
+            if field != "updated_at" and progress.get(field) != value
+        ]
+        if user_cohort != cohort:
+            changes.append({
+                "field": "users.free_world_started_global_contest",
+                "before": user_cohort,
+                "after": cohort,
+            })
+        await db.world_progress_audit_log.insert_one({
+            "season_id": WORLD_SEASON_ID,
+            "user_id": user_id,
+            "actor_user_id": "system_world_scheduler",
+            "actor_email": "system_world_scheduler",
+            "actor_role": "system",
+            "changes": changes,
+            "reason": f"GC{active_gc} boundary cohort reconciliation",
+            "created_at": now,
+        })
+        updated += 1
+
+    if skipped == 0:
+        await db.world_settings.update_one(
+            {"_id": "active_global_contest", "season_id": WORLD_SEASON_ID},
+            {"$set": {"personal_progress_reconciled_gc": int(active_gc)}},
+        )
+    return {"updated": updated, "skipped": skipped, "already_reconciled": False}
+
+
 async def tick_free_world(
     db,
     now: datetime | None = None,
@@ -757,6 +909,23 @@ async def tick_free_world(
                 "[world-scheduler] Championship %s active; phase=%s",
                 contest_number,
                 phase,
+            )
+
+    if already_correct or activated:
+        rollover = await _reconcile_personal_progress(
+            db,
+            contest_number,
+            expected_start,
+            contest_sequence,
+            setting,
+            now,
+        )
+        if rollover.get("updated"):
+            log.info(
+                "[world-scheduler] reconciled personal progress GC%s updated=%s skipped=%s",
+                contest_number,
+                rollover["updated"],
+                rollover["skipped"],
             )
 
     # Previous Championship may need settlement after rollover.

@@ -836,6 +836,7 @@ export default function FreeWorldAdmin() {
                 <th className="text-left px-3 py-2">Public ID</th>
                 <th className="text-left px-3 py-2">Name</th>
                 <th className="text-left px-3 py-2">Email</th>
+                <th className="text-left px-3 py-2">Championship</th>
                 <th className="text-left px-3 py-2">Level</th>
                 <th className="text-left px-3 py-2">Completed</th>
                 <th className="text-left px-3 py-2">Champion</th>
@@ -847,7 +848,7 @@ export default function FreeWorldAdmin() {
             </thead>
             <tbody>
               {usersLoading && (
-                <tr><td colSpan={10} className="px-3 py-6 text-center text-slate-400">
+                <tr><td colSpan={11} className="px-3 py-6 text-center text-slate-400">
                   Loading…</td></tr>
               )}
               {!usersLoading && users.map((u) => (
@@ -858,6 +859,12 @@ export default function FreeWorldAdmin() {
                   <td className="px-3 py-2 font-mono text-xs">{u.public_id || '—'}</td>
                   <td className="px-3 py-2">{u.name || '—'}</td>
                   <td className="px-3 py-2 text-slate-500">{u.email || '—'}</td>
+                  <td className="px-3 py-2 font-bold"
+                    data-testid={`users-championship-${u.user_id}`}
+                    title={u.championship_warning || ''}>
+                    C{u.calculated_personal_championship ?? u.stored_personal_championship ?? '—'}
+                    {(u.championship_mismatch || u.registration_cohort_mismatch) && <span className="ml-1 text-amber-600" aria-label="Stored assignment data differs from the calculated assignment">!</span>}
+                  </td>
                   <td className="px-3 py-2 font-bold">{u.current_level}</td>
                   <td className="px-3 py-2">{u.completed_count}/10</td>
                   <td className="px-3 py-2">{u.champion_ready ? 'Yes' : 'No'}</td>
@@ -868,7 +875,7 @@ export default function FreeWorldAdmin() {
                 </tr>
               ))}
               {!usersLoading && !users.length && (
-                <tr><td colSpan={10} className="px-3 py-6 text-center text-slate-400"
+                <tr><td colSpan={11} className="px-3 py-6 text-center text-slate-400"
                   data-testid="users-empty">No users found.</td></tr>
               )}
             </tbody>
@@ -961,7 +968,20 @@ export default function FreeWorldAdmin() {
               <div className="text-slate-500">{selectedUser.email || '—'}</div>
               {detail?.current_championship != null && (
                 <div className="text-slate-500 mt-1 text-xs">
-                  Current global Championship: <b>{detail.current_championship}</b>
+                  Active global contest: <b>GC{detail.current_championship}</b>
+                </div>
+              )}
+              {detail?.calculated_personal_championship != null && (
+                <div className="text-slate-500 mt-1 text-xs" data-testid="user-calculated-championship">
+                  Expected personal Championship: <b>C{detail.calculated_personal_championship}</b>
+                  {' '}· Registration cohort: <b>GC{detail.registration_global_contest}</b>
+                  {detail.registration_gc_source === 'registration_timestamp' && ' (from registration timestamp)'}
+                </div>
+              )}
+              {(detail?.championship_mismatch || detail?.registration_cohort_mismatch) && (
+                <div className="mt-2 text-xs font-semibold text-amber-700" role="status" data-testid="championship-mismatch-warning">
+                  Stored progress is C{detail.stored_personal_championship}; expected C{detail.calculated_personal_championship}.
+                  {detail.championship_warning && <span className="block font-normal">{detail.championship_warning}</span>}
                 </div>
               )}
               {detail?.user && (
