@@ -40,8 +40,12 @@ export const captchaAPI = {
 
 export const supportAPI = {
   create: (data) => api.post('/support', data).then(r => r.data),
+  createGuest: (data) => api.post('/support/guest', data).then(r => r.data),
   mine: () => api.get('/support/mine').then(r => r.data),
   reply: (case_id, message) => api.post(`/support/${case_id}/reply`, { message }).then(r => r.data),
+  config: () => api.get('/support/config').then(r => r.data),
+  knowledge: () => api.get('/support/knowledge').then(r => r.data),
+  aiChat: (message, history = []) => api.post('/support/ai/chat', { message, history }).then(r => r.data),
 };
 
 export const contestsAPI = {
@@ -140,6 +144,14 @@ export const adminAPI = {
   supportCases: (status) => api.get('/admin/support/cases', { params: status ? { status } : {} }).then(r => r.data),
   supportReply: (case_id, message) => api.post(`/admin/support/cases/${case_id}/reply`, { message }).then(r => r.data),
   supportStatus: (case_id, status) => api.post(`/admin/support/cases/${case_id}/status`, { status }).then(r => r.data),
+  supportCasesSearch: (params = {}) => api.get('/admin/support/cases', { params }).then(r => r.data),
+  supportPriority: (case_id, priority) => api.post(`/admin/support/cases/${case_id}/priority`, { priority }).then(r => r.data),
+  supportAssign: (case_id, admin_user_id) => api.post(`/admin/support/cases/${case_id}/assign`, { admin_user_id }).then(r => r.data),
+  supportNote: (case_id, note) => api.post(`/admin/support/cases/${case_id}/notes`, { note }).then(r => r.data),
+  supportKnowledge: () => api.get('/admin/support/knowledge').then(r => r.data),
+  createSupportKnowledge: (data) => api.post('/admin/support/knowledge', data).then(r => r.data),
+  updateSupportKnowledge: (id, data) => api.put(`/admin/support/knowledge/${id}`, data).then(r => r.data),
+  deleteSupportKnowledge: (id) => api.delete(`/admin/support/knowledge/${id}`).then(r => r.data),
   wsAudit: (cid) => api.get(`/admin/winners/${cid}/audit`).then(r => r.data),
 
   kycList: (status = 'all') => api.get('/admin/kyc', { params: { status } }).then(r => r.data),

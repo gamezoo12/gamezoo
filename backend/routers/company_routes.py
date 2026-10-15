@@ -41,6 +41,7 @@ DEFAULT_COMPANY = {
     'website': 'https://www.prizeleague.co.uk',
     'email_general': 'info@prizeleague.co.uk',
     'email_support': 'support@prizeleague.co.uk',
+    'whatsapp_support_number': '',
     'legal_footer': (
         'Prize League is operated by PRIZE LEAGUE LTD, a company registered '
         'in England and Wales under company number 17338919. Registered '
@@ -76,6 +77,7 @@ class CompanyUpdate(BaseModel):
     website: Optional[str] = None
     email_general: Optional[str] = None
     email_support: Optional[str] = None
+    whatsapp_support_number: Optional[str] = None
     legal_footer: Optional[str] = None
     registered_address: Optional[dict] = None
     postal_address_line1: Optional[str] = None
@@ -115,6 +117,7 @@ async def public_company():
         'website': doc.get('website'),
         'email_general': doc.get('email_general'),
         'email_support': doc.get('email_support'),
+        'whatsapp_support_number': doc.get('whatsapp_support_number', ''),
         'legal_footer': doc.get('legal_footer'),
         'postal_address_line1': doc.get('postal_address_line1'),
         'postal_address_line2': doc.get('postal_address_line2'),

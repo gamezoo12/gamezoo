@@ -16,6 +16,7 @@ const FIELDS = [
   { key: 'website', label: 'Website' },
   { key: 'email_general', label: 'General email' },
   { key: 'email_support', label: 'Support email' },
+  { key: 'whatsapp_support_number', label: 'WhatsApp Business number (international format)' },
 ];
 
 const POSTAL_FIELDS = [

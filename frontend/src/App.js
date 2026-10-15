@@ -13,6 +13,7 @@ import TermsGate from './components/TermsGate';
 import PromotionPopup from './components/PromotionPopup';
 import PromotionAuthBridge from './components/PromotionAuthBridge';
 import PromotionFloatingBadge from './components/PromotionFloatingBadge';
+import GlobalSupportAssistant from './components/support/GlobalSupportAssistant';
 
 import PublicLayout from './components/layout/PublicLayout';
 
@@ -63,6 +64,7 @@ const FreeWorldAdmin = lazy(() => import('./pages/admin/FreeWorldAdmin'));
 const SpecialChallengeAdmin = lazy(() => import('./pages/admin/SpecialChallengeAdmin'));
 const WinningsPayoutsAdmin = lazy(() => import('./pages/admin/WinningsPayoutsAdmin'));
 const CashOutAdmin = lazy(() => import('./pages/admin/CashOutAdmin'));
+const SupportTicketsAdmin = lazy(() => import('./pages/admin/SupportTicketsAdmin'));
 const PromotionAdminShell = lazy(() => import('./pages/admin/PromotionAdminShell'));
 const PromotionCampaignsAdmin = lazy(() => import('./pages/admin/PromotionCampaignsAdmin'));
 const PromotionCampaignsPage = lazy(() => import('./pages/PromotionCampaignsPage'));
@@ -518,6 +520,11 @@ function AppRouter() {
           element={<SpecialChallengeAdmin />}
         />
 
+        <Route
+          path="support"
+          element={<SupportTicketsAdmin />}
+        />
+
 
         {/* Promotion Admin */}
 
@@ -678,6 +685,9 @@ function App() {
 
           {/* Main application routes */}
           <AppRouter />
+
+          {/* Single global, route-persistent customer support assistant */}
+          <GlobalSupportAssistant />
 
 
           {/* Existing global promotion popup */}

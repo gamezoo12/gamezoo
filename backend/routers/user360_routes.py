@@ -831,6 +831,25 @@ async def erase_user(user_id: str, payload: DeleteRequest, request: Request):
     await db.kyc.delete_many({'user_id': user_id})
     # Clear active sessions
     await db.user_sessions.delete_many({'user_id': user_id})
+    await db.support_cases.update_many(
+        {'user_id': user_id},
+        {'$set': {
+            'user_name': '[ERASED]',
+            'username': None,
+            'user_email': f'erased_{user_id}@prizeleague.deleted',
+            'description': '[Removed as part of account erasure]',
+            'ai_summary': '',
+            'conversation_history': [],
+            'messages': [{
+                'author': 'system',
+                'author_id': 'system',
+                'body': 'Support conversation content removed due to account erasure.',
+                'at': now,
+            }],
+            'internal_notes': [],
+            'updated_at': now,
+        }},
+    )
     await db.audit_log.insert_one({
         'audit_id': f'aud_{uuid.uuid4().hex[:12]}',
         'kind': 'user_erase',
