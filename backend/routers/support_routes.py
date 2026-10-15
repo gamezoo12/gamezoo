@@ -220,14 +220,17 @@ async def _notify_user(db, user_id, *, kind, title, body, ticket_id):
 
 
 def _case_document(*, case_id, user_id, user_name, username=None, user_email, category, subject,
-                   message, ai_summary=None, conversation_history=None, now=None):
+                   message, ai_summary=None, conversation_history=None, now=None, user_public_id=None):
     now = now or datetime.now(timezone.utc)
     return {
         'case_id': case_id,
         'user_id': user_id,
+        'user_public_id': user_public_id,
         'user_name': user_name,
         'username': username,
         'user_email': user_email,
+        'guest': user_id is None,
+        'identity_status': 'registered' if user_id else 'guest_unverified',
         'category': category,
         'subject': subject.strip(),
         'description': _redact_sensitive(message).strip(),
@@ -345,6 +348,7 @@ async def create_case(inp: CreateCase, request: Request):
         user_id=user['user_id'],
         user_name=user.get('name'),
         username=user.get('username'),
+        user_public_id=user.get('public_id'),
         user_email=user.get('email'),
         category=inp.category,
         subject=inp.subject,

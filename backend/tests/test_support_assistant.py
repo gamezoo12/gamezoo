@@ -64,3 +64,13 @@ def test_case_document_stores_ticket_history_without_internal_notes():
     assert case['conversation_history'] == [{'role': 'user', 'content': 'Login problem'}]
     assert case['internal_notes'] == []
     assert case['messages'][0]['body'] == 'I cannot access my account.'
+
+
+def test_ticket_identity_status_follows_server_side_user_id():
+    common = dict(case_id='c', user_name='N', user_email='e@example.com', category='other',
+                  subject='Subject', message='A long enough message.')
+    member = support_routes._case_document(user_id='user-1', username='n1', user_public_id='PL00001', **common)
+    guest = support_routes._case_document(user_id=None, **common)
+
+    assert (member['identity_status'], member['guest'], member['username'], member['user_public_id']) == ('registered', False, 'n1', 'PL00001')
+    assert (guest['identity_status'], guest['guest'], guest['user_id']) == ('guest_unverified', True, None)
