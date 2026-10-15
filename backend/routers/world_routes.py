@@ -13,6 +13,7 @@ IMPORTANT:
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 import secrets
@@ -2691,11 +2692,32 @@ async def admin_edit_user_progress(
         }
 
     set_doc["updated_at"] = _utcnow()
+    set_doc["admin_override_stage"] = new_stage
 
-    await db.world_progress.update_one(
-        {"season_id": WORLD_SEASON_ID, "user_id": user_id},
+    write = await db.world_progress.update_one(
+        {
+            "season_id": WORLD_SEASON_ID,
+            "user_id": user_id,
+            "champion_stage": new_stage,
+        },
         {"$set": set_doc},
     )
+    if write.matched_count != 1:
+        raise HTTPException(
+            status_code=409,
+            detail="Progress was not updated because the user's Championship changed. Reload and retry.",
+        )
+
+    after = await _free_world_progress(db, user_id)
+    if (
+        int(after.get("current_level") or 0) != new_current
+        or int(after.get("highest_unlocked_level") or 0) != new_highest
+        or sorted(int(x) for x in (after.get("completed_levels") or [])) != new_completed
+    ):
+        raise HTTPException(
+            status_code=500,
+            detail="Progress was saved but Free World did not apply it. No success was recorded.",
+        )
 
     audit_entry = {
         "season_id": WORLD_SEASON_ID,
@@ -4570,7 +4592,9 @@ async def _reconcile_verified_level_history(db, user_id: str, progress: dict) ->
     completion_conflicts = sorted(legacy_completed - verified)
     progress["completion_conflicts"] = completion_conflicts
     verified_progress = _verified_level_progress(verified)
-    progress.update(verified_progress)
+    # Admin-pinned progress for this championship is authoritative; gameplay then advances it.
+    if progress.get("admin_override_stage") != stage:
+        progress.update(verified_progress)
     skipped = set(int(x) for x in (progress.get("skipped_levels") or []))
     skipped.update(int(row["level"]) for row in skip_rows)
 
@@ -5950,34 +5974,28 @@ async def free_world_state(
         )
     )
 
-    levels_state = []
+    # Bound concurrency to avoid overwhelming the database connection pool.
+    level_lookup_limit = asyncio.Semaphore(4)
 
-    for level_number in range(
-        1,
-        11,
-    ):
-        level_config = (
-            await _effective_level_config(
-                db,
-                level_number,
-                int(progress.get("champion_stage") or 1),
+    async def _load_level_state(level_number: int):
+        async with level_lookup_limit:
+            level_config, level_unlock = await asyncio.gather(
+                _effective_level_config(
+                    db,
+                    level_number,
+                    int(progress.get("champion_stage") or 1),
+                ),
+                _resolve_unlock_context(
+                    db,
+                    level_number,
+                    progress,
+                ),
             )
-        )
+            return {**level_config, **level_unlock}
 
-        level_unlock = (
-            await _resolve_unlock_context(
-                db,
-                level_number,
-                progress,
-            )
-        )
-
-        levels_state.append(
-            {
-                **level_config,
-                **level_unlock,
-            }
-        )
+    levels_state = await asyncio.gather(
+        *(_load_level_state(level_number) for level_number in range(1, 11))
+    )
 
     active_contest = (
         await _active_contest(
@@ -11159,116 +11177,17 @@ async def _enforce_champion_paid_qualification(
     champion_stage: int,
     global_contest_number: int,
 ) -> dict:
+    """Champion entry requires World progression, not a paid contest ticket.
+
+    The session-start route independently verifies the active contest,
+    stage snapshot, Level 10 progression, and available attempts.
     """
-    Free World Champion prize-level qualification gate.
-
-    Champion 1-2:
-      paid contest participation is not required.
-
-    Champion 3+:
-      at least one verified paid Prize League contest entry
-      must exist inside the applicable GLOBAL World contest
-      window.
-
-    This helper is READ-ONLY against paid contest data.
-
-    It does NOT:
-      - modify paid tickets
-      - modify paid orders
-      - modify paid contests
-      - modify paid game routes
-      - modify wallet
-      - advance World progression
-      - award any prize
-    """
-
-    champion_stage = max(
-        1,
-        int(champion_stage),
-    )
-
-    if champion_stage < (
-        CHAMPION_PAID_QUALIFICATION_START_STAGE
-    ):
-        return {
-            "required": False,
-            "qualified": True,
-            "reason":
-                "not_required_for_this_champion",
-            "champion_stage":
-                champion_stage,
-            "global_contest_number":
-                int(global_contest_number),
-        }
-
-    evidence = (
-        await _paid_contest_qualification_evidence(
-            db,
-            user_id,
-            int(global_contest_number),
-        )
-    )
-
-    if not bool(
-        evidence.get("qualified")
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "code":
-                    "CHAMPION_PAID_QUALIFICATION_REQUIRED",
-
-                "message":
-                    (
-                        "Enter at least one paid Prize League "
-                        "contest during this Championship "
-                        "period to qualify for this Champion "
-                        "prize challenge."
-                    ),
-
-                "champion_stage":
-                    champion_stage,
-
-                "global_contest_number":
-                    int(
-                        global_contest_number
-                    ),
-
-                "qualification_required":
-                    True,
-
-                "qualified":
-                    False,
-
-                "reason":
-                    evidence.get(
-                        "reason"
-                    ),
-            },
-        )
-
     return {
-        "required":
-            True,
-
-        "qualified":
-            True,
-
-        "reason":
-            "verified_paid_contest_entry",
-
-        "champion_stage":
-            champion_stage,
-
-        "global_contest_number":
-            int(
-                global_contest_number
-            ),
-
-        "evidence":
-            evidence.get(
-                "evidence"
-            ),
+        "required": False,
+        "qualified": True,
+        "reason": "paid_contest_entry_not_required",
+        "champion_stage": max(1, int(champion_stage)),
+        "global_contest_number": int(global_contest_number),
     }
 
 
@@ -11278,79 +11197,11 @@ async def _champion_prize_qualification(
     champion_stage: int,
     global_contest_number: Optional[int] = None,
 ):
-    """
-    Champion 1-2:
-      prize qualification automatically satisfied.
-
-    Champion 3+:
-      technical qualification field exists.
-
-    Paid-contest participation lookup is deliberately NOT
-    connected yet because paid contest routes/data are being
-    protected from this Free World build.
-    """
-
-    if champion_stage < (
-        CHAMPION_PAID_QUALIFICATION_START_STAGE
-    ):
-        return {
-            "required": False,
-            "qualified": True,
-            "reason":
-                "not_required_for_this_champion",
-        }
-
-    if not (
-        CHAMPION_PAID_QUALIFICATION_FEATURE_ENABLED
-    ):
-        return {
-            "required": True,
-
-            # Not enforced while feature is disabled.
-            "qualified": True,
-
-            "enforcement_enabled": False,
-
-            "reason":
-                "qualification_feature_not_enabled",
-        }
-
-    record = await db.world_prize_qualifications.find_one(
-        {
-            "season_id":
-                WORLD_SEASON_ID,
-
-            "user_id":
-                user_id,
-
-            "champion_stage":
-                champion_stage,
-
-            **(
-                {
-                    "global_contest_number":
-                        global_contest_number
-                }
-                if global_contest_number is not None
-                else {}
-            ),
-        },
-        {
-            "_id": 0,
-        },
-    )
-
+    """Paid contest participation is not a Champion prize prerequisite."""
     return {
-        "required": True,
-        "qualified": bool(
-            record
-            and record.get(
-                "qualified"
-            ) is True
-        ),
-        "enforcement_enabled": True,
-        "record":
-            _clean_doc(record),
+        "required": False,
+        "qualified": True,
+        "reason": "paid_contest_entry_not_required",
     }
 
 
