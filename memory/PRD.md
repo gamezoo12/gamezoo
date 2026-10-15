@@ -1,5 +1,17 @@
 # Prize League â€” PRD
 
+## Notification item open + full-view details (2026-06)
+ROOT CAUSE: notification list `<li>` items (both the header bell `NotificationsBell.jsx` and Profile→Notifications `MyAccount.jsx`) had NO click handler — only the tiny mark-read toggle was interactive, and no details view existed anywhere. So tapping a notification did nothing.
+FIX (frontend only, minimal): item body is now a button that opens a responsive Notification Details modal (title, timestamp in Europe/London, full untruncated body via whitespace-pre-wrap, Back + close). Opening marks read ONLY after a successful backend write. Support-ticket notifications (`kind` support_reply/support_status with `ref_ticket_id`) show a "View Support Ticket" action that dispatches `pl-open-support-ticket` → `GlobalSupportAssistant` opens the "My Support Tickets" view focused on that case (`MySupportTickets` new `focusCaseId` auto-select). List styling/unread counters/filters unchanged.
+Files: `frontend/src/components/layout/NotificationsBell.jsx`, `frontend/src/pages/MyAccount.jsx`, `frontend/src/components/support/GlobalSupportAssistant.jsx`, `frontend/src/components/support/MySupportTickets.jsx`.
+Verified in preview: bell list → click item → detail modal (title/full body/timestamp) → View Support Ticket opens the correct ticket thread. Privacy re-confirmed (see prior entry): replies are recipient-scoped; `notify()` fails safely with no recipient. NOT deployed.
+
+## Support-ticket notification privacy + bell open (2026-06 — security investigation)
+PROBLEM 1 (replies to all users): NO bug found in current code. Trace: admin reply `POST /api/admin/support/cases/{id}/reply` (`support_routes.admin_reply`) resolves recipient from DB `case.user_id`, calls `_notify_user`→`notify()` which stores a per-user doc; all listing/unread/mark-read (`production_routes` `/api/users/notifications*`) filter by authenticated `user['user_id']`. `_notify_admins` targets staff only. Verified LIVE (preview): A created ticket → admin replied → A got exactly 1 `support_reply`, B got 0, B's mark-read on A's notif affected 0 rows (A stayed unread). DB scan: 0 support-reply notifs reaching >1 user, 0 null-recipient. Cannot inspect PRODUCTION DB from here (would need an admin audit endpoint); no private ticket contents displayed.
+HARDENING: `notifications.notify()` now hard-refuses creation when `user_id` is empty/non-string → impossible to broadcast accidentally; guests get no in-app notification by design. Global per-user admin alerts still work.
+PROBLEM 2 (bell won't open): bell opens correctly on desktop full-header pages (verified panel renders with items) and the Profile→Notifications page works; bell is rendered on mobile too. Raised panel z-index 10070→10200 so it can never be hidden behind in-world overlays (pl-world-page z1000 / FW leaderboard z10100) — the most likely "nothing opens" case in Free/Paid World. Could NOT reproduce "nothing opens" on desktop; if it persists it's a specific mobile device/screen — need exact device to pin.
+Files: `backend/notifications.py`, `frontend/src/components/layout/NotificationsBell.jsx`. NOT deployed.
+
 ## App speed, smooth nav & live updates (2026-06)
 Measured bottleneck: backend fast (APIs 0.1–0.3s); nav already SPA (React Router). Real cause = frontend had ZERO code-splitting (78 static imports, one giant bundle) + heavy `/world` (WorldCanvas ~3,400 lines) mounting with no loading placeholder. Notifications polled only every 30s.
 Implemented (frontend only, no logic/score/prize changes, no new deps):

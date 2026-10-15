@@ -8,7 +8,7 @@ import MyGamesPanel from '../components/account/MyGamesPanel';
 import {
   User, Wallet, Ticket, Gamepad2, Bell, ShieldCheck, Lock,
   LifeBuoy, FileText, Settings2, Gift, LogOut, ArrowRight,
-  Trophy, Copy, Check, Clock, AlertCircle, Mail, ChevronRight, Upload, Sparkles, Coins,
+  Trophy, Copy, Check, Clock, AlertCircle, Mail, ChevronRight, Upload, Sparkles, Coins, X, ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate, useSearchParams, useParams } from 'react-router-dom';
@@ -85,6 +85,7 @@ export default function MyAccount() {
   const [tickets, setTickets] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [notificationFilter, setNotificationFilter] = useState('all');
+  const [notificationDetail, setNotificationDetail] = useState(null);
   const [kyc, setKyc] = useState({ status: 'none' });
   const [profile, setProfile] = useState({ name: '', email: '', phone: '', username: '', user_id: '', public_id: '', dob: '', address: '', phone_verified: false });
   const [wallet, setWallet] = useState(null);
@@ -255,6 +256,26 @@ export default function MyAccount() {
       window.dispatchEvent(new CustomEvent('pl-notifications-refresh'));
     } catch (error) {
       toast({ title: 'Could not update notification', description: error?.response?.data?.detail || 'Please try again.' });
+    }
+  };
+
+  const openNotificationDetail = async (notification) => {
+    setNotificationDetail(notification);
+    if (!notification.read) {
+      try {
+        await userAPI.markNotificationRead(notification.notification_id);
+        setNotifications(current => current.map(item => item.notification_id === notification.notification_id ? { ...item, read: true } : item));
+        setNotificationDetail(d => (d && d.notification_id === notification.notification_id ? { ...d, read: true } : d));
+        window.dispatchEvent(new CustomEvent('pl-notifications-refresh'));
+      } catch { /* leave unread if backend write failed */ }
+    }
+  };
+
+  const viewTicketFromNotification = (notification) => {
+    const caseId = notification?.ref_ticket_id;
+    setNotificationDetail(null);
+    if (caseId) {
+      window.dispatchEvent(new CustomEvent('pl-open-support-ticket', { detail: { caseId } }));
     }
   };
 
@@ -495,21 +516,55 @@ export default function MyAccount() {
               <ul className="divide-y divide-slate-100">
                 {notifications.filter(n => notificationFilter === 'all' || (notificationFilter === 'unread' ? !n.read : n.read)).map(n => (
                   <li key={n.notification_id} className={`py-3 flex items-start gap-3 ${n.read ? '' : 'bg-indigo-50/50'}`}>
-                    <div className={`w-10 h-10 rounded-xl text-white flex items-center justify-center shrink-0 ${n.read ? 'bg-slate-400' : 'bg-gradient-to-br from-indigo-500 to-violet-600'}`}>
-                      <Trophy className="w-5 h-5" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-semibold text-slate-900">{n.title}</div>
-                      <div className="text-sm text-slate-600 mt-0.5">{n.body}</div>
-                      <div className="text-xs text-slate-400 mt-1">{new Date(n.created_at).toLocaleString('en-GB')}</div>
-                    </div>
-                    <button type="button" onClick={() => updateNotificationRead(n, !n.read)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-white" data-testid={`notification-toggle-read-${n.notification_id}`}>
+                    <button type="button" onClick={() => openNotificationDetail(n)} data-testid={`notification-open-${n.notification_id}`} className="flex items-start gap-3 flex-1 min-w-0 text-left cursor-pointer rounded-lg -m-1 p-1 hover:bg-slate-50 transition">
+                      <div className={`w-10 h-10 rounded-xl text-white flex items-center justify-center shrink-0 ${n.read ? 'bg-slate-400' : 'bg-gradient-to-br from-indigo-500 to-violet-600'}`}>
+                        <Trophy className="w-5 h-5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-slate-900">{n.title}</div>
+                        <div className="text-sm text-slate-600 mt-0.5 line-clamp-2">{n.body}</div>
+                        <div className="text-xs text-slate-400 mt-1">{new Date(n.created_at).toLocaleString('en-GB', { timeZone: 'Europe/London' })}</div>
+                      </div>
+                    </button>
+                    <button type="button" onClick={() => updateNotificationRead(n, !n.read)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-white shrink-0" data-testid={`notification-toggle-read-${n.notification_id}`}>
                       {n.read ? 'Mark unread' : 'Mark read'}
                     </button>
                   </li>
                 ))}
               </ul>
             )}
+          </div>
+        )}
+
+        {notificationDetail && (
+          <div className="fixed inset-0 z-[10210] flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4" data-testid="account-notification-detail-overlay" onClick={() => setNotificationDetail(null)}>
+            <div className="w-full sm:max-w-lg bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 max-h-[85vh] flex flex-col" data-testid="account-notification-detail-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-slate-100">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0 bg-gradient-to-br from-indigo-500 to-violet-600">
+                    <Trophy className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-display font-bold text-slate-900 break-words" data-testid="account-notification-detail-title">{notificationDetail.title}</div>
+                    <div className="text-[11px] text-slate-400 mt-0.5">{notificationDetail.created_at ? new Date(notificationDetail.created_at).toLocaleString('en-GB', { timeZone: 'Europe/London' }) : ''}</div>
+                  </div>
+                </div>
+                <button type="button" onClick={() => setNotificationDetail(null)} aria-label="Close notification" data-testid="account-notification-detail-close" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 shrink-0">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="px-5 py-4 overflow-y-auto">
+                <p className="text-sm text-slate-700 whitespace-pre-wrap break-words" data-testid="account-notification-detail-body">{notificationDetail.body}</p>
+              </div>
+              <div className="px-5 py-4 border-t border-slate-100 flex items-center justify-between gap-2">
+                <button type="button" onClick={() => setNotificationDetail(null)} className="text-sm font-semibold text-slate-600 hover:text-slate-900" data-testid="account-notification-detail-back">Back</button>
+                {notificationDetail.ref_ticket_id && ['support_reply', 'support_status'].includes(notificationDetail.kind) && (
+                  <button type="button" onClick={() => viewTicketFromNotification(notificationDetail)} data-testid="account-notification-view-ticket" className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-bold text-white hover:bg-indigo-700 transition">
+                    View Support Ticket <ExternalLink className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         )}
 

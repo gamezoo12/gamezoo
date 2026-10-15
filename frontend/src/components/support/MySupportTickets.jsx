@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, MessageSquareText, Send, TicketCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supportAPI } from '../../lib/api';
@@ -6,13 +6,14 @@ import { supportAPI } from '../../lib/api';
 const statusLabel = status => ({ open: 'Open', in_progress: 'In Progress', awaiting_user: 'In Progress', resolved: 'Resolved', closed: 'Closed' }[status] || status || 'Open');
 const when = value => value ? new Date(value).toLocaleString('en-GB') : '—';
 
-export default function MySupportTickets({ user, onBack }) {
+export default function MySupportTickets({ user, onBack, focusCaseId = null }) {
   const [cases, setCases] = useState([]);
   const [selected, setSelected] = useState(null);
   const [reply, setReply] = useState('');
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const focusedRef = useRef(false);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -22,11 +23,18 @@ export default function MySupportTickets({ user, onBack }) {
       const data = await supportAPI.mine();
       const items = data.cases || [];
       setCases(items);
-      setSelected(current => current ? items.find(item => item.case_id === current.case_id) || null : null);
+      setSelected(current => {
+        if (current) return items.find(item => item.case_id === current.case_id) || null;
+        if (focusCaseId && !focusedRef.current) {
+          const match = items.find(item => item.case_id === focusCaseId);
+          if (match) { focusedRef.current = true; return match; }
+        }
+        return null;
+      });
     } catch (err) {
       setError(err?.response?.data?.detail || 'Could not load your tickets. Please sign in and try again.');
     } finally { setLoading(false); }
-  }, [user]);
+  }, [user, focusCaseId]);
 
   useEffect(() => { load(); }, [load]);
 

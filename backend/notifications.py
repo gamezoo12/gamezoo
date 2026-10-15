@@ -18,7 +18,14 @@ async def notify(db, *,
                  ref_ticket_id: Optional[str] = None) -> None:
     """Insert a notification doc. Idempotency is NOT enforced here — callers
     should only invoke on the state-transition event (e.g. first-time payment
-    confirmation)."""
+    confirmation).
+
+    Security: a notification is private to its recipient. Hard-refuse any
+    attempt to create one without a concrete recipient user_id so a reply or
+    alert can never be stored unscoped / broadcast by mistake. Guest (no
+    account) recipients therefore get no in-app notification by design."""
+    if not user_id or not isinstance(user_id, str) or not user_id.strip():
+        return
     doc = {
         'notification_id': f'n_{uuid.uuid4().hex[:16]}',
         'user_id': user_id,

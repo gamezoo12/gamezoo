@@ -297,7 +297,7 @@ export default function PrizeLeagueWorld() {
           const opensAt = Date.parse(champion?.champion_opens_at || '');
           const serverNow = Date.parse(state?.server_now || '');
           const now = Number.isFinite(serverNow) ? serverNow : Date.now();
-          if ((Number.isFinite(opensAt) && now < opensAt) ||
+          if ((Number.isFinite(opensAt) && now < opensAt && champion?.unlocked !== true) ||
               (Number.isFinite(closesAt) && now >= closesAt)) {
             setLevelError('Champion Level is outside its playing window.');
             return;

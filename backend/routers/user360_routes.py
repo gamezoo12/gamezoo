@@ -868,7 +868,7 @@ async def erase_user(user_id: str, payload: DeleteRequest, request: Request):
 # endpoints continue to work unchanged.
 # ============================================================================
 
-from typing import List, Literal
+from typing import List
 from pydantic import Field
 
 

@@ -29,6 +29,7 @@ export default function GlobalSupportAssistant() {
   const [config, setConfig] = useState(null);
   const [configError, setConfigError] = useState(false);
   const [fullscreen, setFullscreen] = useState(Boolean(document.fullscreenElement));
+  const [focusCaseId, setFocusCaseId] = useState(null);
   const dragRef = useRef(null);
   const suppressClickRef = useRef(false);
   const buttonRef = useRef(null);
@@ -57,6 +58,20 @@ export default function GlobalSupportAssistant() {
     const resize = () => setPosition(current => current ? clampPosition(current) : current);
     window.addEventListener('resize', resize);
     return () => window.removeEventListener('resize', resize);
+  }, []);
+
+  // Deep-link: open the assistant on the "My Support Tickets" view, focused on
+  // a specific ticket. Triggered from a support-reply notification's
+  // "View Support Ticket" action.
+  useEffect(() => {
+    const onOpenTicket = (e) => {
+      const caseId = e?.detail?.caseId || null;
+      setFocusCaseId(caseId);
+      setView('tickets');
+      setOpen(true);
+    };
+    window.addEventListener('pl-open-support-ticket', onOpenTicket);
+    return () => window.removeEventListener('pl-open-support-ticket', onOpenTicket);
   }, []);
 
   useEffect(() => {
@@ -208,7 +223,7 @@ export default function GlobalSupportAssistant() {
 
         {(view === 'ai' || view === 'tickets') && (
           <Suspense fallback={<div className="pl-support-loading" role="status">Opening support…</div>}>
-            {view === 'ai' ? <SupportAIChat user={user} aiAvailable={config?.ai_available} onBack={() => setView('menu')} /> : <MySupportTickets user={user} onBack={() => setView('menu')} />}
+            {view === 'ai' ? <SupportAIChat user={user} aiAvailable={config?.ai_available} onBack={() => setView('menu')} /> : <MySupportTickets user={user} focusCaseId={focusCaseId} onBack={() => setView('menu')} />}
           </Suspense>
         )}
       </section>

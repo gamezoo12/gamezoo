@@ -15,7 +15,6 @@ from scripts.preview_world_progression_migration import (
 from services.world_championship_schedule import (
     championship_window,
     contest_for_time,
-    contest_for_time,
     expected_personal_championship,
     global_contest_for_stage,
     london_calendar_datetime,

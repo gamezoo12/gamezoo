@@ -38,6 +38,7 @@ function ChampionCountdownBadge({
   opensMs,
   closesMs,
   serverClockAnchorRef,
+  unlocked = false,
 }) {
   const getNow = () => {
     const anchor = serverClockAnchorRef?.current;
@@ -55,7 +56,7 @@ function ChampionCountdownBadge({
     return () => clearInterval(timer);
   }, [serverClockAnchorRef]);
 
-  if (Number.isFinite(opensMs) && nowMs < opensMs) {
+  if (!unlocked && Number.isFinite(opensMs) && nowMs < opensMs) {
     const val = formatWorldCountdown(opensMs, nowMs);
     return (
       <span
@@ -69,8 +70,7 @@ function ChampionCountdownBadge({
   }
 
   if (
-    Number.isFinite(opensMs) &&
-    nowMs >= opensMs &&
+    (unlocked || (Number.isFinite(opensMs) && nowMs >= opensMs)) &&
     Number.isFinite(closesMs) &&
     nowMs < closesMs
   ) {
@@ -764,9 +764,6 @@ const ChampionshipSection = React.memo(function ChampionshipSection({
       const champion =
         worldState?.champion ?? {};
 
-      if (champion.completed === true) {
-        return null;
-      }
 
       const opensMs =
         Date.parse(
@@ -799,11 +796,11 @@ const ChampionshipSection = React.memo(function ChampionshipSection({
           level10State?.sequence_available === true
         );
 
-      if (!level10Unlocked || !Number.isFinite(opensMs)) {
+      if (!(worldState?.progress?.champion_ready === true || level10Unlocked) || !Number.isFinite(closesMs)) {
         return null;
       }
 
-      return { opensMs, closesMs };
+      return { opensMs, closesMs, unlocked: worldState?.progress?.champion_ready === true };
     })();
 
   const backendLevels =
@@ -1034,7 +1031,6 @@ const ChampionshipSection = React.memo(function ChampionshipSection({
         levelTenSlot
       ) {
         if (
-          champion.completed === true ||
           (
             championReady &&
             Number.isFinite(championClosesMs) &&
@@ -1071,6 +1067,7 @@ const ChampionshipSection = React.memo(function ChampionshipSection({
          * BEFORE CHAMPION OPENS
          */
         if (
+          !championReady &&
           Number.isFinite(
             championOpensMs,
           ) &&
@@ -1502,12 +1499,18 @@ const ChampionshipSection = React.memo(function ChampionshipSection({
                 : isPastChampionship
                   ? historicalChampionStatus
                   : null;
-              const championResultLabel = {
+              const currentChampionStillOpen =
+                isCurrentChampionship && Number.isFinite(championClosesAtMs) &&
+                (serverClockAnchorRef?.current
+                  ? serverClockAnchorRef.current.serverNowMs +
+                    (performance.now() - serverClockAnchorRef.current.performanceNow)
+                  : Date.now()) < championClosesAtMs;
+              const championResultLabel = (currentChampionStillOpen ? null : {
                 passed: 'PASSED',
                 failed: 'FAILED',
                 missed: 'MISSED',
                 pending: 'PENDING',
-              }[championResultStatus];
+              }[championResultStatus]);
               const championResultClass = championResultStatus === 'passed'
                 ? 'is-done'
                 : championResultStatus
@@ -1523,9 +1526,6 @@ const ChampionshipSection = React.memo(function ChampionshipSection({
                   className={[
                     'pl1000-special-slot',
                     'pl1000-champion-level',
-                    championCompletedForNode
-                      ? 'is-completed-history'
-                      : '',
                     isPastChampionship
                       ? 'is-completed-history'
                       : '',
@@ -1550,11 +1550,8 @@ const ChampionshipSection = React.memo(function ChampionshipSection({
                       : Date.now();
                     if (
                       !championUnlocked ||
-                      championCompletedForNode ||
-                      ['passed', 'failed', 'missed'].includes(championResultStatus) ||
-                      !Number.isFinite(championOpensAtMs) ||
                       !Number.isFinite(championClosesAtMs) ||
-                      nowMs < championOpensAtMs ||
+                      (nowMs < championOpensAtMs && !championUnlocked) ||
                       nowMs >= championClosesAtMs
                     ) {
                       return;
@@ -1606,6 +1603,7 @@ const ChampionshipSection = React.memo(function ChampionshipSection({
                     <ChampionCountdownBadge
                       opensMs={championTimer.opensMs}
                       closesMs={championTimer.closesMs}
+                      unlocked={championTimer.unlocked}
                       serverClockAnchorRef={serverClockAnchorRef}
                     />
                   )}

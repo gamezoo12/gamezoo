@@ -49,7 +49,6 @@ async def checkout(inp: CheckoutInput, request: Request):
     # prevents concurrent double submissions, while a genuine later purchase
     # of the same quantity in the same contest remains allowed.
     from hashlib import sha256
-    from datetime import timedelta
 
     basket_material = user['user_id'] + '|' + '|'.join(
         sorted(f"{i.contest_id}:{i.qty}" for i in inp.items)

@@ -305,7 +305,6 @@ async def dashboard_summary(request: Request, period: str = '24h', window_hours:
 
 
 @router.get('/dashboard/details')
-@router.get('/dashboard/details')
 async def dashboard_details(
     request: Request,
     metric: str,
@@ -407,76 +406,6 @@ async def dashboard_details(
         user_map = {user['user_id']: user for user in users}
         for item in items:
             item['user'] = user_map.get(item.get('user_id'), {})
-    return {'metric': metric, 'period': period, 'total': total, 'skip': skip, 'limit': limit, 'items': items}
-
-
-async def dashboard_details(
-    request: Request,
-    metric: str,
-    period: str = '24h',
-    skip: int = 0,
-    limit: int = 100,
-):
-    await require_admin(request)
-    from deps import get_db
-    if period not in _ADMIN_TIME_RANGES:
-        raise HTTPException(status_code=400, detail='Unsupported dashboard period')
-    db = get_db()
-    skip = max(0, int(skip))
-    limit = max(1, min(int(limit), 500))
-
-    collection_fields = {
-        'users': ('users', 'created_at'),
-        'signups': ('users', 'created_at'),
-        'orders': ('orders', 'created_at'),
-        'revenue': ('orders', 'created_at'),
-        'tickets': ('tickets', 'created_at'),
-        'visitors': ('acquisition_visits', 'created_at'),
-        'page_views': ('acquisition_page_views', 'created_at'),
-        'paid_scores': ('game_scores', 'created_at'),
-        'free_scores': ('world_champion_scores', 'submitted_at'),
-        'free_level_attempts': ('world_level_attempts', 'created_at'),
-        'free_winnings': ('world_winner_awards', 'created_at'),
-        'paid_winnings': ('winners', 'drawn_at'),
-    }
-    if metric == 'free_token_spend':
-        combined = []
-        for collection_name, date_field, kind in (
-            ('world_level_unlock_reservations', 'created_at', 'level_unlock'),
-            ('world_token_retry_reservations', 'created_at', 'level_retry'),
-        ):
-            date_query, _ = _range_match(period, date_field)
-            rows = await getattr(db, collection_name).find(
-                {**date_query, 'token_cost': {'$exists': True}}, {'_id': 0},
-            ).sort(date_field, -1).to_list(5000)
-            combined.extend([{**row, 'event_type': kind, 'event_at': row.get(date_field)} for row in rows])
-        combined.sort(key=lambda row: str(row.get('event_at') or ''), reverse=True)
-        return {'metric': metric, 'period': period, 'total': len(combined), 'items': combined[skip:skip + limit]}
-
-    config = collection_fields.get(metric)
-    if not config:
-        raise HTTPException(status_code=400, detail='Unsupported dashboard detail metric')
-    collection_name, date_field = config
-    match, _ = _range_match(period, date_field)
-    collection = getattr(db, collection_name)
-    total = await collection.count_documents(match)
-    items = await collection.find(match, {'_id': 0, 'password_hash': 0}).sort(date_field, -1).skip(skip).limit(limit).to_list(limit)
-
-    if metric in ('orders', 'revenue'):
-        items = await _enrich_orders_with_user(db, items)
-    elif metric in ('users', 'signups'):
-        for item in items:
-            item.pop('password_hash', None)
-    elif metric in ('tickets', 'paid_scores', 'free_scores', 'free_winnings', 'paid_winnings'):
-        user_ids = list({item.get('user_id') for item in items if item.get('user_id')})
-        users = await db.users.find(
-            {'user_id': {'$in': user_ids}},
-            {'_id': 0, 'user_id': 1, 'name': 1, 'username': 1, 'email': 1, 'public_id': 1},
-        ).to_list(len(user_ids)) if user_ids else []
-        user_map = {user['user_id']: user for user in users}
-        for item in items:
-            item['user'] = user_map.get(item.get('user_id'), {})
-
     return {'metric': metric, 'period': period, 'total': total, 'skip': skip, 'limit': limit, 'items': items}
 
 
