@@ -262,7 +262,7 @@ async def verify_and_bind(inp: VerifyOtpInput, request: Request):
 
     await db.users.update_one(
         {'user_id': user['user_id']},
-        {'$set': {'phone': phone, 'phone_verified': True}},
+        {'$set': {'phone': phone, 'phone_verified': True, 'phone_verified_at': datetime.now(timezone.utc)}},
     )
     updated = await db.users.find_one({'user_id': user['user_id']}, {'_id': 0, 'password_hash': 0})
     return {

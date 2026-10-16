@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request
 from datetime import datetime, timezone, timedelta
 
-from auth import get_current_user
+from auth import get_current_user, require_verified_user
 from deps import get_db
 from models import CheckoutInput, Order, Ticket
 from routers.wallet_routes import _apply_tx, _get_or_create_wallet
@@ -35,7 +35,7 @@ def _validate_skill(c: dict, item) -> None:
 
 @router.post('/checkout')
 async def checkout(inp: CheckoutInput, request: Request):
-    user = await get_current_user(request)
+    user = await require_verified_user(request)
     if not inp.items:
         raise HTTPException(status_code=400, detail='Cart is empty')
 

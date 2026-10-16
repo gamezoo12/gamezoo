@@ -9,7 +9,7 @@ import logging
 
 from auth import (
     create_jwt, hash_password, verify_password,
-    exchange_emergent_session, get_current_user,
+    exchange_emergent_session, get_current_user, phone_gate_blocks,
 )
 from models import RegisterInput, LoginInput, User, UserPublic
 from counters import allocate_user_public_id
@@ -70,6 +70,7 @@ def _to_public(user_doc: dict) -> dict:
     lack newer fields (phone_verified, dob, address, terms_accepted_at, ...).
     """
     payload = {k: user_doc.get(k) for k in UserPublic.model_fields.keys() if user_doc.get(k) is not None}
+    payload['phone_verification_required'] = phone_gate_blocks(user_doc)
     return UserPublic(**payload).model_dump(mode='json')
 
 
@@ -638,6 +639,7 @@ async def finalize_google_signup(inp: GoogleFinalizeInput, request: Request):
     _fin_set = {
         'phone': normalized_phone,
         'phone_verified': True,
+        'phone_verified_at': datetime.now(timezone.utc),
         'dob': inp.dob,
         'address': (inp.address or None),
         'username': username,

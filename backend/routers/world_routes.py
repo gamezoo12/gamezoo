@@ -36,7 +36,7 @@ from services.world_championship_schedule import (
 )
 from pydantic import BaseModel, Field
 
-from auth import get_current_user, require_admin
+from auth import get_current_user, require_admin, require_verified_user
 from deps import get_db
 from routers.wallet_routes import _apply_tx_idempotent
 
@@ -643,7 +643,7 @@ async def get_my_world_contest(request: Request):
 
 @router.post("/contest/enter")
 async def enter_world_contest(request: Request):
-    user = await get_current_user(request)
+    user = await require_verified_user(request)
     db = get_db()
 
     contest = await _active_contest(db)
@@ -6493,7 +6493,7 @@ async def free_world_session_start(
     Does NOT consume an attempt yet.
     Attempt is consumed only when /session/begin succeeds.
     """
-    user = await get_current_user(request)
+    user = await require_verified_user(request)
     db = get_db()
 
     level = body.level
@@ -6696,7 +6696,7 @@ async def free_world_session_begin(
     """
     Consumes one real FREE World attempt and starts server timer.
     """
-    user = await get_current_user(request)
+    user = await require_verified_user(request)
     db = get_db()
     await _touch_world_activity(db, user["user_id"], "gameplay")
 
@@ -6903,7 +6903,7 @@ async def free_world_session_submit(
 
     This does NOT touch paid game_scores.
     """
-    user = await get_current_user(request)
+    user = await require_verified_user(request)
     db = get_db()
 
     session = await db.world_game_sessions.find_one(
@@ -8114,7 +8114,7 @@ async def champion_session_start(
     Does NOT consume attempt yet.
     """
 
-    user = await get_current_user(
+    user = await require_verified_user(
         request
     )
 
@@ -8556,7 +8556,7 @@ async def champion_session_begin(
     body: ChampionSessionBeginInput,
     request: Request,
 ):
-    user = await get_current_user(
+    user = await require_verified_user(
         request
     )
 
@@ -8762,7 +8762,7 @@ async def champion_session_submit(
     never exposed from public leaderboard.
     """
 
-    user = await get_current_user(
+    user = await require_verified_user(
         request
     )
 
@@ -9560,7 +9560,7 @@ async def reserve_world_token_retry(
     - same reservation cannot debit wallet twice
     """
 
-    user = await get_current_user(
+    user = await require_verified_user(
         request
     )
 
@@ -10200,7 +10200,7 @@ async def reserve_world_level_unlock(
     - does not increase Champion stage
     """
 
-    user = await get_current_user(
+    user = await require_verified_user(
         request
     )
 

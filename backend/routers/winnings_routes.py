@@ -19,7 +19,7 @@ from pydantic import BaseModel
 
 from deps import get_db
 from routers.wallet_routes import _apply_tx, _apply_tx_idempotent, credit_withdrawable, _get_or_create_wallet
-from auth import get_current_user, require_admin
+from auth import get_current_user, require_admin, require_verified_user
 
 logger = logging.getLogger("winnings")
 
@@ -351,7 +351,7 @@ class StartChallengeBody(BaseModel):
 
 @router.post("/challenge/start")
 async def start_challenge(request: Request, body: StartChallengeBody = None):
-    user = await get_current_user(request)
+    user = await require_verified_user(request)
     db = get_db()
     await _ensure_indexes(db)
     await _seed_challenges(db)
@@ -399,7 +399,7 @@ class CompleteBody(BaseModel):
 
 @router.post("/challenge/complete")
 async def complete_challenge(body: CompleteBody, request: Request):
-    user = await get_current_user(request)
+    user = await require_verified_user(request)
     db = get_db()
     await _ensure_indexes(db)
     attempt = await db.special_challenge_attempts.find_one(
@@ -423,7 +423,7 @@ class ColourAnswerBody(BaseModel):
 
 @router.post("/challenge/colour-answer")
 async def colour_answer(body: ColourAnswerBody, request: Request):
-    user = await get_current_user(request)
+    user = await require_verified_user(request)
     db = get_db()
     attempt = await db.special_challenge_attempts.find_one(
         {"attempt_id": body.attempt_id, "user_id": user["user_id"]})
@@ -734,7 +734,7 @@ class WithdrawBody(BaseModel):
 
 @router.post("/withdraw")
 async def request_withdrawal(body: WithdrawBody, request: Request):
-    user = await get_current_user(request)
+    user = await require_verified_user(request)
     db = get_db()
     await _ensure_indexes(db)
 

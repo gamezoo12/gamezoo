@@ -11,6 +11,18 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Backend refuses gameplay/payments until mobile OTP is verified; let the UI prompt for it.
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    const detail = err?.response?.data?.detail;
+    if (err?.response?.status === 403 && detail?.code === 'PHONE_VERIFICATION_REQUIRED') {
+      window.dispatchEvent(new CustomEvent('pl:phone-required'));
+    }
+    return Promise.reject(err);
+  },
+);
+
 export const authAPI = {
   register: (data) => api.post('/auth/register', data).then(r => r.data),
   login: (data) => api.post('/auth/login', data).then(r => r.data),

@@ -14,7 +14,7 @@ import hashlib
 
 from pymongo.errors import DuplicateKeyError
 
-from auth import get_current_user
+from auth import get_current_user, require_verified_user
 from deps import get_db
 from models import Wallet, WalletTx
 
@@ -557,7 +557,7 @@ async def topup(inp: TopupInput, request: Request):
     """MOCKED token top-up for dev only — instantly credits N tokens.
     Production uses Stripe checkout via /payments/wallet-topup/*.
     """
-    user = await get_current_user(request)
+    user = await require_verified_user(request)
     db = get_db()
     tokens = int(inp.amount)
     r = await _apply_tx(db, user['user_id'], 'topup', float(tokens), note=f"Top-up {tokens} tokens (mock)")

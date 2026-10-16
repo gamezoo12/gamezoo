@@ -20,7 +20,7 @@ import stripe
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from auth import get_current_user
+from auth import get_current_user, require_verified_user
 from deps import get_db
 from routers.wallet_routes import _apply_tx
 
@@ -65,7 +65,7 @@ class CheckoutRequest(BaseModel):
 
 @payments_router.post('/payments/wallet-topup/checkout')
 async def create_topup_checkout(req: CheckoutRequest, request: Request):
-    user = await get_current_user(request)
+    user = await require_verified_user(request)
     if req.lookup_key not in ALLOWED_TOPUP_KEYS:
         raise HTTPException(400, f"Invalid top-up package: {req.lookup_key}")
 
@@ -144,7 +144,7 @@ async def create_custom_topup(req: CustomTopupRequest, request: Request):
     """Custom-amount token top-up. `amount` is the number of tokens (each
     worth £1). Creates a Stripe Checkout Session with inline price_data.
     """
-    user = await get_current_user(request)
+    user = await require_verified_user(request)
     tokens = int(req.amount)
     amount_pence = tokens * 100
     if tokens < 5:

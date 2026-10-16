@@ -23,7 +23,7 @@ import httpx
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from auth import get_current_user, JWT_SECRET
+from auth import get_current_user, require_verified_user, JWT_SECRET
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +89,7 @@ async def verify_turnstile(inp: VerifyInput, request: Request):
     """Verify a Turnstile token with Cloudflare. On success returns a
     challenge_token the frontend must pass to /api/games/submit.
     """
-    user = await get_current_user(request)
+    user = await require_verified_user(request)
     secret = _secret_key()
     if not secret:
         # Dev mode — no secret configured. Issue a challenge but log it.

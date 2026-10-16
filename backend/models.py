@@ -231,6 +231,7 @@ class UserPublic(BaseModel):
     address: Optional[str] = None
     terms_accepted_at: Optional[datetime] = None
     must_change_password: bool = False
+    phone_verification_required: bool = False
 
 
 class RegisterInput(BaseModel):

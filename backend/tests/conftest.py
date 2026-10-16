@@ -28,7 +28,7 @@ def _is_signup_test_frame() -> bool:
     """
     for f in inspect.stack():
         fname = f.filename or ''
-        if 'test_auth_signup' in fname or 'test_phase2' in fname or 'test_iter34' in fname:
+        if 'test_auth_signup' in fname or 'test_phase2' in fname in fname:
             return True
     return False
 

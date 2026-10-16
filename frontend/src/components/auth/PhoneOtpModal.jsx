@@ -14,7 +14,7 @@ import { useToast } from '../../hooks/use-toast';
  * Props:
  *   open        boolean
  *   onVerified  fn()  called after successful verify+bind (parent should refresh user)
- *   onDismiss   fn()  optional. If provided the modal shows a "Skip for now" link.
+ *   onDismiss   fn()  optional. Called when the dialog is closed with the X (no skip link).
  */
 export default function PhoneOtpModal({ open, onVerified, onDismiss }) {
   const [step, setStep] = useState('phone'); // 'phone' | 'code'
@@ -63,7 +63,7 @@ export default function PhoneOtpModal({ open, onVerified, onDismiss }) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v && onDismiss) onDismiss(); }}>
-      <DialogContent className="max-w-md" data-testid="otp-modal">
+      <DialogContent className="max-w-md" style={{ zIndex: 60 }} data-testid="otp-modal">
         <DialogHeader>
           <div className="w-12 h-12 rounded-full bg-[#6C2BFF]/10 flex items-center justify-center mb-2">
             <ShieldCheck className="w-6 h-6 text-[#6C2BFF]" />
@@ -149,16 +149,9 @@ export default function PhoneOtpModal({ open, onVerified, onDismiss }) {
           </div>
         )}
 
-        {onDismiss && (
-          <button
-            data-testid="otp-skip-btn"
-            type="button"
-            onClick={onDismiss}
-            className="text-xs text-slate-400 hover:text-slate-600 text-center w-full mt-2"
-          >
-            Skip for now — I&apos;ll add it later
-          </button>
-        )}
+        <p className="text-xs text-slate-400 text-center mt-2">
+          Mobile verification is required to play, enter contests and check out.
+        </p>
       </DialogContent>
     </Dialog>
   );

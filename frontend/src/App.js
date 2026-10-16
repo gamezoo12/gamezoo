@@ -10,6 +10,7 @@ import { Toaster as SonnerToaster } from './components/ui/sonner';
 import { AuthProvider } from './context/AuthContext';
 
 import TermsGate from './components/TermsGate';
+import PhoneGate from './components/auth/PhoneGate';
 import PromotionPopup from './components/PromotionPopup';
 import PromotionAuthBridge from './components/PromotionAuthBridge';
 import PromotionFloatingBadge from './components/PromotionFloatingBadge';
@@ -701,6 +702,8 @@ function App() {
 
           {/* Terms gate */}
           <TermsGate />
+
+          <PhoneGate />
 
 
           {/* Toast notifications */}

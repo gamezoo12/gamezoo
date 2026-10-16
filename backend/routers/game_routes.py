@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 import secrets
 
-from auth import get_current_user
+from auth import get_current_user, require_verified_user
 from deps import get_db
 from models import GameScore
 
@@ -103,7 +103,7 @@ async def list_types():
 
 @router.post('/submit')
 async def submit_score(inp: SubmitScoreInput, request: Request):
-    user = await get_current_user(request)
+    user = await require_verified_user(request)
     db = get_db()
     ticket = await db.tickets.find_one({'ticket_id': inp.ticket_id, 'user_id': user['user_id']}, {'_id': 0})
     if not ticket:

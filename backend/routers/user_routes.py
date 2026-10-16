@@ -6,7 +6,7 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional
 import uuid
 
-from auth import get_current_user, hash_password, verify_password, decode_jwt
+from auth import get_current_user, hash_password, verify_password, decode_jwt, phone_gate_blocks
 from object_storage import put_object, get_object, APP_NAME
 
 router = APIRouter(prefix='/api/users', tags=['users'])
@@ -54,6 +54,7 @@ async def get_me(request: Request):
     return {
         **user,
         'phone': user.get('phone') or (kyc.get('phone') if kyc else None),
+        'phone_verification_required': phone_gate_blocks(user),
         'kyc_status': (kyc or {}).get('status', 'none'),
         'ticket_count': ticket_count,
         'order_count': order_count,
@@ -69,7 +70,8 @@ async def update_me(inp: ProfileUpdate, request: Request):
     updates: dict = {}
     if inp.name is not None and inp.name.strip():
         updates['name'] = inp.name.strip()
-    if inp.phone is not None:
+    if inp.phone is not None and not user.get('phone_verified'):
+        # A verified number can only change through OTP (/auth/otp/verify-bind).
         updates['phone'] = inp.phone.strip() or None
     if inp.address is not None:
         updates['address'] = inp.address.strip() or None

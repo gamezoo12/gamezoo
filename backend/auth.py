@@ -124,6 +124,48 @@ async def get_current_user(request: Request, db=None):
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Not authenticated')
 
 
+_STAFF_ROLES = ('admin', 'super_admin', 'operator', 'support')
+# Accounts created before this instant are "legacy": never blocked unless
+# PHONE_GATE_ENFORCE_LEGACY=true is set after the impact report is approved.
+PHONE_GATE_NEW_USER_FROM = os.environ.get('PHONE_GATE_NEW_USER_FROM', '2026-10-16T00:00:00+00:00')
+
+
+def _as_utc(value) -> Optional[datetime]:
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        except ValueError:
+            return None
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    return None
+
+
+def phone_gate_blocks(user: dict) -> bool:
+    """True when this user must verify a mobile number before gameplay/payments."""
+    if user.get('phone_verified') is True or user.get('role') in _STAFF_ROLES:
+        return False
+    if (os.environ.get('PHONE_GATE_ENFORCE_LEGACY') or '').lower() == 'true':
+        return True
+    created = _as_utc(user.get('created_at'))
+    cutoff = _as_utc(PHONE_GATE_NEW_USER_FROM)
+    return bool(created and cutoff and created >= cutoff)
+
+
+async def require_verified_user(request: Request, db=None):
+    """get_current_user + mobile OTP verification (server-side enforcement)."""
+    user = await get_current_user(request, db)
+    if phone_gate_blocks(user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                'code': 'PHONE_VERIFICATION_REQUIRED',
+                'message': 'Please verify your mobile number with an OTP to continue.',
+            },
+        )
+    return user
+
+
 async def require_admin(request: Request):
     user = await get_current_user(request)
     if user.get('role') not in ('admin', 'super_admin', 'operator', 'support'):

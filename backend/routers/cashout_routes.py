@@ -15,7 +15,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from deps import get_db
-from auth import get_current_user, require_admin
+from auth import get_current_user, require_admin, require_verified_user
 from routers.wallet_routes import (
     _get_or_create_wallet, reserve_withdrawable, settle_withdrawable_paid,
     release_withdrawable,
@@ -191,7 +191,7 @@ class CashOutBody(BaseModel):
 
 @router.post("/request")
 async def create_cashout(body: CashOutBody, request: Request):
-    user = await get_current_user(request)
+    user = await require_verified_user(request)
     db = get_db()
 
     settings = await get_settings(db)
