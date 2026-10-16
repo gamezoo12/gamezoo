@@ -14,6 +14,13 @@ from services.draw_service import draw_contest
 
 production_router = APIRouter(prefix='/api/production', tags=['production'])
 notif_router = APIRouter(prefix='/api/users/notifications', tags=['notifications'])
+_SUPPORT_REPLY_TITLE = 'Prize League Customer Support replied to your ticket'
+
+
+def _public_notification(notification):
+    if (notification.get('kind') or notification.get('type')) != 'support_reply':
+        return notification
+    return {**notification, 'title': _SUPPORT_REPLY_TITLE}
 
 
 async def _require_staff(request: Request):
@@ -79,7 +86,7 @@ async def my_notifications(request: Request, only_unread: bool = False):
         q['read'] = False
     docs = await db.notifications.find(q, {'_id': 0}).sort('created_at', -1).limit(50).to_list(50)
     unread = await db.notifications.count_documents({'user_id': user['user_id'], 'read': False})
-    return {'notifications': docs, 'unread': unread}
+    return {'notifications': [_public_notification(doc) for doc in docs], 'unread': unread}
 
 
 @notif_router.post('/mark-read')

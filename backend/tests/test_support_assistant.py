@@ -1,7 +1,7 @@
 import asyncio
 from datetime import datetime, timezone
 
-from routers import support_routes
+from routers import production_routes, support_routes
 
 
 def test_sensitive_support_text_is_redacted():
@@ -74,6 +74,19 @@ def test_case_document_stores_ticket_history_without_internal_notes():
     assert case['conversation_history'] == [{'role': 'user', 'content': 'Login problem'}]
     assert case['internal_notes'] == []
     assert case['messages'][0]['body'] == 'I cannot access my account.'
+
+
+def test_public_support_reply_notification_hides_legacy_admin_sender():
+    notification = {
+        'kind': 'support_reply',
+        'title': 'Alex Admin replied to your ticket',
+        'body': 'Login issue — tap to read.',
+    }
+
+    public = production_routes._public_notification(notification)
+
+    assert public['title'] == 'Prize League Customer Support replied to your ticket'
+    assert notification['title'] == 'Alex Admin replied to your ticket'
 
 
 def test_ticket_identity_status_follows_server_side_user_id():
