@@ -143,6 +143,7 @@ export const adminAPI = {
   auditLogs: (limit = 200) => api.get('/admin/audit-logs', { params: { limit } }).then(r => r.data),
   supportCases: (status) => api.get('/admin/support/cases', { params: status ? { status } : {} }).then(r => r.data),
   supportReply: (case_id, message) => api.post(`/admin/support/cases/${case_id}/reply`, { message }).then(r => r.data),
+  supportSuggestions: (case_id, attempt = 0) => api.post(`/admin/support/cases/${case_id}/suggestions`, { attempt }).then(r => r.data),
   supportStatus: (case_id, status) => api.post(`/admin/support/cases/${case_id}/status`, { status }).then(r => r.data),
   supportCasesSearch: (params = {}) => api.get('/admin/support/cases', { params }).then(r => r.data),
   supportPriority: (case_id, priority) => api.post(`/admin/support/cases/${case_id}/priority`, { priority }).then(r => r.data),

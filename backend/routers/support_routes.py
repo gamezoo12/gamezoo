@@ -48,6 +48,28 @@ def _redact_sensitive(value: str) -> str:
     return text
 
 
+def _redact_ai_input(value: str) -> str:
+    text = _redact_sensitive(value)
+    text = re.sub(r'(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b', '[email redacted]', text)
+    text = re.sub(
+        r'(?<!\w)(?:\+\d{1,3}[ .()-]?\d{2,4}|0\d{3,4})[ .()-]+\d{3,4}[ .()-]*\d{3,6}(?!\w)',
+        '[phone number redacted]',
+        text,
+    )
+    return text
+
+
+CUSTOMER_FACING_SENDER = 'Prize League Customer Support'
+
+
+def _public_message(message):
+    """User-facing message: never expose the admin's real name or id."""
+    if message.get('author') != 'admin':
+        return message
+    return {'author': 'admin', 'author_name': CUSTOMER_FACING_SENDER,
+            'body': message.get('body'), 'at': message.get('at')}
+
+
 def _safe_history(history):
     if not isinstance(history, list):
         return []
@@ -425,9 +447,11 @@ async def my_cases(request: Request):
     db = get_db()
     cases = await db.support_cases.find(
         {'user_id': user['user_id']},
-        {'_id': 0, 'internal_notes': 0, 'assigned_by': 0, 'priority_updated_by': 0},
+        {'_id': 0, 'internal_notes': 0, 'assigned_by': 0, 'priority_updated_by': 0,
+         'assigned_admin_id': 0, 'assigned_admin_name': 0, 'closed_by': 0, 'resolved_by': 0},
     ).sort('created_at', -1).to_list(100)
     for case in cases:
+        case['messages'] = [_public_message(m) for m in case.get('messages') or []]
         if case.get('status') == 'awaiting_user':
             case['status'] = 'in_progress'
     return {'cases': cases}
@@ -524,11 +548,31 @@ async def admin_reply(case_id: str, inp: ReplyCase, request: Request):
             db,
             c['user_id'],
             kind='support_reply',
-            title='Support replied to your case',
+            title='Prize League Customer Support replied to your ticket',
             body=f'“{c.get("subject", "your support case")}” — tap to read.',
             ticket_id=case_id,
         )
     return {'ok': True, 'email_client_required': not bool(c.get('user_id'))}
+
+
+class SuggestionInput(BaseModel):
+    attempt: int = Field(0, ge=0, le=20)
+
+
+@admin_router.post('/cases/{case_id}/suggestions')
+async def reply_suggestions(case_id: str, request: Request, payload: Optional[SuggestionInput] = None):
+    admin = await require_admin(request)
+    db = get_db()
+    case = await db.support_cases.find_one({'case_id': case_id}, {'_id': 0, 'internal_notes': 0})
+    if not case:
+        raise HTTPException(404, 'Case not found')
+    await _support_rate_limit(db, request, admin.get('user_id'))
+    from services.support_suggestions import generate_suggestions
+    return await generate_suggestions(
+        db=db, case=case, messages=case.get('messages') or [],
+        ai_key=_AI_KEY, ai_provider=_AI_PROVIDER, ai_model=_AI_MODEL,
+        redact=_redact_ai_input, attempt=payload.attempt if payload else 0,
+    )
 
 
 @admin_router.post('/cases/{case_id}/status')

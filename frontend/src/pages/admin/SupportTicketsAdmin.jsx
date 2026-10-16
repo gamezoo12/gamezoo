@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { LifeBuoy, Search, Send, Plus, Trash2, Save, UserRound, Clock3, MessageSquareText, BookOpen, ArrowLeft } from 'lucide-react';
+import { LifeBuoy, Sparkles, Search, Send, Plus, Trash2, Save, UserRound, Clock3, MessageSquareText, BookOpen, ArrowLeft } from 'lucide-react';
 import { adminAPI } from '../../lib/api';
 import { useToast } from '../../hooks/use-toast';
 
@@ -11,6 +11,10 @@ const STATUS_OPTIONS = [
 ];
 const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 const CATEGORIES = ['account', 'payment', 'ticket', 'game', 'kyc', 'free_world', 'leaderboard', 'wallet', 'other'];
+const MANUAL_TEMPLATES = [
+  ['Request details', 'Hello,\n\nThank you for contacting us. To look into this properly, could you please share the contest name, the date it happened and any reference or error message you saw?\n\nKind regards,\nPrize League Customer Support'],
+  ['Basic troubleshooting', 'Hello,\n\nThank you for letting us know. Please refresh the page, log out and back in, and try again in another browser. If it still happens, reply with your device and browser details.\n\nKind regards,\nPrize League Customer Support'],
+];
 const when = value => value ? new Date(value).toLocaleString('en-GB') : '—';
 
 export default function SupportTicketsAdmin() {
@@ -26,6 +30,10 @@ export default function SupportTicketsAdmin() {
   const [loading, setLoading] = useState(false);
   const [reply, setReply] = useState('');
   const [note, setNote] = useState('');
+  const [sugg, setSugg] = useState(null);
+  const [suggBusy, setSuggBusy] = useState(false);
+  const [suggAttempt, setSuggAttempt] = useState(0);
+  const [editingSugg, setEditingSugg] = useState(null);
   const [knowledge, setKnowledge] = useState([]);
   const [editingKnowledge, setEditingKnowledge] = useState(null);
   const [knowledgeForm, setKnowledgeForm] = useState({ title: '', answer: '', active: true });
@@ -72,6 +80,23 @@ export default function SupportTicketsAdmin() {
       toast({ title: 'Update failed', description: error?.response?.data?.detail || 'Please try again.' });
     }
   };
+
+  const selectedId = selected?.case_id;
+  useEffect(() => { setSugg(null); setSuggAttempt(0); setEditingSugg(null); }, [selectedId]);
+
+  const loadSuggestions = async (attempt = 0) => {
+    if (!selected) return;
+    setSuggBusy(true);
+    setEditingSugg(null);
+    try {
+      setSugg(await adminAPI.supportSuggestions(selected.case_id, attempt));
+      setSuggAttempt(attempt);
+    } catch (error) {
+      toast({ title: 'Could not generate suggestions', description: error?.response?.data?.detail || 'Please try again.' });
+    } finally { setSuggBusy(false); }
+  };
+
+  const updateSuggText = (id, text) => setSugg(cur => ({ ...cur, suggestions: cur.suggestions.map(s => s.id === id ? { ...s, text } : s) }));
 
   const sendReply = async event => {
     event.preventDefault();
@@ -189,6 +214,18 @@ export default function SupportTicketsAdmin() {
                 </div>
                 <div className="max-h-64 space-y-2 overflow-y-auto py-4" aria-label="Full ticket conversation">{(selected.messages || []).map((message, index) => <article key={`${selected.case_id}-${index}`} className={`rounded-lg border p-3 ${message.author === 'admin' ? 'border-blue-100 bg-blue-50' : 'border-slate-100 bg-slate-50'}`}><div className="mb-1 flex justify-between gap-2 text-[11px] text-slate-500"><span className="font-bold">{message.author === 'admin' ? message.author_name || 'Support' : message.author === 'user' ? selected.user_name || 'User' : 'AI Assistant'}</span><time>{when(message.at)}</time></div><p className="whitespace-pre-wrap break-words text-sm text-slate-800">{message.body}</p></article>)}</div>
                 <form onSubmit={sendReply} className="flex gap-2 border-t border-slate-200 pt-3"><textarea value={reply} onChange={e => setReply(e.target.value)} required maxLength={5000} rows={2} placeholder="Reply to the user…" className="min-w-0 flex-1 rounded-lg border border-slate-200 p-3 text-sm" /><button type="submit" disabled={!reply.trim()} aria-label="Send reply" title="Send reply" className="grid h-10 w-10 shrink-0 place-items-center self-end rounded-lg bg-cyan-700 text-white disabled:opacity-40"><Send size={17} /></button></form>
+                <section className="mt-3 space-y-2" aria-label="Smart reply suggestions" data-testid="support-suggestions">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button type="button" onClick={() => loadSuggestions(sugg ? suggAttempt + 1 : 0)} disabled={suggBusy} className="inline-flex h-8 items-center gap-1 rounded-md border border-cyan-300 px-3 text-xs font-bold text-cyan-800 disabled:opacity-50" data-testid="suggest-generate"><Sparkles size={14} />{suggBusy ? 'Generating…' : sugg ? 'Regenerate' : 'Suggest replies'}</button>
+                    {MANUAL_TEMPLATES.map(([label, text]) => <button key={label} type="button" onClick={() => setReply(text)} className="h-8 rounded-md border border-slate-200 px-3 text-xs text-slate-600 hover:bg-slate-50">Template: {label}</button>)}
+                  </div>
+                  {sugg && <p className="text-[11px] text-slate-500">{sugg.has_verified_data ? `Based on verified data: ${sugg.verified_data_used.join(', ')}. Review before sending.` : 'No verified account data was available, so these are guidance suggestions, not confirmed fixes.'} Nothing is sent until you press Send.</p>}
+                  {sugg?.suggestions.map(s => <article key={s.id} className="rounded-lg border border-slate-200 bg-white p-3" data-testid={`suggestion-${s.tone}`}>
+                    <div className="mb-1 flex items-center justify-between gap-2"><b className="text-xs text-slate-700">{s.label}</b><span className={`rounded px-2 py-0.5 text-[10px] font-bold ${s.basis === 'verified_data' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}`}>{s.basis === 'verified_data' ? 'Uses verified data' : 'Guidance only'}</span></div>
+                    {editingSugg === s.id ? <textarea value={s.text} onChange={e => updateSuggText(s.id, e.target.value)} rows={8} maxLength={5000} className="w-full rounded-md border border-slate-200 p-2 text-sm" /> : <p className="whitespace-pre-wrap text-sm text-slate-800">{s.text}</p>}
+                    <div className="mt-2 flex gap-2"><button type="button" onClick={() => { setReply(s.text); toast({ title: 'Reply copied to the box. Review it, then press Send.' }); }} className="h-8 rounded-md bg-cyan-700 px-3 text-xs font-bold text-white">Use This Reply</button><button type="button" onClick={() => setEditingSugg(editingSugg === s.id ? null : s.id)} className="h-8 rounded-md border border-slate-200 px-3 text-xs">{editingSugg === s.id ? 'Done' : 'Edit'}</button></div>
+                  </article>)}
+                </section>
                 <form onSubmit={addNote} className="mt-3 flex gap-2"><textarea value={note} onChange={e => setNote(e.target.value)} required maxLength={3000} rows={2} placeholder="Internal note (not visible to user)" className="min-w-0 flex-1 rounded-lg border border-amber-200 bg-amber-50/40 p-3 text-sm" /><button type="submit" disabled={!note.trim()} aria-label="Add internal note" title="Add internal note" className="grid h-10 w-10 shrink-0 place-items-center self-end rounded-lg border border-amber-300 text-amber-800 disabled:opacity-40"><Plus size={17} /></button></form>
                 {!!selected.internal_notes?.length && <div className="mt-3 space-y-2">{selected.internal_notes.map((item, index) => <div key={index} className="rounded-md border border-amber-100 bg-amber-50 p-2 text-xs"><b>{item.author_name || 'Staff'} · {when(item.at)}</b><p className="mt-1 whitespace-pre-wrap">{item.note}</p></div>)}</div>}
               </section>

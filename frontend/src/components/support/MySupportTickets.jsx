@@ -23,13 +23,12 @@ export default function MySupportTickets({ user, onBack, focusCaseId = null }) {
       const data = await supportAPI.mine();
       const items = data.cases || [];
       setCases(items);
+      // Resolve the focus target outside the state updater (StrictMode double-invokes updaters).
+      const focusMatch = focusCaseId && !focusedRef.current ? items.find(item => item.case_id === focusCaseId) : null;
+      if (focusMatch) focusedRef.current = true;
       setSelected(current => {
         if (current) return items.find(item => item.case_id === current.case_id) || null;
-        if (focusCaseId && !focusedRef.current) {
-          const match = items.find(item => item.case_id === focusCaseId);
-          if (match) { focusedRef.current = true; return match; }
-        }
-        return null;
+        return focusMatch || null;
       });
     } catch (err) {
       setError(err?.response?.data?.detail || 'Could not load your tickets. Please sign in and try again.');
@@ -65,7 +64,7 @@ export default function MySupportTickets({ user, onBack, focusCaseId = null }) {
       </>}
       {selected && <>
         <div className="pl-support-ticket-heading"><MessageSquareText size={19} /><div><b>{selected.subject}</b><small>{selected.case_id} · {statusLabel(selected.status)}</small></div></div>
-        <div className="pl-support-user-thread">{(selected.messages || []).map((message, index) => <article key={`${selected.case_id}_${index}`} className={message.author === 'admin' ? 'is-support' : ''}><div><b>{message.author === 'admin' ? 'Prize League Support' : message.author === 'assistant' ? 'AI Assistant' : 'You'}</b><time>{when(message.at)}</time></div><p>{message.body}</p></article>)}</div>
+        <div className="pl-support-user-thread">{(selected.messages || []).map((message, index) => <article key={`${selected.case_id}_${index}`} className={message.author === 'admin' ? 'is-support' : ''}><div><b>{message.author === 'admin' ? 'Prize League Customer Support' : message.author === 'assistant' ? 'AI Assistant' : 'You'}</b><time>{when(message.at)}</time></div><p>{message.body}</p></article>)}</div>
         {selected.status !== 'closed' && <form className="pl-support-chat-input" onSubmit={sendReply}><textarea value={reply} onChange={event => setReply(event.target.value)} placeholder="Reply to support…" aria-label="Reply to support" maxLength={5000} rows={1} /><button type="submit" disabled={busy || !reply.trim()} aria-label="Send reply" title="Send reply"><Send size={17} /></button></form>}
       </>}
     </div>
