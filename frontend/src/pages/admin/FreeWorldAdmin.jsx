@@ -351,7 +351,9 @@ export default function FreeWorldAdmin() {
     setEdit((prev) => {
       const set = new Set(prev.completed_levels);
       if (set.has(lvl)) set.delete(lvl); else set.add(lvl);
-      return { ...prev, completed_levels: Array.from(set).sort((a, b) => a - b) };
+      const completed = Array.from(set).sort((a, b) => a - b);
+      // Champion eligibility follows levels 1-10; the server re-derives it as well.
+      return { ...prev, completed_levels: completed, champion_ready: completed.length === 10 };
     });
   };
 
@@ -388,6 +390,13 @@ export default function FreeWorldAdmin() {
       if (res.updated) {
         const fresh = await worldAdminAPI.userProgress(selectedUser.user_id);
         setDetail(fresh);
+        setEdit({
+          current_level: fresh.progress.current_level,
+          highest_unlocked_level: fresh.progress.highest_unlocked_level,
+          champion_stage: fresh.progress.champion_stage,
+          champion_ready: fresh.progress.champion_ready,
+          completed_levels: [...(fresh.progress.completed_levels || [])],
+        });
         setEditReason('');
         loadUsers();
       }
@@ -866,7 +875,17 @@ export default function FreeWorldAdmin() {
                     {(u.championship_mismatch || u.registration_cohort_mismatch) && <span className="ml-1 text-amber-600" aria-label="Stored assignment data differs from the calculated assignment">!</span>}
                   </td>
                   <td className="px-3 py-2 font-bold">{u.current_level}</td>
-                  <td className="px-3 py-2">{u.completed_count}/10</td>
+                  <td className="px-3 py-2">
+                    {u.completed_count}/10
+                    {u.admin_pinned && u.admin_granted_levels?.length > 0 && (
+                      <span className="ml-1 text-[10px] font-bold text-amber-700"
+                        title={`Admin-granted levels: ${u.admin_granted_levels.join(', ')}`}>admin</span>
+                    )}
+                    {u.cache_out_of_date && (
+                      <span className="ml-1 text-[10px] font-bold text-sky-700"
+                        title={`Stored cache shows ${(u.cached_completed_levels || []).length}/10; the verified record is used.`}>synced</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2">{u.champion_ready ? 'Yes' : 'No'}</td>
                   <td className="px-3 py-2 text-xs" title="Recorded Level 1–10 attempts across all Championships">{u.level_attempts_total ?? '—'}</td>
                   <td className="px-3 py-2 text-xs" title="Recorded Champion Challenge attempts">{u.champion_attempts_total ?? '—'}</td>
@@ -1020,6 +1039,54 @@ export default function FreeWorldAdmin() {
               <div className="mt-2 text-[11px] text-slate-400">Historical normal-level attempt records do not identify a Championship stage; counts are shown across all Championships rather than assigned to an unverified stage.</div>
             </div>
 
+            {!detailLoading && detail?.progress && (
+              <div className="mt-3 rounded-xl border border-slate-100 p-3 text-sm" data-testid="user-progress-sources">
+                <div className="font-bold text-slate-800 mb-2">
+                  Progress in current Championship (C{detail.progress.champion_stage})
+                </div>
+                <div>Completed (used by the game): <b>{detail.progress.completed_levels.join(', ') || 'none'}</b> ({detail.progress.completed_count}/10)</div>
+                <div className="text-xs text-slate-500">Verified passed attempts: {detail.progress.verified_completed_levels.join(', ') || 'none'}</div>
+                {detail.progress.admin_pinned && (
+                  <div className="text-xs text-amber-700 mt-1">
+                    Admin override active{detail.progress.admin_granted_levels.length > 0 && ` · levels granted without a verified pass: ${detail.progress.admin_granted_levels.join(', ')}`}
+                    {detail.progress.admin_unlocked_levels.length > 0 && ` · access unlocked: ${detail.progress.admin_unlocked_levels.join(', ')}`}
+                  </div>
+                )}
+                {detail.progress.cache_out_of_date && (
+                  <div className="text-xs text-sky-700 mt-1" data-testid="cache-out-of-date">
+                    The stored progress record is out of date ({detail.progress.cached_completed_levels.join(', ') || 'none'}); the verified record above is what the player sees.
+                  </div>
+                )}
+                <div className="mt-2 grid grid-cols-5 gap-2 text-[11px]">
+                  {(detail.levels || []).map((l) => (
+                    <div key={l.level} className="rounded bg-slate-50 p-2 text-center">
+                      L{l.level}<br />
+                      {l.attempts} att · {l.passes} pass<br />
+                      {l.best_ms != null ? `${(l.best_ms / 1000).toFixed(2)}s` : '—'}
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-1 text-[11px] text-slate-400">Attempts, passes and best time for this Championship only.</div>
+                {(detail.earlier_championships || []).length > 0 && (
+                  <div className="mt-2 text-xs text-slate-600" data-testid="earlier-championships">
+                    Earlier Championships:{' '}
+                    {detail.earlier_championships.map((c) => `${c.stage === 'untagged' ? 'untagged history' : `C${c.stage}`} passed ${c.verified_passed_levels.length}/10`).join(' · ')}
+                  </div>
+                )}
+                <div className="mt-3 font-bold text-slate-800">Champion challenge</div>
+                <div className="text-xs" data-testid="champion-summary">
+                  Eligible: <b>{detail.champion?.ready ? 'Yes' : 'No'}</b> ({detail.champion?.unlock_reason})
+                  {' '}· Attempts: <b>{detail.champion?.attempts_total ?? 0}</b>
+                  {(detail.champion?.entries || []).map((e) => ` · entered GC${e.global_contest_number} (C${e.champion_stage_snapshot})`).join('')}
+                </div>
+                {(detail.champion?.scores || []).map((s) => (
+                  <div key={s.global_contest_number} className="text-xs text-slate-600">
+                    GC{s.global_contest_number}: score {s.score} in {(s.duration_ms / 1000).toFixed(2)}s
+                  </div>
+                ))}
+              </div>
+            )}
+
             {detailLoading && (
               <div className="mt-6 text-center text-slate-400 text-sm"
                 data-testid="drawer-loading">Loading progress…</div>
@@ -1037,10 +1104,9 @@ export default function FreeWorldAdmin() {
                       max={detail?.limits?.max_championship || 100}
                       data-testid="edit-champion-stage"
                       value={edit.champion_stage}
-                      onChange={(e) => setEdit((p) => ({
-                        ...p, champion_stage: Number(e.target.value),
-                      }))}
-                      className="w-full mt-1 px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+                      readOnly
+                      title="Assigned automatically from the active Global Contest"
+                      className="w-full mt-1 px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-500" />
                   </label>
                   <label className="block">
                     <span className="text-[11px] font-bold uppercase text-slate-500">
@@ -1056,7 +1122,7 @@ export default function FreeWorldAdmin() {
                   </label>
                   <label className="block">
                     <span className="text-[11px] font-bold uppercase text-slate-500">
-                      Highest unlocked (1–10)
+                      Highest unlocked (1–10, grants access)
                     </span>
                     <input type="number" min={1} max={10}
                       data-testid="edit-highest-level"

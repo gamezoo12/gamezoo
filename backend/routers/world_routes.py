@@ -2281,12 +2281,8 @@ async def admin_world_users(
 
     query: dict[str, Any] = {"season_id": WORLD_SEASON_ID}
 
-    if level is not None:
-        query["current_level"] = int(level)
     if championship is not None:
         query["champion_stage"] = int(championship)
-    if champion is True:
-        query["champion_ready"] = True
     if qualified is True:
         query["qualified"] = True
 
@@ -2307,6 +2303,11 @@ async def admin_world_users(
         ids = [u["user_id"] for u in user_matches]
         query["user_id"] = {"$in": ids or ["__none__"]}
 
+    # Level / completed / champion are derived from verified attempts, so they
+    # are filtered after derivation (before pagination) rather than on the cache.
+    derived_filters = (
+        level is not None or completed is not None or champion is True
+    )
     total = await db.world_progress.count_documents(query)
 
     # Sort by actual activity before pagination; retain the existing fields.
@@ -2318,11 +2319,36 @@ async def admin_world_users(
         {"$addFields": {"activity_sort": {"$ifNull": [
             "$account.fw_last_activity_at", "$updated_at"]}}},
         {"$sort": {"activity_sort": -1, "user_id": 1}},
-        {"$skip": (page - 1) * page_size},
-        {"$limit": page_size},
-        {"$project": {"_id": 0, "account._id": 0}},
     ]
-    rows = await db.world_progress.aggregate(pipeline).to_list(page_size)
+    if derived_filters:
+        pipeline.append({"$limit": 2000})
+    else:
+        pipeline += [
+            {"$skip": (page - 1) * page_size},
+            {"$limit": page_size},
+        ]
+    pipeline.append({"$project": {"_id": 0, "account._id": 0}})
+    rows = await db.world_progress.aggregate(pipeline).to_list(
+        2000 if derived_filters else page_size
+    )
+    views = await _bulk_admin_progress_views(db, rows)
+    if derived_filters:
+        def _keep(row):
+            view = views[row.get("user_id")]
+            if level is not None and view["current_level"] != int(level):
+                return False
+            if champion is True and not view["champion_ready"]:
+                return False
+            all_done = view["completed_count"] >= 10
+            if completed is True and not all_done:
+                return False
+            if completed is False and all_done:
+                return False
+            return True
+
+        rows = [r for r in rows if _keep(r)]
+        total = len(rows)
+        rows = rows[(page - 1) * page_size: page * page_size]
     user_ids = [r.get("user_id") for r in rows if r.get("user_id")]
     users_map = {r.get("user_id"): r.get("account") or {} for r in rows}
     level_counts, champion_counts = {}, {}
@@ -2364,12 +2390,9 @@ async def admin_world_users(
     items = []
     for r in rows:
         u = users_map.get(r.get("user_id"), {})
-        completed_levels = [int(x) for x in (r.get("completed_levels") or [])]
+        view = views[r.get("user_id")]
+        completed_levels = view["completed_levels"]
         is_completed = len(completed_levels) >= 10
-        if completed is True and not is_completed:
-            continue
-        if completed is False and is_completed:
-            continue
         uid = r.get("user_id")
         per_level = level_counts.get(uid, {})
         per_contest = champion_counts.get(uid, {})
@@ -2389,14 +2412,17 @@ async def admin_world_users(
             "email": u.get("email"),
             "current_championship": active_number,
             "champion_stage": int(r.get("champion_stage") or 1),
-            "current_level": int(r.get("current_level") or 1),
-            "highest_unlocked_level": int(
-                r.get("highest_unlocked_level") or 1
-            ),
+            "current_level": view["current_level"],
+            "highest_unlocked_level": view["highest_unlocked_level"],
             "completed_levels": completed_levels,
             "completed_count": len(completed_levels),
+            "verified_completed_levels": view["verified_completed_levels"],
+            "cached_completed_levels": view["cached_completed_levels"],
+            "admin_pinned": view["admin_pinned"],
+            "admin_granted_levels": view["admin_granted_levels"],
+            "cache_out_of_date": view["cache_out_of_date"],
             "all_levels_completed": is_completed,
-            "champion_ready": bool(r.get("champion_ready")),
+            "champion_ready": view["champion_ready"],
             "qualified": bool(r.get("qualified")),
             "winner_status": r.get("winner_status"),
             "last_activity": _serialize_datetime(
@@ -2461,6 +2487,95 @@ async def _world_progress_audit(db, user_id: str, limit: int = 50):
     return rows
 
 
+async def _admin_level_and_champion_detail(db, user_id: str, progress: dict, view: dict, active_number) -> dict:
+    """READ ONLY per-level and Champion facts for the admin drawer.
+
+    Normal levels 1-10 and the Champion challenge are reported separately;
+    Champion data never feeds back into the level counts.
+    """
+    levels = {
+        n: {"level": n, "attempts": 0, "passes": 0, "best_ms": None}
+        for n in range(1, 11)
+    }
+    attempts = await db.world_level_attempts.find(
+        {"season_id": WORLD_SEASON_ID, "user_id": user_id,
+         "level": {"$gte": 1, "$lte": 10}},
+        {"_id": 0, "level": 1, "passed": 1, "champion_stage": 1,
+         "created_at": 1, "completed_at": 1, "duration_ms": 1},
+    ).to_list(5000)
+    earlier_passes: dict = {}
+    for row in attempts:
+        level = row.get("level")
+        if level not in levels:
+            continue
+        when = row.get("completed_at") or row.get("created_at")
+        if not _attempt_belongs_to_stage(progress, row, when):
+            if row.get("passed") is True and row.get("completed_at"):
+                tag = row.get("champion_stage")
+                key = str(tag) if isinstance(tag, int) else "untagged"
+                earlier_passes.setdefault(key, set()).add(level)
+            continue
+        slot = levels[level]
+        slot["attempts"] += 1
+        if row.get("passed") is True and row.get("completed_at"):
+            slot["passes"] += 1
+            duration = row.get("duration_ms")
+            if isinstance(duration, (int, float)) and not isinstance(duration, bool):
+                if slot["best_ms"] is None or duration < slot["best_ms"]:
+                    slot["best_ms"] = int(duration)
+
+    entries = await db.world_contest_entries.find(
+        {"season_id": WORLD_SEASON_ID, "user_id": user_id},
+        {"_id": 0, "global_contest_number": 1, "status": 1,
+         "champion_stage_snapshot": 1, "entered_at": 1},
+    ).sort("entered_at", -1).to_list(20)
+    sessions = await db.world_champion_sessions.find(
+        {"season_id": WORLD_SEASON_ID, "user_id": user_id,
+         "begun_at": {"$ne": None}},
+        {"_id": 0, "global_contest_number": 1},
+    ).to_list(5000)
+    attempts_by_contest: dict = {}
+    for row in sessions:
+        key = str(row.get("global_contest_number"))
+        attempts_by_contest[key] = attempts_by_contest.get(key, 0) + 1
+    scores = await db.world_champion_scores.find(
+        {"season_id": WORLD_SEASON_ID, "user_id": user_id},
+        {"_id": 0, "global_contest_number": 1, "score": 1, "duration_ms": 1,
+         "champion_stage_snapshot": 1, "submitted_at": 1, "eligible": 1},
+    ).sort("global_contest_number", -1).to_list(20)
+
+    if view["champion_ready"]:
+        reason = (
+            "Admin override"
+            if view["admin_pinned"] and view["admin_granted_levels"]
+            else "Levels 1-10 completed"
+        )
+    else:
+        reason = "Levels 1-10 not all completed"
+    return {
+        "levels": list(levels.values()),
+        "earlier_championships": [
+            {"stage": key, "verified_passed_levels": sorted(vals)}
+            for key, vals in sorted(earlier_passes.items())
+        ],
+        "champion": {
+            "ready": view["champion_ready"],
+            "unlock_reason": reason,
+            "active_global_contest": active_number,
+            "entries": [
+                {**e, "entered_at": _serialize_datetime(e.get("entered_at"))}
+                for e in entries
+            ],
+            "attempts_by_contest": attempts_by_contest,
+            "attempts_total": sum(attempts_by_contest.values()),
+            "scores": [
+                {**s, "submitted_at": _serialize_datetime(s.get("submitted_at"))}
+                for s in scores
+            ],
+        },
+    }
+
+
 @admin_router.get("/user-progress/{user_id}")
 async def admin_get_user_progress(user_id: str, request: Request):
     """Full progression detail for a single user + recent audit trail."""
@@ -2495,12 +2610,17 @@ async def admin_get_user_progress(user_id: str, request: Request):
     snapshot = await _admin_world_championship_snapshot(
         db, user, progress, active_number, sequence, settings,
     )
-    completed_levels = sorted(
-        int(x) for x in (progress.get("completed_levels") or [])
+    view = _admin_progress_view(
+        progress, await _verified_stage_levels(db, user_id, progress),
     )
+    detail_extra = await _admin_level_and_champion_detail(
+        db, user_id, progress, view, active_number,
+    )
+    completed_levels = view["completed_levels"]
 
     return {
         **snapshot,
+        **detail_extra,
         "user": {
             "user_id": user_id,
             "public_id": user.get("public_id"),
@@ -2513,14 +2633,18 @@ async def admin_get_user_progress(user_id: str, request: Request):
             ),
         },
         "progress": {
-            "current_level": int(progress.get("current_level") or 1),
-            "highest_unlocked_level": int(
-                progress.get("highest_unlocked_level") or 1
-            ),
+            "current_level": view["current_level"],
+            "highest_unlocked_level": view["highest_unlocked_level"],
             "completed_levels": completed_levels,
             "completed_count": len(completed_levels),
+            "verified_completed_levels": view["verified_completed_levels"],
+            "cached_completed_levels": view["cached_completed_levels"],
+            "admin_pinned": view["admin_pinned"],
+            "admin_granted_levels": view["admin_granted_levels"],
+            "admin_unlocked_levels": view["admin_unlocked_levels"],
+            "cache_out_of_date": view["cache_out_of_date"],
             "champion_stage": int(progress.get("champion_stage") or 1),
-            "champion_ready": bool(progress.get("champion_ready")),
+            "champion_ready": view["champion_ready"],
             "qualified": bool(progress.get("qualified")),
             "season_complete": bool(progress.get("season_complete")),
             "updated_at": _serialize_datetime(progress.get("updated_at")),
@@ -2586,9 +2710,19 @@ async def admin_edit_user_progress(
     contest entries / scores / leaderboard rows are touched.
     """
     actor = await require_admin(request)
+    if actor.get("role") not in ("admin", "super_admin"):
+        raise HTTPException(
+            status_code=403,
+            detail="Only admin or super admin can edit Free World progress.",
+        )
     db = get_db()
 
+    # `before` is the effective progress the game uses (verified attempts, or the
+    # admin-pinned values), i.e. what the admin form displays.
     before = await _free_world_progress(db, user_id)
+    before_completed = sorted(
+        set(int(x) for x in (before.get("completed_levels") or []))
+    )
 
     # --- Resolve the desired end state (provided fields override current) ---
     def _cur(field, default):
@@ -2598,7 +2732,6 @@ async def admin_edit_user_progress(
     new_current = int(_cur("current_level", 1))
     new_highest = int(_cur("highest_unlocked_level", 1))
     new_stage = int(_cur("champion_stage", 1))
-    new_ready = bool(_cur("champion_ready", False))
 
     if (
         payload.champion_stage is not None
@@ -2615,9 +2748,41 @@ async def admin_edit_user_progress(
     if payload.completed_levels is not None:
         new_completed = sorted(set(int(x) for x in payload.completed_levels))
     else:
-        new_completed = sorted(
-            set(int(x) for x in (before.get("completed_levels") or []))
+        new_completed = before_completed
+    completed_changed = new_completed != before_completed
+    current_explicit = (
+        payload.current_level is not None
+        and int(payload.current_level) != int(before.get("current_level") or 1)
+    )
+    highest_explicit = (
+        payload.highest_unlocked_level is not None
+        and int(payload.highest_unlocked_level)
+        != int(before.get("highest_unlocked_level") or 1)
+    )
+
+    # Changing completed levels without an explicit level move re-derives the
+    # playable position from the completed set.
+    if completed_changed:
+        first_missing = next(
+            (n for n in range(1, 11) if n not in new_completed), 10
         )
+        if not current_explicit:
+            new_current = first_missing
+        if not highest_explicit:
+            new_highest = max(new_current, first_missing)
+
+    # Champion eligibility follows levels 1-10 unless the admin changes it explicitly.
+    all_ten = set(new_completed) == set(range(1, 11))
+    ready_explicit = (
+        payload.champion_ready is not None
+        and bool(payload.champion_ready) != bool(before.get("champion_ready"))
+    )
+    if ready_explicit:
+        new_ready = bool(payload.champion_ready)
+    elif completed_changed:
+        new_ready = all_ten
+    else:
+        new_ready = bool(before.get("champion_ready"))
 
     # --- Guardrails ---------------------------------------------------------
     if not (1 <= new_current <= 10):
@@ -2642,7 +2807,7 @@ async def admin_edit_user_progress(
             "highest_unlocked_level cannot be lower than current_level",
         )
     # champion_ready can only be true when all 10 levels are completed.
-    if new_ready and set(new_completed) != set(range(1, 11)):
+    if new_ready and not all_ten:
         raise HTTPException(
             422,
             "champion_ready can only be enabled when levels 1-10 are all "
@@ -2691,8 +2856,37 @@ async def admin_edit_user_progress(
             ],
         }
 
-    set_doc["updated_at"] = _utcnow()
-    set_doc["admin_override_stage"] = new_stage
+    old_unlocked = (
+        sorted(int(x) for x in (before.get("admin_unlocked_levels") or []))
+        if before.get("admin_override_stage") == new_stage
+        else []
+    )
+    if completed_changed or current_explicit or highest_explicit:
+        new_unlocked = [
+            n for n in range(1, new_highest + 1) if n not in new_completed
+        ]
+    else:
+        new_unlocked = old_unlocked
+    if new_unlocked != old_unlocked:
+        changes.append(
+            {"field": "admin_unlocked_levels", "before": old_unlocked,
+             "after": new_unlocked}
+        )
+
+    now = _utcnow()
+    # Pinning stores the complete effective state, otherwise untouched fields
+    # would fall back to a stale cache once the pin takes over.
+    set_doc = {
+        "current_level": new_current,
+        "highest_unlocked_level": new_highest,
+        "completed_levels": new_completed,
+        "champion_ready": new_ready,
+        "admin_unlocked_levels": new_unlocked,
+        "updated_at": now,
+        "admin_override_stage": new_stage,
+        "admin_override_at": now,
+        "admin_override_by": actor.get("user_id"),
+    }
 
     write = await db.world_progress.update_one(
         {
@@ -2725,7 +2919,11 @@ async def admin_edit_user_progress(
         "actor_user_id": actor.get("user_id"),
         "actor_email": actor.get("email"),
         "actor_role": actor.get("role"),
+        "kind": "admin_progress_override",
         "changes": changes,
+        "verified_completed_levels_at_edit": sorted(
+            await _verified_stage_levels(db, user_id, after)
+        ),
         "reason": (payload.reason or "").strip() or None,
         "created_at": _utcnow(),
     }
@@ -3588,7 +3786,10 @@ async def _world_unlock_context(
     # when no active global contest exists,
     # preserve existing progression behaviour.
     if not active:
-        sequence_available = level == _next_required_level(progress)
+        sequence_available = (
+            level == _next_required_level(progress)
+            or _admin_unlocked_level(progress, level)
+        )
 
         return {
             "available":
@@ -3890,6 +4091,14 @@ def _next_required_level(progress: dict) -> int:
     return 11
 
 
+def _admin_unlocked_level(progress: dict, level: int) -> bool:
+    """Explicit, audited admin access grant; only valid for the pinned Championship."""
+    stage = int(progress.get("champion_stage") or 1)
+    if progress.get("admin_override_stage") != stage:
+        return False
+    return level in {int(x) for x in (progress.get("admin_unlocked_levels") or [])}
+
+
 def _personal_unlock_context(level: int, progress: dict, active_number: int | None = None, active_start_at=None):
     """Every player follows the active GC's fixed schedule; catch-up Skip is disabled."""
     now = _utcnow()
@@ -3904,13 +4113,20 @@ def _personal_unlock_context(level: int, progress: dict, active_number: int | No
     )
     token_unlocked = level in token_unlocked_levels
 
-    sequence_available = level == _next_required_level(progress)
+    sequence_available = (
+        level == _next_required_level(progress)
+        or _admin_unlocked_level(progress, level)
+    )
 
     anchor = _ensure_aware_datetime(active_start_at) or now
 
     unlock_at = level_unlock_at(anchor, max(0, level - 1))
     scheduled_time_available = now >= unlock_at
-    time_available = bool(scheduled_time_available or token_unlocked)
+    time_available = bool(
+        scheduled_time_available
+        or token_unlocked
+        or _admin_unlocked_level(progress, level)
+    )
 
     seconds_until_unlock = (
         0
@@ -4547,34 +4763,111 @@ def _verified_level_progress(levels) -> dict:
     }
 
 
-async def _reconcile_verified_level_history(db, user_id: str, progress: dict) -> dict:
+def _attempt_belongs_to_stage(progress: dict, row: dict, when=None) -> bool:
+    """Stage-tagged attempts match exactly; legacy untagged ones count only if they
+    happened after the user's current Championship started."""
     stage = int(progress.get("champion_stage") or 1)
-    stage_started_at = _ensure_aware_datetime(
+    if "champion_stage" in row:
+        return row.get("champion_stage") == stage
+    started = _ensure_aware_datetime(
         progress.get("personal_stage_started_at") or progress.get("created_at")
     )
-    legacy_filter = (
-        {
-            "champion_stage": {"$exists": False},
-            "completed_at": {"$gte": stage_started_at},
-        }
-        if stage_started_at is not None
-        else None
-    )
-    stage_filters = [{"champion_stage": stage}]
-    if legacy_filter:
-        stage_filters.append(legacy_filter)
+    happened = _ensure_aware_datetime(when if when is not None else row.get("completed_at"))
+    return started is not None and happened is not None and happened >= started
 
-    passed_rows = await db.world_level_attempts.find(
+
+def _verified_levels_from_attempts(progress: dict, rows) -> set:
+    """Levels 1-10 backed by a completed, passed attempt in the user's current Championship."""
+    verified = set()
+    for row in rows:
+        level = row.get("level")
+        if not isinstance(level, int) or isinstance(level, bool) or not 1 <= level <= 10:
+            continue
+        if row.get("passed") is not True or not row.get("completed_at"):
+            continue
+        if _attempt_belongs_to_stage(progress, row):
+            verified.add(level)
+    return verified
+
+
+async def _verified_stage_levels(db, user_id: str, progress: dict) -> set:
+    rows = await db.world_level_attempts.find(
         {
             "season_id": WORLD_SEASON_ID,
             "user_id": user_id,
             "level": {"$gte": 1, "$lte": 10},
             "passed": True,
             "completed_at": {"$exists": True, "$ne": None},
-            "$or": stage_filters,
         },
-        {"_id": 0, "level": 1},
-    ).to_list(100)
+        {"_id": 0, "level": 1, "passed": 1, "champion_stage": 1, "completed_at": 1},
+    ).to_list(5000)
+    return _verified_levels_from_attempts(progress, rows)
+
+
+def _admin_progress_view(progress: dict, verified) -> dict:
+    """What the game actually uses for this user, next to the raw stored cache.
+
+    Unpinned users are derived from verified attempts (exactly like
+    _reconcile_verified_level_history); admin-pinned users keep the stored values.
+    """
+    stage = int(progress.get("champion_stage") or 1)
+    pinned = progress.get("admin_override_stage") == stage
+    cached = sorted({int(x) for x in (progress.get("completed_levels") or [])})
+    verified_sorted = sorted(int(x) for x in verified)
+    if pinned:
+        view = {
+            "completed_levels": cached,
+            "current_level": int(progress.get("current_level") or 1),
+            "highest_unlocked_level": int(progress.get("highest_unlocked_level") or 1),
+            "champion_ready": bool(progress.get("champion_ready")),
+        }
+    else:
+        view = _verified_level_progress(verified_sorted)
+    view["completed_count"] = len(view["completed_levels"])
+    view["verified_completed_levels"] = verified_sorted
+    view["cached_completed_levels"] = cached
+    view["admin_pinned"] = pinned
+    view["admin_granted_levels"] = (
+        sorted(set(view["completed_levels"]) - set(verified_sorted)) if pinned else []
+    )
+    view["admin_unlocked_levels"] = (
+        sorted(int(x) for x in (progress.get("admin_unlocked_levels") or [])) if pinned else []
+    )
+    view["cache_out_of_date"] = (
+        cached != view["completed_levels"]
+        or bool(progress.get("champion_ready")) != view["champion_ready"]
+    )
+    return view
+
+
+async def _bulk_admin_progress_views(db, progress_rows) -> dict:
+    ids = [r.get("user_id") for r in progress_rows if r.get("user_id")]
+    by_user: dict = {}
+    if ids:
+        attempts = await db.world_level_attempts.find(
+            {
+                "season_id": WORLD_SEASON_ID,
+                "user_id": {"$in": ids},
+                "level": {"$gte": 1, "$lte": 10},
+                "passed": True,
+                "completed_at": {"$exists": True, "$ne": None},
+            },
+            {"_id": 0, "user_id": 1, "level": 1, "passed": 1,
+             "champion_stage": 1, "completed_at": 1},
+        ).to_list(None)
+        for row in attempts:
+            by_user.setdefault(row.get("user_id"), []).append(row)
+    return {
+        r.get("user_id"): _admin_progress_view(
+            r, _verified_levels_from_attempts(r, by_user.get(r.get("user_id"), []))
+        )
+        for r in progress_rows
+    }
+
+
+async def _reconcile_verified_level_history(db, user_id: str, progress: dict) -> dict:
+    stage = int(progress.get("champion_stage") or 1)
+    verified = await _verified_stage_levels(db, user_id, progress)
     skip_rows = await db.world_level_skips.find(
         {
             "season_id": WORLD_SEASON_ID,
@@ -4585,7 +4878,6 @@ async def _reconcile_verified_level_history(db, user_id: str, progress: dict) ->
         {"_id": 0, "level": 1},
     ).to_list(20)
 
-    verified = set(int(row["level"]) for row in passed_rows)
     legacy_completed = set(
         int(x) for x in (progress.get("completed_levels") or [])
     )
@@ -4716,6 +5008,7 @@ async def _free_world_progress(
                         "completed_levels": [],
                         "skipped_levels": [],
                         "token_unlocked_levels": [],
+                        "admin_unlocked_levels": [],
                         "champion_ready": False,
                         "season_complete": False,
                         "personal_stage_started_at": active_start,
