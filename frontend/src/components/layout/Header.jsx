@@ -33,15 +33,16 @@ export default function Header() {
  const { pathname } = useLocation();
  const { user, logout } = useAuth();
 const minimalWorldHeader =
-   pathname === '/' ||
-   pathname === '/choose-world' ||
    pathname === '/login';
 
  const isLoginHeader =
    pathname === '/login';
 
+ // World Selection (/ and /choose-world) shares the Free World header.
  const isFreeWorldHeader =
-   pathname === '/world';
+   pathname === '/world' ||
+   pathname === '/' ||
+   pathname === '/choose-world';
  const profileRef = useRef(null);
  const freeProfileRef = useRef(null);
 
