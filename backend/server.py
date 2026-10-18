@@ -381,3 +381,7 @@ async def shutdown_db_client():
     from services import scheduler as draw_scheduler
     draw_scheduler.stop()
     client.close()
+
+# Admin resend verification for existing account emails
+from routers.admin_verification_routes import router as admin_verification_router
+app.include_router(admin_verification_router)
