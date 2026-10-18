@@ -263,6 +263,10 @@ app.include_router(user360_router)
 app.include_router(admin_referrals_router)
 app.include_router(influencer_promo_router)
 
+# Opinly blog integration (isolated, read-only content routes)
+from routers.opinly_routes import router as opinly_router
+app.include_router(opinly_router)
+
 
 @app.on_event('startup')
 async def _ensure_world_engine_indexes():
