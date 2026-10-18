@@ -163,3 +163,84 @@ async def webhook(request: Request):
         async with _lock:
             _cache.clear()
     return {"ok": True}
+
+
+# HTML responses for crawler-visible SEO. Deploy ingress rules for /blog paths
+# to the backend if server-rendered metadata is required at the public URL.
+from fastapi.responses import HTMLResponse
+from html import escape as _escape
+
+def _as_text(value):
+    return value if isinstance(value, str) else ""
+
+def _image(post):
+    for key in ("heroImage", "hero_image", "image"):
+        val = post.get(key)
+        if isinstance(val, dict):
+            val = val.get("url")
+        if isinstance(val, str) and val.startswith("https://"):
+            return val
+    return ""
+
+def _seo_html(title, description, path, body, image="", schema=None):
+    canonical = SITE + path
+    safe_title = _escape(title)
+    safe_desc = _escape(description)
+    safe_url = _escape(canonical, quote=True)
+    image_tag = '<meta property="og:image" content="' + _escape(image, quote=True) + '">' if image else ""
+    json_ld = '<script type="application/ld+json">' + json.dumps(schema, ensure_ascii=False).replace("<", "\\u003c") + '</script>' if schema else ""
+    return ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width,initial-scale=1">'
+            '<title>' + safe_title + ' | Prize League</title>'
+            '<meta name="description" content="' + _escape(description, quote=True) + '">'
+            '<link rel="canonical" href="' + safe_url + '">'
+            '<meta property="og:type" content="article">'
+            '<meta property="og:title" content="' + _escape(title, quote=True) + '">'
+            '<meta property="og:description" content="' + _escape(description, quote=True) + '">'
+            '<meta property="og:url" content="' + safe_url + '">' + image_tag + json_ld
+            + '</head><body><main><nav><a href="/blog">Blog</a></nav>' + body
+            + '</main></body></html>')
+
+
+@router.get("/blog", response_class=HTMLResponse)
+@router.get("/api/opinly/render/blog", response_class=HTMLResponse)
+async def blog_ssr():
+    result = await _get("/content/posts", {"limit": 12, "sort": "newest"})
+    posts = result.get("data", []) if isinstance(result, dict) else []
+    rows = []
+    for post in posts:
+        if not isinstance(post, dict) or not post.get("slug"):
+            continue
+        slug = urllib.parse.quote(str(post["slug"]), safe="")
+        rows.append('<li><a href="/blog/' + slug + '">' + _escape(_as_text(post.get("title"))) + '</a></li>')
+    body = '<h1>Prize League Blog</h1><ul>' + "".join(rows) + '</ul>'
+    return HTMLResponse(_seo_html("Prize League Blog", "Articles and news from Prize League", "/blog", body))
+
+
+@router.get("/blog/{slug}", response_class=HTMLResponse)
+@router.get("/api/opinly/render/blog/{slug}", response_class=HTMLResponse)
+async def blog_post_ssr(slug: str):
+    if not slug or len(slug) > 200 or "/" in slug:
+        raise HTTPException(400, "Invalid slug")
+    result = await _get("/content/post", {"slug": slug})
+    post = result.get("data", result) if isinstance(result, dict) else {}
+    if not isinstance(post, dict):
+        raise HTTPException(502, "Invalid blog content")
+    title = _as_text(post.get("title")) or "Article"
+    description = _as_text(post.get("description") or post.get("excerpt") or post.get("summary"))
+    path = "/blog/" + urllib.parse.quote(slug, safe="")
+    image = _image(post)
+    schema = {"@context": "https://schema.org", "@type": "BlogPosting", "headline": title, "description": description, "mainEntityOfPage": SITE + path, "publisher": {"@type": "Organization", "name": "Prize League"}}
+    if image:
+        schema["image"] = image
+    if post.get("publishedAt"):
+        schema["datePublished"] = post["publishedAt"]
+    if post.get("updatedAt"):
+        schema["dateModified"] = post["updatedAt"]
+    body = '<article><h1>' + _escape(title) + '</h1><p>' + _escape(description) + '</p>'
+    # Render plaintext body safely. Do not trust remote HTML without sanitization.
+    raw = post.get("bodyMarkdown") or post.get("markdown") or post.get("body") or post.get("content")
+    if isinstance(raw, str):
+        body += '<div style="white-space:pre-wrap">' + _escape(raw) + '</div>'
+    body += '</article>'
+    return HTMLResponse(_seo_html(title, description, path, body, image, schema))
