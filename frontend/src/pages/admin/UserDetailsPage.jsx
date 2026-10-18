@@ -43,6 +43,10 @@ function ProfileManagementCard({ userId, identity, onReload }) {
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState('');
+  const [emailOtp, setEmailOtp] = useState('');
+  const [emailOtpSent, setEmailOtpSent] = useState(false);
+  const [sendingEmailOtp, setSendingEmailOtp] = useState(false);
+  const [verifyingEmailOtp, setVerifyingEmailOtp] = useState(false);
 
   const makeForm = () => ({
     name: identity?.name || '',
@@ -346,11 +350,42 @@ function ProfileManagementCard({ userId, identity, onReload }) {
               )}
             </div>
 
-            {!identity?.email_verified && (
-              <p className="text-xs text-slate-500 mt-3">
-                No manual verification is available. Email verification
-                requires a production email verification provider.
-              </p>
+            {!identity?.email_verified && identity?.email && !identity?.erased && (
+              <div className="mt-4 space-y-3">
+                <Button variant="outline" size="sm" disabled={sendingEmailOtp}
+                  onClick={async () => {
+                    try {
+                      setSendingEmailOtp(true);
+                      await api.post(`/admin/users/${userId}/email/send-otp`);
+                      setEmailOtpSent(true);
+                      toast({ title: 'Email code sent', description: 'Ask the account holder for the code received by email.' });
+                    } catch (e) {
+                      toast({ title: 'Email verification failed', description: e?.response?.data?.detail || 'Unable to send email code.' });
+                    } finally { setSendingEmailOtp(false); }
+                  }}>
+                  {sendingEmailOtp ? 'Sending…' : emailOtpSent ? 'Resend Email Code' : 'Send Email Verification Code'}
+                </Button>
+                {emailOtpSent && (
+                  <div className="flex gap-2">
+                    <Input aria-label="Email verification code" placeholder="Email code" value={emailOtp}
+                      onChange={e => setEmailOtp(e.target.value)} />
+                    <Button size="sm" disabled={verifyingEmailOtp || !emailOtp.trim()}
+                      onClick={async () => {
+                        try {
+                          setVerifyingEmailOtp(true);
+                          await api.post(`/admin/users/${userId}/email/verify-otp`, { code: emailOtp.trim() });
+                          toast({ title: 'Email verified' });
+                          setEmailOtp(''); setEmailOtpSent(false);
+                          await onReload();
+                        } catch (e) {
+                          toast({ title: 'Invalid email code', description: e?.response?.data?.detail || 'Please retry.' });
+                        } finally { setVerifyingEmailOtp(false); }
+                      }}>
+                      {verifyingEmailOtp ? 'Checking…' : 'Verify'}
+                    </Button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
