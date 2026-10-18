@@ -492,6 +492,7 @@ export default function UserDetailsPage() {
   const { user: currentUser } = useAuth();
   const { toast } = useToast();
   const [data, setData] = useState(null);
+  const [refundingOrder, setRefundingOrder] = useState('');
   const [reviewType, setReviewType] = useState('tickets');
   const [reviewRecord, setReviewRecord] = useState('');
   const [reviewReason, setReviewReason] = useState('');
@@ -623,6 +624,25 @@ export default function UserDetailsPage() {
           {(wallet_transactions || []).filter(tx => /bonus|withdraw|payout|winning/i.test([tx.type, tx.kind, tx.note].join(' '))).map((tx, i) =>
             <div key={tx.tx_id || i} className="text-xs py-2">{String(tx.created_at || '')} · {String(tx.type || tx.kind || 'Transaction')} · {String(tx.amount ?? '—')}</div>
           )}
+        </div>
+      </Section>
+      <Section title="Paid Tickets — Order Refund Controls" icon={Ticket}>
+        <p className="text-sm text-slate-500 mb-3">Refunds must be processed at the original order level, never by manually deleting tickets. Only eligible orders can be refunded.</p>
+        <div className="divide-y max-h-72 overflow-y-auto">
+          {(orders || []).map((order, i) => <div key={order.order_id || i} className="flex flex-wrap items-center justify-between gap-2 py-2 text-xs">
+            <span className="break-all">{order.order_id || 'Unknown order'} · {String(order.status || 'Unknown')} · £{String(order.total ?? '—')}</span>
+            <Button size="sm" variant="outline" disabled={refundingOrder !== '' || !order.order_id || order.status === 'refunded'} onClick={async () => {
+              if (!window.confirm(`Refund order ${order.order_id}? This will use the existing admin refund workflow and remove associated tickets.`)) return;
+              setRefundingOrder(order.order_id);
+              try {
+                await api.post(`/admin/orders/${encodeURIComponent(order.order_id)}/refund`);
+                toast({ title: 'Order refund processed' }); load(); refreshActivity(activityDay);
+              } catch (e) {
+                toast({ title: 'Refund failed', description: e?.response?.data?.detail || 'Check refund eligibility' });
+              } finally { setRefundingOrder(''); }
+            }}>{refundingOrder === order.order_id ? 'Processing…' : order.status === 'refunded' ? 'Refunded' : 'Refund order'}</Button>
+          </div>)}
+          {!orders?.length && <p className="text-sm text-slate-500">No orders found.</p>}
         </div>
       </Section>
       <Section title="Contest & Ticket Review" icon={ShieldCheck}>
