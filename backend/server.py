@@ -388,3 +388,5 @@ app.include_router(admin_verification_router)
 
 from routers.contact_verification_links import router as contact_verification_links_router
 app.include_router(contact_verification_links_router)
+from routers.user_activity_timeline import router as user_activity_timeline_router
+app.include_router(user_activity_timeline_router)
