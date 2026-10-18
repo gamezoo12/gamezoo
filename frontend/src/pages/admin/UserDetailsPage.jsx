@@ -631,7 +631,7 @@ export default function UserDetailsPage() {
         <div className="divide-y max-h-72 overflow-y-auto">
           {(orders || []).map((order, i) => <div key={order.order_id || i} className="flex flex-wrap items-center justify-between gap-2 py-2 text-xs">
             <span className="break-all">{order.order_id || 'Unknown order'} · {String(order.status || 'Unknown')} · £{String(order.total ?? '—')}</span>
-            <Button size="sm" variant="outline" disabled={refundingOrder !== '' || !order.order_id || order.status === 'refunded'} onClick={async () => {
+            <Button size="sm" variant="outline" disabled={refundingOrder !== '' || !order.order_id || order.status !== 'paid'} onClick={async () => {
               if (!window.confirm(`Refund order ${order.order_id}? This will use the existing admin refund workflow and remove associated tickets.`)) return;
               setRefundingOrder(order.order_id);
               try {
@@ -640,7 +640,7 @@ export default function UserDetailsPage() {
               } catch (e) {
                 toast({ title: 'Refund failed', description: e?.response?.data?.detail || 'Check refund eligibility' });
               } finally { setRefundingOrder(''); }
-            }}>{refundingOrder === order.order_id ? 'Processing…' : order.status === 'refunded' ? 'Refunded' : 'Refund order'}</Button>
+            }}>{refundingOrder === order.order_id ? 'Processing…' : order.status !== 'paid' ? 'Not eligible' : 'Refund order'}</Button>
           </div>)}
           {!orders?.length && <p className="text-sm text-slate-500">No orders found.</p>}
         </div>
