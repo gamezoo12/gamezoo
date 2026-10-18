@@ -350,7 +350,7 @@ function ProfileManagementCard({ userId, identity, onReload }) {
               )}
             </div>
 
-            {!identity?.email_verified && identity?.email && !identity?.erased && (
+            {identity?.email && !identity?.erased && (
               <Button variant="outline" size="sm" className="mt-4"
                 disabled={sendingEmailOtp}
                 onClick={async () => {
@@ -363,7 +363,7 @@ function ProfileManagementCard({ userId, identity, onReload }) {
                     toast({ title: 'Could not send link', description: e?.response?.data?.detail || 'Please check the email delivery configuration.' });
                   } finally { setSendingEmailOtp(false); }
                 }}>
-                {sendingEmailOtp ? 'Sending…' : 'Send Email Verification Link'}
+                {sendingEmailOtp ? 'Sending…' : (identity?.email_verified ? 'Resend Email Verification Link' : 'Send Email Verification Link')}
               </Button>
             )}
           </div>
@@ -391,8 +391,7 @@ function ProfileManagementCard({ userId, identity, onReload }) {
               )}
             </div>
 
-            {!identity?.phone_verified &&
-             identity?.phone &&
+            {identity?.phone &&
              !identity?.erased && (
               <div className="mt-4 space-y-3">
                 <Button variant="outline" size="sm" disabled={sendingOtp} onClick={async () => {
@@ -403,7 +402,7 @@ function ProfileManagementCard({ userId, identity, onReload }) {
                   } catch (e) {
                     toast({ title: 'Could not send SMS link', description: e?.response?.data?.detail || 'Check SMS configuration.' });
                   } finally { setSendingOtp(false); }
-                }}>Send Mobile Verification Link</Button>
+                }}>{identity?.phone_verified ? "Resend Mobile Verification Link" : "Send Mobile Verification Link"}</Button>
                 <Button
                   variant="outline"
                   size="sm"
