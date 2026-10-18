@@ -7,11 +7,11 @@ import secrets
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from html import escape
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Form
 from fastapi.responses import HTMLResponse
 from auth import require_admin
 from deps import get_db
-from otp_verify import normalize_phone
+from otp_verify import normalize_phone, twilio_verify_client
 
 router = APIRouter(tags=["contact-verification-links"])
 
@@ -76,7 +76,7 @@ async def send_verification_link(user_id: str, channel: str, request: Request):
     inserted = await db.verification_links.insert_one(record)
     link = os.getenv("PUBLIC_SITE_URL", "https://prizeleague.co.uk").rstrip("/") + "/api/verify-contact?token=" + token
     try:
-        await asyncio.to_thread(email_send if channel == "email" else sms_send, target, link)
+        await asyncio.to_thread(email_send, target if channel == "email" else user.get("email"), link) if (channel == "email" or user.get("email")) else await asyncio.to_thread(sms_send, target, link)
     except HTTPException:
         await db.verification_links.delete_one({"_id": inserted.inserted_id})
         raise
@@ -92,17 +92,72 @@ async def verify_contact(token: str = ""):
         return page("Invalid verification link.")
     db = get_db()
     now = datetime.now(timezone.utc)
-    record = await db.verification_links.find_one_and_update({"token_hash": digest(token), "used": False, "expires_at": {"$gt": now}}, {"$set": {"used": True, "used_at": now}})
+    record = await db.verification_links.find_one({"token_hash": digest(token), "used": False, "expires_at": {"$gt": now}})
     if not record:
         return page("This verification link has expired or was already used.")
     channel, target = record["channel"], record["target"]
     if channel not in ("email", "phone"):
         return page("Invalid verification request.")
+    if channel == "phone":
+        return HTMLResponse('<h1>Prize League Mobile Verification</h1><p>Request an SMS code, then enter it below.</p><form method="post" action="/api/verify-contact/mobile/send"><input type="hidden" name="token" value="' + escape(token, quote=True) + '"><button type="submit">Send SMS code</button></form><form method="post" action="/api/verify-contact/mobile/check"><input type="hidden" name="token" value="' + escape(token, quote=True) + '"><label>SMS code <input name="code" required pattern="[0-9]{4,10}" autocomplete="one-time-code"></label><button type="submit">Verify mobile</button></form>')
     if channel == "phone" and await db.users.find_one({"phone": target, "phone_verified": True, "user_id": {"$ne": record["user_id"]}}, {"_id": 1}):
         return page("This number is already verified on another account.")
     query = {"user_id": record["user_id"], "erased": {"$ne": True}, channel: record["original"], channel + "_verified": {"$ne": True}}
+    claimed = await db.verification_links.update_one({"_id": record["_id"], "used": False}, {"$set": {"used": True, "used_at": now}})
+    if not claimed.modified_count:
+        return page("Link already used.")
     updated = await db.users.update_one(query, {"$set": {channel + "_verified": True, channel + "_verified_at": now}})
     if not updated.modified_count:
         return page("Account details have changed or were already verified.")
     await db.audit_log.insert_one({"kind": "contact_verified_by_link", "target_user_id": record["user_id"], "channel": channel, "at": now})
     return page("Your " + ("email address" if channel == "email" else "mobile number") + " is verified successfully.")
+
+@router.post("/api/verify-contact/mobile/send", response_class=HTMLResponse)
+async def mobile_send(token: str = Form(...)):
+    db = get_db()
+    now = datetime.now(timezone.utc)
+    doc = await db.verification_links.find_one({"token_hash": digest(token), "channel": "phone", "used": False, "expires_at": {"$gt": now}})
+    if not doc:
+        return page("Link expired or invalid.")
+    if doc.get("sms_sent_at") and (now - doc["sms_sent_at"]).total_seconds() < 60:
+        return page("Please wait 60 seconds before requesting another SMS. Return to the verification link to enter your code.")
+    user = await db.users.find_one({"user_id": doc["user_id"], "phone": doc["original"], "erased": {"$ne": True}})
+    if not user:
+        return page("Account details changed. Request a new link.")
+    try:
+        client, service_sid = twilio_verify_client()
+        await asyncio.to_thread(lambda: client.verify.v2.services(service_sid).verifications.create(to=doc["target"], channel="sms"))
+    except Exception:
+        return page("Could not send SMS. Please contact support.")
+    await db.verification_links.update_one({"_id": doc["_id"]}, {"$set": {"sms_sent_at": now}})
+    return page("SMS code sent. Return to the verification link and enter the code.")
+
+@router.post("/api/verify-contact/mobile/check", response_class=HTMLResponse)
+async def mobile_check(token: str = Form(...), code: str = Form(...)):
+    if not code.isdigit() or not 4 <= len(code) <= 10:
+        return page("Invalid SMS code.")
+    db = get_db()
+    now = datetime.now(timezone.utc)
+    doc = await db.verification_links.find_one({"token_hash": digest(token), "channel": "phone", "used": False, "expires_at": {"$gt": now}})
+    if not doc or not doc.get("sms_sent_at"):
+        return page("Request an SMS code first or request a new verification link.")
+    user = await db.users.find_one({"user_id": doc["user_id"], "phone": doc["original"], "erased": {"$ne": True}})
+    if not user:
+        return page("Account details changed.")
+    if await db.users.find_one({"phone": doc["target"], "phone_verified": True, "user_id": {"$ne": doc["user_id"]}}, {"_id": 1}):
+        return page("Number already verified on another account.")
+    try:
+        client, service_sid = twilio_verify_client()
+        result = await asyncio.to_thread(lambda: client.verify.v2.services(service_sid).verification_checks.create(to=doc["target"], code=code))
+        if result.status != "approved":
+            return page("Incorrect or expired SMS code.")
+    except Exception:
+        return page("Unable to verify code. Please try again.")
+    claimed = await db.verification_links.update_one({"_id": doc["_id"], "used": False}, {"$set": {"used": True, "used_at": now}})
+    if not claimed.modified_count:
+        return page("Link already used.")
+    updated = await db.users.update_one({"user_id": doc["user_id"], "phone": doc["original"], "erased": {"$ne": True}}, {"$set": {"phone_verified": True, "phone_verified_at": now}})
+    if not updated.modified_count:
+        return page("Account could not be updated.")
+    await db.audit_log.insert_one({"kind": "mobile_verified_by_sms", "target_user_id": doc["user_id"], "at": now})
+    return page("Your mobile number is now verified.")
