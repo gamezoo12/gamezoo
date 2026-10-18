@@ -47,8 +47,6 @@ async def send_verification_link(user_id: str, channel: str, request: Request):
     user = await db.users.find_one({"user_id": user_id, "erased": {"$ne": True}})
     if not user:
         raise HTTPException(404, "User not found")
-    if user.get(channel + "_verified"):
-        return {"already_verified": True}
     original = user.get(channel)
     if not original:
         raise HTTPException(400, "User has no " + channel + " on file")
@@ -72,7 +70,7 @@ async def send_verification_link(user_id: str, channel: str, request: Request):
         if (now - last).total_seconds() < 60:
             raise HTTPException(429, "Wait 60 seconds before resending")
     token = secrets.token_urlsafe(32)
-    record = {"token_hash": digest(token), "user_id": user_id, "channel": channel, "target": target, "original": original, "created_at": now, "expires_at": now + timedelta(minutes=30), "used": False}
+    record = {"was_verified": bool(user.get(channel + "_verified")), "token_hash": digest(token), "user_id": user_id, "channel": channel, "target": target, "original": original, "created_at": now, "expires_at": now + timedelta(minutes=30), "used": False}
     inserted = await db.verification_links.insert_one(record)
     link = os.getenv("PUBLIC_SITE_URL", "https://prizeleague.co.uk").rstrip("/") + "/api/verify-contact?token=" + token
     try:
@@ -108,7 +106,10 @@ async def verify_contact(token: str = ""):
         return page("Link already used.")
     updated = await db.users.update_one(query, {"$set": {channel + "_verified": True, channel + "_verified_at": now}})
     if not updated.modified_count:
-        return page("Account details have changed or were already verified.")
+        still_valid = await db.users.find_one({"user_id": record["user_id"], channel: record["original"], channel + "_verified": True, "erased": {"$ne": True}})
+        if still_valid:
+            return page("Your email address is already verified. Verification confirmed.")
+        return page("Account details have changed. Please request a new link.")
     await db.audit_log.insert_one({"kind": "contact_verified_by_link", "target_user_id": record["user_id"], "channel": channel, "at": now})
     return page("Your " + ("email address" if channel == "email" else "mobile number") + " is verified successfully.")
 
@@ -158,6 +159,9 @@ async def mobile_check(token: str = Form(...), code: str = Form(...)):
         return page("Link already used.")
     updated = await db.users.update_one({"user_id": doc["user_id"], "phone": doc["original"], "erased": {"$ne": True}}, {"$set": {"phone_verified": True, "phone_verified_at": now}})
     if not updated.modified_count:
+        still_valid = await db.users.find_one({"user_id": doc["user_id"], "phone": doc["original"], "phone_verified": True, "erased": {"$ne": True}})
+        if still_valid:
+            return page("Your mobile number is already verified. Verification confirmed.")
         return page("Account could not be updated.")
     await db.audit_log.insert_one({"kind": "mobile_verified_by_sms", "target_user_id": doc["user_id"], "at": now})
     return page("Your mobile number is now verified.")
