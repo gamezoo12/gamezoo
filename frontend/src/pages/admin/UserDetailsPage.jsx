@@ -493,6 +493,10 @@ export default function UserDetailsPage() {
   const { user: currentUser } = useAuth();
   const { toast } = useToast();
   const [data, setData] = useState(null);
+  const [activity, setActivity] = useState([]);
+  const [activityDay, setActivityDay] = useState('');
+  const [activityError, setActivityError] = useState('');
+  const refreshActivity = (day = '') => api.get(`/admin/users/${user_id}/activity`, { params: day ? { day } : {} }).then(r => { setActivity(r.data.events || []); setActivityError(''); }).catch(e => setActivityError(e?.response?.data?.detail || 'Activity history unavailable'));
   const [state, setState] = useState('loading');
   const [confirmSuspend, setConfirmSuspend] = useState(false);
   const [confirmErase, setConfirmErase] = useState(false);
@@ -501,6 +505,7 @@ export default function UserDetailsPage() {
   const [busy, setBusy] = useState(false);
 
   const isSuperAdmin = currentUser?.role === 'super_admin';
+  useEffect(() => { refreshActivity(activityDay); }, [user_id, activityDay]);
 
   const load = () => {
     setState('loading');
@@ -556,6 +561,25 @@ export default function UserDetailsPage() {
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6" data-testid="user-360-page">
 
+      <Section title="User Control Centre — Activity Timeline" icon={Clock}>
+        <p className="text-xs text-slate-500 mb-3">Recorded user actions across games, tickets, payments and wallets. Historical actions not logged by Prize League cannot be displayed.</p>
+        <div className="flex items-center gap-2 mb-3">
+          <Label htmlFor="activity-day">Filter by day (UTC)</Label>
+          <Input id="activity-day" type="date" value={activityDay} onChange={e => setActivityDay(e.target.value)} className="max-w-48" />
+          <Button variant="outline" size="sm" onClick={() => refreshActivity(activityDay)}>Refresh</Button>
+        </div>
+        {activityError && <p className="text-sm text-red-600">{activityError}</p>}
+        {!activityError && activity.length === 0 && <p className="text-sm text-slate-500">No recorded activity for this period.</p>}
+        <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+          {activity.map((event, index) => (
+            <div key={index} className="py-2 text-xs flex gap-3">
+              <span className="text-slate-500 w-36 shrink-0">{event.at ? new Date(event.at).toLocaleString('en-GB') : 'Time unavailable'}</span>
+              <span className="font-semibold w-28 shrink-0">{event.source}</span>
+              <span className="break-all">{Object.entries(event.details || {}).map(([key, value]) => `${key}: ${value}`).join(' · ') || 'Recorded event'}</span>
+            </div>
+          ))}
+        </div>
+      </Section>
       <ProfileManagementCard
         userId={user_id}
         identity={data?.identity || {}}
