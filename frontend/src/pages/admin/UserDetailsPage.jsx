@@ -492,6 +492,11 @@ export default function UserDetailsPage() {
   const { user: currentUser } = useAuth();
   const { toast } = useToast();
   const [data, setData] = useState(null);
+  const [reviewType, setReviewType] = useState('tickets');
+  const [reviewRecord, setReviewRecord] = useState('');
+  const [reviewReason, setReviewReason] = useState('');
+  const [reviewStatus, setReviewStatus] = useState('under_review');
+  const [reviewBusy, setReviewBusy] = useState(false);
   const [walletAdjustment, setWalletAdjustment] = useState('');
   const [walletReason, setWalletReason] = useState('');
   const [walletAdjusting, setWalletAdjusting] = useState(false);
@@ -619,6 +624,27 @@ export default function UserDetailsPage() {
             <div key={tx.tx_id || i} className="text-xs py-2">{String(tx.created_at || '')} · {String(tx.type || tx.kind || 'Transaction')} · {String(tx.amount ?? '—')}</div>
           )}
         </div>
+      </Section>
+      <Section title="Contest & Ticket Review" icon={ShieldCheck}>
+        <p className="text-sm text-slate-500 mb-3">Record an auditable review without changing official scores, tickets or prizes.</p>
+        <div className="grid md:grid-cols-2 gap-2">
+          <select className="border rounded p-2 text-sm" value={reviewType} onChange={e => setReviewType(e.target.value)}>
+            <option value="tickets">Ticket</option><option value="paid_world">Paid World score</option><option value="free_world">Free World entry</option>
+          </select>
+          <Input placeholder="Exact ticket_id, score_id or entry_id" value={reviewRecord} onChange={e => setReviewRecord(e.target.value)} />
+          <select className="border rounded p-2 text-sm" value={reviewStatus} onChange={e => setReviewStatus(e.target.value)}>
+            <option value="under_review">Under review</option><option value="cleared">Cleared</option><option value="escalated">Escalated</option>
+          </select>
+          <Input placeholder="Reason (minimum 10 characters)" value={reviewReason} onChange={e => setReviewReason(e.target.value)} />
+        </div>
+        <Button className="mt-3" disabled={reviewBusy || !reviewRecord.trim() || reviewReason.trim().length < 10} onClick={async () => {
+          setReviewBusy(true);
+          try {
+            await api.post(`/admin/users/${user_id}/${reviewType}/record-review`, { record_id: reviewRecord.trim(), reason: reviewReason.trim(), review_status: reviewStatus });
+            toast({ title: 'Review recorded' }); setReviewReason(''); setReviewRecord(''); refreshActivity(activityDay);
+          } catch (e) { toast({ title: 'Review failed', description: e?.response?.data?.detail || 'Check record ID' }); }
+          finally { setReviewBusy(false); }
+        }}>Save audited review</Button>
       </Section>
       <Section title="Wallet Adjustment" icon={Wallet}>
         <p className="text-sm text-slate-500 mb-3">Apply a recorded credit or debit through the existing wallet administration API. A reason is required.</p>
