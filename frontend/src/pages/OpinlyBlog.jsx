@@ -14,6 +14,7 @@ const postImage = (post) => post?.heroImage?.url || post?.hero_image?.url || pos
 const summary = (post) => post?.description || post?.excerpt || post?.summary || '';
 const title = (post) => post?.seo?.title || post?.metaTitle || post?.title || 'Prize League Blog';
 const text = (value) => typeof value === 'string' ? value : '';
+const safeImage = (value) => typeof value === 'string' && /^https:\/\//i.test(value) ? value : undefined;
 function Meta({ name, property, content }) {
   useEffect(() => {
     if (!content) return undefined;
@@ -81,10 +82,11 @@ function Status({ state, empty }) {
 }
 function Card({ post }) {
   if (!post?.slug) return null;
-  const image = postImage(post);
+  const image = safeImage(postImage(post));
+  const imageAlt = typeof post?.heroImage === 'object' ? post.heroImage?.alt : '';
   return <article className="rounded-xl border border-white/20 overflow-hidden bg-white/5">
     <Link to={'/blog/' + encodeURIComponent(post.slug)} className="block p-5 focus-visible:outline focus-visible:outline-2">
-      {typeof image === 'string' && <img src={image} alt={text(post?.heroImage?.alt) || ''} loading="lazy" className="w-full h-44 object-cover rounded-lg mb-4" />}
+      {typeof image === 'string' && <img src={image} alt={text(imageAlt) || ''} loading="lazy" className="w-full h-44 object-cover rounded-lg mb-4" />}
       <h2 className="text-xl font-bold mb-2">{post.title}</h2>
       <p className="opacity-80">{summary(post)}</p>
       <span className="inline-block mt-3 underline">Read article</span>
@@ -117,7 +119,8 @@ export function BlogPost() {
   const { slug } = useParams();
   const state = useBlog(() => api('post?slug=' + encodeURIComponent(slug)), [slug]);
   const p = state.data?.data || state.data;
-  const image = p && postImage(p);
+  const image = p && safeImage(postImage(p));
+  const heroAlt = typeof p?.heroImage === 'object' ? p.heroImage?.alt : '';
   const path = '/blog/' + encodeURIComponent(slug);
   const schema = p && { '@context': 'https://schema.org', '@type': 'BlogPosting', headline: p.title, description: summary(p), mainEntityOfPage: SITE + path, ...(image ? { image } : {}), ...(p.publishedAt ? { datePublished: p.publishedAt } : {}), ...(p.updatedAt ? { dateModified: p.updatedAt } : {}), author: { '@type': 'Person', name: p.author?.name || p.authorName || 'Prize League' }, publisher: { '@type': 'Organization', name: 'Prize League' } };
   return <main className="max-w-3xl mx-auto px-5 py-12 min-h-screen">
@@ -127,7 +130,7 @@ export function BlogPost() {
       <nav aria-label="Breadcrumb" className="mb-6"><Link to="/blog" className="underline">Blog</Link> / <span>{p.title}</span></nav>
       <h1 className="text-4xl font-bold mb-4">{p.title}</h1>
       {p.publishedAt && <time dateTime={p.publishedAt} className="block opacity-70 mb-6">{new Date(p.publishedAt).toLocaleDateString('en-GB')}</time>}
-      {typeof image === 'string' && <img src={image} alt={text(p.heroImage?.alt) || ''} className="w-full rounded-xl mb-8" />}
+      {typeof image === 'string' && <img src={image} alt={text(heroAlt) || ''} className="w-full rounded-xl mb-8" />}
       <div className="prose prose-invert max-w-none leading-relaxed">
         {typeof p.bodyHtml === 'string' || typeof p.html === 'string' ? <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(p.bodyHtml || p.html) }} /> : <ReactMarkdown>{text(p.bodyMarkdown || p.markdown || p.body || p.content)}</ReactMarkdown>}
       </div>
