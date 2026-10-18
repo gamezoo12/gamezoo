@@ -590,6 +590,36 @@ export default function UserDetailsPage() {
 
       <BackButton to="/admin/users" label="All users" className="mb-1" />
 
+      <Section title="Free World & Paid World — User Records" icon={Trophy}>
+        <p className="text-sm text-slate-500 mb-3">Existing contest entries, game attempts and scores. Changes to scores or winners require the official contest workflow.</p>
+        <div className="overflow-x-auto max-h-72 overflow-y-auto">
+          <table className="w-full text-xs text-left"><thead><tr><th className="p-2">Date</th><th className="p-2">World / Contest</th><th className="p-2">Game</th><th className="p-2">Score</th><th className="p-2">Status</th></tr></thead><tbody>
+            {(scores || []).map((score, i) => <tr key={score.score_id || i} className="border-t">
+              <td className="p-2">{score.created_at ? new Date(score.created_at).toLocaleString('en-GB') : '—'}</td>
+              <td className="p-2">{String(score.world || score.contest_id || score.contest_number || 'Unclassified')}</td>
+              <td className="p-2">{String(score.game_type || score.game_id || '—')}</td>
+              <td className="p-2">{String(score.score ?? '—')}</td>
+              <td className="p-2">{String(score.status || 'Recorded')}</td>
+            </tr>)}
+          </tbody></table>
+        </div>
+      </Section>
+      <Section title="Ticket Management — User Entries" icon={Ticket}>
+        <p className="text-sm text-slate-500 mb-3">Ticket records are read-only here. Refunds and contest changes must use the existing validated admin workflows.</p>
+        <div className="max-h-64 overflow-y-auto divide-y text-xs">
+          {(tickets || []).map((ticket, i) => <div key={ticket.ticket_id || i} className="py-2 flex justify-between gap-3"><span>{String(ticket.ticket_id || ticket._id || 'Ticket')} · {String(ticket.contest_id || 'Contest unavailable')}</span><span>{String(ticket.status || 'Recorded')}</span></div>)}
+          {!tickets?.length && <p>No tickets recorded.</p>}
+        </div>
+      </Section>
+      <Section title="Bonuses & Withdrawals — Account Records" icon={Gift}>
+        <p className="text-sm text-slate-500">Signup bonus: {signup_bonus?.granted ? 'Granted' : signup_bonus?.eligible ? 'Eligible' : 'Not recorded'} · {signup_bonus?.tokens ?? 0} tokens</p>
+        <p className="text-sm text-slate-500 mt-2">Withdrawals and bonus expiry require dedicated ledger-backed approval and expiry workflows. They cannot safely be changed by editing wallet balances directly.</p>
+        <div className="max-h-48 overflow-y-auto mt-3 divide-y">
+          {(wallet_transactions || []).filter(tx => /bonus|withdraw|payout|winning/i.test([tx.type, tx.kind, tx.note].join(' '))).map((tx, i) =>
+            <div key={tx.tx_id || i} className="text-xs py-2">{String(tx.created_at || '')} · {String(tx.type || tx.kind || 'Transaction')} · {String(tx.amount ?? '—')}</div>
+          )}
+        </div>
+      </Section>
       <Section title="Wallet Adjustment" icon={Wallet}>
         <p className="text-sm text-slate-500 mb-3">Apply a recorded credit or debit through the existing wallet administration API. A reason is required.</p>
         <div className="grid md:grid-cols-3 gap-2">
