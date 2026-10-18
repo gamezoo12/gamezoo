@@ -385,3 +385,6 @@ async def shutdown_db_client():
 # Admin resend verification for existing account emails
 from routers.admin_verification_routes import router as admin_verification_router
 app.include_router(admin_verification_router)
+
+from routers.contact_verification_links import router as contact_verification_links_router
+app.include_router(contact_verification_links_router)
