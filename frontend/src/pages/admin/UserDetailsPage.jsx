@@ -588,6 +588,20 @@ export default function UserDetailsPage() {
 
       <BackButton to="/admin/users" label="All users" className="mb-1" />
 
+      <Section title="Account Management Shortcuts" icon={Wallet}>
+        <p className="text-sm text-slate-500 mb-3">Manage the user's existing records using the dedicated admin workflows. Financial actions remain auditable.</p>
+        <div className="flex flex-wrap gap-2">
+          {[
+            ['/admin/users', 'Find another user'],
+            ['/admin/wallets', 'Wallets'],
+            ['/admin/withdrawals', 'Withdrawals'],
+            ['/admin/tickets', 'Tickets'],
+            ['/admin/contests', 'Contests'],
+          ].map(([path, label]) => (
+            <Button key={path} variant="outline" size="sm" onClick={() => nav(path)}>{label}</Button>
+          ))}
+        </div>
+      </Section>
       {/* Hero */}
       <div className="relative rounded-2xl bg-gradient-to-br from-violet-600 to-purple-800 text-white p-6 overflow-hidden">
         <div className="absolute -top-16 -right-16 w-72 h-72 rounded-full bg-white/10 blur-3xl" />
