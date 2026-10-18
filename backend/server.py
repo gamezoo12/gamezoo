@@ -390,3 +390,6 @@ from routers.contact_verification_links import router as contact_verification_li
 app.include_router(contact_verification_links_router)
 from routers.user_activity_timeline import router as user_activity_timeline_router
 app.include_router(user_activity_timeline_router)
+
+from routers.admin_user_record_reviews import router as admin_user_record_reviews_router
+app.include_router(admin_user_record_reviews_router)
