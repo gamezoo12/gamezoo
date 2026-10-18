@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { api } from '../../lib/api';
+import { api, adminWalletAPI } from '../../lib/api';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
@@ -493,6 +493,9 @@ export default function UserDetailsPage() {
   const { user: currentUser } = useAuth();
   const { toast } = useToast();
   const [data, setData] = useState(null);
+  const [walletAdjustment, setWalletAdjustment] = useState('');
+  const [walletReason, setWalletReason] = useState('');
+  const [walletAdjusting, setWalletAdjusting] = useState(false);
   const [activity, setActivity] = useState([]);
   const [activityDay, setActivityDay] = useState('');
   const [activityError, setActivityError] = useState('');
@@ -588,6 +591,24 @@ export default function UserDetailsPage() {
 
       <BackButton to="/admin/users" label="All users" className="mb-1" />
 
+      <Section title="Wallet Adjustment" icon={Wallet}>
+        <p className="text-sm text-slate-500 mb-3">Apply a recorded credit or debit through the existing wallet administration API. A reason is required.</p>
+        <div className="grid md:grid-cols-3 gap-2">
+          <Input type="number" step="0.01" value={walletAdjustment} placeholder="Amount (£), negative to debit" onChange={e => setWalletAdjustment(e.target.value)} />
+          <Input value={walletReason} placeholder="Reason for adjustment" onChange={e => setWalletReason(e.target.value)} />
+          <Button disabled={walletAdjusting || !walletReason.trim() || !Number.isFinite(Number(walletAdjustment)) || Number(walletAdjustment) === 0 || !walletAdjustment} onClick={async () => {
+            if (!window.confirm(`Confirm wallet adjustment of £${walletAdjustment} for this user? Reason: ${walletReason}`)) return;
+            setWalletAdjusting(true);
+            try {
+              await adminWalletAPI.adjust(user_id, Number(walletAdjustment), walletReason.trim());
+              toast({ title: 'Wallet adjustment recorded' });
+              setWalletAdjustment(''); setWalletReason(''); load(); refreshActivity(activityDay);
+            } catch (e) {
+              toast({ title: 'Adjustment failed', description: e?.response?.data?.detail || 'Could not adjust wallet' });
+            } finally { setWalletAdjusting(false); }
+          }}>{walletAdjusting ? 'Applying…' : 'Apply wallet adjustment'}</Button>
+        </div>
+      </Section>
       <Section title="Account Management Shortcuts" icon={Wallet}>
         <p className="text-sm text-slate-500 mb-3">Manage the user's existing records using the dedicated admin workflows. Financial actions remain auditable.</p>
         <div className="flex flex-wrap gap-2">
