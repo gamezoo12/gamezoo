@@ -60,6 +60,7 @@ import MobileTermsPage from './pages/legal/MobileTermsPage';
 import PrizeLeagueWorld from './world/PrizeLeagueWorld';
 import WorldPreview from './world/WorldPreview';
 import WorldSelector from './pages/WorldSelector';
+import { BlogIndex, BlogPost, BlogCategory, BlogAuthor } from './pages/OpinlyBlog';
 
 import ProductionLayout from './components/admin/ProductionLayout';
 import LiveDrawPage from './pages/production/LiveDraw';
@@ -86,6 +87,10 @@ function AppRouter() {
         <Route path="/draw-results" element={<DrawCentre />} />
         <Route path="/draw-centre" element={<DrawCentre />} />
         <Route path="/stories" element={<Stories />} />
+        <Route path="/blog" element={<BlogIndex />} />
+        <Route path="/blog/category/:slug" element={<BlogCategory />} />
+        <Route path="/blog/author/:slug" element={<BlogAuthor />} />
+        <Route path="/blog/:slug" element={<BlogPost />} />
         <Route path="/faq" element={<FAQ />} />
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
