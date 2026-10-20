@@ -88,11 +88,15 @@ class Wallet(BaseModel):
 class WalletTx(BaseModel):
     tx_id: str = Field(default_factory=lambda: new_id('tx'))
     user_id: str
-    kind: Literal['topup', 'spend', 'refund', 'admin_adjust', 'referral_bonus', 'signup_bonus', 'influencer_bonus', 'champion_prize', 'winnings']
+    kind: Literal['topup', 'spend', 'refund', 'admin_adjust', 'referral_bonus', 'signup_bonus', 'influencer_bonus', 'champion_prize', 'winnings', 'bonus_grant', 'bonus_expiry', 'bonus_revoke']
     amount: float  # positive for credits, negative for debits
     balance_after: float
     note: str = ''
     ref_order_id: Optional[str] = None
+    # Source split is populated for new wallet transactions; old rows remain unknown.
+    bonus_amount: Optional[float] = None
+    purchased_amount: Optional[float] = None
+    withdrawable_amount: Optional[float] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 

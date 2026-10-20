@@ -243,6 +243,12 @@ async def handle_set_user_role(db, a: dict) -> dict:
     if not u:
         return {'action': 'set_user_role', 'ok': False, 'error': f'User not found: {a.get("email_or_id")}'}
     await db.users.update_one({'user_id': u['user_id']}, {'$set': {'role': role}})
+    try:
+        from services.analytics_events import record_staff_role_transition
+        await record_staff_role_transition(db, u['user_id'], u.get('role') or 'user', role)
+    except Exception:
+        # Role changes must not be reported as failed if the analytics audit write is unavailable.
+        pass
     return {'action': 'set_user_role', 'ok': True, 'user_id': u['user_id'], 'role': role}
 
 

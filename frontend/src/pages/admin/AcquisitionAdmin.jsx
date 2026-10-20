@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { acquisitionAdminAPI } from '../../lib/api';
+import AcquisitionAnalytics from './AcquisitionAnalytics';
 import {
   Globe, Users, MousePointerClick, Smartphone, Monitor,
   Search, Share2, Link2, TrendingUp, RefreshCw, Target, UserCheck,
@@ -134,6 +135,12 @@ export default function AcquisitionAdmin() {
           </button>
         </div>
       </div>
+
+      <AcquisitionAnalytics />
+
+      <h2 className="font-display font-black text-lg text-slate-700 pt-2">
+        Landing visits (earlier report, one record per visitor per day)
+      </h2>
 
       {state === 'loading' && (
         <div className="text-slate-500 p-6">Loading acquisition data…</div>
@@ -283,12 +290,13 @@ export default function AcquisitionAdmin() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
-                  <thead className="bg-slate-50 text-slate-500"><tr><th className="px-3 py-2 text-left">When</th><th className="px-3 py-2 text-left">Page</th><th className="px-3 py-2 text-left">Visitor</th><th className="px-3 py-2 text-left">User</th></tr></thead>
+                  <thead className="bg-slate-50 text-slate-500"><tr><th className="px-3 py-2 text-left">When</th><th className="px-3 py-2 text-left">Page</th><th className="px-3 py-2 text-left">Source</th><th className="px-3 py-2 text-left">Device</th><th className="px-3 py-2 text-left">Visitor state</th></tr></thead>
                   <tbody>{pageViews.map((view) => <tr key={view.view_id} className="border-t border-slate-100">
                     <td className="px-3 py-2 whitespace-nowrap">{view.created_at ? new Date(view.created_at).toLocaleString('en-GB') : '—'}</td>
                     <td className="px-3 py-2 font-mono">{view.page_path}</td>
-                    <td className="px-3 py-2">{view.visitor_id}</td>
-                    <td className="px-3 py-2">{view.user?.email || view.user_id || 'Guest'}</td>
+                    <td className="px-3 py-2">{view.source_key || 'unknown'}</td>
+                    <td className="px-3 py-2">{view.device_type || 'unknown'}</td>
+                    <td className="px-3 py-2">{view.user_state || 'legacy / unknown'}</td>
                   </tr>)}</tbody>
                 </table>
               </div>

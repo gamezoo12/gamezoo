@@ -1,12 +1,14 @@
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import EmailStr, TypeAdapter, ValidationError
 import uuid
+import logging
 from datetime import datetime, timedelta, timezone
 
 from auth import require_admin, get_current_user, verify_password
 from models import Winner  # noqa: F401 (kept for other endpoints that may use it)
 
 router = APIRouter(prefix='/api/admin', tags=['admin'])
+logger = logging.getLogger(__name__)
 
 
 # Collections that are safe to wipe wholesale when the super admin clicks
@@ -248,10 +250,12 @@ async def dashboard_summary(request: Request, period: str = '24h', window_hours:
     ]).to_list(1)
     revenue = (orders_total[0]['total'] if orders_total else 0)
     tickets = await db.tickets.count_documents(ticket_match)
-    visits = await db.acquisition_visits.count_documents(order_match)
-    page_views = await db.acquisition_page_views.count_documents(order_match)
+    from services.analytics_events import public_traffic_filter
+    traffic_match = {**order_match, **await public_traffic_filter(db)}
+    visits = await db.acquisition_visits.count_documents(traffic_match)
+    page_views = await db.acquisition_page_views.count_documents(traffic_match)
     unique_visitors = await db.acquisition_visits.aggregate([
-        {'$match': order_match},
+        {'$match': traffic_match},
         {'$group': {'_id': '$visitor_id'}},
         {'$count': 'n'},
     ]).to_list(1)
@@ -970,6 +974,15 @@ async def update_user(user_id: str, payload: dict, request: Request):
             }
         },
     )
+
+    if 'role' in changed:
+        from services.analytics_events import record_staff_role_transition
+        try:
+            await record_staff_role_transition(
+                db, user_id, current.get('role') or 'user', changed['role'], now,
+            )
+        except Exception:
+            logger.exception('Could not record staff role interval for user_id=%s', user_id)
 
     await db.audit_log.insert_one({
         'audit_id': f'aud_{uuid.uuid4().hex[:12]}',

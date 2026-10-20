@@ -411,6 +411,14 @@ async def bootstrap_admin(inp: BootstrapAdminInput):
                 'must_change_password': False,
             }},
         )
+        from services.analytics_events import record_staff_role_transition
+        try:
+            await record_staff_role_transition(
+                db, existing_user['user_id'], existing_user.get('role') or 'user',
+                'super_admin', datetime.now(timezone.utc),
+            )
+        except Exception:
+            logger.exception('bootstrap-admin could not record staff role interval')
         fresh = await db.users.find_one({'email': email}, {'_id': 0})
     else:
         user = User(

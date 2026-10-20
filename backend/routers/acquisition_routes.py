@@ -13,7 +13,6 @@ visitors reached the site (referrer + UTM + landing page + device).
 """
 from __future__ import annotations
 
-import re
 import uuid
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse
@@ -23,6 +22,11 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 from auth import require_admin, get_current_user
+from services.analytics_common import (
+    classify_page, classify_traffic, device_of, host_of, is_staff, is_test_account,
+    route_template, visitor_state,
+)
+from services.analytics_events import public_traffic_filter
 
 public_router = APIRouter(prefix='/api/acquisition', tags=['acquisition'])
 admin_router = APIRouter(prefix='/api/admin/acquisition', tags=['admin-acquisition'])
@@ -137,6 +141,60 @@ class TrackPageViewInput(BaseModel):
     visitor_id: str = Field(min_length=4, max_length=80)
     view_id: str = Field(min_length=8, max_length=120)
     page_path: str = Field(min_length=1, max_length=600)
+    session_id: Optional[str] = Field(default=None, min_length=8, max_length=80)
+    variant: Optional[str] = Field(default='', max_length=20)
+    prev_path: Optional[str] = Field(default='', max_length=600)
+    # Only meaningful on the first view of a session.
+    referrer: Optional[str] = Field(default='', max_length=1000)
+    utm_source: Optional[str] = Field(default='', max_length=200)
+    utm_medium: Optional[str] = Field(default='', max_length=200)
+    utm_campaign: Optional[str] = Field(default='', max_length=200)
+    has_gclid: Optional[bool] = False
+
+
+class EngagementInput(BaseModel):
+    view_id: str = Field(min_length=8, max_length=120)
+    engaged_ms: int = Field(ge=0, le=1_800_000)
+
+
+class EventInput(BaseModel):
+    visitor_id: str = Field(min_length=4, max_length=80)
+    session_id: str = Field(min_length=8, max_length=80)
+    name: str = Field(max_length=40)
+    page_path: Optional[str] = Field(default='/', max_length=600)
+
+
+class AttributeInput(BaseModel):
+    visitor_id: str = Field(min_length=4, max_length=80)
+    session_id: Optional[str] = Field(default=None, max_length=80)
+
+
+class PaidGameStartInput(BaseModel):
+    ticket_id: str = Field(min_length=3, max_length=120)
+    start_id: str = Field(min_length=8, max_length=120)
+
+
+# Only these funnel events can be recorded from the browser; everything else in the
+# funnel (registration, verification, game starts, entries) is read from server records.
+ALLOWED_EVENTS = {'signup_click', 'champion_view'}
+BOUNCE_ENGAGEMENT_MS = 10_000
+ATTRIBUTION_WINDOW_DAYS = 30
+REGISTRATION_JOURNEY_HOURS = 24
+
+
+async def _optional_user(request: Request):
+    try:
+        return await get_current_user(request)
+    except Exception:
+        return None
+
+
+async def _log_staff_activity(db, user: dict, kind: str, path: str, now: datetime):
+    """Internal audit trail; deliberately separate from public traffic collections."""
+    await db.staff_activity_log.insert_one({
+        'user_id': user.get('user_id'), 'role': user.get('role'), 'kind': kind,
+        'page_path': route_template(path), 'created_at': now,
+    })
 
 
 @public_router.post('/track')
@@ -145,12 +203,11 @@ async def track_visit(payload: TrackInput, request: Request):
     db = get_db()
 
     # Best-effort logged-in association (never required).
-    user_id = None
-    try:
-        u = await get_current_user(request)
-        user_id = (u or {}).get('user_id')
-    except Exception:
-        user_id = None
+    user = await _optional_user(request)
+    user_id = (user or {}).get('user_id')
+    if is_staff(user):
+        await _log_staff_activity(db, user, 'landing', payload.landing_path or '/', _now())
+        return {'ok': True, 'recorded': False}
 
     ua = request.headers.get('user-agent', '')
     own_host = _host(str(request.base_url))
@@ -187,11 +244,12 @@ async def track_visit(payload: TrackInput, request: Request):
         'device_type': ua_info['device_type'],
         'browser': ua_info['browser'],
         'os': ua_info['os'],
-        'user_agent': ua[:500],
         'screen': (payload.screen or '')[:40],
         'language': (payload.language or '')[:40],
         'day_key': day_key,
         'created_at': now,
+        'is_staff': False,
+        'is_test': is_test_account(user),
     }
 
     try:
@@ -211,24 +269,214 @@ async def track_visit(payload: TrackInput, request: Request):
 async def track_page_view(payload: TrackPageViewInput, request: Request):
     from deps import get_db
     db = get_db()
-    user_id = None
-    try:
-        user_id = (await get_current_user(request)).get('user_id')
-    except Exception:
-        pass
+    user = await _optional_user(request)
     now = _now()
-    await db.acquisition_page_views.update_one(
-        {'view_id': payload.view_id},
+    if is_staff(user):
+        await _log_staff_activity(db, user, 'page_view', payload.page_path, now)
+        return {'ok': True, 'recorded': False}
+
+    route = route_template(payload.page_path)
+    page_key, _label = classify_page(payload.page_path, payload.variant or '')
+    prev_route = route_template(payload.prev_path) if payload.prev_path else ''
+    prev_key = classify_page(payload.prev_path)[0] if payload.prev_path else ''
+    session_id = payload.session_id or f'legacy_{payload.visitor_id}'
+    ua = request.headers.get('user-agent', '')
+    device = device_of(ua)
+    state = visitor_state(user)
+
+    session = await db.acquisition_sessions.find_one(
+        {'session_id': session_id}, {'_id': 0, 'source_key': 1, 'medium': 1, 'campaign': 1, 'device_type': 1},
+    )
+    is_entrance = session is None
+    if session is None:
+        own = {host_of(str(request.base_url))}
+        traffic = classify_traffic(payload.utm_source or '', payload.utm_medium or '',
+                                   host_of(payload.referrer or ''), own, bool(payload.has_gclid))
+        session = {'source_key': traffic['source_key'], 'medium': traffic['medium'],
+                   'campaign': (payload.utm_campaign or '').strip()[:120] or '(none)', 'device_type': device,
+                   'referrer_host': traffic['referrer_host']}
+
+    view_doc = {
+        'view_id': payload.view_id,
+        'visitor_id': payload.visitor_id,
+        'session_id': session_id,
+        'user_id': (user or {}).get('user_id'),
+        'user_state': state,
+        'page_path': route,
+        'page_key': page_key,
+        'prev_path': prev_route,
+        'prev_page_key': prev_key,
+        'is_entrance': is_entrance,
+        'source_key': session['source_key'],
+        'campaign': session['campaign'],
+        'device_type': session['device_type'],
+        'engaged_ms': 0,
+        'is_staff': False,
+        'is_test': is_test_account(user),
+        'created_at': now,
+    }
+    inserted = await db.acquisition_page_views.update_one(
+        {'view_id': payload.view_id}, {'$setOnInsert': view_doc}, upsert=True,
+    )
+    if inserted.upserted_id is None:
+        return {'ok': True, 'duplicate': True}
+
+    new_visitor = False
+    if is_entrance:
+        seen = await db.acquisition_visitors.update_one(
+            {'visitor_id': payload.visitor_id}, {'$setOnInsert': {'visitor_id': payload.visitor_id, 'first_seen_at': now}},
+            upsert=True,
+        )
+        new_visitor = seen.upserted_id is not None
+        if new_visitor:
+            # A landing recorded by the legacy tracker before this session means they were here before.
+            earlier = await db.acquisition_visits.find_one(
+                {'visitor_id': payload.visitor_id, 'created_at': {'$lt': now - timedelta(minutes=5)}}, {'_id': 1},
+            )
+            new_visitor = earlier is None
+    await db.acquisition_sessions.update_one(
+        {'session_id': session_id},
+        {
+            '$setOnInsert': {
+                'session_id': session_id, 'visitor_id': payload.visitor_id, 'started_at': now,
+                'entry_path': route, 'entry_page_key': page_key,
+                'source_key': session['source_key'], 'medium': session['medium'],
+                'campaign': session['campaign'], 'referrer_host': session.get('referrer_host', ''),
+                'device_type': session['device_type'], 'is_new_visitor': new_visitor,
+                'user_state_start': state, 'is_staff': False, 'is_test': is_test_account(user),
+                'engaged_ms': 0,
+            },
+            '$set': {'last_seen_at': now, 'last_path': route, 'last_page_key': page_key, 'user_state_last': state},
+            '$inc': {'views': 1},
+            '$push': {'path_keys': {'$each': [page_key], '$slice': -15}},
+        },
+        upsert=True,
+    )
+    return {'ok': True}
+
+
+@public_router.post('/engagement')
+async def track_engagement(payload: EngagementInput):
+    """Visible time on a page; only ever increases, so retries cannot double count."""
+    from deps import get_db
+    db = get_db()
+    before = await db.acquisition_page_views.find_one_and_update(
+        {'view_id': payload.view_id}, {'$max': {'engaged_ms': payload.engaged_ms}},
+        projection={'_id': 0, 'session_id': 1, 'engaged_ms': 1},
+    )
+    if before is None:
+        return {'ok': True}
+    delta = payload.engaged_ms - int(before.get('engaged_ms') or 0)
+    if delta > 0:
+        await db.acquisition_sessions.update_one({'session_id': before['session_id']}, {'$inc': {'engaged_ms': delta}})
+    return {'ok': True}
+
+
+@public_router.post('/event')
+async def track_event(payload: EventInput, request: Request):
+    if payload.name not in ALLOWED_EVENTS:
+        return {'ok': False, 'detail': 'Unsupported event'}
+    from deps import get_db
+    db = get_db()
+    user = await _optional_user(request)
+    if is_staff(user):
+        return {'ok': True, 'recorded': False}
+    page_key, _ = classify_page(payload.page_path or '/')
+    session = await db.acquisition_sessions.find_one({'session_id': payload.session_id}, {'_id': 0, 'source_key': 1})
+    await db.acquisition_events.update_one(
+        {'dedupe': f'{payload.session_id}:{payload.name}'},
         {'$setOnInsert': {
-            'view_id': payload.view_id,
-            'visitor_id': payload.visitor_id,
-            'user_id': user_id,
-            'page_path': payload.page_path,
-            'created_at': now,
+            'dedupe': f'{payload.session_id}:{payload.name}', 'name': payload.name,
+            'visitor_id': payload.visitor_id, 'session_id': payload.session_id, 'page_key': page_key,
+            'source_key': (session or {}).get('source_key', 'unknown'), 'user_state': visitor_state(user),
+            'is_test': is_test_account(user), 'created_at': _now(),
         }},
         upsert=True,
     )
     return {'ok': True}
+
+
+@public_router.post('/game-start')
+async def track_paid_game_start(payload: PaidGameStartInput, request: Request):
+    """Record an opted-in, authenticated paid-game start after the official-attempt control is used.
+
+    The server verifies ticket ownership and deduplicates the browser-generated start id. The
+    event contains no ticket id, IP address, email, user-agent or answer data.
+    """
+    from deps import get_db
+    from fastapi import HTTPException
+    db = get_db()
+    user = await _optional_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail='Not authenticated')
+    if is_staff(user) or is_test_account(user):
+        return {'ok': True, 'recorded': False}
+    ticket = await db.tickets.find_one(
+        {'ticket_id': payload.ticket_id, 'user_id': user['user_id']}, {'_id': 0, 'contest_id': 1})
+    if not ticket:
+        raise HTTPException(status_code=404, detail='Ticket not found')
+    dedupe = f'paid_game_start:{user["user_id"]}:{payload.start_id}'
+    await db.acquisition_events.update_one(
+        {'dedupe': dedupe},
+        {'$setOnInsert': {
+            'dedupe': dedupe, 'name': 'paid_game_start', 'user_id': user['user_id'],
+            'contest_id': ticket['contest_id'], 'created_at': _now(), 'user_state': visitor_state(user),
+            'is_staff': False, 'is_test': False,
+        }},
+        upsert=True,
+    )
+    return {'ok': True, 'recorded': True}
+
+
+def _as_utc(value):
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    return None
+
+
+@public_router.post('/attribute')
+async def attribute_registration(payload: AttributeInput, request: Request):
+    """Link a freshly registered account to the visitor's first-touch source.
+
+    Server-verified user; only accounts created in the last 24h are eligible, so a
+    returning login can never be counted as a new registration. Stores no contact data.
+    """
+    from deps import get_db
+    from fastapi import HTTPException
+    db = get_db()
+    user = await _optional_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail='Not authenticated')
+    if is_staff(user) or is_test_account(user):
+        return {'attributed': False, 'reason': 'internal_account'}
+    if user.get('phone_verified') is not True or not user.get('terms_accepted_at'):
+        return {'attributed': False, 'reason': 'registration_incomplete'}
+    now = _now()
+    created = _as_utc(user.get('created_at'))
+    if created is None or now - created > timedelta(hours=REGISTRATION_JOURNEY_HOURS):
+        return {'attributed': False, 'reason': 'not_a_new_registration'}
+    if await db.acquisition_attributions.find_one({'user_id': user['user_id']}, {'_id': 1}):
+        return {'attributed': False, 'reason': 'already_attributed'}
+
+    first = await db.acquisition_sessions.find_one(
+        {'visitor_id': payload.visitor_id, 'started_at': {'$gte': now - timedelta(days=ATTRIBUTION_WINDOW_DAYS)}},
+        {'_id': 0}, sort=[('started_at', 1)],
+    )
+    if not first:
+        return {'attributed': False, 'reason': 'no_tracking_data'}
+    doc = {
+        'user_id': user['user_id'], 'visitor_id': payload.visitor_id,
+        'session_id': first['session_id'], 'registration_session_id': payload.session_id,
+        'source_key': first.get('source_key', 'other'), 'medium': first.get('medium', '(none)'),
+        'campaign': first.get('campaign', '(none)'), 'landing_path': first.get('entry_path', '/'),
+        'landing_page_key': first.get('entry_page_key', 'other'), 'device_type': first.get('device_type', 'unknown'),
+        'user_created_at': created, 'attributed_at': now, 'is_test': False,
+    }
+    try:
+        await db.acquisition_attributions.insert_one(doc)
+    except Exception:
+        return {'attributed': False, 'reason': 'already_attributed'}
+    return {'attributed': True, 'source': doc['source_key']}
 
 
 async def _bucket(db, match, field, limit=15):
@@ -252,6 +500,7 @@ async def acquisition_summary(request: Request, days: int = 30, period: Optional
     db = get_db()
 
     match, period_label = _range_query(period, days)
+    match = {**match, **await public_traffic_filter(db)}
 
     total_visits = await db.acquisition_visits.count_documents(match)
     page_views = await db.acquisition_page_views.count_documents(match)
@@ -379,6 +628,7 @@ async def acquisition_visits(
     db = get_db()
 
     q, period_label = _range_query(period, days)
+    q = {**q, **await public_traffic_filter(db)}
     if source:
         q['source'] = source
 
@@ -387,7 +637,9 @@ async def acquisition_visits(
 
     total = await db.acquisition_visits.count_documents(q)
     docs = await db.acquisition_visits.find(
-        q, {'_id': 0},
+        q, {'_id': 0, 'visit_id': 1, 'created_at': 1, 'source': 1, 'channel': 1,
+            'utm_medium': 1, 'utm_campaign': 1, 'landing_path': 1, 'referrer_host': 1,
+            'device_type': 1, 'browser': 1, 'os': 1},
     ).sort('created_at', -1).skip(skip).limit(limit).to_list(limit)
 
     return {'visits': docs, 'total': total, 'skip': skip, 'limit': limit, 'period': period_label}
@@ -405,13 +657,12 @@ async def acquisition_page_views(
     from deps import get_db
     db = get_db()
     query, period_label = _range_query(period, days)
+    query = {**query, **await public_traffic_filter(db)}
     skip = max(0, int(skip))
     limit = max(1, min(int(limit), 500))
     total = await db.acquisition_page_views.count_documents(query)
-    pages = await db.acquisition_page_views.find(query, {'_id': 0}).sort('created_at', -1).skip(skip).limit(limit).to_list(limit)
-    user_ids = list({page.get('user_id') for page in pages if page.get('user_id')})
-    users = await db.users.find({'user_id': {'$in': user_ids}}, {'_id': 0, 'user_id': 1, 'name': 1, 'email': 1}).to_list(len(user_ids)) if user_ids else []
-    user_map = {user['user_id']: user for user in users}
-    for page in pages:
-        page['user'] = user_map.get(page.get('user_id'), {})
+    pages = await db.acquisition_page_views.find(query, {
+        '_id': 0, 'view_id': 1, 'created_at': 1, 'page_path': 1, 'page_key': 1,
+        'visitor_id': 1, 'source_key': 1, 'device_type': 1, 'user_state': 1,
+    }).sort('created_at', -1).skip(skip).limit(limit).to_list(limit)
     return {'page_views': pages, 'total': total, 'skip': skip, 'limit': limit, 'period': period_label}

@@ -24,7 +24,9 @@ import {
 import {
   worldAPI,
   worldContestAPI,
+  acquisitionAPI,
 } from '../lib/api';
+import { analyticsAllowed } from '../components/AcquisitionTracker';
 
 import WorldAlertPopup from './components/WorldAlertPopup';
 
@@ -253,6 +255,20 @@ export default function PrizeLeagueWorld() {
         if (!user) {
           navigate('/login');
           return;
+        }
+
+        if (analyticsAllowed()) {
+          try {
+            const stored = JSON.parse(localStorage.getItem('pl-session') || 'null');
+            if (stored?.id) {
+              acquisitionAPI.event({
+                visitor_id: localStorage.getItem('pl-visitor-id'),
+                session_id: stored.id,
+                name: 'champion_view',
+                page_path: '/world',
+              }).catch(() => {});
+            }
+          } catch (error) { /* analytics never blocks Champion access */ }
         }
 
         setLevelBusy(true);

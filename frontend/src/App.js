@@ -48,6 +48,8 @@ const WinnerSelectionAdmin = lazy(() => import('./pages/admin/WinnerSelectionAdm
 const AdminAnalytics = lazy(() => import('./pages/admin/AnalyticsPage'));
 const AcquisitionAdmin = lazy(() => import('./pages/admin/AcquisitionAdmin'));
 import AcquisitionTracker from './components/AcquisitionTracker';
+import AnalyticsConsent from './components/AnalyticsConsent';
+import ActivityPing from './components/ActivityPing';
 const AdminKyc = lazy(() => import('./pages/admin/KycPage'));
 const AdminPayments = lazy(() => import('./pages/admin/PaymentsPage'));
 const AdminSettings = lazy(() => import('./pages/admin/SettingsPage'));
@@ -677,6 +679,8 @@ function App() {
 
           {/* Acquisition tracking */}
           <AcquisitionTracker />
+          <AnalyticsConsent />
+          <ActivityPing />
 
 
           {/* Handles promotion intent

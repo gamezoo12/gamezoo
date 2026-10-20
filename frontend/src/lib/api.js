@@ -112,10 +112,16 @@ export const productionAPI = {
 export const adminAPI = {
   stats: () => api.get('/admin/stats').then(r => r.data),
   dashboardSummary: (period = '24h') => api.get('/admin/dashboard/summary', { params: { period } }).then(r => r.data),
+  userStats: (params = {}) => api.get('/admin/dashboard/user-stats', { params }).then(r => r.data),
+  walletReport: (params = {}) => api.get('/admin/dashboard/wallet-report', { params }).then(r => r.data),
+  walletIntegrity: (params = {}) => api.get('/admin/dashboard/wallet-integrity', { params }).then(r => r.data),
   dashboardDetails: ({ metric, period = '24h', skip = 0, limit = 100 } = {}) => api.get('/admin/dashboard/details', { params: { metric, period, skip, limit } }).then(r => r.data),
   users: () => api.get('/admin/users').then(r => r.data),
   updateUser: (id, data) => api.put(`/admin/users/${id}`, data).then(r => r.data),
   bulkUserActions: (payload) => api.post('/admin/users/bulk-actions', payload).then(r => r.data),
+  creditBonus: (payload) => api.post('/admin/bonus-grants', payload).then(r => r.data),
+  bonusGrants: (params = {}) => api.get('/admin/bonus-grants', { params }).then(r => r.data),
+  revokeBonusGrant: (grantId, reason) => api.post(`/admin/bonus-grants/${encodeURIComponent(grantId)}/revoke`, { reason }).then(r => r.data),
   user360: (id) => api.get(`/admin/users/${id}/360`).then(r => r.data),
   sendUserPhoneOtp: (id) =>
     api.post(`/admin/users/${id}/phone/send-otp`).then(r => r.data),
@@ -591,6 +597,23 @@ export const acquisitionAPI = {
     api.post('/acquisition/track', payload).then(r => r.data),
   pageView: (payload) =>
     api.post('/acquisition/page-view', payload).then(r => r.data),
+  event: (payload) =>
+    api.post('/acquisition/event', payload).then(r => r.data),
+  paidGameStart: (payload) =>
+    api.post('/acquisition/game-start', payload).then(r => r.data),
+  attribute: (payload) =>
+    api.post('/acquisition/attribute', payload).then(r => r.data),
+  // keepalive lets the request finish while the page is closing.
+  engagement: (payload) => {
+    try {
+      fetch(`${API}/acquisition/engagement`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        keepalive: true,
+      }).catch(() => {});
+    } catch (e) { /* tracking must never break the page */ }
+  },
 };
 
 export const acquisitionAdminAPI = {
@@ -605,6 +628,11 @@ export const acquisitionAdminAPI = {
     }).then(r => r.data),
   pageViews: ({ period = '1m', skip = 0, limit = 100 } = {}) =>
     api.get('/admin/acquisition/page-views', { params: { period, skip, limit } }).then(r => r.data),
+  // report: overview | sources | pages | funnel | journeys | events
+  analytics: (report, params = {}) =>
+    api.get(`/admin/acquisition/analytics/${report}`, { params }).then(r => r.data),
+  exportCsv: (report, params = {}) =>
+    api.get('/admin/acquisition/analytics/export', { params: { report, ...params }, responseType: 'blob' }).then(r => r.data),
 };
 
 export const promotionCampaignAPI = {

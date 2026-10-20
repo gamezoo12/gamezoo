@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { GAME_MAP } from '../components/games';
-import { gamesAPI, contestsAPI } from '../lib/api';
+import { gamesAPI, contestsAPI, acquisitionAPI } from '../lib/api';
+import { analyticsAllowed } from '../components/AcquisitionTracker';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../hooks/use-toast';
 import { Button } from '../components/ui/button';
@@ -194,6 +195,12 @@ export default function PlayGame() {
         window.setTimeout(() => {
           setGameKey((value) => value + 1);
           setPhase('playing');
+          if (analyticsAllowed()) {
+            acquisitionAPI.paidGameStart({
+              ticket_id: ticketId,
+              start_id: window.crypto.randomUUID(),
+            }).catch(() => {});
+          }
         }, 500);
       } else {
         setCountdown(current);

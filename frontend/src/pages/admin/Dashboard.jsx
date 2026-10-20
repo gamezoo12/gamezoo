@@ -3,6 +3,8 @@ import { adminAPI, acquisitionAdminAPI } from '../../lib/api';
 import { TrendingUp, Users, Ticket, PoundSterling, Eye, UserPlus, Trophy, Wallet, Clock3, BarChart3 } from 'lucide-react';
 import { gbp } from '../../lib/format';
 import DashboardDetails from './DashboardDetails';
+import DashboardUserStats from './DashboardUserStats';
+import DashboardWalletReport from './DashboardWalletReport';
 
 function Stat({ label, value, sub, Icon, gradient, onClick, active }) {
   return (
@@ -80,6 +82,10 @@ export default function Dashboard() {
           ))}
         </div>
       </div>
+
+      <DashboardUserStats />
+
+      <DashboardWalletReport />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Stat label="Revenue" value={gbp(overview.revenue || 0)} sub={`${period} paid orders`} Icon={PoundSterling} gradient="from-[#8B5CFF] to-[#6C2BFF]" active={selectedMetric === 'revenue'} onClick={() => selectMetric('revenue')} />

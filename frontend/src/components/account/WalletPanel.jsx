@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { gbp, tokens as fmtTokens, tokenCount } from '../../lib/format';
 import { walletAPI, paymentsAPI } from '../../lib/api';
 import { useToast } from '../../hooks/use-toast';
@@ -8,6 +8,7 @@ import { Input } from '../ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import PrizeLeagueLogo from '../layout/PrizeLeagueLogo';
 import CashOutCard from './CashOutCard';
+import BonusTokensCard from './BonusTokensCard';
 
 const MIN_TOPUP = 5;   // tokens (1 token = £1)
 const MAX_TOPUP = 1000;
@@ -37,6 +38,9 @@ const TX_LABELS = {
  influencer_bonus: 'Influencer bonus',
  champion_prize: 'Championship prize',
  winnings: 'Winnings',
+ bonus_grant: 'Bonus tokens credited',
+ bonus_expiry: 'Unused bonus tokens expired',
+ bonus_revoke: 'Bonus tokens revoked',
 };
 
 function TxReceipt({ tx, open, onClose, walletBefore }) {
@@ -97,6 +101,12 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  const [showTopup, setShowTopup] = useState(!!autoOpenTopup);
  const [confirmingPayment, setConfirmingPayment] = useState(false);
  const { toast } = useToast();
+
+ const refreshWallet = useCallback(async () => {
+   const next = await walletAPI.me();
+   setWallet(next);
+   return next;
+ }, [setWallet]);
 
  useEffect(() => { if (autoOpenTopup) setShowTopup(true); }, [autoOpenTopup]);
 
@@ -220,6 +230,9 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  </div>
  </div>
  </div>
+
+ {/* BONUS / PURCHASED / TOTAL */}
+ <BonusTokensCard wallet={wallet} onRefresh={refreshWallet} />
 
  {/* WALLET BREAKDOWN + CASH OUT */}
  <CashOutCard />

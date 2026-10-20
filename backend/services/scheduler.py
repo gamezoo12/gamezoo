@@ -39,6 +39,15 @@ async def _tick(db):
             e,
         )
 
+    # Bonus-token expiry: idempotent, also enforced lazily on wallet reads and spends.
+    try:
+        from services.bonus_grants import run_expiry_job
+        result = await run_expiry_job(db, now=now)
+        if result['expired'] or result['recovered'] or result['reminded']:
+            log.info("[scheduler] bonus expiry: %s", result)
+    except Exception as e:  # noqa: BLE001
+        log.exception("[scheduler] bonus expiry failed: %s", e)
+
 
 async def _loop(db):
     global _running

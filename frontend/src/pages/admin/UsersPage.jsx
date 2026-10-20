@@ -75,6 +75,34 @@ function num(v) {
   return Number.isFinite(n) ? n : 0;
 }
 
+const EXPIRY_OPTIONS = [
+  ['none', 'No expiry'], ['1', '1 day'], ['3', '3 days'], ['7', '7 days'], ['14', '14 days'],
+  ['30', '30 days'], ['60', '60 days'], ['90', '90 days'],
+  ['custom_days', 'Custom number of days'], ['custom_date', 'Custom expiry date'],
+];
+
+// Text shown in the confirmation, or null when the chosen expiry is not valid.
+function expiryDescription(choice, customDays, customDate) {
+  if (choice === 'none') return 'No expiry: these tokens will not expire.';
+  if (choice === 'custom_date') {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(customDate)) return null;
+    const todayUk = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London' }).format(new Date());
+    if (customDate <= todayUk) return null;
+    const displayDate = new Date(`${customDate}T12:00:00Z`).toLocaleDateString('en-GB', { timeZone: 'Europe/London' });
+    return `Unused tokens expire at the end of ${displayDate} (UK time).`;
+  }
+  const days = choice === 'custom_days' ? Number(customDays) : Number(choice);
+  if (!Number.isInteger(days) || days < 1 || days > 3650) return null;
+  const when = new Date(Date.now() + days * 86400000).toLocaleDateString('en-GB', { timeZone: 'Europe/London', day: 'numeric', month: 'long', year: 'numeric' });
+  return `Unused tokens expire in ${days} day${days === 1 ? '' : 's'} (about ${when}).`;
+}
+
+function expiryPayload(choice, customDays, customDate) {
+  if (choice === 'none') return { expiry_mode: 'none' };
+  if (choice === 'custom_date') return { expiry_mode: 'date', expiry_date: customDate };
+  return { expiry_mode: 'days', expiry_days: choice === 'custom_days' ? Number(customDays) : Number(choice) };
+}
+
 function newBulkBatchId() {
   return window.crypto?.randomUUID?.() || `bulk-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
@@ -112,6 +140,10 @@ export default function UsersPage() {
   const [bulkBatchId, setBulkBatchId] = useState('');
   const [bulkAmount, setBulkAmount] = useState('1');
   const [bulkNote, setBulkNote] = useState('');
+  const [bulkCreditType, setBulkCreditType] = useState('purchased');
+  const [expiryChoice, setExpiryChoice] = useState('none');
+  const [expiryCustomDays, setExpiryCustomDays] = useState('');
+  const [expiryCustomDate, setExpiryCustomDate] = useState('');
   const [consentEvidence, setConsentEvidence] = useState('');
   const [bulkBusy, setBulkBusy] = useState(false);
 
@@ -159,6 +191,10 @@ export default function UsersPage() {
     setBulkAction(action);
     setBulkNote('');
     setConsentEvidence('');
+    setBulkCreditType('purchased');
+    setExpiryChoice('none');
+    setExpiryCustomDays('');
+    setExpiryCustomDate('');
   };
 
   const submitBulkAction = async () => {
@@ -174,7 +210,15 @@ export default function UsersPage() {
         toast({ title: 'Reason required', description: 'Enter a reason of at least 10 characters.' });
         return;
       }
-      if (!window.confirm(`Credit ${amount} tokens to ${userIds.length} users? Total credit: ${amount * userIds.length} tokens.`)) return;
+      if (bulkCreditType === 'bonus' && expiryDescription(expiryChoice, expiryCustomDays, expiryCustomDate) === null) {
+        toast({ title: 'Check the expiry', description: 'Enter a valid number of days (1-3650) or a future date.' });
+        return;
+      }
+      const creditLabel = bulkCreditType === 'bonus' ? 'bonus tokens' : 'purchased/general tokens';
+      const expiryNote = bulkCreditType === 'bonus'
+        ? expiryDescription(expiryChoice, expiryCustomDays, expiryCustomDate)
+        : 'No expiry is applied. This preserves the existing purchased/general token behavior.';
+      if (!window.confirm(`Credit ${amount} ${creditLabel} to ${userIds.length} users? Total credit: ${amount * userIds.length} tokens.\n${expiryNote}`)) return;
     }
     if (bulkAction === 'sms_grant') {
       if (consentEvidence.trim().length < 20) {
@@ -193,14 +237,24 @@ export default function UsersPage() {
 
     setBulkBusy(true);
     try {
-      const result = await adminAPI.bulkUserActions({
-        batch_id: bulkBatchId || newBulkBatchId(),
-        user_ids: userIds,
-        action: bulkAction,
-        amount: bulkAction === 'credit' ? Number(bulkAmount) : undefined,
-        note: bulkNote.trim(),
-        consent_evidence: consentEvidence.trim(),
-      });
+      const batchId = bulkBatchId || newBulkBatchId();
+      const result = bulkAction === 'credit' && bulkCreditType === 'bonus'
+        ? await adminAPI.creditBonus({
+          batch_id: batchId,
+          user_ids: userIds,
+          amount: Number(bulkAmount),
+          reason: bulkNote.trim(),
+          confirm: true,
+          ...expiryPayload(expiryChoice, expiryCustomDays, expiryCustomDate),
+        })
+        : await adminAPI.bulkUserActions({
+          batch_id: batchId,
+          user_ids: userIds,
+          action: bulkAction,
+          amount: undefined,
+          note: bulkNote.trim(),
+          consent_evidence: consentEvidence.trim(),
+        });
       toast({
         title: 'Bulk action complete',
         description: `${result.succeeded} succeeded · ${result.skipped} skipped · ${result.failed} failed.`,
@@ -571,11 +625,11 @@ export default function UsersPage() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 className="font-bold text-slate-900">
-                {bulkAction === 'credit' ? 'Bulk token credit' : bulkAction === 'sms_grant' ? 'Bulk SMS consent grant' : 'Bulk SMS consent revoke'}
+                {bulkAction === 'credit' ? 'Credit tokens' : bulkAction === 'sms_grant' ? 'Bulk SMS consent grant' : 'Bulk SMS consent revoke'}
               </h3>
               <p className="mt-1 text-xs text-slate-600">
                 {bulkAction === 'credit'
-                  ? `Credit each selected wallet; up to ${selectedUserIds.size} users will receive the same amount.`
+                  ? `Credit each selected wallet; up to ${selectedUserIds.size} users will receive the same amount. Choose the token type; bonus tokens may expire, purchased/general tokens keep their existing behavior.`
                   : bulkAction === 'sms_grant'
                     ? 'This records consent only; it does not send SMS. Verified phone and documented express opt-in are required.'
                     : 'This revokes SMS consent for selected accounts and is individually audited.'}
@@ -587,6 +641,14 @@ export default function UsersPage() {
           {bulkAction === 'credit' && (
             <div className="grid gap-3 sm:grid-cols-[180px_1fr]">
               <label className="text-xs font-bold text-slate-600">
+                Token type
+                <select value={bulkCreditType} onChange={event => setBulkCreditType(event.target.value)}
+                  className="mt-1 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-normal" data-testid="bulk-credit-type">
+                  <option value="purchased">Purchased / general (existing behavior)</option>
+                  <option value="bonus">Bonus tokens</option>
+                </select>
+              </label>
+              <label className="text-xs font-bold text-slate-600">
                 Tokens per user
                 <Input type="number" min="0.01" max="500" step="0.01" value={bulkAmount} onChange={event => setBulkAmount(event.target.value)} className="mt-1 bg-white" data-testid="bulk-credit-amount" />
               </label>
@@ -594,6 +656,33 @@ export default function UsersPage() {
                 Reason (10+ characters)
                 <Input value={bulkNote} onChange={event => setBulkNote(event.target.value)} placeholder="Document why these wallets are being credited" className="mt-1 bg-white" data-testid="bulk-credit-reason" />
               </label>
+              {bulkCreditType === 'bonus' ? (
+                <>
+                  <label className="text-xs font-bold text-slate-600">
+                    Expiry
+                    <select value={expiryChoice} onChange={event => setExpiryChoice(event.target.value)} className="mt-1 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-normal" data-testid="bonus-expiry-select">
+                      {EXPIRY_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    </select>
+                  </label>
+                  {expiryChoice === 'custom_days' && (
+                <label className="text-xs font-bold text-slate-600">
+                  Days until expiry
+                  <Input type="number" min="1" max="3650" value={expiryCustomDays} onChange={event => setExpiryCustomDays(event.target.value)} className="mt-1 bg-white" data-testid="bonus-expiry-days" />
+                </label>
+                  )}
+                  {expiryChoice === 'custom_date' && (
+                <label className="text-xs font-bold text-slate-600">
+                  Expires at end of (UK date)
+                  <Input type="date" value={expiryCustomDate} onChange={event => setExpiryCustomDate(event.target.value)} className="mt-1 bg-white" data-testid="bonus-expiry-date" />
+                </label>
+                  )}
+                  <p className="text-[11px] text-slate-500 sm:col-span-2" data-testid="bonus-expiry-summary">
+                    {expiryDescription(expiryChoice, expiryCustomDays, expiryCustomDate) || 'Choose a valid expiry.'} Spent tokens are never deducted again; only the unused remainder expires, and purchased tokens and winnings are never touched.
+                  </p>
+                </>
+              ) : (
+                <p className="text-[11px] text-slate-500 sm:col-span-2">Purchased/general tokens retain the existing no-expiry behavior.</p>
+              )}
             </div>
           )}
 

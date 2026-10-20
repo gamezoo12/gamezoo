@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 from typing import Optional
 import hashlib
+import logging
+import uuid
 
 from pymongo.errors import DuplicateKeyError
 
@@ -36,17 +38,32 @@ class AdminAdjustInput(BaseModel):
     note: str = ''
 
 
-async def _get_or_create_wallet(db, user_id: str) -> dict:
+async def _get_or_create_wallet(db, user_id: str, *, allow_pending_bonus_grant: bool = False) -> dict:
     w = await db.wallets.find_one({'user_id': user_id}, {'_id': 0})
     if not w:
         new_w = Wallet(user_id=user_id).model_dump()
         new_w['bonus'] = 0.0
+        new_w['bonus_untracked'] = 0.0
         new_w['withdrawable'] = 0.0
         new_w['source_migrated'] = True
         await db.wallets.insert_one(new_w)
         w = await db.wallets.find_one({'user_id': user_id}, {'_id': 0})
     elif not w.get('source_migrated'):
         w = await _migrate_wallet_sources(db, user_id, w)
+    w = await _ensure_untracked_bonus(db, user_id, w)
+    # Expired bonus grants are removed on every authoritative read, so a late scheduler never lets
+    # expired tokens be shown or spent.
+    try:
+        from services.bonus_grants import expire_due_for_user
+        if await expire_due_for_user(db, user_id):
+            w = await db.wallets.find_one({'user_id': user_id}, {'_id': 0})
+    except Exception as exc:
+        logging.getLogger('gz.bonus').exception('lazy bonus expiry failed for %s', user_id)
+        raise HTTPException(status_code=503, detail='Wallet expiry check is temporarily unavailable. Please retry.') from exc
+    if not allow_pending_bonus_grant and await db.bonus_grants.find_one(
+        {'user_id': user_id, 'status': 'creating'}, {'_id': 1},
+    ):
+        raise HTTPException(status_code=409, detail='A bonus credit is being finalized. Please retry the wallet request.')
     return _with_tokens(w)
 
 
@@ -63,13 +80,45 @@ async def _migrate_wallet_sources(db, user_id: str, w: dict) -> dict:
         {'_id': 0, 'amount': 1},
     ):
         bonus_credited += float(tx.get('amount', 0) or 0)
-    bonus = round(min(balance, max(0.0, bonus_credited)), 2)
+    # Preserve an already-materialised source counter; untracked existing bonus is non-expiring.
+    if 'bonus' in w:
+        bonus = round(min(balance, max(0.0, float(w.get('bonus', 0) or 0))), 2)
+    else:
+        bonus = round(min(balance, max(0.0, bonus_credited)), 2)
+        tracked_grants = await _tracked_active_grant_balance(db, user_id)
+        bonus_untracked = max(0.0, round(bonus - tracked_grants, 2))
     withdrawable = round(float(w.get('withdrawable', 0) or 0), 2)
     await db.wallets.update_one(
         {'user_id': user_id, 'source_migrated': {'$ne': True}},
-        {'$set': {'bonus': bonus, 'withdrawable': withdrawable, 'source_migrated': True}},
+        {'$set': {'bonus': bonus, 'bonus_untracked': bonus_untracked,
+              'withdrawable': withdrawable, 'source_migrated': True}},
     )
     return await db.wallets.find_one({'user_id': user_id}, {'_id': 0})
+
+
+async def _tracked_active_grant_balance(db, user_id: str, now=None) -> float:
+    from services.bonus_grants import _now
+    now = now or _now()
+    rows = await db.bonus_grants.aggregate([
+        {'$match': {'user_id': user_id, 'status': 'active', 'remaining_amount': {'$gt': 0},
+                    '$or': [{'expires_at': None}, {'expires_at': {'$gt': now}}]}},
+        {'$group': {'_id': None, 'total': {'$sum': '$remaining_amount'}}},
+    ]).to_list(1)
+    return round(float(rows[0]['total']), 2) if rows else 0.0
+
+
+async def _ensure_untracked_bonus(db, user_id: str, wallet: dict) -> dict:
+    """Backfill the non-expiring legacy bonus component without reducing existing bonus."""
+    if 'bonus_untracked' in wallet:
+        return wallet
+    total_bonus = max(0.0, round(float(wallet.get('bonus', 0) or 0), 2))
+    grants = await _tracked_active_grant_balance(db, user_id)
+    untracked = max(0.0, round(total_bonus - grants, 2))
+    await db.wallets.update_one(
+        {'user_id': user_id, 'bonus_untracked': {'$exists': False}},
+        {'$set': {'bonus_untracked': untracked}},
+    )
+    return await db.wallets.find_one({'user_id': user_id}, {'_id': 0}) or wallet
 
 
 def _split_debit(balance: float, bonus: float, withdrawable: float, withdrawable_pending: float, amount: float):
@@ -173,7 +222,7 @@ def _with_tokens(w: Optional[dict]) -> Optional[dict]:
 # Kinds whose positive credits are BONUS (free / non-withdrawable) tokens.
 BONUS_TX_KINDS = {
     'signup_bonus', 'referral_bonus', 'referral', 'bonus', 'bonus_credit',
-    'influencer_bonus', 'promo', 'promo_bonus', 'reward', 'free_tokens',
+    'influencer_bonus', 'promo', 'promo_bonus', 'reward', 'free_tokens', 'bonus_grant',
 }
 # Kinds whose positive credits are WITHDRAWABLE championship-prize tokens.
 WITHDRAWABLE_TX_KINDS = {'champion_prize', 'championship_prize', 'winnings'}
@@ -185,6 +234,8 @@ def _source_inc_for_credit(kind: str, delta: float) -> dict:
     if delta > 0:
         if kind in BONUS_TX_KINDS:
             extra['bonus'] = round(delta, 2)
+            if kind != 'bonus_grant':
+                extra['bonus_untracked'] = round(delta, 2)
         elif kind in WITHDRAWABLE_TX_KINDS:
             extra['withdrawable'] = round(delta, 2)
     return extra
@@ -206,6 +257,7 @@ async def _apply_tx(db, user_id: str, kind: str, amount: float, note: str = '', 
 
     delta = round(float(amount), 2)
     now = datetime.now(timezone.utc)
+    transaction_id = f'tx_{uuid.uuid4().hex[:24]}'
 
     # DEBIT: consume tokens in the protected order bonus -> purchased ->
     # withdrawable, using optimistic concurrency (guard on the exact values
@@ -216,46 +268,89 @@ async def _apply_tx(db, user_id: str, kind: str, amount: float, note: str = '', 
         for _ in range(6):
             cur = await db.wallets.find_one(
                 {'user_id': user_id},
-                {'_id': 0, 'balance': 1, 'bonus': 1, 'withdrawable': 1, 'withdrawable_pending': 1},
+                {'_id': 0, 'balance': 1, 'bonus': 1, 'bonus_untracked': 1,
+                 'withdrawable': 1, 'withdrawable_pending': 1},
             ) or {}
             bal = round(float(cur.get('balance', 0) or 0), 2)
             bon = round(float(cur.get('bonus', 0) or 0), 2)
+            legacy_bonus = max(0.0, round(float(cur.get('bonus_untracked', 0) or 0), 2))
             wd = round(float(cur.get('withdrawable', 0) or 0), 2)
             wp = round(float(cur.get('withdrawable_pending', 0) or 0), 2)
-            if round(bal - wp, 2) + 1e-9 < amt:
+            # Bonus in grants past expiry (job running late) is neither spendable nor counted as purchased.
+            from services.bonus_grants import expired_unprocessed, finalize_reservation, reserve_from_grants
+            blocked = await expired_unprocessed(db, user_id, now)
+            eff_bal = round(bal - blocked, 2)
+            tracked_bonus = await _tracked_active_grant_balance(db, user_id, now)
+            bon_usable = min(max(0.0, round(bon - blocked, 2)), round(legacy_bonus + tracked_bonus, 2))
+            if round(eff_bal - wp, 2) + 1e-9 < amt:
                 raise HTTPException(status_code=400, detail='Insufficient wallet balance')
-            d_bonus, d_wd = _split_debit(bal, bon, wd, wp, amt)
-            inc = {'balance': delta, 'bonus': -d_bonus, 'withdrawable': -d_wd}
+            d_bonus, d_wd = _split_debit(eff_bal, bon_usable, wd, wp, amt)
+            reservation_id = uuid.uuid4().hex if d_bonus > 0 else ''
+            reserved = await reserve_from_grants(db, user_id, d_bonus, reservation_id, now) if d_bonus > 0 else []
+            grant_debit = round(sum(amount for _, amount in reserved), 2)
+            legacy_debit = min(legacy_bonus, max(0.0, round(d_bonus - grant_debit, 2)))
+            actual_bonus_debit = round(grant_debit + legacy_debit, 2)
+            if actual_bonus_debit + 0.001 < d_bonus:
+                if reserved:
+                    await finalize_reservation(db, reserved, reservation_id, committed=False)
+                continue
+            d_purchased = round(amt - actual_bonus_debit - d_wd, 2)
+            inc = {
+                'balance': delta,
+                'bonus': -actual_bonus_debit,
+                'bonus_untracked': -legacy_debit,
+                'withdrawable': -d_wd,
+            }
             if kind == 'spend':
                 inc['lifetime_spend'] = amt
             # Legacy wallets may not have source fields yet; match missing as well
             # as zero instead of repeatedly failing the optimistic update.
             guard = {'user_id': user_id, 'balance': cur.get('balance', 0)}
-            for field, value in (('bonus', bon), ('withdrawable', wd), ('withdrawable_pending', wp)):
+            for field, value in (('bonus', bon), ('bonus_untracked', legacy_bonus),
+                                 ('withdrawable', wd), ('withdrawable_pending', wp)):
                 guard[field] = cur[field] if field in cur else {'$exists': False}
+            update = {'$inc': inc, '$set': {'updated_at': now}}
+            if reserved:
+                update['$addToSet'] = {'bonus_spend_refs': reservation_id}
             updated = await db.wallets.find_one_and_update(
                 guard,
-                {'$inc': inc, '$set': {'updated_at': now}},
+                update,
                 return_document=True,
                 projection={'_id': 0, 'balance': 1},
             )
+            if reserved:
+                await finalize_reservation(db, reserved, reservation_id, committed=bool(updated),
+                                           transaction_id=transaction_id if updated else None)
+                if updated:
+                    await db.wallets.update_one({'user_id': user_id}, {'$pull': {'bonus_spend_refs': reservation_id}})
             if updated:
                 new_balance = round(updated['balance'], 2)
+                d_bonus = actual_bonus_debit
                 break
         if new_balance is None:
             raise HTTPException(status_code=409, detail='Wallet changed during checkout. Please try again.')
         tx = WalletTx(
+            tx_id=transaction_id,
             user_id=user_id, kind=kind, amount=delta,
             balance_after=new_balance, note=note, ref_order_id=ref_order_id,
+            bonus_amount=-d_bonus, purchased_amount=-d_purchased, withdrawable_amount=-d_wd,
         )
         await db.wallet_tx.insert_one(tx.model_dump())
         return {'balance': new_balance, 'tx': tx.model_dump()}
 
     # CREDIT path.
     inc = {'balance': delta}
+    source_amounts = {'bonus_amount': None, 'purchased_amount': None, 'withdrawable_amount': None}
     if delta > 0 and kind == 'topup':
         inc['lifetime_topup'] = round(delta, 2)
     inc.update(_source_inc_for_credit(kind, delta))
+    if delta > 0:
+        if kind in BONUS_TX_KINDS:
+            source_amounts['bonus_amount'] = delta
+        elif kind in WITHDRAWABLE_TX_KINDS:
+            source_amounts['withdrawable_amount'] = delta
+        else:
+            source_amounts['purchased_amount'] = delta
 
     filt = {'user_id': user_id}
 
@@ -279,6 +374,7 @@ async def _apply_tx(db, user_id: str, kind: str, amount: float, note: str = '', 
         balance_after=new_balance,
         note=note,
         ref_order_id=ref_order_id,
+        **source_amounts,
     )
     await db.wallet_tx.insert_one(tx.model_dump())
     return {'balance': new_balance, 'tx': tx.model_dump()}
@@ -291,6 +387,8 @@ async def _apply_tx_idempotent(
     amount: float,
     note: str = '',
     ref_order_id: Optional[str] = None,
+    *,
+    allow_pending_bonus_grant: bool = False,
 ) -> dict:
     """
     Idempotent wallet mutation for recoverable workflows.
@@ -311,10 +409,7 @@ async def _apply_tx_idempotent(
             "ref_order_id is required for idempotent wallet transactions"
         )
 
-    await _get_or_create_wallet(
-        db,
-        user_id,
-    )
+    await _get_or_create_wallet(db, user_id, allow_pending_bonus_grant=allow_pending_bonus_grant)
 
     delta = round(
         float(amount),
@@ -336,7 +431,14 @@ async def _apply_tx_idempotent(
     marker = (
         f"idem_{digest}"
     )
+    transaction_id = f'tx_{digest[:24]}'
 
+    from services.bonus_grants import r2
+    source_amounts = {
+        'bonus_amount': None,
+        'purchased_amount': None,
+        'withdrawable_amount': None,
+    }
     inc = {
         "balance":
             delta,
@@ -363,127 +465,117 @@ async def _apply_tx_idempotent(
 
     inc.update(_source_inc_for_credit(kind, delta))
 
-    if delta < 0:
-        # Consume in protected order bonus -> purchased -> withdrawable.
-        _cur = await db.wallets.find_one(
-            {"user_id": user_id},
-            {"_id": 0, "balance": 1, "bonus": 1, "withdrawable": 1, "withdrawable_pending": 1},
-        ) or {}
-        _bal = round(float(_cur.get("balance", 0) or 0), 2)
-        _wp = round(float(_cur.get("withdrawable_pending", 0) or 0), 2)
-        if round(_bal - _wp, 2) + 1e-9 < abs(delta):
-            raise HTTPException(status_code=400, detail="Insufficient wallet balance")
-        _d_bonus, _d_wd = _split_debit(
-            _bal,
-            round(float(_cur.get("bonus", 0) or 0), 2),
-            round(float(_cur.get("withdrawable", 0) or 0), 2),
-            _wp,
-            abs(delta),
-        )
-        inc["bonus"] = -_d_bonus
-        inc["withdrawable"] = -_d_wd
-
-    filt = {
-        "user_id":
-            user_id,
-
-        "applied_tx_refs": {
-            "$ne":
-                marker,
-        },
-    }
-
-    if delta < 0:
-        filt["balance"] = {
-            "$gte":
-                abs(delta),
-        }
-
-    updated = (
-        await db.wallets.find_one_and_update(
-            filt,
-            {
-                "$inc":
-                    inc,
-
-                "$addToSet": {
-                    "applied_tx_refs":
-                        marker,
-                },
-
-                "$set": {
-                    "updated_at":
-                        now,
-                },
-            },
-            return_document=True,
-            projection={
-                "_id": 0,
-                "balance": 1,
-                "applied_tx_refs": 1,
-            },
-        )
-    )
-
+    reserved: list = []
     idempotent_replay = False
+    new_balance = None
+    if delta < 0:
+        # Guard every source counter read, because the grant reservations and wallet debit
+        # must agree even when two spends arrive concurrently.
+        from services.bonus_grants import expired_unprocessed, finalize_reservation, reserve_from_grants
+        for _ in range(8):
+            current = await db.wallets.find_one(
+                {'user_id': user_id},
+                {'_id': 0, 'balance': 1, 'bonus': 1, 'bonus_untracked': 1,
+                 'withdrawable': 1, 'withdrawable_pending': 1,
+                 'applied_tx_refs': 1},
+            ) or {}
+            refs = current.get('applied_tx_refs') or []
+            if marker in refs:
+                idempotent_replay = True
+                new_balance = r2(current.get('balance'))
+                source_amounts = {'bonus_amount': None, 'purchased_amount': None, 'withdrawable_amount': None}
+                break
 
-    if updated:
-        new_balance = round(
-            float(
-                updated.get(
-                    "balance",
-                    0,
-                )
-            ),
-            2,
-        )
-
+            balance = r2(current.get('balance'))
+            bonus = r2(current.get('bonus'))
+            legacy_bonus = max(0.0, r2(current.get('bonus_untracked')))
+            withdrawable = r2(current.get('withdrawable'))
+            pending = r2(current.get('withdrawable_pending'))
+            blocked = await expired_unprocessed(db, user_id, now)
+            effective_balance = r2(balance - blocked)
+            tracked_bonus = await _tracked_active_grant_balance(db, user_id, now)
+            usable_bonus = min(max(0.0, r2(bonus - blocked)), r2(legacy_bonus + tracked_bonus))
+            if r2(effective_balance - pending) + 1e-9 < abs(delta):
+                raise HTTPException(status_code=400, detail='Insufficient wallet balance')
+            debit_bonus, debit_withdrawable = _split_debit(
+                effective_balance, usable_bonus, withdrawable, pending, abs(delta),
+            )
+            reservation_id = f'{marker}:bonus' if debit_bonus > 0 else ''
+            reserved = await reserve_from_grants(db, user_id, debit_bonus, reservation_id, now) if debit_bonus > 0 else []
+            grant_debit = r2(sum(amount for _, amount in reserved))
+            legacy_debit = min(legacy_bonus, max(0.0, r2(debit_bonus - grant_debit)))
+            actual_bonus_debit = r2(grant_debit + legacy_debit)
+            if actual_bonus_debit + 0.001 < debit_bonus:
+                if reserved:
+                    await finalize_reservation(db, reserved, reservation_id, committed=False)
+                    reserved = []
+                continue
+            debit_purchased = r2(abs(delta) - actual_bonus_debit - debit_withdrawable)
+            debit_inc = {'balance': delta, 'bonus': -actual_bonus_debit,
+                         'bonus_untracked': -legacy_debit, 'withdrawable': -debit_withdrawable}
+            if kind == 'spend':
+                debit_inc['lifetime_spend'] = abs(delta)
+            guard = {'user_id': user_id, 'applied_tx_refs': {'$ne': marker}}
+            for field, value in (('balance', balance), ('bonus', bonus), ('bonus_untracked', legacy_bonus),
+                                 ('withdrawable', withdrawable), ('withdrawable_pending', pending)):
+                guard[field] = current[field] if field in current else {'$exists': False}
+            update = {
+                '$inc': debit_inc,
+                '$addToSet': {'applied_tx_refs': marker},
+                '$set': {'updated_at': now},
+            }
+            if reserved:
+                update['$addToSet']['bonus_spend_refs'] = reservation_id
+            updated = await db.wallets.find_one_and_update(
+                guard,
+                update,
+                return_document=True, projection={'_id': 0, 'balance': 1},
+            )
+            if updated:
+                if reserved:
+                    await finalize_reservation(db, reserved, reservation_id, committed=True,
+                                               transaction_id=transaction_id)
+                    await db.wallets.update_one({'user_id': user_id}, {'$pull': {'bonus_spend_refs': reservation_id}})
+                new_balance = r2(updated['balance'])
+                source_amounts = {
+                    'bonus_amount': -actual_bonus_debit,
+                    'purchased_amount': -debit_purchased,
+                    'withdrawable_amount': -debit_withdrawable,
+                }
+                break
+            if reserved:
+                await finalize_reservation(db, reserved, reservation_id, committed=False)
+                reserved = []
+        if new_balance is None:
+            raise HTTPException(status_code=409, detail='Wallet changed during checkout. Please try again.')
     else:
-        current = await db.wallets.find_one(
-            {
-                "user_id":
-                    user_id,
-            },
-            {
-                "_id": 0,
-                "balance": 1,
-                "applied_tx_refs": 1,
-            },
+        if delta > 0:
+            if kind in BONUS_TX_KINDS:
+                source_amounts['bonus_amount'] = delta
+            elif kind in WITHDRAWABLE_TX_KINDS:
+                source_amounts['withdrawable_amount'] = delta
+            else:
+                source_amounts['purchased_amount'] = delta
+        updated = await db.wallets.find_one_and_update(
+            {'user_id': user_id, 'applied_tx_refs': {'$ne': marker}},
+            {'$inc': inc, '$addToSet': {'applied_tx_refs': marker}, '$set': {'updated_at': now}},
+            return_document=True, projection={'_id': 0, 'balance': 1},
         )
-
-        refs = (
-            current.get(
-                "applied_tx_refs",
-                [],
-            )
-            if current
-            else []
-        )
-
-        if marker not in refs:
-            raise HTTPException(
-                status_code=400,
-                detail="Insufficient wallet balance",
-            )
-
-        # This exact transaction already changed the wallet.
-        idempotent_replay = True
-
-        new_balance = round(
-            float(
-                current.get(
-                    "balance",
-                    0,
-                )
-            ),
-            2,
-        )
+        if updated:
+            new_balance = r2(updated['balance'])
+        else:
+            current = await db.wallets.find_one({'user_id': user_id}, {'_id': 0, 'balance': 1, 'applied_tx_refs': 1}) or {}
+            if marker not in (current.get('applied_tx_refs') or []):
+                raise HTTPException(status_code=400, detail='Insufficient wallet balance')
+            idempotent_replay = True
+            new_balance = r2(current.get('balance'))
 
     deterministic_id = (
         f"wallet_idem_{digest}"
     )
 
     tx = WalletTx(
+        tx_id=transaction_id,
         user_id=user_id,
         kind=kind,
         amount=delta,
@@ -496,9 +588,7 @@ async def _apply_tx_idempotent(
 
     # Stable ids make the history mirror repairable/idempotent too.
     tx_doc["_id"] = deterministic_id
-    tx_doc["tx_id"] = (
-        f"tx_{digest[:24]}"
-    )
+    tx_doc["tx_id"] = transaction_id
 
     try:
         await db.wallet_tx.insert_one(
@@ -541,6 +631,8 @@ async def my_wallet(request: Request):
     user = await get_current_user(request)
     db = get_db()
     w = await _get_or_create_wallet(db, user['user_id'])
+    from services.bonus_grants import wallet_bonus_view
+    w.update(await wallet_bonus_view(db, user['user_id'], w))
     return w
 
 

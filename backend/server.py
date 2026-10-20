@@ -224,6 +224,9 @@ from routers.company_routes import public_router as company_public_router, admin
 from routers.engines_routes import router as engines_router, public_router as engines_public_router
 from routers.user360_routes import router as user360_router
 from routers.acquisition_routes import public_router as acquisition_public_router, admin_router as acquisition_admin_router
+from routers.acquisition_reports_routes import router as acquisition_reports_router
+from routers.admin_dashboard_stats_routes import router as dashboard_stats_router, public_router as activity_router
+from routers.bonus_grants_routes import router as bonus_grants_router
 from routers.admin_referrals_routes import router as admin_referrals_router
 from routers.influencer_promo_routes import router as influencer_promo_router
 from routers.winnings_routes import router as winnings_router, admin_router as winnings_admin_router
@@ -249,6 +252,10 @@ app.include_router(settings_public_router)
 app.include_router(production_router)
 app.include_router(notif_router)
 app.include_router(wallet_router)
+app.include_router(acquisition_reports_router)
+app.include_router(dashboard_stats_router)
+app.include_router(activity_router)
+app.include_router(bonus_grants_router)
 app.include_router(admin_wallet_router)
 app.include_router(referral_router)
 app.include_router(game_router)
@@ -331,6 +338,8 @@ async def _start_scheduler():
 @app.on_event('startup')
 async def _ensure_core_indexes():
     _spawn(_do_core_indexes())
+    from services.analytics_indexes import ensure_analytics_indexes
+    _spawn(ensure_analytics_indexes(get_db()))
 
 
 async def _do_core_indexes():
