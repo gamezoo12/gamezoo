@@ -5,9 +5,9 @@ import pytest
 import requests
 from datetime import datetime, timezone, timedelta
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://import-verify-6.preview.emergentagent.com').rstrip('/')
-ADMIN_EMAIL = 'bachanta8@gmail.com'
-ADMIN_PASS = 'Herts@910022'
+BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
+ADMIN_EMAIL = os.environ.get("TEST_ADMIN_EMAIL", "")
+ADMIN_PASS = os.environ.get("TEST_ADMIN_PASSWORD", "")
 
 
 def _auth(token):

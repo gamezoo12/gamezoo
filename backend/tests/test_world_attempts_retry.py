@@ -7,9 +7,9 @@ import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://import-verify-6.preview.emergentagent.com").rstrip("/")
-PLAYER_EMAIL = "player1@example.com"
-PLAYER_PASSWORD = "Player@12345"
+BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
+PLAYER_EMAIL = os.environ.get("TEST_PLAYER_EMAIL", "")
+PLAYER_PASSWORD = os.environ.get("TEST_PLAYER_PASSWORD", "")
 
 
 @pytest.fixture(scope="module")

@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """
 Free World Season Launch Backend Test Suite
@@ -14,8 +15,8 @@ import time
 BASE_URL = "https://import-verify-6.preview.emergentagent.com/api"
 
 # Admin credentials from /app/memory/test_credentials.md
-ADMIN_EMAIL = "bachanta8@gmail.com"
-ADMIN_PASSWORD = "Herts@910022"
+ADMIN_EMAIL = os.environ.get("TEST_ADMIN_EMAIL", "")
+ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD", "")
 
 def log_test(test_name, status, details=""):
     """Log test result"""

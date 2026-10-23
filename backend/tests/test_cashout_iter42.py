@@ -15,26 +15,11 @@ import time
 import pytest
 import requests
 
-def _read_base_url():
-    v = os.environ.get("REACT_APP_BACKEND_URL")
-    if not v:
-        try:
-            with open("/app/frontend/.env") as f:
-                for line in f:
-                    if line.startswith("REACT_APP_BACKEND_URL="):
-                        v = line.split("=", 1)[1].strip()
-                        break
-        except Exception:
-            pass
-    if not v:
-        raise RuntimeError("REACT_APP_BACKEND_URL not configured")
-    return v.rstrip("/")
-
-BASE_URL = _read_base_url()
+BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
 API = f"{BASE_URL}/api"
 
-PLAYER = ("player1@example.com", "Player@12345")
-ADMIN = ("bachanta8@gmail.com", "Herts@910022")
+PLAYER = (os.environ.get("TEST_PLAYER_EMAIL", ""), os.environ.get("TEST_PLAYER_PASSWORD", ""))
+ADMIN = (os.environ.get("TEST_ADMIN_EMAIL", ""), os.environ.get("TEST_ADMIN_PASSWORD", ""))
 
 
 def _login(email, password):

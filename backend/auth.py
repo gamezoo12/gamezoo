@@ -1,5 +1,6 @@
 import os
 import logging
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 import jwt
@@ -9,31 +10,18 @@ from passlib.context import CryptContext
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_DEV_SECRET = 'gamezoo-dev-secret-change-in-prod-9f8a3b'
-JWT_SECRET = os.environ.get('JWT_SECRET', _DEFAULT_DEV_SECRET)
 JWT_ALGO = 'HS256'
 JWT_EXP_DAYS = 30
 
-# In production we DO NOT want to run with the dev default (tokens would be
-# trivially forgeable). But we also refuse to hard-crash the container — the
-# k8s liveness probe would then loop forever and the operator would have no
-# way to see the app. So we AUTO-ROTATE to a fresh random secret and log a
-# loud error. Tokens minted with the old default get rejected as forgeries
-# (which is what we want in prod anyway).
 _env = (os.environ.get('ENVIRONMENT') or os.environ.get('APP_ENV') or '').lower()
 _stripe_mode = (os.environ.get('STRIPE_MODE') or '').lower()
 _is_production = _env in ('prod', 'production', 'live') or _stripe_mode == 'live'
-if JWT_SECRET == _DEFAULT_DEV_SECRET:
+JWT_SECRET = os.environ.get('JWT_SECRET', '').strip()
+if not JWT_SECRET:
     if _is_production:
-        import secrets as _secrets
-        JWT_SECRET = _secrets.token_urlsafe(48)
-        logger.error(
-            'JWT_SECRET was not set in the production environment — auto-rotated to '
-            'a random per-boot secret. Existing sessions will need to log in again. '
-            'Fix by setting JWT_SECRET in the deployment env-var UI.'
-        )
-    else:
-        logger.warning('JWT_SECRET is using the default dev value. Override JWT_SECRET in prod.')
+        raise RuntimeError('JWT_SECRET must be configured in production')
+    JWT_SECRET = secrets.token_urlsafe(48)
+    logger.warning('JWT_SECRET is unset; using a transient development secret. Configure JWT_SECRET for persistent sessions.')
 
 pwd_context = CryptContext(schemes=['bcrypt'], deprecated='auto')
 

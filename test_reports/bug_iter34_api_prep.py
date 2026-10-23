@@ -20,8 +20,8 @@ import requests
 
 APP = Path('/app')
 OUT = APP / 'test_reports' / 'bug_iter34_api_results.json'
-ADMIN_EMAIL = 'bachanta8@gmail.com'
-ADMIN_PASSWORD = 'Herts@910022'
+ADMIN_EMAIL = os.environ.get("TEST_ADMIN_EMAIL", "")
+ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD", "")
 
 
 def _backend_url() -> str:

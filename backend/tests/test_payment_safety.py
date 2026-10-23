@@ -214,7 +214,7 @@ def test_credit_retry_recovers_after_wallet_commit_before_payment_flag(monkeypat
 
 
 def test_paid_webhook_and_repeated_status_polls_credit_wallet_once(monkeypatch):
-    database_name = _sanitize_db_name(os.environ.get('DB_NAME', 'test_database'))
+    database_name = _sanitize_db_name(os.environ["DB_NAME"])
     if 'test' not in database_name.lower():
         pytest.skip('Integration test requires a DB_NAME containing "test"')
     user_id = f'payment_safety_itest_{uuid.uuid4().hex[:12]}'

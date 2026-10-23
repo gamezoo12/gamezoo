@@ -9,9 +9,9 @@ import re
 import requests
 import pytest
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://import-verify-6.preview.emergentagent.com").rstrip("/")
-ADMIN_EMAIL = os.environ.get("ADMIN_TEST_EMAIL", "bachanta8@gmail.com")
-ADMIN_PASSWORD = os.environ.get("ADMIN_TEST_PASSWORD", "Herts@910022")
+BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
+ADMIN_EMAIL = os.environ.get("TEST_ADMIN_EMAIL", "")
+ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD", "")
 
 OP_TO_LAMBDA = {
     'addition': lambda a, b: a + b,

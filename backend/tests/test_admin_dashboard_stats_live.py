@@ -14,7 +14,7 @@ from deps import _mongo_url, _sanitize_db_name
 from auth import create_jwt
 from services.analytics_common import REPORT_TZ, utcnow
 
-BASE = (os.environ.get('REACT_APP_BACKEND_URL') or 'http://localhost:8001').rstrip('/')
+BASE = os.environ['REACT_APP_BACKEND_URL'].rstrip('/')
 API = f'{BASE}/api'
 
 

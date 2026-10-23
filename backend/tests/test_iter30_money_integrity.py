@@ -24,21 +24,12 @@ from datetime import datetime, timezone
 
 from motor.motor_asyncio import AsyncIOMotorClient
 
-BASE_URL = None
-try:
-    with open('/app/frontend/.env') as f:
-        for line in f:
-            if line.startswith('REACT_APP_BACKEND_URL='):
-                BASE_URL = line.split('=', 1)[1].strip().strip('"')
-                break
-except Exception:
-    pass
-BASE_URL = BASE_URL or 'http://localhost:8001'
+BASE_URL = os.environ['REACT_APP_BACKEND_URL'].rstrip('/')
 
-MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-DB_NAME = os.environ.get('DB_NAME', 'test_database')
-ADMIN_EMAIL = 'bachanta8@gmail.com'
-ADMIN_PASSWORD = 'Herts@910022'
+MONGO_URL = os.environ["MONGO_URL"]
+DB_NAME = os.environ["DB_NAME"]
+ADMIN_EMAIL = os.environ.get("TEST_ADMIN_EMAIL", "")
+ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD", "")
 
 
 def _login(email: str, password: str) -> str:

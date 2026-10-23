@@ -24,8 +24,8 @@ sys.path.insert(0, str(BACKEND))
 
 from auth import hash_password  # noqa: E402
 
-ADMIN_EMAIL = 'bachanta8@gmail.com'
-ADMIN_PASS = 'Herts@910022'
+ADMIN_EMAIL = os.environ.get("TEST_ADMIN_EMAIL", "")
+ADMIN_PASS = os.environ.get("TEST_ADMIN_PASSWORD", "")
 USER_PASS = 'QaUserPass!234'
 STAFF_PASS = 'QaStaffPass!234'
 

@@ -27,9 +27,9 @@ def _load_backend_url():
 
 BASE_URL = _load_backend_url()
 
-ADMIN_EMAIL = "bachanta8@gmail.com"
-ADMIN_PASS = "Herts@910022"
-PLAYER_EMAIL = "player1@example.com"
+ADMIN_EMAIL = os.environ.get("TEST_ADMIN_EMAIL", "")
+ADMIN_PASS = os.environ.get("TEST_ADMIN_PASSWORD", "")
+PLAYER_EMAIL = os.environ.get("TEST_PLAYER_EMAIL", "")
 PLAYER_PASS = "Player@12345"
 
 

@@ -17,7 +17,7 @@ import uuid
 import requests
 import pytest
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://import-verify-6.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
 API = f"{BASE_URL}/api"
 OTP = '000000'
 

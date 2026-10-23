@@ -26,7 +26,7 @@ def run_db(db_name, fn):
 
 @pytest.fixture(scope='module')
 def safe_db():
-    name = os.environ.get('DB_NAME', 'test_database')
+    name = os.environ["DB_NAME"]
     if 'test' not in name.lower():
         pytest.skip('Integration tests require a DB_NAME containing "test"')
     return _sanitize_db_name(name)

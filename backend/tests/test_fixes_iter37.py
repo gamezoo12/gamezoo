@@ -9,8 +9,8 @@ import pytest
 # Ensure backend on sys.path
 sys.path.insert(0, "/app/backend")
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://import-verify-6.preview.emergentagent.com").rstrip("/")
-LOCAL_URL = "http://localhost:8001"
+BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
+LOCAL_URL = BASE_URL
 
 
 # --- Fix 3: health/ready at ROOT ---

@@ -15,9 +15,9 @@ import requests
 # Allow importing backend modules from /app/backend
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://import-verify-6.preview.emergentagent.com").rstrip("/")
-ADMIN_EMAIL = os.environ.get("ADMIN_TEST_EMAIL", "bachanta8@gmail.com")
-ADMIN_PASSWORD = os.environ.get("ADMIN_TEST_PASSWORD", "Herts@910022")
+BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
+ADMIN_EMAIL = os.environ.get("TEST_ADMIN_EMAIL", "")
+ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD", "")
 
 OP_TO_LAMBDA = {'+': lambda a, b: a + b, 'âˆ’': lambda a, b: a - b, 'Ã—': lambda a, b: a * b, 'Ã·': lambda a, b: a // b}
 

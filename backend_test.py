@@ -1,3 +1,4 @@
+import os
 """
 GameZoo Backend API End-to-End Tests
 Tests all 10 points from the main agent's checklist.
@@ -11,8 +12,8 @@ from datetime import datetime
 BASE_URL = "https://import-verify-6.preview.emergentagent.com/api"
 
 # Admin credentials (seeded)
-ADMIN_EMAIL = "bachanta8@gmail.com"
-ADMIN_PASSWORD = "Herts@910022"
+ADMIN_EMAIL = os.environ.get("TEST_ADMIN_EMAIL", "")
+ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD", "")
 
 # QBANK for skill answers (from seed.py)
 QBANK = [

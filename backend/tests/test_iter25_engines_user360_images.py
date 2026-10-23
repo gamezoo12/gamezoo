@@ -19,23 +19,14 @@ from pymongo import MongoClient
 from PIL import Image
 
 def _load_react_env():
-    v = os.environ.get('REACT_APP_BACKEND_URL')
-    if v:
-        return v
-    try:
-        for line in open('/app/frontend/.env'):
-            if line.startswith('REACT_APP_BACKEND_URL='):
-                return line.split('=', 1)[1].strip().strip('"').strip("'")
-    except Exception:
-        pass
-    raise RuntimeError('REACT_APP_BACKEND_URL missing')
+    return os.environ['REACT_APP_BACKEND_URL']
 
 BASE_URL = _load_react_env().rstrip('/')
-MONGO_URL = 'mongodb://localhost:27017'
-DB_NAME = 'test_database'
+MONGO_URL = os.environ['MONGO_URL']
+DB_NAME = os.environ['DB_NAME']
 
-SUPER_ADMIN_EMAIL = 'bachanta8@gmail.com'
-SUPER_ADMIN_PASSWORD = 'Herts@910022'
+SUPER_ADMIN_EMAIL = os.environ.get("TEST_ADMIN_EMAIL", "")
+SUPER_ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD", "")
 
 # --- mongo helpers --------------------------------------------------
 _mc = MongoClient(MONGO_URL)

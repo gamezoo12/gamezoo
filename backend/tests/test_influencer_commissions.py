@@ -43,10 +43,20 @@ def run_db(db_name, fn):
 
 @pytest.fixture(scope='module')
 def safe_db():
-    name = os.environ.get('DB_NAME', 'test_database')
+    name = os.environ["DB_NAME"]
     if 'test' not in name.lower():
         pytest.skip('Integration tests require a DB_NAME containing "test"')
-    return _sanitize_db_name(name)
+    db_name = _sanitize_db_name(name)
+
+    async def ensure_indexes():
+        client = AsyncIOMotorClient(_mongo_url)
+        try:
+            await client[db_name].influencer_commissions.create_index('event_key', unique=True)
+        finally:
+            client.close()
+
+    asyncio.run(ensure_indexes())
+    return db_name
 
 
 @pytest.fixture

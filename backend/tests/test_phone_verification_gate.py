@@ -1,7 +1,7 @@
 """Backend mobile-OTP gate: new unverified users are blocked server-side from
 gameplay / contest entry / checkout / top-ups; verified, legacy and staff are not.
 
-Runs against the dev server with TEST_OTP_BYPASS_CODE (000000) and the dev Mongo.
+Runs only against the isolated local test server and Mongo database.
 """
 import os
 import time
@@ -10,10 +10,10 @@ import requests
 import subprocess
 import json
 
-BASE = (os.environ.get('REACT_APP_BACKEND_URL') or 'http://localhost:8001').rstrip('/')
+BASE = os.environ['REACT_APP_BACKEND_URL'].rstrip('/')
 API = f'{BASE}/api'
-OTP = os.environ.get('TEST_OTP_BYPASS_CODE', '000000')
-MONGO = os.environ.get('MONGO_URL', 'mongodb://localhost:27017') + '/' + os.environ.get('DB_NAME', 'test_database')
+OTP = os.environ.get('TEST_OTP_BYPASS_CODE', '')
+MONGO = os.environ['MONGO_URL'] + '/' + os.environ['DB_NAME']
 
 SID = 'sess_' + 'x' * 12
 GATED = [

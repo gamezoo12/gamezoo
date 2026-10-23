@@ -9,8 +9,7 @@ creation gate. Written to lock down the four critical behaviors:
        this endpoint in the first place: production was returning empty
        500s and the frontend rendered them as "Invalid credentials").
 
-These tests run against the live preview backend so they exercise the
-real DB. They wipe & restore the seed admin around themselves.
+These tests run only against the isolated local test backend and test database.
 """
 from __future__ import annotations
 import asyncio
@@ -19,23 +18,12 @@ import pytest
 import requests
 from motor.motor_asyncio import AsyncIOMotorClient
 
-BASE_URL = os.environ.get('BACKEND_URL') or os.environ.get('REACT_APP_BACKEND_URL')
-if not BASE_URL:
-    # Fallback: read from frontend .env for local dev.
-    try:
-        with open('/app/frontend/.env') as f:
-            for line in f:
-                if line.startswith('REACT_APP_BACKEND_URL='):
-                    BASE_URL = line.split('=', 1)[1].strip().strip('"')
-                    break
-    except Exception:
-        pass
+BASE_URL = os.environ['BACKEND_URL']
+MONGO_URL = os.environ['MONGO_URL']
+DB_NAME = os.environ['DB_NAME']
 
-MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-DB_NAME = os.environ.get('DB_NAME', 'test_database')
-
-TEST_EMAIL = 'bootstrap_e2e@prizeleague.example.com'
-TEST_PASSWORD = 'BootstrapPass!2026'
+TEST_EMAIL = os.environ.get("TEST_BOOTSTRAP_EMAIL", "bootstrap@example.test")
+TEST_PASSWORD = os.environ.get("TEST_BOOTSTRAP_PASSWORD", "")
 
 
 async def _wipe_privileged():
@@ -56,7 +44,7 @@ async def _restore(snapshot):
     client = AsyncIOMotorClient(MONGO_URL)
     db = client[DB_NAME]
     # Delete the test-created admin, then restore the originals.
-    await db.users.delete_many({'email': {'$in': [TEST_EMAIL, 'bachanta8@gmail.com']}})
+    await db.users.delete_many({'email': TEST_EMAIL})
     await db.users.insert_many(snapshot)
     client.close()
 

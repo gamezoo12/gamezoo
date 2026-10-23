@@ -14,13 +14,12 @@ import pytest
 import requests
 from pymongo import MongoClient
 
-BASE_URL = (os.environ.get('REACT_APP_BACKEND_URL')
-            or 'https://import-verify-6.preview.emergentagent.com').rstrip('/')
-MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-DB_NAME = os.environ.get('DB_NAME', 'test_database')
+BASE_URL = os.environ['REACT_APP_BACKEND_URL'].rstrip('/')
+MONGO_URL = os.environ["MONGO_URL"]
+DB_NAME = os.environ["DB_NAME"]
 
-ADMIN_EMAIL = os.environ.get('ADMIN_TEST_EMAIL', 'bachanta8@gmail.com')
-ADMIN_PASSWORD = os.environ.get('ADMIN_TEST_PASSWORD', 'Herts@910022')
+ADMIN_EMAIL = os.environ.get("TEST_ADMIN_EMAIL", "")
+ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD", "")
 
 TEST_PREFIX = 'TEST_p3_'
 

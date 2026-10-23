@@ -19,10 +19,10 @@ import requests
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 assert BASE_URL, 'REACT_APP_BACKEND_URL must be set'
 
-ADMIN_EMAIL = 'bachanta8@gmail.com'
-ADMIN_PASSWORD = 'Herts@910022'
-PLAYER_EMAIL = 'player1@example.com'
-PLAYER_PASSWORD = 'Player@12345'
+ADMIN_EMAIL = os.environ.get("TEST_ADMIN_EMAIL", "")
+ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD", "")
+PLAYER_EMAIL = os.environ.get("TEST_PLAYER_EMAIL", "")
+PLAYER_PASSWORD = os.environ.get("TEST_PLAYER_PASSWORD", "")
 
 
 def _login(email, password):

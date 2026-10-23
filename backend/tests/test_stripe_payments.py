@@ -15,11 +15,11 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import asyncio
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL').rstrip('/')
-MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-DB_NAME = os.environ.get('DB_NAME', 'test_database')
+MONGO_URL = os.environ["MONGO_URL"]
+DB_NAME = os.environ["DB_NAME"]
 
-ADMIN_EMAIL = 'bachanta8@gmail.com'
-ADMIN_PASS = 'Herts@910022'
+ADMIN_EMAIL = os.environ.get("TEST_ADMIN_EMAIL", "")
+ADMIN_PASS = os.environ.get("TEST_ADMIN_PASSWORD", "")
 
 
 def _auth(token):

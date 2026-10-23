@@ -5,21 +5,11 @@ import time
 import requests
 import pytest
 
-def _load_base_url():
-    v = os.environ.get("REACT_APP_BACKEND_URL")
-    if not v:
-        with open("/app/frontend/.env") as f:
-            for line in f:
-                if line.startswith("REACT_APP_BACKEND_URL="):
-                    v = line.split("=", 1)[1].strip()
-                    break
-    return v.rstrip("/")
-
-BASE_URL = _load_base_url()
+BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
 API = f"{BASE_URL}/api"
 
-P1 = ("player1@example.com", "Player@12345")
-BROKE = ("player_broke@example.com", "Player@12345")
+P1 = (os.environ.get("TEST_PLAYER_EMAIL", ""), os.environ.get("TEST_PLAYER_PASSWORD", ""))
+BROKE = (os.environ.get("TEST_BROKE_EMAIL", ""), os.environ.get("TEST_PLAYER_PASSWORD", ""))
 
 
 def reseed():

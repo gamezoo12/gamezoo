@@ -2,6 +2,7 @@
 """Verify the UI-triggered wipe removed the QA seed and clean up leftovers."""
 from __future__ import annotations
 
+import os
 import json
 import sys
 from pathlib import Path
@@ -13,8 +14,8 @@ from pymongo import MongoClient
 ROOT = Path('/app')
 BACKEND = ROOT / 'backend'
 
-ADMIN_EMAIL = 'bachanta8@gmail.com'
-ADMIN_PASS = 'Herts@910022'
+ADMIN_EMAIL = os.environ.get("TEST_ADMIN_EMAIL", "")
+ADMIN_PASS = os.environ.get("TEST_ADMIN_PASSWORD", "")
 
 be = dotenv_values(BACKEND / '.env')
 fe = dotenv_values(ROOT / 'frontend' / '.env')

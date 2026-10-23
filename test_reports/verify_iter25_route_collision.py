@@ -40,8 +40,8 @@ def status_bool(ok, msg):
 BASE_URL = load_frontend_base_url()
 MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017').strip('"')
 DB_NAME = os.environ.get('DB_NAME', 'test_database').strip('"')
-SUPER_ADMIN_EMAIL = 'bachanta8@gmail.com'
-SUPER_ADMIN_PASSWORD = 'Herts@910022'
+SUPER_ADMIN_EMAIL = os.environ.get("TEST_ADMIN_EMAIL", "")
+SUPER_ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD", "")
 
 client = MongoClient(MONGO_URL)
 db = client[DB_NAME]

@@ -7,14 +7,10 @@ import pytest
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 if not BASE_URL:
-    # fallback for local shell env
-    with open('/app/frontend/.env') as f:
-        for line in f:
-            if line.startswith('REACT_APP_BACKEND_URL='):
-                BASE_URL = line.split('=', 1)[1].strip().rstrip('/')
+    raise RuntimeError('REACT_APP_BACKEND_URL must be supplied by the isolated test configuration')
 
-ADMIN_EMAIL = "bachanta8@gmail.com"
-ADMIN_PASSWORD = "Herts@910022"
+ADMIN_EMAIL = os.environ.get("TEST_ADMIN_EMAIL", "")
+ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD", "")
 
 
 @pytest.fixture(scope="module")

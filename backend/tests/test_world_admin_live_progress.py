@@ -10,9 +10,9 @@ import uuid
 import pytest
 import requests
 
-BASE = (os.environ.get('REACT_APP_BACKEND_URL') or 'http://localhost:8001').rstrip('/')
+BASE = os.environ['REACT_APP_BACKEND_URL'].rstrip('/')
 API = f'{BASE}/api'
-MONGO = os.environ.get('MONGO_URL', 'mongodb://localhost:27017') + '/' + os.environ.get('DB_NAME', 'test_database')
+MONGO = os.environ["MONGO_URL"] + '/' + os.environ["DB_NAME"]
 SEASON = 'season-1'
 RUN = uuid.uuid4().hex[:6]
 STAGE_START = '2026-10-09T23:00:00Z'  # active Global Contest 3 start in the dev DB

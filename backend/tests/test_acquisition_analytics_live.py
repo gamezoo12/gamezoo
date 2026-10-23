@@ -9,9 +9,9 @@ import pytest
 import requests
 from pymongo import MongoClient
 
-BASE = (os.environ.get('REACT_APP_BACKEND_URL') or 'http://localhost:8001').rstrip('/')
+BASE = os.environ['REACT_APP_BACKEND_URL'].rstrip('/')
 API = f'{BASE}/api'
-MONGO = os.environ.get('MONGO_URL', 'mongodb://localhost:27017') + '/' + os.environ.get('DB_NAME', 'test_database')
+MONGO = os.environ['MONGO_URL'] + '/' + os.environ['DB_NAME']
 RUN = uuid.uuid4().hex[:8]
 CAMPAIGN = f'itest_{RUN}'
 UA_MOBILE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0) AppleWebKit Mobile/15E148'
@@ -36,9 +36,9 @@ def world():
     users = {'admin': seed_user('admin', 'admin'), 'player': seed_user('player')}
     yield users
     ids = [u[0] for u in users.values()]
-    client = MongoClient(os.environ.get('MONGO_URL', 'mongodb://localhost:27017'))
+    client = MongoClient(os.environ['MONGO_URL'])
     try:
-        db = client[os.environ.get('DB_NAME', 'test_database')]
+        db = client[os.environ['DB_NAME']]
         for collection in ('users', 'user_sessions', 'acquisition_attributions', 'staff_activity_log', 'staff_role_history'):
             db[collection].delete_many({'user_id': {'$in': ids}})
         db.acquisition_page_views.delete_many({'campaign': CAMPAIGN})

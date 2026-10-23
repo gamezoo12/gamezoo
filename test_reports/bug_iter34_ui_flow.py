@@ -8,14 +8,15 @@ The MCP browser runner executes this file with:
 
 from __future__ import annotations
 
+import os
 import re
 
 CONTEST_ID = "c_02091d8c359f"
 CONTEST_SLUG = "bug34-ui-checkout-route-1785608389-8b8164"
 CONTEST_TITLE = "BUG34 UI Checkout Route 1785608389"
 CONTEST_IMAGE = "https://images.pexels.com/photos/928187/pexels-photo-928187.jpeg?auto=compress&cs=tinysrgb&h=650&w=940"
-ADMIN_EMAIL = "bachanta8@gmail.com"
-ADMIN_PASSWORD = "Herts@910022"
+ADMIN_EMAIL = os.environ.get("TEST_ADMIN_EMAIL", "")
+ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD", "")
 BASE_URL = "https://import-verify-6.preview.emergentagent.com"
 
 
