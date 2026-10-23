@@ -128,7 +128,15 @@ export default function MyAccount() {
   useEffect(() => {
     if (loading || !user?.user_id) return undefined;
     let active = true;
-    pushAPI.settings().then(settings => { if (active) setPushSettings(settings); }).catch(() => {});
+    pushAPI.settings().then(async settings => {
+      if ('Notification' in window && settings.web_push_browser_permission !== Notification.permission) {
+        try {
+          await pushAPI.updatePreferences({ web_push_browser_permission: Notification.permission });
+          settings = { ...settings, web_push_browser_permission: Notification.permission };
+        } catch { /* Keep the last server-known permission state if sync fails. */ }
+      }
+      if (active) setPushSettings(settings);
+    }).catch(() => {});
     return () => { active = false; };
   }, [user?.user_id, loading]);
 
@@ -159,6 +167,8 @@ export default function MyAccount() {
       let permission = Notification.permission;
       if (permission === 'default') permission = await Notification.requestPermission();
       if (permission !== 'granted') {
+        await pushAPI.updatePreferences({ web_push_browser_permission: permission });
+        await refreshPushSettings();
         toast({ title: 'Notification permission was not granted.' });
         return;
       }
@@ -605,6 +615,12 @@ export default function MyAccount() {
                 <div>
                   <h3 className="font-display font-bold text-base">Web Push</h3>
                   <p className="mt-1 max-w-2xl text-xs text-slate-500">Receive account and contest alerts on this browser, including when Prize League is closed. You control browser permission and can remove individual devices.</p>
+                  <p className="mt-2 text-xs font-semibold text-slate-700" data-testid="web-push-current-status">
+                    Status: {pushSettings?.web_push_status || 'Disabled'} · {Number(pushSettings?.web_push_device_count || pushSettings?.web_devices?.length || 0)} registered browser(s)
+                  </p>
+                  {pushSettings?.web_push_consent_at && <p className="mt-1 text-[11px] text-slate-500">
+                    Consent updated by {pushSettings.web_push_consent_source === 'admin' ? 'Admin' : 'User'} on {new Date(pushSettings.web_push_consent_at).toLocaleString('en-GB', { timeZone: 'Europe/London' })}
+                  </p>}
                 </div>
                 {pushSettings?.web_push_enabled ? (
                   <Button type="button" variant="outline" onClick={disableWebPush} disabled={pushBusy}>Disable Web Push</Button>

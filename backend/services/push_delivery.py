@@ -31,6 +31,31 @@ def public_vapid_config() -> dict[str, Any]:
     return {'available': True, 'public_key': config[0]}
 
 
+def web_push_status(user: dict, active_devices: int) -> str:
+    if user.get('web_push_browser_permission') == 'denied':
+        return 'Browser Permission Denied'
+    enabled = user.get('web_push_enabled') is True
+    if enabled:
+        return 'Enabled' if active_devices else 'Not Subscribed'
+    if user.get('web_push_consent_source') in {'admin', 'user'} and user.get('web_push_consent_at'):
+        return 'Disabled'
+    if user.get('web_push_browser_permission') == 'granted' or active_devices:
+        return 'Not Subscribed'
+    return 'Disabled'
+
+
+def web_push_status(user: dict, active_devices: int) -> str:
+    if user.get('web_push_enabled') is True:
+        return 'Enabled' if active_devices else 'Not Subscribed'
+    if user.get('web_push_consent_source') in {'admin', 'user'} and user.get('web_push_consent_at'):
+        return 'Disabled'
+    if user.get('web_push_browser_permission') == 'denied':
+        return 'Browser Permission Denied'
+    if user.get('web_push_browser_permission') == 'granted':
+        return 'Not Subscribed'
+    return 'Disabled'
+
+
 def _send(subscription: dict, payload: dict, private_key: str, subject: str) -> None:
     webpush(
         subscription_info={
@@ -55,8 +80,11 @@ async def send_web_push_to_user(
     """Send to every active device, honoring separate push/marketing consent."""
     user = await db.users.find_one(
         {'user_id': user_id},
-        {'_id': 0, 'web_push_enabled': 1, 'web_push_marketing_consent': 1},
+        {'_id': 0, 'web_push_enabled': 1, 'web_push_marketing_consent': 1,
+         'web_push_browser_permission': 1},
     )
+    if user and user.get('web_push_browser_permission') == 'denied':
+        return {'status': 'skipped', 'delivered': 0, 'reason': 'Browser notification permission is denied'}
     if not user or user.get('web_push_enabled') is not True:
         return {'status': 'skipped', 'delivered': 0, 'reason': 'Web Push is disabled'}
     if marketing and user.get('web_push_marketing_consent') is not True:
@@ -269,7 +297,8 @@ async def process_contest_lifecycle_alerts(db, current_time=None) -> int:
     """Queue participant start/end alerts and Free World challenge transitions."""
     if not _vapid_config():
         return 0
-    current_time = current_time or datetime.now(timezone.utc)
+    current_time = _as_utc(current_time) or datetime.now(timezone.utc)
+    reminder_horizon = current_time + timedelta(hours=1)
     await db.app_settings.update_one(
         {'key': 'web_push_lifecycle_cutoff'},
         {'$setOnInsert': {'key': 'web_push_lifecycle_cutoff', 'value': current_time}},

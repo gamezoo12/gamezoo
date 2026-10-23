@@ -96,6 +96,188 @@ def test_user_wallet_adjust_rejects_erased_accounts(monkeypatch):
     asyncio.run(run())
 
 
+def test_single_user_web_push_disable_is_reasoned_and_audited(monkeypatch):
+    updates = []
+    audits = []
+
+    class Users:
+        async def find_one(self, _query, _projection):
+            return {'user_id': 'target-user', 'erased': False, 'web_push_enabled': True}
+        async def update_one(self, query, update):
+            updates.append((query, update))
+
+    class AuditLog:
+        async def insert_one(self, row):
+            audits.append(row)
+
+    async def require_admin(_request):
+        return {'user_id': 'admin-user', 'email': 'admin@example.test', 'role': 'admin'}
+
+    monkeypatch.setattr(user360_routes, 'require_admin', require_admin)
+    monkeypatch.setattr('deps.get_db', lambda: SimpleNamespace(users=Users(), audit_log=AuditLog()))
+
+    async def run():
+        payload = user360_routes.UserWebPushDisableRequest(reason='User requested push to be disabled')
+        result = await user360_routes.disable_user_web_push('target-user', payload, _request())
+        assert result['web_push_enabled'] is False
+        assert result['web_push_consent_source'] == 'admin'
+        assert updates[0][1]['$set']['web_push_enabled'] is False
+        assert updates[0][1]['$set']['web_push_consent_source'] == 'admin'
+        assert audits[0]['kind'] == 'admin_web_push_consent_change'
+        assert audits[0]['reason'] == payload.reason
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('active_devices,expected_status', [(1, 200), (0, 400)])
+def test_single_user_web_push_grant_requires_subscription_and_audits_opt_in(
+    monkeypatch, active_devices, expected_status,
+):
+    updates = []
+    audits = []
+
+    class Users:
+        async def find_one(self, _query, _projection):
+            return {'user_id': 'target-user', 'erased': False}
+        async def update_one(self, query, update):
+            updates.append((query, update))
+
+    class Devices:
+        async def count_documents(self, query):
+            assert query == {'user_id': 'target-user', 'active': True}
+            return active_devices
+
+    class AuditLog:
+        async def insert_one(self, row):
+            audits.append(row)
+
+    async def require_admin(_request):
+        return {'user_id': 'admin-user', 'email': 'admin@example.test', 'role': 'admin'}
+
+    monkeypatch.setattr(user360_routes, 'require_admin', require_admin)
+    monkeypatch.setattr('deps.get_db', lambda: SimpleNamespace(
+        users=Users(), web_push_subscriptions=Devices(), audit_log=AuditLog(),
+    ))
+
+    async def run():
+        payload = user360_routes.UserWebPushGrantRequest(
+            evidence='User opted in on support call 2026-10-23',
+        )
+        if expected_status == 400:
+            with pytest.raises(HTTPException) as error:
+                await user360_routes.enable_user_web_push('target-user', payload, _request())
+            assert error.value.status_code == expected_status
+            assert not updates and not audits
+        else:
+            result = await user360_routes.enable_user_web_push('target-user', payload, _request())
+            assert result['web_push_enabled'] is True
+            assert result['web_push_device_count'] == active_devices
+            assert updates[0][1]['$set']['web_push_enabled'] is True
+            assert updates[0][1]['$set']['web_push_consent_source'] == 'admin'
+            assert audits[0]['kind'] == 'admin_web_push_consent_change'
+            assert audits[0]['consent'] is True
+            assert audits[0]['reason'] == payload.evidence
+
+    asyncio.run(run())
+
+
+def test_bulk_web_push_revoke_is_idempotently_audited(monkeypatch):
+    users_by_id = {'target-user': {'user_id': 'target-user', 'erased': False, 'web_push_enabled': True}}
+    audits = {}
+
+    class Cursor:
+        async def to_list(self, _limit):
+            return list(users_by_id.values())
+
+    class Users:
+        def find(self, _query, _projection):
+            return Cursor()
+        async def update_one(self, query, update):
+            users_by_id[query['user_id']].update(update['$set'])
+
+    class AuditLog:
+        async def update_one(self, query, update, upsert=False):
+            assert upsert is True
+            audits.setdefault(query['audit_id'], update['$setOnInsert'])
+
+    async def require_admin(_request):
+        return {'user_id': 'admin-user', 'email': 'admin@example.test', 'role': 'admin'}
+
+    db = SimpleNamespace(users=Users(), audit_log=AuditLog())
+    monkeypatch.setattr(user360_routes, 'require_admin', require_admin)
+    monkeypatch.setattr('deps.get_db', lambda: db)
+
+    async def run():
+        payload = user360_routes.BulkUserActionRequest(
+            user_ids=['target-user'], action='web_push_revoke',
+            batch_id='push-revoke-batch-1234', note='User requested push disable',
+        )
+        first = await user360_routes.bulk_user_actions(payload, _request())
+        replay = await user360_routes.bulk_user_actions(payload, _request())
+        assert first['succeeded'] == replay['succeeded'] == 1
+        assert users_by_id['target-user']['web_push_enabled'] is False
+        assert users_by_id['target-user']['web_push_consent_source'] == 'admin'
+        assert len(audits) == 1
+        assert next(iter(audits.values()))['reason'] == payload.note
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('active_devices,expected_status', [(1, 'success'), (0, 'skipped')])
+def test_bulk_web_push_grant_requires_active_subscription_and_audits_opt_in(
+    monkeypatch, active_devices, expected_status,
+):
+    user = {'user_id': 'target-user', 'erased': False, 'web_push_enabled': False}
+    audits = {}
+
+    class Cursor:
+        async def to_list(self, _limit):
+            return [user]
+
+    class Users:
+        def find(self, _query, _projection):
+            return Cursor()
+        async def update_one(self, _query, update):
+            user.update(update['$set'])
+
+    class Devices:
+        async def count_documents(self, _query):
+            return active_devices
+
+    class AuditLog:
+        async def update_one(self, query, update, upsert=False):
+            assert upsert is True
+            audits.setdefault(query['audit_id'], update['$setOnInsert'])
+
+    async def require_admin(_request):
+        return {'user_id': 'admin-user', 'email': 'admin@example.test', 'role': 'admin'}
+
+    db = SimpleNamespace(users=Users(), web_push_subscriptions=Devices(), audit_log=AuditLog())
+    monkeypatch.setattr(user360_routes, 'require_admin', require_admin)
+    monkeypatch.setattr('deps.get_db', lambda: db)
+
+    async def run():
+        payload = user360_routes.BulkUserActionRequest(
+            user_ids=['target-user'], action='web_push_grant',
+            batch_id='push-grant-batch-1234',
+            consent_evidence='User opted in on support call 2026-10-23',
+        )
+        result = await user360_routes.bulk_user_actions(payload, _request())
+        item = result['items'][0]
+        assert item['status'] == expected_status
+        if active_devices:
+            assert user['web_push_enabled'] is True
+            assert user['web_push_consent_source'] == 'admin'
+            assert user['web_push_consent_at'] is not None
+            assert next(iter(audits.values()))['reason'] == payload.consent_evidence
+            assert next(iter(audits.values()))['consent'] is True
+        else:
+            assert user['web_push_enabled'] is False
+            assert not audits
+
+    asyncio.run(run())
+
+
 @pytest.mark.parametrize('role,expected_status', [('support', 403), ('operator', 403)])
 def test_user_wallet_adjust_rejects_non_admin_roles(monkeypatch, role, expected_status):
     async def require_admin(_request):

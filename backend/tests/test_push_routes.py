@@ -64,6 +64,7 @@ def test_web_subscription_registration_is_owner_scoped_and_opted_in(monkeypatch)
 @pytest.mark.parametrize('endpoint', [
     'http://push.example.test/subscription/abc',
     'https://attacker.example/subscription/abc',
+    'https://jmt17.google.com.attacker.example/subscription/abc',
 ])
 def test_web_subscription_rejects_unsupported_endpoint(monkeypatch, endpoint):
     monkeypatch.setattr(push_routes, 'get_current_user', AsyncMock(return_value={'user_id': 'user-1'}))
@@ -79,6 +80,14 @@ def test_web_subscription_rejects_unsupported_endpoint(monkeypatch, endpoint):
         assert error.value.status_code == 400
 
     asyncio.run(run())
+
+
+def test_chromium_google_push_shard_is_supported():
+    payload = push_routes.WebPushSubscriptionInput(
+        endpoint='https://jmt17.google.com/fcm/send/test-token',
+        keys={'p256dh': 'A' * 80, 'auth': 'B' * 24},
+    )
+    push_routes._validate_subscription(payload)
 
 
 def test_web_subscription_cannot_be_reassigned_to_another_user(monkeypatch):

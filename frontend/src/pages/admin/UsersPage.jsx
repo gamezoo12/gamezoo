@@ -146,6 +146,7 @@ export default function UsersPage() {
   const [expiryCustomDate, setExpiryCustomDate] = useState('');
   const [consentEvidence, setConsentEvidence] = useState('');
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [webPushBusyUserId, setWebPushBusyUserId] = useState('');
 
   const { toast } = useToast();
 
@@ -234,6 +235,20 @@ export default function UsersPage() {
       }
       if (!window.confirm(`Revoke SMS consent for ${userIds.length} selected users?`)) return;
     }
+    if (bulkAction === 'web_push_grant') {
+      if (consentEvidence.trim().length < 20) {
+        toast({ title: 'Consent evidence required', description: 'Document the users’ explicit Web Push opt-in (at least 20 characters).' });
+        return;
+      }
+      if (!window.confirm(`Record documented Web Push opt-in for up to ${userIds.length} users with active browser subscriptions? Users without a subscription will be skipped.`)) return;
+    }
+    if (bulkAction === 'web_push_revoke') {
+      if (bulkNote.trim().length < 10) {
+        toast({ title: 'Reason required', description: 'Enter a reason of at least 10 characters.' });
+        return;
+      }
+      if (!window.confirm(`Disable Web Push for ${userIds.length} selected users across all registered browsers?`)) return;
+    }
 
     setBulkBusy(true);
     try {
@@ -305,6 +320,44 @@ export default function UsersPage() {
       }
     } else {
       window.location.href = `/admin/users/${u.user_id}`;
+    }
+  };
+
+  const grantUserWebPush = async (user) => {
+    const evidence = window.prompt('Document how and when the user explicitly opted in to Web Push (20+ characters):');
+    if (!evidence || evidence.trim().length < 20) {
+      if (evidence !== null) toast({ title: 'Consent evidence required', description: 'Enter documented opt-in evidence of at least 20 characters.' });
+      return;
+    }
+    if (!window.confirm(`Record Web Push opt-in for ${user.name || user.email || user.user_id}? This does not create a browser subscription.`)) return;
+    try {
+      setWebPushBusyUserId(user.user_id);
+      await adminAPI.enableUserWebPush(user.user_id, evidence.trim());
+      toast({ title: 'Web Push consent granted', description: 'The opt-in was recorded and audited.' });
+      await load();
+    } catch (error) {
+      toast({ title: 'Could not grant Web Push consent', description: error?.response?.data?.detail || 'Please try again.' });
+    } finally {
+      setWebPushBusyUserId('');
+    }
+  };
+
+  const revokeUserWebPush = async (user) => {
+    const reason = window.prompt('Reason for revoking Web Push consent (10+ characters):');
+    if (!reason || reason.trim().length < 10) {
+      if (reason !== null) toast({ title: 'Reason required', description: 'Enter a reason of at least 10 characters.' });
+      return;
+    }
+    if (!window.confirm(`Revoke Web Push consent for ${user.name || user.email || user.user_id}?`)) return;
+    try {
+      setWebPushBusyUserId(user.user_id);
+      await adminAPI.disableUserWebPush(user.user_id, reason.trim());
+      toast({ title: 'Web Push consent revoked', description: 'Web Push delivery is disabled for this user.' });
+      await load();
+    } catch (error) {
+      toast({ title: 'Could not revoke Web Push consent', description: error?.response?.data?.detail || 'Please try again.' });
+    } finally {
+      setWebPushBusyUserId('');
     }
   };
 
@@ -617,6 +670,12 @@ export default function UsersPage() {
           <Button type="button" variant="outline" onClick={() => openBulkAction('sms_revoke')} disabled={!selectedUserIds.size}>
             Revoke SMS consent
           </Button>
+          <Button type="button" variant="outline" onClick={() => openBulkAction('web_push_grant')} disabled={!selectedUserIds.size}>
+            Grant Web Push consent
+          </Button>
+          <Button type="button" variant="outline" onClick={() => openBulkAction('web_push_revoke')} disabled={!selectedUserIds.size}>
+            Revoke Web Push
+          </Button>
         </div>
       </div>
 
@@ -625,14 +684,18 @@ export default function UsersPage() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 className="font-bold text-slate-900">
-                {bulkAction === 'credit' ? 'Credit tokens' : bulkAction === 'sms_grant' ? 'Bulk SMS consent grant' : 'Bulk SMS consent revoke'}
+                {bulkAction === 'credit' ? 'Credit tokens' : bulkAction === 'sms_grant' ? 'Bulk SMS consent grant' : bulkAction === 'sms_revoke' ? 'Bulk SMS consent revoke' : bulkAction === 'web_push_grant' ? 'Bulk Web Push consent grant' : 'Bulk Web Push consent revoke'}
               </h3>
               <p className="mt-1 text-xs text-slate-600">
                 {bulkAction === 'credit'
                   ? `Credit each selected wallet; up to ${selectedUserIds.size} users will receive the same amount. Choose the token type; bonus tokens may expire, purchased/general tokens keep their existing behavior.`
                   : bulkAction === 'sms_grant'
                     ? 'This records consent only; it does not send SMS. Verified phone and documented express opt-in are required.'
-                    : 'This revokes SMS consent for selected accounts and is individually audited.'}
+                    : bulkAction === 'sms_revoke'
+                      ? 'This revokes SMS consent for selected accounts and is individually audited.'
+                      : bulkAction === 'web_push_grant'
+                        ? 'Record explicit user opt-in only. Each account must already have an active browser subscription; this action cannot subscribe a browser.'
+                        : 'This disables Web Push delivery across every registered browser and is individually audited.'}
               </p>
             </div>
             <button type="button" onClick={() => setBulkAction('')} className="text-sm font-semibold text-slate-500 hover:text-slate-900">Close</button>
@@ -697,6 +760,20 @@ export default function UsersPage() {
             <label className="block text-xs font-bold text-slate-600">
               Reason (10+ characters)
               <Input value={bulkNote} onChange={event => setBulkNote(event.target.value)} placeholder="Document the reason for revocation" className="mt-1 bg-white" data-testid="bulk-sms-revoke-reason" />
+            </label>
+          )}
+
+          {bulkAction === 'web_push_grant' && (
+            <label className="block text-xs font-bold text-slate-600">
+              Explicit Web Push opt-in evidence (20+ characters)
+              <textarea value={consentEvidence} onChange={event => setConsentEvidence(event.target.value)} placeholder="Record when and how each selected user explicitly opted in. Users without active subscriptions will be skipped." rows={3} className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-normal" data-testid="bulk-web-push-evidence" />
+            </label>
+          )}
+
+          {bulkAction === 'web_push_revoke' && (
+            <label className="block text-xs font-bold text-slate-600">
+              Reason (10+ characters)
+              <Input value={bulkNote} onChange={event => setBulkNote(event.target.value)} placeholder="Document the reason for revocation" className="mt-1 bg-white" data-testid="bulk-web-push-revoke-reason" />
             </label>
           )}
 
@@ -1005,6 +1082,7 @@ export default function UsersPage() {
                 <th className="text-left p-3">Phone</th>
                 <th className="text-left p-3">Email</th>
                 <th className="text-left p-3">SMS Consent</th>
+                <th className="text-left p-3">Web Push</th>
                 <th className="text-left p-3">KYC</th>
                 <th className="text-left p-3">Source</th>
                 <th className="text-right p-3">Wallet</th>
@@ -1088,6 +1166,21 @@ export default function UsersPage() {
                     ) : (
                       <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-500 font-semibold">Disabled</span>
                     )}
+                  </td>
+
+                  <td className="p-3" data-testid={`web-push-status-${u.user_id}`}>
+                    <div className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${u.web_push_status === 'Enabled' ? 'bg-emerald-100 text-emerald-700' : u.web_push_status === 'Browser Permission Denied' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'}`}>
+                      {u.web_push_status || 'Disabled'}
+                    </div>
+                    <div className="mt-1 text-[10px] text-slate-500">{Number(u.web_push_device_count || 0)} device(s){u.web_push_consent_source ? ` · ${u.web_push_consent_source}` : ''}</div>
+                    {!u.erased && <div className="mt-2 flex flex-wrap gap-1">
+                      {!u.web_push_enabled && <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={() => grantUserWebPush(u)} disabled={webPushBusyUserId === u.user_id || Number(u.web_push_device_count || 0) < 1} title={Number(u.web_push_device_count || 0) < 1 ? 'User must subscribe from a browser first' : 'Record documented Web Push opt-in'} data-testid={`grant-web-push-${u.user_id}`}>
+                        {webPushBusyUserId === u.user_id ? 'Saving…' : 'Grant consent'}
+                      </Button>}
+                      {u.web_push_enabled && <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={() => revokeUserWebPush(u)} disabled={webPushBusyUserId === u.user_id} title="Revoke Web Push consent" data-testid={`revoke-web-push-${u.user_id}`}>
+                        {webPushBusyUserId === u.user_id ? 'Saving…' : 'Revoke consent'}
+                      </Button>}
+                    </div>}
                   </td>
 
                   <td className="p-3">

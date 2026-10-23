@@ -129,6 +129,8 @@ export const adminAPI = {
   updateUser: (id, data) => api.put(`/admin/users/${id}`, data).then(r => r.data),
   bulkUserActions: (payload) => api.post('/admin/users/bulk-actions', payload).then(r => r.data),
   adjustUserWallet: (id, payload) => api.post(`/admin/users/${encodeURIComponent(id)}/wallet-adjust`, payload).then(r => r.data),
+  disableUserWebPush: (id, reason) => api.post(`/admin/users/${encodeURIComponent(id)}/web-push/disable`, { reason }).then(r => r.data),
+  enableUserWebPush: (id, evidence) => api.post(`/admin/users/${encodeURIComponent(id)}/web-push/enable`, { evidence }).then(r => r.data),
   creditBonus: (payload) => api.post('/admin/bonus-grants', payload).then(r => r.data),
   bonusGrants: (params = {}) => api.get('/admin/bonus-grants', { params }).then(r => r.data),
   revokeBonusGrant: (grantId, reason) => api.post(`/admin/bonus-grants/${encodeURIComponent(grantId)}/revoke`, { reason }).then(r => r.data),

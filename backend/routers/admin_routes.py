@@ -596,6 +596,18 @@ async def all_users(request: Request):
         if u.get('user_id')
     ]
 
+    from services.push_delivery import web_push_status
+    push_device_counts = {}
+    if user_ids:
+        push_devices = await db.web_push_subscriptions.find(
+            {'user_id': {'$in': user_ids}, 'active': True},
+            {'_id': 0, 'user_id': 1},
+        ).to_list(None)
+        for device in push_devices:
+            device_user_id = device.get('user_id')
+            if device_user_id:
+                push_device_counts[device_user_id] = push_device_counts.get(device_user_id, 0) + 1
+
     # Tickets
     tickets_agg = await db.tickets.aggregate([
         {
@@ -749,6 +761,9 @@ async def all_users(request: Request):
 
     for u in users:
         uid = u['user_id']
+
+        u['web_push_device_count'] = push_device_counts.get(uid, 0)
+        u['web_push_status'] = web_push_status(u, u['web_push_device_count'])
 
         ticket_stats = tickets_by_user.get(uid, {})
         order_stats = orders_by_user.get(uid, {})

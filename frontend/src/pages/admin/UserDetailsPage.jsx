@@ -50,6 +50,7 @@ function ProfileManagementCard({ userId, identity, onReload, view = 'profile', h
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState('');
   const [savingConsent, setSavingConsent] = useState(false);
+  const [savingWebPushConsent, setSavingWebPushConsent] = useState(false);
   const [savingEmailConsent, setSavingEmailConsent] = useState(false);
   const [emailConsentEvidence, setEmailConsentEvidence] = useState('');
 
@@ -265,6 +266,40 @@ function ProfileManagementCard({ userId, identity, onReload, view = 'profile', h
       });
     } finally {
       setSavingConsent(false);
+    }
+  };
+
+  const disableWebPush = async () => {
+    const reason = window.prompt('Reason for disabling Web Push (10+ characters):');
+    if (!reason || reason.trim().length < 10) return;
+    try {
+      setSavingWebPushConsent(true);
+      await adminAPI.disableUserWebPush(userId, reason.trim());
+      toast({ title: 'Web Push disabled', description: 'All registered devices are blocked from receiving Web Push.' });
+      await onReload();
+    } catch (error) {
+      toast({ title: 'Could not disable Web Push', description: error?.response?.data?.detail || 'Please try again.' });
+    } finally {
+      setSavingWebPushConsent(false);
+    }
+  };
+
+  const enableWebPush = async () => {
+    const evidence = window.prompt('Document how and when the user explicitly opted in to Web Push (20+ characters):');
+    if (!evidence || evidence.trim().length < 20) {
+      if (evidence !== null) toast({ title: 'Consent evidence required', description: 'Enter documented opt-in evidence of at least 20 characters.' });
+      return;
+    }
+    if (!window.confirm('Record this user’s explicit Web Push opt-in? This will not create a browser subscription.')) return;
+    try {
+      setSavingWebPushConsent(true);
+      await adminAPI.enableUserWebPush(userId, evidence.trim());
+      toast({ title: 'Web Push consent granted', description: 'The opt-in was recorded and audited for this subscribed browser.' });
+      await onReload();
+    } catch (error) {
+      toast({ title: 'Could not grant Web Push consent', description: error?.response?.data?.detail || 'Please try again.' });
+    } finally {
+      setSavingWebPushConsent(false);
     }
   };
 
@@ -570,6 +605,30 @@ function ProfileManagementCard({ userId, identity, onReload, view = 'profile', h
           )}
         </div>
 
+
+        <div className="rounded-xl border border-slate-100 p-4" data-testid="admin-web-push-consent-card">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="font-bold text-sm">Web Push Consent</div>
+              <div className="mt-1 text-xs text-slate-500">Record grants only when explicit opt-in is documented and a browser subscription already exists. This does not subscribe a browser.</div>
+            </div>
+            <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${identity?.web_push_status === 'Enabled' ? 'bg-emerald-100 text-emerald-700' : identity?.web_push_status === 'Browser Permission Denied' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'}`} data-testid="web-push-consent-status">
+              {identity?.web_push_status || 'Disabled'}
+            </span>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500">
+            <span>Registered browsers: {Number(identity?.web_push_device_count || 0)}</span>
+            <span>Browser permission: {identity?.web_push_browser_permission === 'denied' ? 'Denied' : identity?.web_push_browser_permission === 'granted' ? 'Granted' : 'Not requested'}</span>
+            <span>Consent source: {identity?.web_push_consent_source === 'admin' ? 'Admin' : identity?.web_push_consent_source === 'user' ? 'User' : 'None'}</span>
+            {identity?.web_push_consent_at && <span>Updated: {new Date(identity.web_push_consent_at).toLocaleString('en-GB', { timeZone: 'Europe/London' })}</span>}
+          </div>
+          {identity?.web_push_enabled && !identity?.erased && <Button type="button" variant="outline" size="sm" className="mt-3" onClick={disableWebPush} disabled={savingWebPushConsent} data-testid="revoke-web-push-consent">
+            {savingWebPushConsent ? 'Disabling…' : 'Disable Web Push'}
+          </Button>}
+          {!identity?.web_push_enabled && !identity?.erased && <Button type="button" size="sm" className="mt-3" onClick={enableWebPush} disabled={savingWebPushConsent || Number(identity?.web_push_device_count || 0) < 1} data-testid="grant-web-push-consent">
+            {savingWebPushConsent ? 'Saving…' : 'Grant Web Push Consent'}
+          </Button>}
+        </div>
 
         <div className="rounded-xl border border-slate-100 p-4" data-testid="admin-email-consent-card">
           <div className="flex items-center justify-between gap-3">

@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 
 from auth import get_current_user
 from deps import get_db
-from services.push_delivery import public_vapid_config
+from services.push_delivery import public_vapid_config, web_push_status
 
 router = APIRouter(prefix='/api/push', tags=['push-notifications'])
 
@@ -53,7 +53,9 @@ async def get_push_settings(request: Request):
     db = get_db()
     preferences = await db.users.find_one(
         {'user_id': user['user_id']},
-        {'_id': 0, 'web_push_enabled': 1, 'web_push_marketing_consent': 1, 'native_push_enabled': 1},
+        {'_id': 0, 'web_push_enabled': 1, 'web_push_enabled_at': 1, 'web_push_consent_at': 1,
+         'web_push_consent_source': 1, 'web_push_browser_permission': 1,
+         'web_push_marketing_consent': 1, 'native_push_enabled': 1},
     ) or {}
     web_devices = await db.web_push_subscriptions.find(
         {'user_id': user['user_id'], 'active': True}, {'_id': 1, 'created_at': 1, 'last_seen_at': 1, 'user_agent': 1},
@@ -64,6 +66,11 @@ async def get_push_settings(request: Request):
     return {
         **public_vapid_config(),
         'web_push_enabled': preferences.get('web_push_enabled') is True,
+        'web_push_consent_at': preferences.get('web_push_consent_at'),
+        'web_push_consent_source': preferences.get('web_push_consent_source'),
+        'web_push_browser_permission': preferences.get('web_push_browser_permission', 'default'),
+        'web_push_status': web_push_status(preferences, len(web_devices)),
+        'web_push_device_count': len(web_devices),
         'web_push_marketing_consent': preferences.get('web_push_marketing_consent') is True,
         'web_devices': [_safe_web_device(doc) for doc in web_devices],
         'native_push_enabled': preferences.get('native_push_enabled') is True,
@@ -93,6 +100,7 @@ def _validate_subscription(payload: WebPushSubscriptionInput) -> None:
     host = (parsed.hostname or '').lower().rstrip('.')
     trusted_host = (
         host == 'fcm.googleapis.com'
+        or re.fullmatch(r'jmt[0-9]+\.google\.com', host) is not None
         or host == 'updates.push.services.mozilla.com'
         or host == 'web.push.apple.com'
         or host.endswith('.notify.windows.com')
@@ -130,6 +138,8 @@ async def register_web_subscription(payload: WebPushSubscriptionInput, request: 
     )
     await db.users.update_one({'user_id': user['user_id']}, {'$set': {
         'web_push_enabled': True, 'web_push_enabled_at': now,
+        'web_push_consent_at': now, 'web_push_consent_source': 'user',
+        'web_push_browser_permission': 'granted', 'web_push_browser_permission_at': now,
     }})
     return {'ok': True, 'subscription_id': endpoint_id, 'web_push_enabled': True}
 
@@ -143,13 +153,18 @@ async def remove_web_subscription(subscription_id: str, request: Request):
         raise HTTPException(status_code=404, detail='Web Push device not found')
     remaining = await db.web_push_subscriptions.count_documents({'user_id': user['user_id'], 'active': True})
     if not remaining:
-        await db.users.update_one({'user_id': user['user_id']}, {'$set': {'web_push_enabled': False}})
+        now = _now()
+        await db.users.update_one({'user_id': user['user_id']}, {'$set': {
+            'web_push_enabled': False, 'web_push_enabled_at': None,
+            'web_push_consent_at': now, 'web_push_consent_source': 'user',
+        }})
     return {'ok': True, 'remaining_devices': remaining}
 
 
 class PushPreferencesInput(BaseModel):
     web_push_enabled: Optional[bool] = None
     web_push_marketing_consent: Optional[bool] = None
+    web_push_browser_permission: Optional[Literal['default', 'granted', 'denied']] = None
     native_push_enabled: Optional[bool] = None
 
 
@@ -171,6 +186,10 @@ async def update_push_preferences(payload: PushPreferencesInput, request: Reques
     now = _now()
     if 'web_push_enabled' in update:
         update['web_push_enabled_at'] = now if update['web_push_enabled'] else None
+        update['web_push_consent_at'] = now
+        update['web_push_consent_source'] = 'user'
+    if 'web_push_browser_permission' in update:
+        update['web_push_browser_permission_at'] = now
     if 'web_push_marketing_consent' in update:
         update['web_push_marketing_consent_at'] = now if update['web_push_marketing_consent'] else None
         update['web_push_marketing_consent_source'] = 'self_service'

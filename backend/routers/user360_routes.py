@@ -30,7 +30,7 @@ class DeleteRequest(BaseModel):
 
 class BulkUserActionRequest(BaseModel):
     user_ids: list[str] = Field(min_length=1, max_length=200)
-    action: Literal['credit', 'sms_grant', 'sms_revoke']
+    action: Literal['credit', 'sms_grant', 'sms_revoke', 'web_push_grant', 'web_push_revoke']
     batch_id: str = Field(min_length=16, max_length=64)
     amount: Optional[float] = None
     note: str = Field(default='', max_length=500)
@@ -41,6 +41,14 @@ class UserWalletAdjustmentRequest(BaseModel):
     amount: float = Field(ge=-500, le=500)
     reason: str = Field(min_length=10, max_length=300)
     operation_id: str = Field(min_length=16, max_length=64)
+
+
+class UserWebPushDisableRequest(BaseModel):
+    reason: str = Field(min_length=10, max_length=300)
+
+
+class UserWebPushGrantRequest(BaseModel):
+    evidence: str = Field(min_length=20, max_length=2000)
 
 
 async def _sanitise(doc: dict) -> dict:
@@ -69,7 +77,10 @@ async def bulk_user_actions(payload: BulkUserActionRequest, request: Request):
     elif payload.action == 'sms_grant':
         if len(payload.consent_evidence.strip()) < 20:
             raise HTTPException(status_code=400, detail='Documented consent evidence of at least 20 characters is required')
-    elif len(payload.note.strip()) < 10:
+    elif payload.action == 'web_push_grant':
+        if len(payload.consent_evidence.strip()) < 20:
+            raise HTTPException(status_code=400, detail='Documented Web Push opt-in evidence of at least 20 characters is required')
+    elif payload.action in ('sms_revoke', 'web_push_revoke') and len(payload.note.strip()) < 10:
         raise HTTPException(status_code=400, detail='A revocation reason of at least 10 characters is required')
 
     from deps import get_db
@@ -119,6 +130,61 @@ async def bulk_user_actions(payload: BulkUserActionRequest, request: Request):
 
         if payload.action == 'sms_grant' and (not user.get('phone') or not user.get('phone_verified')):
             items.append({'user_id': user_id, 'status': 'skipped', 'reason': 'Verified phone required'})
+            continue
+
+        if payload.action == 'web_push_revoke':
+            await db.users.update_one({'user_id': user_id}, {'$set': {
+                'web_push_enabled': False,
+                'web_push_enabled_at': None,
+                'web_push_consent_at': now,
+                'web_push_consent_source': 'admin',
+                'web_push_admin_reason': payload.note.strip(),
+            }})
+            audit_id = f'aud_{payload.action}_{batch_id}_{user_id}'
+            await db.audit_log.update_one({'audit_id': audit_id}, {'$setOnInsert': {
+                'audit_id': audit_id,
+                'kind': 'admin_bulk_web_push_consent_change',
+                'admin_user_id': admin.get('user_id'),
+                'admin_email': admin.get('email'),
+                'target_user_id': user_id,
+                'consent': False,
+                'source': 'admin',
+                'reason': payload.note.strip(),
+                'batch_id': batch_id,
+                'at': now,
+            }}, upsert=True)
+            items.append({'user_id': user_id, 'status': 'success', 'consent': False})
+            continue
+
+        if payload.action == 'web_push_grant':
+            active_devices = await db.web_push_subscriptions.count_documents(
+                {'user_id': user_id, 'active': True},
+            )
+            if not active_devices:
+                items.append({'user_id': user_id, 'status': 'skipped', 'reason': 'Active browser subscription required'})
+                continue
+            evidence = payload.consent_evidence.strip()
+            await db.users.update_one({'user_id': user_id}, {'$set': {
+                'web_push_enabled': True,
+                'web_push_enabled_at': now,
+                'web_push_consent_at': now,
+                'web_push_consent_source': 'admin',
+                'web_push_admin_reason': evidence,
+            }})
+            audit_id = f'aud_{payload.action}_{batch_id}_{user_id}'
+            await db.audit_log.update_one({'audit_id': audit_id}, {'$setOnInsert': {
+                'audit_id': audit_id,
+                'kind': 'admin_bulk_web_push_consent_change',
+                'admin_user_id': admin.get('user_id'),
+                'admin_email': admin.get('email'),
+                'target_user_id': user_id,
+                'consent': True,
+                'source': 'admin',
+                'reason': evidence,
+                'batch_id': batch_id,
+                'at': now,
+            }}, upsert=True)
+            items.append({'user_id': user_id, 'status': 'success', 'consent': True, 'active_devices': active_devices})
             continue
 
         updates = {
@@ -207,6 +273,100 @@ async def adjust_user_wallet(user_id: str, payload: UserWalletAdjustmentRequest,
     return {'ok': True, **result}
 
 
+@router.post('/{user_id}/web-push/disable')
+async def disable_user_web_push(user_id: str, payload: UserWebPushDisableRequest, request: Request):
+    admin = await require_admin(request)
+    if admin.get('role') not in ('admin', 'super_admin'):
+        raise HTTPException(status_code=403, detail='Only admin or super-admin can disable Web Push')
+    reason = payload.reason.strip()
+    if len(reason) < 10:
+        raise HTTPException(status_code=400, detail='A reason of at least 10 characters is required')
+
+    from deps import get_db
+    db = get_db()
+    user = await db.users.find_one(
+        {'user_id': user_id}, {'_id': 0, 'user_id': 1, 'erased': 1, 'web_push_enabled': 1},
+    )
+    if not user:
+        raise HTTPException(status_code=404, detail='User not found')
+    if user.get('erased'):
+        raise HTTPException(status_code=400, detail='Cannot update an erased account')
+
+    now = datetime.now(timezone.utc)
+    await db.users.update_one({'user_id': user_id}, {'$set': {
+        'web_push_enabled': False,
+        'web_push_enabled_at': None,
+        'web_push_consent_at': now,
+        'web_push_consent_source': 'admin',
+        'web_push_admin_reason': reason,
+    }})
+    await db.audit_log.insert_one({
+        'audit_id': f'aud_{uuid.uuid4().hex[:12]}',
+        'kind': 'admin_web_push_consent_change',
+        'admin_user_id': admin.get('user_id'),
+        'admin_email': admin.get('email'),
+        'target_user_id': user_id,
+        'consent': False,
+        'source': 'admin',
+        'reason': reason,
+        'at': now,
+    })
+    return {'ok': True, 'web_push_enabled': False, 'web_push_consent_at': now.isoformat(), 'web_push_consent_source': 'admin'}
+
+
+@router.post('/{user_id}/web-push/enable')
+async def enable_user_web_push(user_id: str, payload: UserWebPushGrantRequest, request: Request):
+    admin = await require_admin(request)
+    if admin.get('role') not in ('admin', 'super_admin'):
+        raise HTTPException(status_code=403, detail='Only admin or super-admin can grant Web Push consent')
+    evidence = payload.evidence.strip()
+    if len(evidence) < 20:
+        raise HTTPException(status_code=400, detail='Documented Web Push opt-in evidence of at least 20 characters is required')
+
+    from deps import get_db
+    db = get_db()
+    user = await db.users.find_one(
+        {'user_id': user_id}, {'_id': 0, 'user_id': 1, 'erased': 1},
+    )
+    if not user:
+        raise HTTPException(status_code=404, detail='User not found')
+    if user.get('erased'):
+        raise HTTPException(status_code=400, detail='Cannot update an erased account')
+    active_devices = await db.web_push_subscriptions.count_documents(
+        {'user_id': user_id, 'active': True},
+    )
+    if not active_devices:
+        raise HTTPException(status_code=400, detail='An active browser subscription is required; the user must subscribe from their browser first')
+
+    now = datetime.now(timezone.utc)
+    await db.users.update_one({'user_id': user_id}, {'$set': {
+        'web_push_enabled': True,
+        'web_push_enabled_at': now,
+        'web_push_consent_at': now,
+        'web_push_consent_source': 'admin',
+        'web_push_admin_reason': evidence,
+    }})
+    await db.audit_log.insert_one({
+        'audit_id': f'aud_{uuid.uuid4().hex[:12]}',
+        'kind': 'admin_web_push_consent_change',
+        'admin_user_id': admin.get('user_id'),
+        'admin_email': admin.get('email'),
+        'target_user_id': user_id,
+        'consent': True,
+        'source': 'admin',
+        'reason': evidence,
+        'active_devices': active_devices,
+        'at': now,
+    })
+    return {
+        'ok': True,
+        'web_push_enabled': True,
+        'web_push_consent_at': now.isoformat(),
+        'web_push_consent_source': 'admin',
+        'web_push_device_count': active_devices,
+    }
+
+
 @router.get('/{user_id}/360')
 async def user_360(user_id: str, request: Request):
     await require_admin(request)
@@ -215,6 +375,14 @@ async def user_360(user_id: str, request: Request):
     u = await db.users.find_one({'user_id': user_id})
     if not u:
         raise HTTPException(404, 'User not found')
+
+    from services.push_delivery import web_push_status
+    web_push_device_count = await db.web_push_subscriptions.count_documents(
+        {'user_id': user_id, 'active': True},
+    )
+    identity = await _sanitise(u)
+    identity['web_push_device_count'] = web_push_device_count
+    identity['web_push_status'] = web_push_status(u, web_push_device_count)
 
     wallet = await db.wallets.find_one({'user_id': user_id}, {'_id': 0}) or {}
     kyc = await db.kyc.find_one({'user_id': user_id}, {'_id': 0})
@@ -427,7 +595,7 @@ async def user_360(user_id: str, request: Request):
     )
 
     return {
-        'identity': await _sanitise(u),
+        'identity': identity,
         'kyc': kyc,
         'wallet': wallet,
         'stats': {
