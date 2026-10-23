@@ -97,13 +97,15 @@ export default function Login() {
    const params = new URLSearchParams(window.location.search);
    const requestedTab = params.get('tab');
    const referralCode = String(params.get('ref') || '').trim().toUpperCase();
+  const hasInfluencerInvite = Boolean(String(params.get('invite') || '').trim());
 
-   if (requestedTab === 'signup' || referralCode) {
+  if (requestedTab === 'signup' || referralCode || hasInfluencerInvite) {
      setMode('register');
    }
 
    if (referralCode) {
      localStorage.setItem('pl_referral_code', referralCode);
+     localStorage.setItem('pl_referral_code_expires', String(Date.now() + 30 * 86400000));
    }
  }, []);
  const nav = useNavigate();
@@ -115,9 +117,9 @@ export default function Login() {
  const fd = new FormData(e.currentTarget);
  setBusy(true);
  try {
- await login({ email: fd.get('email'), password: fd.get('password') });
+ const user = await login({ email: fd.get('email'), password: fd.get('password') });
  toast({ title: 'Welcome back!' });
- nav(resolvePostAuthDestination());
+ nav(user?.role === 'influencer' ? '/influencer' : resolvePostAuthDestination());
  } catch (err) {
  const raw = err?.response?.data?.detail;
  const detail = Array.isArray(raw) ? raw.map(e => e.msg).join('. ') : (raw || 'Please check your details and try again.');
@@ -148,6 +150,7 @@ export default function Login() {
     const referralCode = String(ref).trim().toUpperCase();
     sessionStorage.setItem('pl_google_referral_code', referralCode);
     localStorage.setItem('pl_referral_code', referralCode);
+    localStorage.setItem('pl_referral_code_expires', String(Date.now() + 30 * 86400000));
   }
 
   const redirectUrl = window.location.origin + '/auth-callback';
@@ -158,7 +161,7 @@ export default function Login() {
  if (r?.token) localStorage.setItem('gz_token', r.token);
  if (r?.user) setGoogleUser(r.user);
  toast({ title: `Welcome back, ${r?.user?.name || 'friend'} 👋` });
- nav(resolvePostAuthDestination());
+ nav(r?.user?.role === 'influencer' ? '/influencer' : resolvePostAuthDestination());
  };
 
  return (

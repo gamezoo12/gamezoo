@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { api, adminAPI } from '../../lib/api';
+import { api, adminAPI, cashoutAPI } from '../../lib/api';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
@@ -17,8 +17,8 @@ import {
   Map as MapIcon, Coins, Swords,
 } from 'lucide-react';
 
-const Section = ({ title, icon: Icon, children }) => (
-  <section className="bg-white rounded-2xl border border-slate-200 p-5">
+const Section = ({ title, icon: Icon, children, hidden = false }) => (
+  <section hidden={hidden} className={`bg-white rounded-2xl border border-slate-200 p-5 ${hidden ? 'hidden' : ''}`}>
     <div className="flex items-center gap-2 mb-3">
       <Icon className="w-4 h-4 text-indigo-600" />
       <h2 className="font-display font-bold text-base">{title}</h2>
@@ -34,13 +34,18 @@ const StatCard = ({ label, value, tone = 'slate' }) => (
   </div>
 );
 
+const newWalletAdjustmentId = () => globalThis.crypto?.randomUUID?.()
+  || `admin-adjust-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-function ProfileManagementCard({ userId, identity, onReload }) {
+
+function ProfileManagementCard({ userId, identity, onReload, view = 'profile', hidden = false }) {
   const { toast } = useToast();
 
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sendingOtp, setSendingOtp] = useState(false);
+  const [sendingEmailLink, setSendingEmailLink] = useState(false);
+  const [sendingPhoneLink, setSendingPhoneLink] = useState(false);
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState('');
@@ -182,6 +187,25 @@ function ProfileManagementCard({ userId, identity, onReload }) {
     }
   };
 
+  const sendContactLink = async channel => {
+    const setSending = channel === 'email' ? setSendingEmailLink : setSendingPhoneLink;
+    try {
+      setSending(true);
+      await adminAPI.sendContactVerificationLink(userId, channel);
+      toast({
+        title: 'Verification link sent',
+        description: channel === 'email'
+          ? 'A single-use link was sent to the current email address.'
+          : 'A link was sent to the current phone. The user must still complete SMS OTP verification.',
+      });
+      await onReload();
+    } catch (error) {
+      toast({ title: 'Could not send verification link', description: error?.response?.data?.detail || 'Please try again.' });
+    } finally {
+      setSending(false);
+    }
+  };
+
   const verifyOtp = async () => {
     const code = otp.trim();
 
@@ -269,12 +293,13 @@ function ProfileManagementCard({ userId, identity, onReload }) {
   return (
     <div
       className="bg-white rounded-2xl border border-slate-100 overflow-hidden"
+      hidden={hidden}
       data-testid="admin-profile-management"
     >
       <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
         <div>
           <h3 className="font-display font-extrabold text-lg">
-            Profile Management
+            {view === 'verification' ? 'Verification' : 'Profile Management'}
           </h3>
 
           <p className="text-xs text-slate-500 mt-1">
@@ -282,7 +307,7 @@ function ProfileManagementCard({ userId, identity, onReload }) {
           </p>
         </div>
 
-        {!editing ? (
+        {view === 'profile' && (!editing ? (
           <Button
             variant="outline"
             size="sm"
@@ -312,10 +337,11 @@ function ProfileManagementCard({ userId, identity, onReload }) {
               {saving ? 'Saving…' : 'Save Changes'}
             </Button>
           </div>
-        )}
+        ))}
       </div>
 
       <div className="p-5 space-y-5">
+        <div hidden={view !== 'profile'}>
         <div className="grid md:grid-cols-2 gap-4">
           {[
             ['Full Name', 'name', 'text'],
@@ -370,6 +396,9 @@ function ProfileManagementCard({ userId, identity, onReload }) {
           )}
         </div>
 
+        </div>
+
+        <div hidden={view !== 'verification'} className="space-y-5">
         <div className="grid md:grid-cols-2 gap-4">
           <div className="rounded-xl border border-slate-100 p-4">
             <div className="flex items-center justify-between gap-3">
@@ -394,11 +423,10 @@ function ProfileManagementCard({ userId, identity, onReload }) {
               )}
             </div>
 
-            {!identity?.email_verified && (
-              <p className="text-xs text-slate-500 mt-3">
-                No manual verification is available. Email verification
-                requires a production email verification provider.
-              </p>
+            {identity?.email && !identity?.erased && (
+              <Button variant="outline" size="sm" className="mt-4" onClick={() => sendContactLink('email')} disabled={sendingEmailLink} data-testid="send-user-email-verification-link">
+                {sendingEmailLink ? 'Sending…' : identity?.email_verified ? 'Resend verification link' : 'Send verification link'}
+              </Button>
             )}
           </div>
 
@@ -424,6 +452,12 @@ function ProfileManagementCard({ userId, identity, onReload }) {
                 </span>
               )}
             </div>
+
+            {identity?.phone && !identity?.erased && (
+              <Button variant="outline" size="sm" className="mt-4" onClick={() => sendContactLink('phone')} disabled={sendingPhoneLink} data-testid="send-user-phone-verification-link">
+                {sendingPhoneLink ? 'Sending…' : identity?.phone_verified ? 'Resend verification link' : 'Send OTP verification link'}
+              </Button>
+            )}
 
             {!identity?.phone_verified &&
              identity?.phone &&
@@ -597,6 +631,7 @@ function ProfileManagementCard({ userId, identity, onReload }) {
             )}
           </div>
         )}
+        </div>
       </div>
     </div>
   );
@@ -615,8 +650,39 @@ export default function UserDetailsPage() {
   const [pwd, setPwd] = useState('');
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
+  const [activeSection, setActiveSection] = useState('profile');
+  const [walletAdjustAmount, setWalletAdjustAmount] = useState('');
+  const [walletAdjustReason, setWalletAdjustReason] = useState('');
+  const [walletAdjustBusy, setWalletAdjustBusy] = useState(false);
+  const [walletAdjustOperationId, setWalletAdjustOperationId] = useState(newWalletAdjustmentId);
+  const [bonusAmount, setBonusAmount] = useState('');
+  const [bonusExpiryDays, setBonusExpiryDays] = useState('');
+  const [bonusReason, setBonusReason] = useState('');
+  const [bonusBusy, setBonusBusy] = useState(false);
+  const [bonusBatchId, setBonusBatchId] = useState(newWalletAdjustmentId);
+  const [withdrawalDetail, setWithdrawalDetail] = useState(null);
+  const [withdrawalMessage, setWithdrawalMessage] = useState('');
+  const [withdrawalRejectReason, setWithdrawalRejectReason] = useState('');
+  const [withdrawalBusy, setWithdrawalBusy] = useState(false);
+
+  const sections = [
+    ['profile', 'Profile'],
+    ['activity', 'Activity'],
+    ['free-world', 'Free World'],
+    ['paid-world', 'Paid World'],
+    ['challenges', 'Impossible Challenges'],
+    ['wallet', 'Wallet'],
+    ['bonus-tokens', 'Bonus Tokens'],
+    ['orders-tickets', 'Tickets & Orders'],
+    ['winnings', 'Winnings'],
+    ['withdrawals', 'Withdrawals'],
+    ['verification', 'Verification'],
+    ['referrals', 'Referrals'],
+    ['audit', 'Audit History'],
+  ];
 
   const isSuperAdmin = currentUser?.role === 'super_admin';
+  const canManageUserFunds = ['admin', 'super_admin'].includes(currentUser?.role);
 
   const load = () => {
     setState('loading');
@@ -625,6 +691,16 @@ export default function UserDetailsPage() {
       .catch(err => setState(err?.response?.status === 404 ? 'missing' : 'error'));
   };
   useEffect(load, [user_id]);
+  useEffect(() => {
+    setWalletAdjustAmount('');
+    setWalletAdjustReason('');
+    setWalletAdjustOperationId(newWalletAdjustmentId());
+    setBonusAmount('');
+    setBonusExpiryDays('');
+    setBonusReason('');
+    setBonusBatchId(newWalletAdjustmentId());
+    setWithdrawalDetail(null);
+  }, [user_id]);
 
   const doSuspend = async () => {
     if (!pwd || !reason) return toast({ title: 'Password + reason required' });
@@ -656,6 +732,135 @@ export default function UserDetailsPage() {
     } finally { setBusy(false); }
   };
 
+  const deductBonusGrant = async grant => {
+    const remaining = Number(grant.remaining_amount || 0);
+    if (remaining <= 0 || grant.status !== 'active') return;
+    const reason = window.prompt('Reason for deducting this grant’s unused bonus tokens (10+ characters):');
+    if (!reason || reason.trim().length < 10) return;
+    if (!window.confirm(`Deduct the unused ${remaining} bonus tokens from this grant? Spent tokens, purchased tokens, and winnings will not be changed.`)) return;
+    try {
+      await adminAPI.revokeBonusGrant(grant.grant_id, reason.trim());
+      toast({ title: 'Unused bonus deducted', description: 'Only the remaining amount in this grant was removed.' });
+      load();
+    } catch (error) {
+      toast({ title: 'Bonus deduction failed', description: error?.response?.data?.detail || 'Please try again.' });
+    }
+  };
+
+  const adjustWallet = async event => {
+    event.preventDefault();
+    const amount = Number(walletAdjustAmount);
+    const adjustmentReason = walletAdjustReason.trim();
+    if (!Number.isFinite(amount) || amount === 0 || Math.abs(amount) > 500) {
+      return toast({ title: 'Enter an adjustment from -500 to 500 tokens, excluding zero.' });
+    }
+    if (adjustmentReason.length < 10) {
+      return toast({ title: 'A reason of at least 10 characters is required.' });
+    }
+    const direction = amount > 0 ? 'credit' : 'deduct';
+    if (!window.confirm(`${direction === 'credit' ? 'Credit' : 'Deduct'} ${Math.abs(amount)} tokens? This action will be audited.`)) return;
+    setWalletAdjustBusy(true);
+    try {
+      const result = await adminAPI.adjustUserWallet(user_id, {
+        amount,
+        reason: adjustmentReason,
+        operation_id: walletAdjustOperationId,
+      });
+      toast({
+        title: result.idempotent_replay ? 'Adjustment already applied' : 'Wallet adjusted',
+        description: `${direction === 'credit' ? 'Credited' : 'Deducted'} ${Math.abs(amount)} tokens.`,
+      });
+      setWalletAdjustAmount('');
+      setWalletAdjustReason('');
+      setWalletAdjustOperationId(newWalletAdjustmentId());
+      load();
+    } catch (error) {
+      toast({ title: 'Wallet adjustment failed', description: error?.response?.data?.detail || 'Retrying will use the same operation ID.' });
+    } finally {
+      setWalletAdjustBusy(false);
+    }
+  };
+
+  const grantBonus = async event => {
+    event.preventDefault();
+    const amount = Number(bonusAmount);
+    const expiryDays = bonusExpiryDays.trim() ? Number(bonusExpiryDays) : null;
+    if (!Number.isFinite(amount) || amount <= 0) return toast({ title: 'Enter a bonus amount greater than zero.' });
+    if (bonusExpiryDays.trim() && (!Number.isInteger(expiryDays) || expiryDays < 1 || expiryDays > 3650)) {
+      return toast({ title: 'Expiry must be between 1 and 3650 days.' });
+    }
+    if (bonusReason.trim().length < 10) return toast({ title: 'A reason of at least 10 characters is required.' });
+    if (!window.confirm(`Grant ${amount} expiring bonus tokens to this user? This action will be audited.`)) return;
+    setBonusBusy(true);
+    try {
+      const result = await adminAPI.creditBonus({
+        user_ids: [user_id], amount, reason: bonusReason.trim(), confirm: true,
+        batch_id: bonusBatchId, expiry_mode: expiryDays ? 'days' : 'none', expiry_days: expiryDays,
+      });
+      const item = result.items?.find(entry => entry.user_id === user_id);
+      if (item?.status !== 'success') throw new Error(item?.reason || 'The bonus grant was not applied.');
+      toast({ title: item.replayed ? 'Bonus grant already applied' : 'Bonus tokens granted' });
+      setBonusAmount('');
+      setBonusExpiryDays('');
+      setBonusReason('');
+      setBonusBatchId(newWalletAdjustmentId());
+      load();
+    } catch (error) {
+      toast({ title: 'Bonus grant failed', description: error?.response?.data?.detail || error.message || 'Retrying will use the same batch ID.' });
+    } finally {
+      setBonusBusy(false);
+    }
+  };
+
+  const reviewWithdrawal = async withdrawalId => {
+    setWithdrawalBusy(true);
+    try {
+      const detail = await cashoutAPI.adminDetail(withdrawalId);
+      setWithdrawalDetail(detail);
+      setWithdrawalMessage(`Your ${gbp(detail.amount_gbp)} cash-out has been approved and paid successfully.`);
+      setWithdrawalRejectReason('');
+    } catch (error) {
+      toast({ title: 'Could not load withdrawal', description: error?.response?.data?.detail || 'Please try again.' });
+    } finally {
+      setWithdrawalBusy(false);
+    }
+  };
+
+  const markWithdrawalPaid = async () => {
+    if (!withdrawalMessage.trim()) return toast({ title: 'Notification message is required.' });
+    if (!window.confirm('Confirm that the bank transfer has already been sent. This only records the completed payout.')) return;
+    setWithdrawalBusy(true);
+    try {
+      const result = await cashoutAPI.adminMarkPaid(withdrawalDetail.withdrawal_id, withdrawalMessage.trim());
+      toast({ title: result.idempotent ? 'Withdrawal already processed' : 'Withdrawal marked paid' });
+      setWithdrawalDetail(null);
+      load();
+    } catch (error) {
+      toast({ title: 'Could not update withdrawal', description: error?.response?.data?.detail || 'Please try again.' });
+    } finally {
+      setWithdrawalBusy(false);
+    }
+  };
+
+  const rejectWithdrawal = async () => {
+    if (withdrawalRejectReason.trim().length < 3) return toast({ title: 'A rejection reason is required.' });
+    if (!withdrawalMessage.trim()) return toast({ title: 'Notification message is required.' });
+    if (!window.confirm('Reject this withdrawal and return its reserved tokens to the user?')) return;
+    setWithdrawalBusy(true);
+    try {
+      const result = await cashoutAPI.adminReject(
+        withdrawalDetail.withdrawal_id, withdrawalRejectReason.trim(), withdrawalMessage.trim(),
+      );
+      toast({ title: result.idempotent ? 'Withdrawal already processed' : 'Withdrawal rejected' });
+      setWithdrawalDetail(null);
+      load();
+    } catch (error) {
+      toast({ title: 'Could not update withdrawal', description: error?.response?.data?.detail || 'Please try again.' });
+    } finally {
+      setWithdrawalBusy(false);
+    }
+  };
+
   if (state === 'loading') return <div className="p-6 text-slate-500">Loading user…</div>;
   if (state === 'missing') return <div className="p-6 text-slate-500">User not found.</div>;
   if (state === 'error') return <div className="p-6 text-rose-600">Failed to load.</div>;
@@ -665,20 +870,18 @@ export default function UserDetailsPage() {
     wallet_transactions, notifications, support_cases, referrals,
     referral_joined_via, referrer_user, signup_bonus,
     sessions, admin_actions, world, special_challenge,
+    acquisition, page_visits, influencer_attribution,
+    wallet_breakdown, bonus_grants, payments, withdrawals,
   } = data;
   const suspended = !!identity.suspended;
   const erased = !!identity.erased;
-  const totalDeposits = (wallet_transactions || []).reduce((sum, tx) => sum + (Number(tx.amount) > 0 ? Number(tx.amount) : 0), 0);
+  const totalDepositsPence = (payments || []).reduce((sum, payment) => sum + (
+    payment.payment_status === 'paid' ? Number(payment.amount_received_pence || payment.amount || 0) : 0
+  ), 0);
   const totalSpend = (wallet_transactions || []).reduce((sum, tx) => sum + (Number(tx.amount) < 0 ? Math.abs(Number(tx.amount)) : 0), 0);
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6" data-testid="user-360-page">
-
-      <ProfileManagementCard
-        userId={user_id}
-        identity={data?.identity || {}}
-        onReload={load}
-      />
 
       <BackButton to="/admin/users" label="All users" className="mb-1" />
 
@@ -690,10 +893,10 @@ export default function UserDetailsPage() {
             {(identity.name || '?').slice(0, 1).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="font-display font-extrabold text-2xl truncate" data-testid="user-name">
+            <div className="font-display font-extrabold text-2xl break-words" data-testid="user-name">
               {identity.name} {erased && <span className="text-red-200">· ERASED</span>}
             </div>
-            <div className="text-white/85 text-sm truncate flex items-center gap-2">
+            <div className="text-white/85 text-sm flex items-start gap-2 break-all">
               <Mail className="w-3.5 h-3.5" /> {identity.email}
             </div>
             <div className="flex flex-wrap gap-2 mt-2 text-xs">
@@ -719,16 +922,58 @@ export default function UserDetailsPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3" data-testid="user-stats">
-        <StatCard label="Wallet" value={gbp(wallet?.balance || 0)} tone="emerald" />
-        <StatCard label="Deposits" value={gbp(totalDeposits || 0)} tone="teal" />
-        <StatCard label="Spend" value={gbp(totalSpend || 0)} tone="rose" />
+        <StatCard label="Token balance" value={Number(wallet_breakdown?.balance_tokens || wallet?.balance || 0).toLocaleString()} tone="emerald" />
+        <StatCard label="Lifetime top-ups" value={gbp(totalDepositsPence / 100)} tone="teal" />
+        <StatCard label="Token spend" value={`${Number(totalSpend || 0).toLocaleString()} tokens`} tone="rose" />
         <StatCard label="Tickets" value={stats.tickets_count} tone="indigo" />
         <StatCard label="Paid scores" value={stats.scores_count} tone="amber" />
         <StatCard label="Free World" value={world?.stats?.level_attempts_count || 0} tone="fuchsia" />
       </div>
 
+      <div className="sticky top-0 z-20 -mx-2 overflow-x-auto border-y border-slate-200 bg-white/95 px-2 py-2 backdrop-blur" data-testid="user-control-tabs">
+        <div role="tablist" aria-label="User control centre sections" className="flex min-w-max gap-1">
+          {sections.map(([id, label]) => (
+            <button
+              key={id}
+              id={`user-tab-${id}`}
+              type="button"
+              role="tab"
+              aria-selected={activeSection === id}
+              aria-controls="user-section-panel"
+              onClick={() => setActiveSection(id)}
+              className={`rounded-md px-3 py-2 text-xs font-bold whitespace-nowrap ${activeSection === id ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+              data-testid={`user-tab-${id}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div id="user-section-panel" role="tabpanel" aria-labelledby={`user-tab-${activeSection}`} data-testid={`user-panel-${activeSection}`}>
+
+      <ProfileManagementCard
+        userId={user_id}
+        identity={data?.identity || {}}
+        onReload={load}
+        view={activeSection}
+        hidden={activeSection !== 'profile' && activeSection !== 'verification'}
+      />
+
       <div className="grid lg:grid-cols-2 gap-6">
-        <Section title="Identity & KYC" icon={ShieldCheck}>
+        <Section title="Acquisition & referral attribution" icon={Gift} hidden={activeSection !== 'referrals'}>
+          {!acquisition && !influencer_attribution ? (
+            <p className="text-sm text-slate-500">No consent-linked acquisition journey or influencer attribution is recorded for this account.</p>
+          ) : (
+            <div className="space-y-3 text-sm">
+              {acquisition && <dl className="grid grid-cols-[130px_1fr] gap-y-1 text-xs"><dt className="text-slate-500">Source</dt><dd>{acquisition.source_key || '—'}</dd><dt className="text-slate-500">Campaign</dt><dd>{acquisition.campaign || '—'}</dd><dt className="text-slate-500">Landing page</dt><dd>{acquisition.landing_path || '—'}</dd><dt className="text-slate-500">Device</dt><dd>{acquisition.device_type || '—'}</dd><dt className="text-slate-500">Attributed</dt><dd>{acquisition.attributed_at ? new Date(acquisition.attributed_at).toLocaleString('en-GB', { timeZone: 'Europe/London' }) : '—'}</dd></dl>}
+              {influencer_attribution && <div className="border-t border-slate-100 pt-3 text-xs"><strong>Influencer campaign:</strong> {influencer_attribution.influencer_name || 'Partner'} · {influencer_attribution.code} · {influencer_attribution.campaign_name || 'Campaign'}<div className="mt-1 text-slate-500">Status: {influencer_attribution.status || 'pending'} · Signup reward: {influencer_attribution.reward_granted ? `${influencer_attribution.reward_tokens || 0} tokens granted` : 'not granted'}</div></div>}
+              <div className="border-t border-slate-100 pt-3"><div className="mb-2 text-xs font-bold">Consented page journey</div>{(page_visits || []).length ? <ul className="max-h-48 space-y-1 overflow-y-auto text-xs">{page_visits.map((visit, index) => <li key={`${visit.created_at}-${index}`} className="flex justify-between gap-3 border-b border-slate-100 py-1"><span className="truncate">{visit.page_path || visit.page_key}</span><span className="shrink-0 text-slate-500">{visit.created_at ? new Date(visit.created_at).toLocaleString('en-GB', { timeZone: 'Europe/London' }) : '—'}</span></li>)}</ul> : <p className="text-xs text-slate-500">No page visits are available for the attributed signup sessions.</p>}</div>
+            </div>
+          )}
+        </Section>
+
+        <Section title="Identity & KYC" icon={ShieldCheck} hidden={activeSection !== 'profile'}>
           <dl className="text-sm space-y-1.5">
             <div className="flex"><dt className="w-32 text-slate-500">User ID</dt><dd className="font-mono text-xs">{identity.user_id}</dd></div>
             <div className="flex"><dt className="w-32 text-slate-500">Username</dt><dd>{identity.username || '—'}</dd></div>
@@ -739,9 +984,23 @@ export default function UserDetailsPage() {
           </dl>
         </Section>
 
-        <Section title="Wallet" icon={Wallet}>
-          <div className="text-3xl font-black text-emerald-700">{gbp(wallet?.balance || 0)}</div>
-          <div className="text-xs text-slate-500">Lifetime top-up: {gbp(wallet?.lifetime_topup || 0)} · Lifetime spend: {gbp(wallet?.lifetime_spend || 0)} · Deposits: {gbp(totalDeposits || 0)} · Spend: {gbp(totalSpend || 0)}</div>
+        <Section title="Wallet" icon={Wallet} hidden={activeSection !== 'wallet'}>
+          <div className="text-3xl font-black text-emerald-700">{Number(wallet_breakdown?.balance_tokens || wallet?.balance || 0).toLocaleString()} tokens</div>
+          <div className="text-xs text-slate-500">Purchased: {Number(wallet_breakdown?.purchased_tokens || 0).toLocaleString()} · Bonus: {Number(wallet_breakdown?.bonus_tokens || 0).toLocaleString()} · Withdrawable: {Number(wallet_breakdown?.withdrawable_tokens || 0).toLocaleString()} · Lifetime top-ups: {gbp(totalDepositsPence / 100)} · Lifetime token spend: {Number(totalSpend || 0).toLocaleString()}</div>
+          <div className="mt-1 text-xs text-slate-500">Winnings available: {gbp(Number(wallet_breakdown?.winnings_pence || 0) / 100)} · Lifetime winnings: {gbp(Number(wallet_breakdown?.lifetime_winnings_pence || 0) / 100)}</div>
+          {canManageUserFunds && <form className="mt-4 grid gap-3 rounded-xl border border-slate-200 p-4 sm:grid-cols-[10rem_1fr_auto] sm:items-end" onSubmit={adjustWallet}>
+            <div className="space-y-1">
+              <Label htmlFor="wallet-adjust-amount">Token adjustment</Label>
+              <Input id="wallet-adjust-amount" type="number" step="0.01" min="-500" max="500" value={walletAdjustAmount} onChange={event => setWalletAdjustAmount(event.target.value)} placeholder="e.g. -5 or 10" disabled={walletAdjustBusy || erased} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="wallet-adjust-reason">Reason (10+ characters)</Label>
+              <Input id="wallet-adjust-reason" value={walletAdjustReason} onChange={event => setWalletAdjustReason(event.target.value)} maxLength={300} placeholder="Explain the correction" disabled={walletAdjustBusy || erased} />
+            </div>
+            <Button type="submit" disabled={walletAdjustBusy || erased || !walletAdjustAmount || !walletAdjustReason.trim()}>
+              {walletAdjustBusy ? 'Applying…' : 'Apply adjustment'}
+            </Button>
+          </form>}
           <div className="mt-3 max-h-40 overflow-y-auto text-xs">
             {wallet_transactions.length === 0 ? <div className="text-slate-400">No wallet transactions.</div> :
               wallet_transactions.slice(0, 20).map((t, i) => (
@@ -754,8 +1013,8 @@ export default function UserDetailsPage() {
           </div>
         </Section>
 
-        <Section title="Paid World" icon={Ticket}>
-          <div className="text-xs text-slate-500">Tickets: {tickets.length} · Scores: {scores.length}</div>
+        <Section title="Paid World" icon={Ticket} hidden={activeSection !== 'paid-world'}>
+          <div className="text-xs text-slate-500">Tickets: {tickets.length} · Orders: {orders.length} · Confirmed top-ups: {(payments || []).filter(payment => payment.payment_status === 'paid').length} · Scores: {scores.length}</div>
           <div className="mt-2 max-h-52 overflow-y-auto text-xs space-y-1">
             {scores.slice(0, 20).map((s, i) => (
               <div key={i} className="flex items-center justify-between border-b border-slate-100 py-1">
@@ -766,7 +1025,7 @@ export default function UserDetailsPage() {
           </div>
         </Section>
 
-        <Section title="Free World" icon={Trophy}>
+        <Section title="Free World" icon={Trophy} hidden={activeSection !== 'free-world'}>
           <div className="text-xs text-slate-500">Attempts: {world?.stats?.level_attempts_count || 0} · Wins: {world?.stats?.winnings_count || 0} · Token events: {world?.stats?.token_events_count || 0}</div>
           <div className="mt-2 max-h-52 overflow-y-auto text-xs space-y-1">
             {(world?.token_history || []).slice(0, 12).map((event, i) => (
@@ -778,7 +1037,7 @@ export default function UserDetailsPage() {
           </div>
         </Section>
 
-        <Section title="Support" icon={LifeBuoy}>
+        <Section title="Support" icon={LifeBuoy} hidden={activeSection !== 'activity'}>
           {support_cases.length === 0 ? <div className="text-xs text-slate-400">No support cases.</div> :
             <ul className="text-xs space-y-1">
               {support_cases.slice(0, 15).map((c, i) => (
@@ -789,7 +1048,85 @@ export default function UserDetailsPage() {
         </Section>
       </div>
 
-      <Section title="Impossible Challenges" icon={Swords}>
+      <Section title="Recent activity" icon={Clock} hidden={activeSection !== 'activity'}>
+        <div className="grid gap-5 lg:grid-cols-2">
+          <div>
+            <h3 className="mb-2 text-sm font-bold">Sessions</h3>
+            <div className="max-h-64 overflow-y-auto text-xs">
+              {(sessions || []).map((session, index) => (
+                <div key={session.session_id || session._id || index} className="border-b border-slate-100 py-2">
+                  <div className="flex justify-between gap-2"><strong>{session.status || (session.revoked_at ? 'Ended' : 'Recorded')}</strong><span className="text-slate-500">{session.created_at ? new Date(session.created_at).toLocaleString('en-GB', { timeZone: 'Europe/London' }) : '—'}</span></div>
+                  <div className="mt-1 break-all text-slate-500">{session.current_path || session.last_page || session.user_agent || session.device || 'Session details unavailable'}</div>
+                </div>
+              ))}
+              {!sessions?.length && <p className="text-slate-400">No session history recorded.</p>}
+            </div>
+          </div>
+          <div>
+            <h3 className="mb-2 text-sm font-bold">Notifications</h3>
+            <div className="max-h-64 overflow-y-auto text-xs">
+              {(notifications || []).map((notification, index) => (
+                <div key={notification.notification_id || notification._id || index} className="border-b border-slate-100 py-2">
+                  <div className="flex justify-between gap-2"><strong>{notification.title || notification.kind || 'Notification'}</strong><span className="shrink-0 text-slate-500">{notification.created_at ? new Date(notification.created_at).toLocaleString('en-GB', { timeZone: 'Europe/London' }) : '—'}</span></div>
+                  {notification.body && <p className="mt-1 text-slate-600">{notification.body}</p>}
+                </div>
+              ))}
+              {!notifications?.length && <p className="text-slate-400">No notifications recorded.</p>}
+            </div>
+          </div>
+        </div>
+      </Section>
+
+      <Section title="Tickets and orders" icon={Ticket} hidden={activeSection !== 'orders-tickets'}>
+        <div className="grid gap-5 xl:grid-cols-2">
+          <div className="overflow-x-auto">
+            <h3 className="mb-2 text-sm font-bold">Orders ({orders?.length || 0})</h3>
+            <table className="w-full min-w-[520px] text-left text-xs">
+              <thead className="text-slate-500"><tr><th className="py-2">Order</th><th>User</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead>
+              <tbody>{(orders || []).map((order, index) => <tr key={order.order_id || order._id || index} className="border-t border-slate-100"><td className="py-2 font-mono">{order.order_id || order.id || '—'}</td><td>{order.product_name || order.contest_title || order.contest_id || '—'}</td><td>{gbp(order.total ?? order.amount ?? 0)}</td><td>{order.status || '—'}</td><td>{order.created_at ? new Date(order.created_at).toLocaleDateString('en-GB', { timeZone: 'Europe/London' }) : '—'}</td></tr>)}</tbody>
+            </table>
+            {!orders?.length && <p className="py-3 text-xs text-slate-400">No orders recorded.</p>}
+          </div>
+          <div className="overflow-x-auto">
+            <h3 className="mb-2 text-sm font-bold">Tickets ({tickets?.length || 0})</h3>
+            <table className="w-full min-w-[480px] text-left text-xs">
+              <thead className="text-slate-500"><tr><th className="py-2">Ticket</th><th>Contest</th><th>Number</th><th>Status</th><th>Date</th></tr></thead>
+              <tbody>{(tickets || []).map((ticket, index) => <tr key={ticket.ticket_id || ticket._id || index} className="border-t border-slate-100"><td className="py-2 font-mono">{ticket.ticket_id || ticket.order_id || '—'}</td><td>{ticket.contest_title || ticket.contest_id || '—'}</td><td>{ticket.ticket_number ?? '—'}</td><td>{ticket.status || (ticket.refunded ? 'refunded' : 'valid')}</td><td>{ticket.created_at ? new Date(ticket.created_at).toLocaleDateString('en-GB', { timeZone: 'Europe/London' }) : '—'}</td></tr>)}</tbody>
+            </table>
+            {!tickets?.length && <p className="py-3 text-xs text-slate-400">No tickets recorded.</p>}
+          </div>
+        </div>
+      </Section>
+
+      <Section title="Winnings history" icon={Trophy} hidden={activeSection !== 'winnings'}>
+        <div className="mb-3 text-xs text-slate-500">Lifetime Free World winnings: {gbp(world?.winnings_total || 0)}</div>
+        <div className="max-h-96 overflow-y-auto text-xs">
+          {(world?.winnings || []).map((winning, index) => <div key={winning.award_id || winning.winning_id || index} className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 py-2"><span>Championship {winning.global_contest_number ?? '—'} · Rank {winning.rank ?? '—'}</span><span>{winning.status || 'pending'} · {gbp(winning.winning_amount || 0)}</span><span className="text-slate-500">{(winning.paid_at || winning.frozen_at || winning.created_at) ? new Date(winning.paid_at || winning.frozen_at || winning.created_at).toLocaleString('en-GB', { timeZone: 'Europe/London' }) : '—'}</span></div>)}
+          {!world?.winnings?.length && <p className="py-3 text-slate-400">No winnings recorded.</p>}
+        </div>
+      </Section>
+
+      <Section title="Withdrawals" icon={Wallet} hidden={activeSection !== 'withdrawals'}>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[520px] text-left text-xs">
+            <thead className="text-slate-500"><tr><th className="py-2">Request</th><th>Amount</th><th>Status</th><th>Created</th><th>Payment reference</th><th /></tr></thead>
+            <tbody>{(withdrawals || []).map((withdrawal, index) => <tr key={withdrawal.withdrawal_id || withdrawal._id || index} className="border-t border-slate-100"><td className="py-2 font-mono">{withdrawal.withdrawal_id || '—'}</td><td>{gbp(Number(withdrawal.amount_gbp || 0))}</td><td>{withdrawal.status || '—'}</td><td>{withdrawal.created_at ? new Date(withdrawal.created_at).toLocaleString('en-GB', { timeZone: 'Europe/London' }) : '—'}</td><td>{withdrawal.payment_reference || '—'}</td><td>{['admin', 'super_admin'].includes(currentUser?.role) && withdrawal.status === 'processing' && <Button size="sm" variant="outline" onClick={() => reviewWithdrawal(withdrawal.withdrawal_id)} disabled={withdrawalBusy}>Review</Button>}</td></tr>)}</tbody>
+          </table>
+          {!withdrawals?.length && <p className="py-3 text-slate-400">No withdrawal requests.</p>}
+        </div>
+        {withdrawalDetail && <div className="mt-4 space-y-3 rounded-xl border border-slate-200 p-4" data-testid="user-withdrawal-review">
+          <div className="flex items-center justify-between gap-2"><h3 className="font-bold">Review {withdrawalDetail.withdrawal_id}</h3><Button variant="outline" size="sm" onClick={() => setWithdrawalDetail(null)}>Close</Button></div>
+          <div className="grid gap-1 text-xs sm:grid-cols-2"><div>Amount: <strong>{gbp(withdrawalDetail.amount_gbp)}</strong></div><div>Status: {withdrawalDetail.status}</div><div>Account holder: {withdrawalDetail.bank?.account_holder || '—'}</div><div>Sort code: {withdrawalDetail.bank?.sort_code || '—'}</div><div>Account number: {withdrawalDetail.bank?.account_number || '—'}</div><div>IBAN: {withdrawalDetail.bank?.iban || '—'}</div><div>Current KYC: {withdrawalDetail.kyc_current_status || '—'}</div></div>
+          {withdrawalDetail.status === 'processing' && <>
+            <div className="space-y-1"><Label htmlFor="withdrawal-notification">User notification</Label><textarea id="withdrawal-notification" className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm" rows={2} value={withdrawalMessage} onChange={event => setWithdrawalMessage(event.target.value)} /></div>
+            <div className="space-y-1"><Label htmlFor="withdrawal-reject-reason">Rejection reason</Label><Input id="withdrawal-reject-reason" value={withdrawalRejectReason} onChange={event => setWithdrawalRejectReason(event.target.value)} maxLength={500} /></div>
+            <div className="flex flex-wrap gap-2"><Button onClick={markWithdrawalPaid} disabled={withdrawalBusy}>Record payout as paid</Button><Button variant="outline" className="text-rose-700" onClick={rejectWithdrawal} disabled={withdrawalBusy || !withdrawalRejectReason.trim()}>Reject and release tokens</Button></div>
+            <p className="text-xs text-amber-700">Only record a payout after the bank transfer has actually been sent.</p>
+          </>}
+        </div>}
+      </Section>
+
+      <Section title="Impossible Challenges" icon={Swords} hidden={activeSection !== 'challenges'}>
         <div className="grid md:grid-cols-2 gap-5">
           <div className="rounded-xl border border-slate-200 p-4">
             <div className="font-bold text-sm mb-3">Challenge attempts</div>
@@ -814,8 +1151,26 @@ export default function UserDetailsPage() {
         </div>
       </Section>
 
-      <Section title="Bonuses & Referrals" icon={Gift}>
+      <Section title="Bonus Tokens" icon={Gift} hidden={activeSection !== 'bonus-tokens'}>
         <div className="grid md:grid-cols-2 gap-5">
+
+          {canManageUserFunds && <form className="space-y-3 rounded-xl border border-slate-200 p-4" onSubmit={grantBonus}>
+            <div className="font-bold text-sm">Grant bonus tokens</div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1"><Label htmlFor="user-bonus-amount">Amount</Label><Input id="user-bonus-amount" type="number" min="0.01" step="0.01" value={bonusAmount} onChange={event => setBonusAmount(event.target.value)} disabled={bonusBusy || erased} /></div>
+              <div className="space-y-1"><Label htmlFor="user-bonus-expiry">Expiry days</Label><Input id="user-bonus-expiry" type="number" min="1" max="3650" step="1" value={bonusExpiryDays} onChange={event => setBonusExpiryDays(event.target.value)} placeholder="No expiry" disabled={bonusBusy || erased} /></div>
+            </div>
+            <div className="space-y-1"><Label htmlFor="user-bonus-reason">Reason</Label><Input id="user-bonus-reason" value={bonusReason} onChange={event => setBonusReason(event.target.value)} maxLength={300} placeholder="Reason for this grant" disabled={bonusBusy || erased} /></div>
+            <Button type="submit" disabled={bonusBusy || erased || !bonusAmount || bonusReason.trim().length < 10}>{bonusBusy ? 'Granting…' : 'Grant bonus tokens'}</Button>
+          </form>}
+
+          <div className="rounded-xl border border-slate-200 p-4">
+            <div className="font-bold text-sm mb-3">Bonus grant history</div>
+            <div className="max-h-64 space-y-2 overflow-y-auto text-xs">
+              {(bonus_grants || []).map(grant => <div key={grant.grant_id} className="border-b border-slate-100 pb-2"><div className="flex justify-between gap-2"><strong>{grant.reason || 'Bonus grant'}</strong><span className="capitalize">{grant.status}</span></div><div className="mt-1 text-slate-600">Granted {Number(grant.original_amount || 0)} · Used {Number(grant.spent_amount || 0)} · Remaining {Number(grant.remaining_amount || 0)} · Expired {Number(grant.expired_amount || 0)}</div><div className="text-slate-500">{grant.expires_at ? `Expires ${new Date(grant.expires_at).toLocaleString('en-GB', { timeZone: 'Europe/London' })}` : 'No expiry'}</div>{grant.status === 'active' && Number(grant.remaining_amount || 0) > 0 && <Button variant="outline" size="sm" className="mt-2" onClick={() => deductBonusGrant(grant)} disabled={busy || erased}>Deduct unused bonus</Button>}</div>)}
+              {!bonus_grants?.length && <p className="text-slate-400">No bonus grant history.</p>}
+            </div>
+          </div>
 
           {/* Signup bonus */}
           <div className="rounded-xl border border-slate-200 p-4">
@@ -877,8 +1232,8 @@ export default function UserDetailsPage() {
             </div>
           </div>
 
-          {/* How this user joined */}
-          <div className="rounded-xl border border-slate-200 p-4">
+          {/* Referral details are shown in their own control-centre tab. */}
+          <div hidden className="rounded-xl border border-slate-200 p-4">
             <div className="font-bold text-sm mb-3">Joined via referral</div>
 
             {!referral_joined_via ? (
@@ -939,7 +1294,7 @@ export default function UserDetailsPage() {
         </div>
 
         {/* Referrals made by this user */}
-        <div className="mt-5">
+        <div hidden className="mt-5">
           <div className="font-bold text-sm mb-3">
             Referrals made by this user ({referrals?.length || 0})
           </div>
@@ -1009,9 +1364,30 @@ export default function UserDetailsPage() {
         </div>
       </Section>
 
+      <Section title="Referrals" icon={Gift} hidden={activeSection !== 'referrals'}>
+        <div className="mb-4 grid gap-4 md:grid-cols-2">
+          <div className="rounded-lg border border-slate-200 p-4 text-sm">
+            <h3 className="mb-2 font-bold">Joined via referral</h3>
+            {!referral_joined_via ? <p className="text-xs text-slate-500">This user did not register through a referral.</p> : <dl className="space-y-1 text-xs"><div className="flex justify-between gap-2"><dt className="text-slate-500">Code</dt><dd className="font-mono">{referral_joined_via.code || '—'}</dd></div><div className="flex justify-between gap-2"><dt className="text-slate-500">Invited by</dt><dd>{referrer_user?.name || referrer_user?.email || 'Unknown user'}</dd></div><div className="flex justify-between gap-2"><dt className="text-slate-500">Status</dt><dd>{referral_joined_via.status || 'pending'}</dd></div><div className="flex justify-between gap-2"><dt className="text-slate-500">Top-up / contest</dt><dd>{referral_joined_via.topup_qualified ? 'Top-up complete' : 'Top-up pending'} · {referral_joined_via.contest_entered ? 'Entry complete' : 'Entry pending'}</dd></div></dl>}
+          </div>
+          <div className="rounded-lg border border-slate-200 p-4 text-sm">
+            <h3 className="mb-2 font-bold">Influencer attribution</h3>
+            {!influencer_attribution ? <p className="text-xs text-slate-500">No influencer campaign attribution recorded.</p> : <dl className="space-y-1 text-xs"><div className="flex justify-between gap-2"><dt className="text-slate-500">Partner</dt><dd>{influencer_attribution.influencer_name || influencer_attribution.influencer_id}</dd></div><div className="flex justify-between gap-2"><dt className="text-slate-500">Promo code</dt><dd className="font-mono">{influencer_attribution.code || '—'}</dd></div><div className="flex justify-between gap-2"><dt className="text-slate-500">Status</dt><dd>{influencer_attribution.status || 'pending'}</dd></div></dl>}
+          </div>
+        </div>
+        <h3 className="mb-2 text-sm font-bold">Referred users ({referrals?.length || 0})</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-left text-xs">
+            <thead className="text-slate-500"><tr><th className="py-2">User</th><th>Code</th><th>Top-up</th><th>Contest entry</th><th>Reward</th><th>Status</th></tr></thead>
+            <tbody>{(referrals || []).map((referral, index) => <tr key={referral.referral_id || index} className="border-t border-slate-100"><td className="py-2">{referral.referred_name || referral.referred_email || referral.referred_user_id}</td><td className="font-mono">{referral.code || '—'}</td><td>{referral.topup_qualified ? 'Complete' : 'Waiting'}</td><td>{referral.contest_entered ? 'Complete' : 'Waiting'}</td><td>{referral.reward_granted ? `${referral.reward_tokens || 5} tokens` : '—'}</td><td>{referral.display_status || referral.status || 'pending'}</td></tr>)}</tbody>
+          </table>
+          {!referrals?.length && <p className="py-3 text-slate-400">No referrals made by this user.</p>}
+        </div>
+      </Section>
+
       {/* Free World history — read-only */}
       {world && (
-        <section className="bg-white rounded-2xl border border-slate-200 p-5" data-testid="user-360-world-history">
+        <section hidden={activeSection !== 'free-world'} className={`bg-white rounded-2xl border border-slate-200 p-5 ${activeSection !== 'free-world' ? 'hidden' : ''}`} data-testid="user-360-world-history">
           <div className="flex items-center gap-2 mb-4">
             <Trophy className="w-4 h-4 text-indigo-600" />
             <h2 className="font-display font-bold text-base">Free World history</h2>
@@ -1147,7 +1523,7 @@ export default function UserDetailsPage() {
         </section>
       )}
 
-      <Section title="Admin actions history" icon={Clock}>
+      <Section title="Admin actions history" icon={Clock} hidden={activeSection !== 'audit'}>
         {admin_actions.length === 0 ? <div className="text-xs text-slate-400">No admin actions recorded.</div> :
           <ul className="text-xs space-y-1 max-h-52 overflow-y-auto">
             {admin_actions.map((a, i) => (
@@ -1161,6 +1537,8 @@ export default function UserDetailsPage() {
           </ul>
         }
       </Section>
+
+      </div>
 
       {/* Suspend / Unsuspend confirm */}
       <Dialog open={confirmSuspend} onOpenChange={setConfirmSuspend}>

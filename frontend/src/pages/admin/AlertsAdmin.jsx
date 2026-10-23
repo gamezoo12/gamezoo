@@ -2058,6 +2058,13 @@ const TEMPLATE_CATEGORIES = {
 const PRIZE_LEAGUE_URL = 'https://prizeleague.co.uk/';
 
 const CATEGORY_KEYS = Object.keys(TEMPLATE_CATEGORIES);
+const escapeOptionText = value => String(value).replace(/[&<>"']/g, character => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+}[character]));
 
 const ALERT_TYPES = [
   ['custom', 'Custom'],
@@ -2087,6 +2094,7 @@ export default function AlertsAdmin() {
     title: '',
     message: '',
     channels: ['in_app'],
+      scheduled_at: '',
   });
   const [campaigns, setCampaigns] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -2201,9 +2209,12 @@ export default function AlertsAdmin() {
       setError('Load winners for the selected source first.');
       return;
     }
-    const confirmText = audienceMode === 'range'
+            const confirmAudience = audienceMode === 'range'
       ? `Send this alert to up to ${targetCount.toLocaleString()} users?`
       : `Send this alert to ${targetCount.toLocaleString()} selected recipient(s)?`;
+            const confirmText = form.scheduled_at
+                  ? `${confirmAudience}\nSchedule for ${new Date(form.scheduled_at).toLocaleString()}?`
+                  : confirmAudience;
     if (!window.confirm(confirmText)) return;
     setLoading(true);
     try {
@@ -2217,6 +2228,7 @@ export default function AlertsAdmin() {
         message: messageWithWebsite,
         alert_type: form.alert_type,
         channels: form.channels,
+      scheduled_at: form.scheduled_at ? new Date(form.scheduled_at).toISOString() : null,
       };
       let payload;
       if (audienceMode === 'users') {
@@ -2298,9 +2310,9 @@ export default function AlertsAdmin() {
           <Bell className="h-6 w-6 text-[#6C2BFF]" />
           <h1 className="text-2xl font-bold text-slate-900">Alerts</h1>
         </div>
-        <p className="mt-1 text-sm text-slate-500">
-          Send and track in-app, email and SMS campaigns by registered-user range.
-        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                              Send and track In-App, Email, SMS, Web Push, and prepared Native Push campaigns to selected users or registration ranges.
+                        </p>
       </div>
 
       {error && <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
@@ -2440,9 +2452,13 @@ export default function AlertsAdmin() {
               className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
             >
               <option value="">Choose a message template…</option>
-              {TEMPLATE_CATEGORIES[templateCategory].templates.map((t,i) => (
-                <option key={i} value={i}>{i + 1}. {t.message}</option>
-              ))}
+                                          {TEMPLATE_CATEGORIES[templateCategory].templates.map((t, i) => (
+                                                <option
+                                                      key={i}
+                                                      value={i}
+                                                      dangerouslySetInnerHTML={{ __html: escapeOptionText(`${i + 1}. ${t.message}`) }}
+                                                />
+                                          ))}
             </select>
           </label>
         </div>
@@ -2450,12 +2466,18 @@ export default function AlertsAdmin() {
         <div>
           <div className="mb-2 text-sm font-semibold text-slate-700">Channels</div>
           <div className="flex flex-wrap gap-2">
-            {[['in_app','In-App'],['email','Email'],['sms','SMS']].map(([v,l]) => (
+                                    {[['in_app','In-App'],['email','Email'],['sms','SMS'],['web_push','Web Push'],['native_push','Native Push']].map(([v,l]) => (
               <button key={v} type="button" onClick={() => toggleChannel(v)} className={`rounded-full border px-4 py-2 text-sm font-semibold ${form.channels.includes(v) ? 'border-[#6C2BFF] bg-[#6C2BFF] text-white' : 'border-slate-300 bg-white text-slate-700'}`}>{l}</button>
             ))}
           </div>
-          <p className="mt-2 text-xs text-slate-500">Email and SMS stay Pending until their delivery providers are connected. In-app sends immediately.</p>
+                              <p className="mt-2 text-xs text-slate-500">Web Push requires the user to enable browser notifications. Native Push stays skipped until a native app and provider are connected. Existing Email, SMS, and In-App behavior is unchanged.</p>
         </div>
+
+                        <label className="block text-sm font-semibold text-slate-700">
+                              Schedule (optional)
+                              <input type="datetime-local" value={form.scheduled_at} onChange={event => setForm({ ...form, scheduled_at: event.target.value })} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 md:max-w-sm" />
+                              <span className="mt-1 block text-xs font-normal text-slate-500">Leave empty to process immediately. Scheduled campaigns are checked by the existing minute scheduler.</span>
+                        </label>
 
         <label className="block text-sm font-semibold text-slate-700">
           Title
@@ -2530,7 +2552,7 @@ export default function AlertsAdmin() {
               <option value="">All statuses</option><option value="sent">Sent</option><option value="pending">Pending</option><option value="skipped">Skipped</option><option value="failed">Failed</option>
             </select>
             <select value={filter.channel} onChange={e => setFilter({...filter,channel:e.target.value})} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
-              <option value="">All channels</option><option value="in_app">In-App</option><option value="email">Email</option><option value="sms">SMS</option>
+              <option value="">All channels</option><option value="in_app">In-App</option><option value="email">Email</option><option value="sms">SMS</option><option value="web_push">Web Push</option><option value="native_push">Native Push</option>
             </select>
             <button onClick={refreshDeliveries} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Apply</button>
           </div>

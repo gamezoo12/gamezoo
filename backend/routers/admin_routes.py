@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import EmailStr, TypeAdapter, ValidationError
 import uuid
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 
 from auth import require_admin, get_current_user, verify_password
@@ -34,8 +35,41 @@ _ADMIN_TIME_RANGES = {
     'lifetime': None,
 }
 
+_DASHBOARD_SEARCH_FIELDS = {
+    'users': ('name', 'username', 'email', 'user_id'),
+    'signups': ('name', 'username', 'email', 'user_id'),
+    'orders': ('order_id', 'user_id', 'status', 'contest_id'),
+    'revenue': ('order_id', 'user_id', 'status', 'contest_id'),
+    'topups': ('session_id', 'user_id', 'payment_status', 'stripe_payment_intent_id'),
+    'tickets': ('ticket_id', 'ticket_number', 'user_id', 'contest_id'),
+    'visitors': ('visitor_id', 'user_id', 'source', 'channel', 'landing_path'),
+    'page_views': ('visitor_id', 'user_id', 'page_path'),
+    'paid_scores': ('score_id', 'ticket_id', 'user_id', 'contest_id'),
+    'free_scores': ('user_id', 'global_contest_number'),
+    'free_level_attempts': ('user_id', 'level', 'status', 'attempt_id'),
+    'free_winnings': ('user_id', 'global_contest_number', 'status'),
+    'paid_winnings': ('user_id', 'contest_id', 'status'),
+    'live_contests': ('title', 'contest_id', 'status'),
+    'free_token_spend': ('user_id', 'event_type', 'level', 'attempt_id'),
+}
 
-def _range_match(period, field='created_at'):
+
+def _dashboard_search_filter(metric: str, query: str) -> dict:
+    query = str(query or '').strip()[:100]
+    fields = _DASHBOARD_SEARCH_FIELDS.get(metric, ())
+    if not query or not fields:
+        return {}
+    pattern = re.escape(query)
+    return {'$or': [{field: {'$regex': pattern, '$options': 'i'}} for field in fields]}
+
+
+def _range_match(period, field='created_at', start_date=None, end_date=None):
+    if period in ('today', 'yesterday', '7d', '30d', 'month', 'last_month', 'custom'):
+        from services.analytics_common import resolve_range
+        date_range = resolve_range(period, start_date, end_date)
+        return {field: {'$gte': date_range['start'], '$lt': date_range['end']}}, date_range['start']
+    if period == 'all_time':
+        period = 'lifetime'
     duration = _ADMIN_TIME_RANGES.get(period)
     if period not in _ADMIN_TIME_RANGES or duration is None:
         return {}, None
@@ -225,31 +259,47 @@ async def stats(request: Request):
 
 
 @router.get('/dashboard/summary')
-async def dashboard_summary(request: Request, period: str = '24h', window_hours: int = None):
+async def dashboard_summary(request: Request, period: str = '24h', window_hours: int = None,
+                            start_date: str = None, end_date: str = None):
     await require_admin(request)
     from deps import get_db
     db = get_db()
     if window_hours is not None:
         window_hours = max(1, min(int(window_hours), 8760))
         period = 'lifetime' if window_hours >= 8760 else '24h' if window_hours == 24 else f'{window_hours}h'
-    if period not in _ADMIN_TIME_RANGES:
+    if period not in {*_ADMIN_TIME_RANGES, 'today', 'yesterday', '30d', 'month', 'last_month', 'custom', 'all_time'}:
         raise HTTPException(status_code=400, detail='Unsupported dashboard period')
-    user_match, since = _range_match(period)
-    order_match, _ = _range_match(period, 'created_at')
-    ticket_match, _ = _range_match(period, 'created_at')
-    score_match, _ = _range_match(period, 'created_at')
-    free_score_match, _ = _range_match(period, 'submitted_at')
-    award_match, _ = _range_match(period, 'created_at')
-    paid_winner_match, _ = _range_match(period, 'drawn_at')
+    user_match, since = _range_match(period, start_date=start_date, end_date=end_date)
+    order_match, _ = _range_match(period, 'created_at', start_date, end_date)
+    ticket_match, _ = _range_match(period, 'created_at', start_date, end_date)
+    score_match, _ = _range_match(period, 'created_at', start_date, end_date)
+    free_score_match, _ = _range_match(period, 'submitted_at', start_date, end_date)
+    award_match, _ = _range_match(period, 'created_at', start_date, end_date)
+    paid_winner_match, _ = _range_match(period, 'drawn_at', start_date, end_date)
 
     users = await db.users.count_documents(user_match)
-    orders = await db.orders.count_documents(order_match)
+    paid_order_match = {**order_match, 'status': 'paid'}
+    refunded_order_match = {**order_match, 'status': 'refunded'}
+    orders = await db.orders.count_documents(paid_order_match)
     orders_total = await db.orders.aggregate([
-        {'$match': order_match},
+        {'$match': paid_order_match},
         {'$group': {'_id': None, 'total': {'$sum': '$total'}}},
     ]).to_list(1)
-    revenue = (orders_total[0]['total'] if orders_total else 0)
+    revenue_gross = (orders_total[0]['total'] if orders_total else 0)
+    refunds_total = await db.orders.aggregate([
+        {'$match': refunded_order_match},
+        {'$group': {'_id': None, 'total': {'$sum': '$total'}}},
+    ]).to_list(1)
+    refunds = refunds_total[0]['total'] if refunds_total else 0
+    revenue = max(0, revenue_gross - refunds)
     tickets = await db.tickets.count_documents(ticket_match)
+    topup_match = {**order_match, 'kind': 'wallet_topup', 'payment_status': 'paid'}
+    topups = await db.payment_transactions.aggregate([
+        {'$match': topup_match},
+        {'$group': {'_id': None, 'count': {'$sum': 1}, 'amount_pence': {'$sum': '$amount'}}},
+    ]).to_list(1)
+    topup_summary = topups[0] if topups else {'count': 0, 'amount_pence': 0}
+    live_contests = await db.contests.count_documents({'status': 'live'})
     from services.analytics_events import public_traffic_filter
     traffic_match = {**order_match, **await public_traffic_filter(db)}
     visits = await db.acquisition_visits.count_documents(traffic_match)
@@ -261,6 +311,7 @@ async def dashboard_summary(request: Request, period: str = '24h', window_hours:
     ]).to_list(1)
     signups = users
     paid_scores = await db.game_scores.count_documents(score_match)
+    paid_participants = await db.game_scores.distinct('user_id', score_match)
     free_world_scores = await db.world_champion_scores.count_documents(free_score_match)
     free_world_level_attempts = await db.world_level_attempts.count_documents(order_match)
     free_world_token_unlock_cost = await db.world_level_unlock_reservations.aggregate([
@@ -279,6 +330,19 @@ async def dashboard_summary(request: Request, period: str = '24h', window_hours:
         {'$match': paid_winner_match},
         {'$group': {'_id': None, 'total': {'$sum': '$prize_amount'}}},
     ]).to_list(1)
+    influencer_visits = await db.influencer_visits.count_documents(order_match)
+    influencer_signups = await db.influencer_attributions.count_documents(order_match)
+    influencer_eligible_signups = await db.influencer_attributions.count_documents(
+        {**order_match, 'registration_eligible': True})
+    influencer_topups = await db.influencer_topup_events.aggregate([
+        {'$match': {**order_match, 'qualifies': True}},
+        {'$group': {'_id': None, 'count': {'$sum': 1}, 'amount_pence': {'$sum': '$amount_pence'}}},
+    ]).to_list(1)
+    influencer_commission = await db.influencer_commissions.aggregate([
+        {'$match': {**order_match, 'status': {'$in': ['pending', 'approved', 'payment_processing', 'paid']}}},
+        {'$group': {'_id': None, 'amount_pence': {'$sum': '$amount_pence'}}},
+    ]).to_list(1)
+    active_influencers = await db.influencers.count_documents({'status': 'active'})
 
     return {
         'period': period,
@@ -288,13 +352,19 @@ async def dashboard_summary(request: Request, period: str = '24h', window_hours:
             'signups': signups,
             'orders': orders,
             'revenue': revenue,
+            'revenue_gross': revenue_gross,
+            'refunds': refunds,
             'tickets': tickets,
+            'topups': {'count': topup_summary.get('count', 0),
+                       'amount_gbp': round(float(topup_summary.get('amount_pence', 0)) / 100, 2)},
+            'live_contests': live_contests,
             'visits': visits,
             'page_views': page_views,
             'unique_visitors': unique_visitors[0]['n'] if unique_visitors else 0,
         },
         'paid_world': {
             'scores': paid_scores,
+            'unique_participants': len([user_id for user_id in paid_participants if user_id]),
             'orders': orders,
             'revenue': revenue,
             'winnings_paid': (paid_world_winnings_total[0]['total'] if paid_world_winnings_total else 0),
@@ -304,6 +374,13 @@ async def dashboard_summary(request: Request, period: str = '24h', window_hours:
             'level_attempts': free_world_level_attempts,
             'token_spend': (free_world_token_unlock_cost[0]['total'] if free_world_token_unlock_cost else 0) + (free_world_token_retry_cost[0]['total'] if free_world_token_retry_cost else 0),
             'winnings_paid': (free_world_winnings_total[0]['total'] if free_world_winnings_total else 0),
+        },
+        'influencers': {
+            'active': active_influencers, 'visits': influencer_visits,
+            'registrations': influencer_signups, 'eligible_registrations': influencer_eligible_signups,
+            'qualifying_topups': (influencer_topups[0].get('count', 0) if influencer_topups else 0),
+            'qualifying_topup_gbp': round((influencer_topups[0].get('amount_pence', 0) if influencer_topups else 0) / 100, 2),
+            'commission_gbp': round((influencer_commission[0].get('amount_pence', 0) if influencer_commission else 0) / 100, 2),
         },
     }
 
@@ -315,19 +392,27 @@ async def dashboard_details(
     period: str = '24h',
     skip: int = 0,
     limit: int = 100,
+    start_date: str = None,
+    end_date: str = None,
+    q: str = '',
 ):
     await require_admin(request)
     from deps import get_db
-    if period not in _ADMIN_TIME_RANGES:
+    if period not in {*_ADMIN_TIME_RANGES, 'today', 'yesterday', '30d', 'month', 'last_month', 'custom', 'all_time'}:
         raise HTTPException(status_code=400, detail='Unsupported dashboard period')
+    if period == 'custom':
+        from services.analytics_common import resolve_range
+        resolve_range(period, start_date, end_date)
     db = get_db()
     skip = max(0, int(skip))
     limit = max(1, min(int(limit), 500))
+    search_filter = _dashboard_search_filter(metric, q)
     sources = {
         'users': ('users', 'created_at'),
         'signups': ('users', 'created_at'),
         'orders': ('orders', 'created_at'),
         'revenue': ('orders', 'created_at'),
+        'topups': ('payment_transactions', 'created_at'),
         'tickets': ('tickets', 'created_at'),
         'visitors': ('acquisition_visits', 'created_at'),
         'page_views': ('acquisition_page_views', 'created_at'),
@@ -338,8 +423,40 @@ async def dashboard_details(
         'paid_winnings': ('winners', 'drawn_at'),
     }
 
+    if metric == 'active_users':
+        now = datetime.now(timezone.utc)
+        start, end = now - timedelta(minutes=5), now + timedelta(seconds=1)
+        from services.analytics_events import GAME_ACTIVITY_SOURCES, distinct_users_with_events, excluded_user_ids
+        exclude = await excluded_user_ids(db)
+        ids = await distinct_users_with_events(db, GAME_ACTIVITY_SOURCES, start, end, exclude)
+        async for row in db.users.find(
+            {'user_id': {'$nin': exclude}, '$or': [
+                {'last_active_at': {'$gte': start}}, {'fw_last_login_at': {'$gte': start}},
+            ]}, {'_id': 0, 'user_id': 1},
+        ):
+            ids.add(row['user_id'])
+        if search_filter:
+            matching = await db.users.find(
+                {'user_id': {'$in': list(ids)}, **search_filter}, {'_id': 0, 'user_id': 1}
+            ).to_list(len(ids))
+            ids = {row['user_id'] for row in matching}
+        total = len(ids)
+        items = await db.users.find({'user_id': {'$in': list(ids)}}, {
+            '_id': 0, 'user_id': 1, 'name': 1, 'username': 1, 'email': 1,
+            'created_at': 1, 'last_active_at': 1, 'fw_last_login_at': 1,
+        }).sort('last_active_at', -1).skip(skip).limit(limit).to_list(limit)
+        return {'metric': metric, 'period': period, 'total': total, 'skip': skip, 'limit': limit, 'items': items}
+
+    if metric == 'live_contests':
+        match = {'status': 'live', **search_filter}
+        total = await db.contests.count_documents(match)
+        items = await db.contests.find(match, {'_id': 0}).sort('end_date', 1).skip(skip).limit(limit).to_list(limit)
+        return {'metric': metric, 'period': period, 'total': total, 'skip': skip, 'limit': limit, 'items': items}
+
     if metric == 'visitors':
-        match, _ = _range_match(period)
+        match, _ = _range_match(period, start_date=start_date, end_date=end_date)
+        if search_filter:
+            match.update(search_filter)
         totals = await db.acquisition_visits.aggregate([
             {'$match': match},
             {'$group': {'_id': '$visitor_id'}},
@@ -378,7 +495,9 @@ async def dashboard_details(
             ('world_level_unlock_reservations', 'level_unlock'),
             ('world_token_retry_reservations', 'level_retry'),
         ):
-            date_match, _ = _range_match(period)
+            date_match, _ = _range_match(period, start_date=start_date, end_date=end_date)
+            if search_filter:
+                date_match.update(search_filter)
             rows = await getattr(db, collection_name).find(
                 {**date_match, 'token_cost': {'$exists': True}}, {'_id': 0},
             ).sort('created_at', -1).to_list(10000)
@@ -390,7 +509,13 @@ async def dashboard_details(
     if not source:
         raise HTTPException(status_code=400, detail='Unsupported dashboard detail metric')
     collection_name, date_field = source
-    date_match, _ = _range_match(period, date_field)
+    date_match, _ = _range_match(period, date_field, start_date, end_date)
+    if search_filter:
+        date_match.update(search_filter)
+    if metric in ('orders', 'revenue'):
+        date_match['status'] = 'paid'
+    elif metric == 'topups':
+        date_match.update({'kind': 'wallet_topup', 'payment_status': 'paid'})
     collection = getattr(db, collection_name)
     total = await collection.count_documents(date_match)
     projection = {'_id': 0, 'password_hash': 0}
@@ -398,6 +523,15 @@ async def dashboard_details(
 
     if metric in ('orders', 'revenue'):
         items = await _enrich_orders_with_user(db, items)
+    elif metric == 'topups':
+        user_ids = list({item.get('user_id') for item in items if item.get('user_id')})
+        users = await db.users.find(
+            {'user_id': {'$in': user_ids}},
+            {'_id': 0, 'user_id': 1, 'name': 1, 'email': 1},
+        ).to_list(len(user_ids)) if user_ids else []
+        user_map = {user['user_id']: user for user in users}
+        for item in items:
+            item['user'] = user_map.get(item.get('user_id'), {})
     elif metric in ('users', 'signups'):
         for item in items:
             item.pop('password_hash', None)
@@ -1169,6 +1303,13 @@ async def create_contest_api(payload: dict, request: Request):
         doc['skill_question_type'] = sqt
         doc['skill_question_difficulty'] = sqd or 'easy'
     await db.contests.insert_one(doc)
+    if doc.get('status') == 'live':
+        try:
+            from services.push_delivery import announce_new_contest
+            await announce_new_contest(db, doc)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception('New-contest Web Push enqueue failed contest=%s', doc.get('contest_id'))
     doc.pop('_id', None)
     return {'ok': True, 'contest': doc}
 
@@ -1334,7 +1475,7 @@ async def launch_contest(contest_id: str, request: Request):
 
     contest = await db.contests.find_one(
         {'contest_id': contest_id},
-        {'_id': 0, 'public_coming_soon': 1},
+        {'_id': 0, 'public_coming_soon': 1, 'status': 1, 'contest_id': 1, 'title': 1, 'slug': 1},
     )
     if not contest:
         raise HTTPException(status_code=404, detail='Contest not found')
@@ -1349,6 +1490,13 @@ async def launch_contest(contest_id: str, request: Request):
         {'contest_id': contest_id},
         {'$set': {'status': 'live', 'public_coming_soon': False}},
     )
+    if contest.get('status') != 'live':
+        try:
+            from services.push_delivery import announce_new_contest
+            await announce_new_contest(db, contest)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception('New-contest Web Push enqueue failed contest=%s', contest_id)
     return {'ok': True, 'status': 'live'}
 
 

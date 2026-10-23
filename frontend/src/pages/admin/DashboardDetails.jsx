@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Search, X } from 'lucide-react';
 import { adminAPI } from '../../lib/api';
 import { gbp } from '../../lib/format';
 
 const COLUMNS = {
+  active_users: [['name', 'Name'], ['email', 'Email'], ['username', 'Username'], ['last_active_at', 'Last activity'], ['created_at', 'Registered']],
   users: [['name', 'Name'], ['email', 'Email'], ['role', 'Role'], ['created_at', 'Joined']],
   signups: [['name', 'Name'], ['email', 'Email'], ['role', 'Role'], ['created_at', 'Joined']],
   orders: [['order_id', 'Order'], ['user_name', 'User'], ['total', 'Total'], ['status', 'Status'], ['created_at', 'Created']],
   revenue: [['order_id', 'Order'], ['user_name', 'User'], ['total', 'Revenue'], ['status', 'Status'], ['created_at', 'Created']],
+  topups: [['session_id', 'Session'], ['user.name', 'User'], ['user.email', 'Email'], ['amount', 'Amount'], ['payment_status', 'Status'], ['stripe_payment_intent_id', 'Stripe reference'], ['created_at', 'Created']],
+  live_contests: [['title', 'Contest'], ['contest_id', 'Contest ID'], ['status', 'Status'], ['tickets_sold', 'Tickets sold'], ['end_date', 'Ends']],
   tickets: [['ticket_number', 'Ticket'], ['user.name', 'User'], ['contest_id', 'Contest'], ['created_at', 'Created']],
   visitors: [['visitor_id', 'Visitor'], ['user.email', 'Account'], ['visit_count', 'Visits'], ['source', 'Source'], ['channel', 'Channel'], ['landing_path', 'Last landing'], ['last_seen', 'Last seen']],
   page_views: [['visitor_id', 'Visitor'], ['user_id', 'User ID'], ['page_path', 'Page'], ['created_at', 'Viewed']],
@@ -24,6 +27,7 @@ const valueAt = (row, path) => path.split('.').reduce((value, key) => value?.[ke
 const display = (value, field) => {
   if (value == null || value === '') return '—';
   if (field === 'total' || field === 'revenue' || field === 'winning_amount' || field === 'prize_amount') return gbp(value);
+  if (field === 'amount') return gbp(Number(value) / 100);
   if (field.endsWith('_at') || field === 'created_at') {
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString();
@@ -31,12 +35,14 @@ const display = (value, field) => {
   return String(value);
 };
 
-export default function DashboardDetails({ metric, period, onClose }) {
+export default function DashboardDetails({ metric, period, startDate = '', endDate = '', onClose }) {
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [skip, setSkip] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [query, setQuery] = useState('');
   const limit = 100;
   const columns = COLUMNS[metric] || [];
 
@@ -44,7 +50,7 @@ export default function DashboardDetails({ metric, period, onClose }) {
     let active = true;
     setLoading(true);
     setError('');
-    adminAPI.dashboardDetails({ metric, period, skip, limit })
+    adminAPI.dashboardDetails({ metric, period, skip, limit, q: query, ...(startDate && endDate ? { start_date: startDate, end_date: endDate } : {}) })
       .then((data) => {
         if (!active) return;
         setItems(data.items || []);
@@ -55,18 +61,54 @@ export default function DashboardDetails({ metric, period, onClose }) {
       })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [metric, period, skip]);
+  }, [metric, period, skip, query, startDate, endDate]);
+
+  const exportCsv = async () => {
+    try {
+      const allItems = [];
+      let currentSkip = 0;
+      let expectedTotal = 0;
+      do {
+        const page = await adminAPI.dashboardDetails({
+          metric, period, skip: currentSkip, limit: 500, q: query,
+          ...(startDate && endDate ? { start_date: startDate, end_date: endDate } : {}),
+        });
+        allItems.push(...(page.items || []));
+        expectedTotal = page.total || 0;
+        currentSkip += page.limit || 500;
+      } while (currentSkip < expectedTotal);
+      const csvCell = value => `"${String(value ?? '').replace(/"/g, '""')}"`;
+      const rows = [columns.map(([, label]) => label)];
+      allItems.forEach(item => rows.push(columns.map(([field]) => display(valueAt(item, field), field))));
+      const blob = new Blob([rows.map(row => row.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `admin-${metric}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (requestError) {
+      setError(requestError?.response?.data?.detail || 'Could not export these records.');
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/55 p-3 backdrop-blur-sm sm:p-6" role="dialog" aria-modal="true" aria-labelledby="dashboard-details-title" data-testid="dashboard-details-modal">
       <section className="flex max-h-[92vh] w-full max-w-[1500px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-indigo-700">{period} detail</p>
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-indigo-700">{period === 'custom' ? `${startDate} to ${endDate}` : period} detail</p>
             <h2 id="dashboard-details-title" className="mt-1 text-xl font-black capitalize text-slate-950">{metric.replace(/_/g, ' ')}</h2>
             <p className="mt-1 text-xs text-slate-500">{total.toLocaleString()} matching records</p>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close details" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-950"><X className="h-5 w-5" /></button>
+          <div className="flex items-center gap-2">
+            <form onSubmit={event => { event.preventDefault(); setSkip(0); setQuery(searchInput.trim()); }} className="flex items-center gap-2">
+              <input aria-label="Search detail records" value={searchInput} onChange={event => setSearchInput(event.target.value)} placeholder="Search records" className="h-9 w-40 rounded-md border border-slate-300 px-2 text-sm sm:w-56" />
+              <button type="submit" aria-label="Apply search" className="rounded-md border p-2 text-slate-600 hover:bg-slate-100"><Search className="h-4 w-4" /></button>
+            </form>
+            <button type="button" onClick={exportCsv} aria-label="Export all matching records as CSV" title="Export all matching records as CSV" className="rounded-md border p-2 text-slate-600 hover:bg-slate-100"><Download className="h-4 w-4" /></button>
+            <button type="button" onClick={onClose} aria-label="Close details" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-950"><X className="h-5 w-5" /></button>
+          </div>
         </header>
         {error ? <p role="alert" className="p-5 text-sm text-rose-700">{error}</p> : loading ? <p role="status" className="p-8 text-center text-sm text-slate-500">Loading records…</p> : items.length === 0 ? <p className="p-8 text-center text-sm text-slate-500">No records in this time range.</p> : (
           <div className="overflow-auto">

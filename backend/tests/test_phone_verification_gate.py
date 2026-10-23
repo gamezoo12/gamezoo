@@ -30,7 +30,8 @@ GATED = [
     ('post', '/orders/checkout', {'items': [{'contest_id': 'c', 'qty': 1, 'skill_answer': '1'}]}),
     ('post', '/games/submit', {'ticket_id': 't', 'duration_ms': 1000, 'accuracy': 1.0}),
     ('post', '/payments/wallet-topup/custom', {'amount': 5, 'origin_url': 'http://localhost'}),
-    ('post', '/wallet/topup', {'amount': 5}),
+    ('post', '/promotion/join', None),
+    ('post', '/promotion/campaigns/any-campaign/claim', None),
     ('post', '/cashout/request', {'amount_tokens': 1, 'bank_account_id': 'test'}),
     ('post', '/winnings/withdraw', {'amount_pence': 1, 'account_holder': 'Test', 'sort_code': '000000', 'account_number': '00000000'}),
 ]
@@ -88,6 +89,17 @@ def test_new_unverified_google_user_blocked_everywhere_then_unblocked_after_otp(
         _cleanup(uid)
 
 
+def test_mock_wallet_topup_is_not_available():
+    # The mock endpoint must be invisible (404) for everyone unless explicitly opted in for dev.
+    for verified in (False, True):
+        uid, h = _insert_user(method='email', verified=verified)
+        try:
+            r = _call(h, 'post', '/wallet/topup', {'amount': 5})
+            assert r.status_code == 404, r.text
+        finally:
+            _cleanup(uid)
+
+
 def test_legacy_unverified_not_blocked_and_not_auto_verified():
     uid, h = _insert_user(method='email', verified=False, created='2026-01-01T00:00:00Z')
     try:
@@ -95,6 +107,18 @@ def test_legacy_unverified_not_blocked_and_not_auto_verified():
             assert not _is_gate(_call(h, m, p, b)), f'legacy user blocked at {p}'
         doc = json.loads(_mongo(f'JSON.stringify(db.users.findOne({{user_id:"{uid}"}},{{_id:0,phone_verified:1}}))'))
         assert doc['phone_verified'] is False
+    finally:
+        _cleanup(uid)
+
+
+def test_legacy_unverified_google_user_is_blocked():
+    uid, h = _insert_user(method='google', verified=False, created='2026-01-01T00:00:00Z')
+    try:
+        for m, p, b in GATED:
+            r = _call(h, m, p, b)
+            assert _is_gate(r), f'legacy google user not gated at {p}: {r.status_code}'
+        me = requests.get(f'{API}/auth/me', headers=h, timeout=30).json()
+        assert me['phone_verification_required'] is True
     finally:
         _cleanup(uid)
 

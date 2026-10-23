@@ -14,9 +14,9 @@ REPORT_TZ_NAME = 'Europe/London'
 REPORT_TZ = ZoneInfo(REPORT_TZ_NAME)
 
 # Server-verified roles whose activity is internal, never public traffic.
-STAFF_ROLES = ('admin', 'super_admin', 'operator', 'support')
+STAFF_ROLES = ('admin', 'super_admin', 'operator', 'support', 'influencer')
 
-RANGE_KEYS = ('today', 'yesterday', '7d', '30d', 'month', 'custom')
+RANGE_KEYS = ('today', 'yesterday', '7d', '30d', 'month', 'last_month', 'custom')
 
 
 def utcnow() -> datetime:
@@ -42,6 +42,10 @@ def resolve_range(range_key: str = '7d', start: Optional[str] = None, end: Optio
         s, e = today - timedelta(days=29), today + timedelta(days=1)
     elif range_key == 'month':
         s, e = today.replace(day=1), today + timedelta(days=1)
+    elif range_key == 'last_month':
+        first = today.replace(day=1)
+        e = first
+        s = (first - timedelta(days=1)).replace(day=1)
     elif range_key == 'custom':
         try:
             s = date.fromisoformat(start or '')

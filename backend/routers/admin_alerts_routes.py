@@ -25,7 +25,7 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix='/api/admin/users/alerts', tags=['admin-alerts'])
 PUBLIC_ROUTER = APIRouter(prefix='/api/marketing', tags=['marketing'])
 SENDGRID_URL = 'https://api.sendgrid.com/v3/mail/send'
-CHANNELS = {'email', 'in_app', 'sms'}
+CHANNELS = {'email', 'in_app', 'sms', 'web_push', 'native_push'}
 MAX_RECIPIENTS = 10000
 RUNNING = set()
 
@@ -137,10 +137,11 @@ class CampaignInput(BaseModel):
     action_url: str = Field(default='https://prizeleague.co.uk/', min_length=8, max_length=2000)
     action_label: str = Field(default='View offer', min_length=1, max_length=80)
     alert_type: str = 'custom'
-    channels: list[Literal['email', 'sms', 'in_app']] = Field(min_length=1, max_length=3)
+    channels: list[Literal['email', 'sms', 'in_app', 'web_push', 'native_push']] = Field(min_length=1, max_length=5)
     audience: Audience = Field(default_factory=Audience)
     user_from: int = Field(default=1, ge=1)
     user_to: int = Field(default=1000, ge=1)
+    scheduled_at: Optional[datetime] = None
 
 
 async def _user_candidates(db, data):
@@ -168,10 +169,17 @@ async def _process(campaign_id):
     RUNNING.add(campaign_id)
     db = get_db()
     try:
-        await db.alert_campaigns.update_one({'campaign_id': campaign_id}, {'$set': {'status': 'processing', 'updated_at': now()}})
+        from pymongo import ReturnDocument
+        campaign = await db.alert_campaigns.find_one_and_update(
+            {'campaign_id': campaign_id, 'status': {'$in': ['pending', 'scheduled']},
+             '$or': [{'scheduled_at': {'$exists': False}}, {'scheduled_at': None}, {'scheduled_at': {'$lte': now()}}]},
+            {'$set': {'status': 'processing', 'updated_at': now()}},
+            return_document=ReturnDocument.AFTER,
+        )
+        if not campaign:
+            return
         while True:
             # Atomic claim prevents duplicate sending if two workers race.
-            from pymongo import ReturnDocument
             d = await db.alert_deliveries.find_one_and_update(
                 {'campaign_id': campaign_id, 'status': 'pending'},
                 {'$set': {'status': 'processing', 'updated_at': now()}},
@@ -207,6 +215,24 @@ async def _process(campaign_id):
                         }}, upsert=True,
                     )
                     status, reason = 'sent', 'In-app notification created'
+                elif d['channel'] == 'web_push':
+                    from services.push_delivery import send_web_push_to_user
+                    action_url = d.get('action_url') or ''
+                    parsed_action = urlparse(action_url)
+                    public_origin = urlparse(os.getenv('PUBLIC_SITE_URL', 'https://prizeleague.co.uk'))
+                    target_url = '/my-account/notifications'
+                    if parsed_action.scheme == public_origin.scheme and parsed_action.netloc == public_origin.netloc:
+                        target_url = parsed_action.path or '/'
+                        if parsed_action.query:
+                            target_url += '?' + parsed_action.query
+                    result = await send_web_push_to_user(
+                        db, d['user_id'],
+                        {'event_id': d['delivery_id'], 'title': d['title'], 'body': d['message'], 'url': target_url},
+                        marketing=d.get('alert_type') in ('promotion', 'newsletter'),
+                    )
+                    status, reason = result['status'], result.get('reason', '')
+                elif d['channel'] == 'native_push':
+                    status, reason = 'skipped', 'Native Push provider is not configured'
                 else:
                     status, reason = 'skipped', 'SMS delivery not configured in this module'
             except Exception as exc:
@@ -244,6 +270,11 @@ async def create_campaign(data: CampaignInput, request: Request, background_task
     channels = list(dict.fromkeys(data.channels))
     cid = str(uuid.uuid4())
     timestamp = now()
+    scheduled_at = data.scheduled_at
+    if scheduled_at and scheduled_at.tzinfo is None:
+        scheduled_at = scheduled_at.replace(tzinfo=timezone.utc)
+    if scheduled_at and scheduled_at <= timestamp:
+        raise HTTPException(400, 'Scheduled time must be in the future')
     docs = []
     for position, u in enumerate(users, start=data.user_from if data.audience.mode == 'range' else 1):
         for channel in channels:
@@ -254,6 +285,7 @@ async def create_campaign(data: CampaignInput, request: Request, background_task
                 'title': data.title, 'message': data.message,
                 'action_url': action_url, 'action_label': data.action_label,
                 'alert_type': data.alert_type, 'unsubscribe_token': uuid.uuid4().hex + uuid.uuid4().hex,
+                'scheduled_at': scheduled_at,
                 'created_at': timestamp, 'updated_at': timestamp,
             })
     campaign = {
@@ -262,13 +294,27 @@ async def create_campaign(data: CampaignInput, request: Request, background_task
         'alert_type': data.alert_type, 'channels': channels,
         'user_from': data.user_from if data.audience.mode == 'range' else 1,
         'user_to': data.user_to if data.audience.mode == 'range' else len(users),
-        'targeted_count': len(users), 'status': 'pending',
+        'targeted_count': len(users), 'status': 'scheduled' if scheduled_at else 'pending',
+        'scheduled_at': scheduled_at,
         'created_at': timestamp, 'updated_at': timestamp,
     }
     await db.alert_campaigns.insert_one(campaign)
     await db.alert_deliveries.insert_many(docs, ordered=False)
-    background_tasks.add_task(_process, cid)
-    return {'campaign_id': cid, 'status': 'pending', 'targeted_count': len(users)}
+    if not scheduled_at:
+        background_tasks.add_task(_process, cid)
+    return {'campaign_id': cid, 'status': 'scheduled' if scheduled_at else 'pending', 'targeted_count': len(users)}
+
+
+async def process_due_campaigns(db, current_time=None):
+    """Dispatch scheduled campaigns through the existing per-delivery worker."""
+    current_time = current_time or now()
+    due = await db.alert_campaigns.find(
+        {'status': 'scheduled', 'scheduled_at': {'$lte': current_time}},
+        {'_id': 0, 'campaign_id': 1},
+    ).sort('scheduled_at', 1).limit(100).to_list(100)
+    for campaign in due:
+        await _process(campaign['campaign_id'])
+    return len(due)
 
 
 @router.get('/campaigns')

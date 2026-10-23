@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ordersAPI, userAPI, walletAPI, referralAPI, paymentsAPI, authAPI } from '../lib/api';
+import { ordersAPI, userAPI, walletAPI, referralAPI, paymentsAPI, authAPI, pushAPI } from '../lib/api';
 import PhoneOtpModal from '../components/auth/PhoneOtpModal';
 import WalletPanel from '../components/account/WalletPanel';
 import WinningsWallet from './WinningsWallet';
@@ -67,6 +67,8 @@ export default function MyAccount() {
   const active = section || null;   // null → show tab list; else show selected panel
   const [signOutOpen, setSignOutOpen] = useState(false);
   const [smsBusy, setSmsBusy] = useState(false);
+  const [pushSettings, setPushSettings] = useState(null);
+  const [pushBusy, setPushBusy] = useState(false);
   const [phoneOtpOpen, setPhoneOtpOpen] = useState(false);
 
   const handleSmsConsent = async (next) => {
@@ -122,6 +124,108 @@ export default function MyAccount() {
     referralAPI.list().then(r => setReferralList(r?.referrals || [])).catch(() => {});
     return undefined;
   }, [user, loading, nav]);
+
+  useEffect(() => {
+    if (loading || !user?.user_id) return undefined;
+    let active = true;
+    pushAPI.settings().then(settings => { if (active) setPushSettings(settings); }).catch(() => {});
+    return () => { active = false; };
+  }, [user?.user_id, loading]);
+
+  const refreshPushSettings = async () => {
+    const settings = await pushAPI.settings();
+    setPushSettings(settings);
+    return settings;
+  };
+
+  const enableWebPush = async () => {
+    if (!pushSettings?.available || !pushSettings.public_key) {
+      toast({ title: 'Web Push is not configured on this site.' });
+      return;
+    }
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+      toast({ title: 'Web Push is not supported by this browser.' });
+      return;
+    }
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isInstalled = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+    if (isIOS && !isInstalled) {
+      toast({ title: 'Install Prize League to enable notifications', description: 'On iPhone and iPad, Web Push requires the installed home-screen app.' });
+      return;
+    }
+    setPushBusy(true);
+    try {
+      let permission = Notification.permission;
+      if (permission === 'default') permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        toast({ title: 'Notification permission was not granted.' });
+        return;
+      }
+      const registration = await navigator.serviceWorker.ready;
+      const encodedKey = pushSettings.public_key.replace(/-/g, '+').replace(/_/g, '/');
+      const paddedKey = encodedKey + '='.repeat((4 - (encodedKey.length % 4)) % 4);
+      const applicationServerKey = Uint8Array.from(
+        atob(paddedKey),
+        character => character.charCodeAt(0),
+      );
+      const subscription = await registration.pushManager.getSubscription()
+        || await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey });
+      const registered = await pushAPI.registerWebSubscription(subscription.toJSON());
+      localStorage.setItem('pl_web_push_subscription_id', registered.subscription_id);
+      await refreshPushSettings();
+      toast({ title: 'Web Push enabled for this account.' });
+    } catch (error) {
+      toast({ title: 'Could not enable Web Push', description: error?.response?.data?.detail || error.message || 'Please try again.' });
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  const disableWebPush = async () => {
+    setPushBusy(true);
+    try {
+      await pushAPI.updatePreferences({ web_push_enabled: false });
+      await refreshPushSettings();
+      toast({ title: 'Web Push disabled for this account.' });
+    } catch (error) {
+      toast({ title: 'Could not update Web Push', description: error?.response?.data?.detail || 'Please try again.' });
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  const setPushMarketingConsent = async consent => {
+    setPushBusy(true);
+    try {
+      await pushAPI.updatePreferences({ web_push_marketing_consent: consent });
+      await refreshPushSettings();
+      toast({ title: consent ? 'Promotional push enabled' : 'Promotional push disabled' });
+    } catch (error) {
+      toast({ title: 'Could not update preference', description: error?.response?.data?.detail || 'Please try again.' });
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  const removeWebDevice = async deviceId => {
+    setPushBusy(true);
+    try {
+      await pushAPI.removeWebDevice(deviceId);
+      if (localStorage.getItem('pl_web_push_subscription_id') === deviceId) {
+        const registration = await navigator.serviceWorker.ready;
+        const subscription = await registration.pushManager.getSubscription();
+        await subscription?.unsubscribe();
+        localStorage.removeItem('pl_web_push_subscription_id');
+      }
+      await refreshPushSettings();
+      toast({ title: 'This browser was removed from Web Push.' });
+    } catch (error) {
+      toast({ title: 'Could not remove device', description: error?.response?.data?.detail || 'Please try again.' });
+    } finally {
+      setPushBusy(false);
+    }
+  };
 
   const doLogout = async () => {
     await logout();
@@ -496,6 +600,43 @@ export default function MyAccount() {
 
         {active === 'notifications' && (
           <div className="bg-white rounded-2xl border border-slate-100 p-6" data-testid="panel-notifications">
+            <section className="mb-6 rounded-xl border border-slate-200 p-4" data-testid="web-push-settings">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-display font-bold text-base">Web Push</h3>
+                  <p className="mt-1 max-w-2xl text-xs text-slate-500">Receive account and contest alerts on this browser, including when Prize League is closed. You control browser permission and can remove individual devices.</p>
+                </div>
+                {pushSettings?.web_push_enabled ? (
+                  <Button type="button" variant="outline" onClick={disableWebPush} disabled={pushBusy}>Disable Web Push</Button>
+                ) : (
+                  <Button type="button" onClick={enableWebPush} disabled={pushBusy || !pushSettings?.available} data-testid="enable-web-push">
+                    {pushBusy ? 'Enabling…' : 'Enable Notifications'}
+                  </Button>
+                )}
+              </div>
+              {!pushSettings?.available && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">Web Push is not configured yet. The PWA installation and in-app notifications continue to work.</p>}
+              {pushSettings?.web_devices?.length > 0 && <div className="mt-4 space-y-2">
+                <h4 className="text-xs font-bold text-slate-700">Registered browsers</h4>
+                {pushSettings.web_devices.map(device => <div key={device.subscription_id} className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2 text-xs">
+                  <span className="min-w-0 flex-1 truncate text-slate-600">{device.user_agent || 'Browser'} · Added {device.created_at ? new Date(device.created_at).toLocaleDateString() : 'recently'}</span>
+                  <Button type="button" size="sm" variant="outline" onClick={() => removeWebDevice(device.subscription_id)} disabled={pushBusy}>Remove device</Button>
+                </div>)}
+              </div>}
+              <label className="mt-4 flex items-start gap-2 border-t border-slate-100 pt-3 text-xs text-slate-600">
+                <input type="checkbox" checked={!!pushSettings?.web_push_marketing_consent} onChange={event => setPushMarketingConsent(event.target.checked)} disabled={pushBusy || !pushSettings?.web_push_enabled} className="mt-0.5 h-4 w-4 accent-indigo-600" />
+                <span>Also allow promotional Web Push messages. This is separate from service and account alerts.</span>
+              </label>
+            </section>
+
+            <section className="mb-6 rounded-xl border border-slate-200 bg-slate-50 p-4" data-testid="native-push-settings">
+              <div className="font-display font-bold text-base">Native Push</div>
+              <p className="mt-1 text-xs text-slate-600">Android and iOS device-token registration is prepared, but no native app or provider credentials are connected. Native Push is not operational and no messages are sent through it.</p>
+              <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
+                <input type="checkbox" checked={false} disabled aria-label="Native Push unavailable" />
+                <span>Unavailable until a native Prize League app is connected.</span>
+              </div>
+            </section>
+
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h3 className="font-display font-bold text-lg">Notifications</h3>

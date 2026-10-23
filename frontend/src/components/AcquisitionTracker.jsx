@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { acquisitionAPI } from '../lib/api';
+import { acquisitionAPI, influencerAPI } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 
 const VISITOR_KEY = 'pl-visitor-id';
@@ -116,6 +116,7 @@ export default function AcquisitionTracker() {
     const visitorId = getVisitorId();
     const { id: sessionId, isNew } = touchSession();
     const params = new URLSearchParams(location.search);
+    const referralCode = String(params.get('ref') || '').trim().toUpperCase();
     const viewId = randomId('pv_');
     current.current = {
       viewId,
@@ -157,6 +158,14 @@ export default function AcquisitionTracker() {
     }
     prevPath.current = path;
     acquisitionAPI.pageView(payload).catch(() => {});
+    if (referralCode) {
+      influencerAPI.recordVisit({ code: referralCode, visitor_id: visitorId, page_key: path }).then((result) => {
+        if (!result?.recorded) return;
+        const days = Math.max(1, Math.min(Number(result.attribution_window_days) || 30, 365));
+        localStorage.setItem('pl_referral_code', referralCode);
+        localStorage.setItem('pl_referral_code_expires', String(Date.now() + days * 86400000));
+      }).catch(() => {});
+    }
   }, [location.key, location.pathname, location.search, consentVersion]);
 
   // "Sign up" clicks (header, World Selection, login tabs): at most one event per session server-side.

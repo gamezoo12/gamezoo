@@ -196,6 +196,7 @@ app.include_router(api_router)
 
 # Feature routers
 from routers.auth_routes import router as auth_router
+from routers.push_routes import router as push_router
 from routers.contest_routes import router as contest_router
 from routers.order_routes import router as order_router
 from routers.admin_routes import router as admin_router
@@ -229,6 +230,15 @@ from routers.admin_dashboard_stats_routes import router as dashboard_stats_route
 from routers.bonus_grants_routes import router as bonus_grants_router
 from routers.admin_referrals_routes import router as admin_referrals_router
 from routers.influencer_promo_routes import router as influencer_promo_router
+from routers.influencer_routes import (
+    admin_router as influencer_admin_router,
+    partner_router as influencer_partner_router,
+    public_router as influencer_public_router,
+)
+from routers.contact_verification_routes import (
+    admin_router as contact_verification_admin_router,
+    public_router as contact_verification_public_router,
+)
 from routers.winnings_routes import router as winnings_router, admin_router as winnings_admin_router
 from routers.cashout_routes import router as cashout_router, admin_router as cashout_admin_router
 from routers.promotion_routes import router as promotion_router, admin_router as promotion_admin_router
@@ -236,6 +246,7 @@ from routers.promotion_draw_routes import router as promotion_draw_router
 from routers.promotion_source_analytics_routes import router as promotion_source_analytics_router
 
 app.include_router(auth_router)
+app.include_router(push_router)
 app.include_router(winnings_router)
 app.include_router(winnings_admin_router)
 app.include_router(cashout_router)
@@ -282,6 +293,11 @@ app.include_router(acquisition_public_router)
 app.include_router(acquisition_admin_router)
 app.include_router(admin_referrals_router)
 app.include_router(influencer_promo_router)
+app.include_router(influencer_admin_router)
+app.include_router(influencer_partner_router)
+app.include_router(influencer_public_router)
+app.include_router(contact_verification_admin_router)
+app.include_router(contact_verification_public_router)
 app.include_router(promotion_router)
 app.include_router(promotion_admin_router)
 app.include_router(promotion_draw_router)
@@ -388,6 +404,9 @@ async def _do_core_indexes():
         ('payment_transactions',  [('session_id', 1)],    {'unique': True}),
         ('user_sessions',         [('session_token', 1)], {'unique': True}),
         ('wallets',               [('user_id', 1)],       {'unique': True}),
+        ('web_push_subscriptions', [('user_id', 1), ('active', 1), ('created_at', -1)], {}),
+        ('native_push_devices', [('user_id', 1), ('active', 1), ('created_at', -1)], {}),
+        ('web_push_outbox', [('status', 1), ('created_at', 1)], {}),
     ]
     ok = 0
     for coll, keys, opts in _idx_specs:

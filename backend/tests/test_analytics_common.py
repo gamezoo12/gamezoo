@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from services.analytics_common import (
     classify_page, classify_traffic, device_of, resolve_range, route_template, visitor_state,
 )
+from routers.admin_routes import _dashboard_search_filter, _range_match
 
 
 @pytest.mark.parametrize('kwargs, expected', [
@@ -65,6 +66,35 @@ def test_custom_range_validation():
     for bad in (('custom', 'x', 'y'), ('custom', '2026-10-05', '2026-10-01'), ('nonsense', None, None)):
         with pytest.raises(HTTPException):
             resolve_range(*bad)
+
+
+def test_last_month_range_uses_uk_calendar_boundaries():
+    now = datetime(2026, 7, 15, 12, 0, tzinfo=timezone.utc)
+    result = resolve_range('last_month', now=now)
+    assert result['start'] == datetime(2026, 5, 31, 23, 0, tzinfo=timezone.utc)
+    assert result['end'] == datetime(2026, 6, 30, 23, 0, tzinfo=timezone.utc)
+
+
+def test_admin_dashboard_calendar_and_custom_range_filters():
+    custom, start = _range_match('custom', 'created_at', '2026-10-01', '2026-10-03')
+    assert custom['created_at']['$lt'] - custom['created_at']['$gte'] == __import__('datetime').timedelta(days=3)
+    assert start == custom['created_at']['$gte']
+    today, _ = _range_match('today', 'created_at')
+    assert set(today['created_at']) == {'$gte', '$lt'}
+    assert _range_match('all_time')[0] == {}
+    with pytest.raises(HTTPException):
+        _range_match('custom', 'created_at', 'invalid', '2026-10-03')
+
+
+def test_dashboard_detail_search_escapes_regex_and_limits_fields():
+    filters = _dashboard_search_filter('topups', '.*')
+    assert filters == {'$or': [
+        {'session_id': {'$regex': r'\.\*', '$options': 'i'}},
+        {'user_id': {'$regex': r'\.\*', '$options': 'i'}},
+        {'payment_status': {'$regex': r'\.\*', '$options': 'i'}},
+        {'stripe_payment_intent_id': {'$regex': r'\.\*', '$options': 'i'}},
+    ]}
+    assert _dashboard_search_filter('unsupported', 'hello') == {}
 
 
 def test_visitor_state_and_device():

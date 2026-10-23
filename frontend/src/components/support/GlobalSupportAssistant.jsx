@@ -163,7 +163,8 @@ export default function GlobalSupportAssistant() {
     return { left, top, width: panelWidth, maxHeight: panelHeight };
   })();
 
-  if (!position || fullscreen) return null;
+  const staffArea = location.pathname.startsWith('/admin') || location.pathname.startsWith('/production');
+  if (!position || fullscreen || staffArea) return null;
 
   return (
     <>

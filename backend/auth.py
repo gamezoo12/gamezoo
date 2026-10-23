@@ -145,6 +145,9 @@ def phone_gate_blocks(user: dict) -> bool:
     """True when this user must verify a mobile number before gameplay/payments."""
     if user.get('phone_verified') is True or user.get('role') in _STAFF_ROLES:
         return False
+    # Google accounts must always verify; legacy email accounts stay exempt unless enforced.
+    if user.get('method') == 'google':
+        return True
     if (os.environ.get('PHONE_GATE_ENFORCE_LEGACY') or '').lower() == 'true':
         return True
     created = _as_utc(user.get('created_at'))

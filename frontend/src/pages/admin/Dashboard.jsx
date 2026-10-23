@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { adminAPI, acquisitionAdminAPI } from '../../lib/api';
 import { TrendingUp, Users, Ticket, PoundSterling, Eye, UserPlus, Trophy, Wallet, Clock3, BarChart3 } from 'lucide-react';
 import { gbp } from '../../lib/format';
@@ -17,18 +18,20 @@ function Stat({ label, value, sub, Icon, gradient, onClick, active }) {
 }
 
 const RANGE_OPTIONS = [
-  { label: '1 hour', value: '1h' },
-  { label: '6 hours', value: '6h' },
-  { label: '24 hours', value: '24h' },
-  { label: '7 days', value: '7d' },
-  { label: '1 month', value: '1m' },
-  { label: '6 months', value: '6m' },
-  { label: '1 year', value: '1y' },
-  { label: 'Lifetime', value: 'lifetime' },
+  { label: 'Today', value: 'today' },
+  { label: 'Yesterday', value: 'yesterday' },
+  { label: 'Last 7 days', value: '7d' },
+  { label: 'Last 30 days', value: '30d' },
+  { label: 'This month', value: 'month' },
+  { label: 'All time', value: 'all_time' },
+  { label: 'Custom range', value: 'custom' },
 ];
 
 export default function Dashboard() {
-  const [period, setPeriod] = useState('24h');
+  const navigate = useNavigate();
+  const [period, setPeriod] = useState('today');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [selectedMetric, setSelectedMetric] = useState('revenue');
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [summary, setSummary] = useState(null);
@@ -36,23 +39,27 @@ export default function Dashboard() {
   const [users, setUsers] = useState([]);
   const [visits, setVisits] = useState([]);
   const [contests, setContests] = useState([]);
+  const [userStats, setUserStats] = useState(null);
 
   useEffect(() => {
-    adminAPI.dashboardSummary(period).then(setSummary).catch(() => setSummary(null));
+    if (period === 'custom' && (!startDate || !endDate)) {
+      setSummary(null);
+      return;
+    }
+    const range = period === 'custom' ? { start_date: startDate, end_date: endDate } : {};
+    adminAPI.dashboardSummary(period, range).then(setSummary).catch(() => setSummary(null));
+    adminAPI.userStats({ refresh: true }).then(setUserStats).catch(() => setUserStats(null));
     adminAPI.orders().then(setOrders).catch((err) => { if (process.env.NODE_ENV !== 'production') console.error('[dashboard] orders:', err?.message); });
     adminAPI.users().then(setUsers).catch(() => setUsers([]));
     adminAPI.contests().then(setContests).catch((err) => { if (process.env.NODE_ENV !== 'production') console.error('[dashboard] contests:', err?.message); });
     acquisitionAdminAPI.visits({ period, limit: 30 }).then((data) => setVisits(data.visits || [])).catch(() => setVisits([]));
-  }, [period]);
+  }, [period, startDate, endDate]);
 
   const paidWorld = summary?.paid_world || {};
   const freeWorld = summary?.free_world || {};
   const overview = summary?.summary || {};
-  const periodDuration = {
-    '1h': 3600000, '6h': 21600000, '24h': 86400000, '7d': 604800000,
-    '1m': 2592000000, '6m': 15724800000, '1y': 31536000000, lifetime: Infinity,
-  }[period];
-  const cutoff = periodDuration === Infinity ? 0 : Date.now() - periodDuration;
+  const periodDuration = { today: 86400000, yesterday: 86400000, '7d': 604800000, '30d': 2592000000, month: 2678400000 }[period];
+  const cutoff = periodDuration ? Date.now() - periodDuration : 0;
   const filteredUsers = users.filter(user => new Date(user.created_at || 0).getTime() >= cutoff).slice(0, 10);
   const filteredOrders = orders.filter(order => new Date(order.created_at || 0).getTime() >= cutoff).slice(0, 10);
   const filteredVisits = visits.filter(visit => new Date(visit.created_at || 0).getTime() >= cutoff).slice(0, 10);
@@ -69,7 +76,8 @@ export default function Dashboard() {
           <h1 className="text-2xl font-black text-slate-900">Operations dashboard</h1>
           <p className="text-sm text-slate-500">Paid World, Free World, acquisition, and revenue performance.</p>
         </div>
-        <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex flex-wrap rounded-lg border border-slate-200 bg-white p-1">
           {RANGE_OPTIONS.map((option) => (
             <button
               key={option.value}
@@ -80,12 +88,39 @@ export default function Dashboard() {
               {option.label}
             </button>
           ))}
+          </div>
+          {period === 'custom' && <>
+            <input aria-label="Start date" type="date" value={startDate} onChange={event => setStartDate(event.target.value)} className="h-9 rounded-md border border-slate-200 bg-white px-2 text-sm" />
+            <input aria-label="End date" type="date" value={endDate} onChange={event => setEndDate(event.target.value)} className="h-9 rounded-md border border-slate-200 bg-white px-2 text-sm" />
+          </>}
         </div>
       </div>
 
-      <DashboardUserStats />
+      <section className="space-y-3" data-testid="admin-dashboard-kpis">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-display text-lg font-bold text-slate-900">Business overview</h2>
+          <span className="text-xs text-slate-500" title={userStats?.definitions?.currently_active}>
+            Active now means login, interaction, or game activity in the last 5 minutes
+            {userStats?.generated_at ? ` · Updated ${new Date(userStats.generated_at).toLocaleTimeString()}` : ''}
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+          <Stat label="Active users" value={(userStats?.activity?.currently_active ?? 0).toLocaleString()} sub="Last 5 minutes" Icon={Users} gradient="from-emerald-500 to-teal-600" onClick={() => selectMetric('active_users')} />
+          <Stat label="Total registered users" value={(userStats?.registrations?.total ?? 0).toLocaleString()} sub="Staff and test accounts excluded" Icon={UserPlus} gradient="from-cyan-500 to-blue-600" onClick={() => selectMetric('users')} />
+          <Stat label="Total sales" value={(overview.orders ?? 0).toLocaleString()} sub="Paid contest orders" Icon={TrendingUp} gradient="from-indigo-500 to-violet-600" onClick={() => selectMetric('orders')} />
+          <Stat label="Total top-ups" value={(overview.topups?.count ?? 0).toLocaleString()} sub={`${gbp(overview.topups?.amount_gbp ?? 0)} paid deposits · not revenue`} Icon={Wallet} gradient="from-amber-500 to-orange-600" onClick={() => selectMetric('topups')} />
+          <Stat label="Net sales revenue" value={gbp(overview.revenue ?? 0)} sub={`Gross ${gbp(overview.revenue_gross ?? 0)} · refunds ${gbp(overview.refunds ?? 0)}`} Icon={PoundSterling} gradient="from-rose-500 to-pink-600" onClick={() => selectMetric('revenue')} />
+          <Stat label="Live contests" value={(overview.live_contests ?? 0).toLocaleString()} sub="Currently marked live" Icon={Ticket} gradient="from-violet-500 to-purple-700" onClick={() => selectMetric('live_contests')} />
+          <Stat label="Free World attempts" value={(freeWorld.level_attempts ?? 0).toLocaleString()} sub={period} Icon={Clock3} gradient="from-emerald-500 to-lime-600" onClick={() => selectMetric('free_level_attempts')} />
+          <Stat label="Paid World participants" value={(paidWorld.unique_participants ?? 0).toLocaleString()} sub="Distinct scored users" Icon={Trophy} gradient="from-fuchsia-500 to-violet-600" onClick={() => selectMetric('paid_scores')} />
+          <Stat label="Tickets sold" value={(overview.tickets ?? 0).toLocaleString()} sub={period} Icon={Ticket} gradient="from-orange-500 to-rose-500" onClick={() => selectMetric('tickets')} />
+          <Stat label="Influencer performance" value={`${overview.influencers?.active ?? 0} active`} sub={`${overview.influencers?.registrations ?? 0} signups · ${gbp(overview.influencers?.commission_gbp ?? 0)} payable/earned`} Icon={BarChart3} gradient="from-teal-500 to-cyan-600" onClick={() => navigate('/admin/influencers')} />
+        </div>
+      </section>
 
       <DashboardWalletReport />
+
+      <DashboardUserStats />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Stat label="Revenue" value={gbp(overview.revenue || 0)} sub={`${period} paid orders`} Icon={PoundSterling} gradient="from-[#8B5CFF] to-[#6C2BFF]" active={selectedMetric === 'revenue'} onClick={() => selectMetric('revenue')} />
@@ -237,7 +272,7 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-      {detailsOpen && <DashboardDetails metric={selectedMetric} period={period} onClose={() => setDetailsOpen(false)} />}
+      {detailsOpen && <DashboardDetails metric={selectedMetric} period={period} startDate={period === 'custom' ? startDate : ''} endDate={period === 'custom' ? endDate : ''} onClose={() => setDetailsOpen(false)} />}
     </div>
   );
 }

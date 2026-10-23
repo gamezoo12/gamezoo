@@ -30,7 +30,11 @@ def test_server_import_and_route_count():
     import server
     n = len(server.app.routes)
     print(f"route count = {n}")
-    assert n == 175, f"expected 175 routes, got {n}"
+    assert n >= 175, f"expected at least 175 routes, got {n}"
+    paths = {route.path for route in server.app.routes if hasattr(route, 'path')}
+    assert '/api/admin/influencers' in paths
+    assert '/api/influencer/dashboard' in paths
+    assert '/api/verify-contact' in paths
 
 
 # --- Fix 1: ensure_utc importable + bound in world_routes ---

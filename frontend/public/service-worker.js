@@ -13,6 +13,38 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
 });
 
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { body: event.data?.text() || '' };
+  }
+  const target = typeof data.url === 'string' && data.url.startsWith('/') && !data.url.startsWith('//')
+    ? data.url
+    : '/my-account/notifications';
+  event.waitUntil(self.registration.showNotification(data.title || 'Prize League', {
+    body: data.body || '',
+    icon: '/pwa-192.png',
+    badge: '/pwa-192.png',
+    tag: data.event_id || 'prize-league-notification',
+    renotify: false,
+    data: { url: target },
+  }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = event.notification.data?.url;
+  const url = typeof target === 'string' && target.startsWith('/') && !target.startsWith('//')
+    ? new URL(target, self.location.origin).href
+    : new URL('/my-account/notifications', self.location.origin).href;
+  event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+    const client = clients.find((candidate) => new URL(candidate.url).origin === self.location.origin);
+    return client ? client.navigate(url).then(() => client.focus()) : self.clients.openWindow(url);
+  }));
+});
+
 /*
  * Minimal network-only fetch handler.
  *

@@ -37,6 +37,12 @@ class BulkUserActionRequest(BaseModel):
     consent_evidence: str = Field(default='', max_length=2000)
 
 
+class UserWalletAdjustmentRequest(BaseModel):
+    amount: float = Field(ge=-500, le=500)
+    reason: str = Field(min_length=10, max_length=300)
+    operation_id: str = Field(min_length=16, max_length=64)
+
+
 async def _sanitise(doc: dict) -> dict:
     if not doc:
         return {}
@@ -147,6 +153,60 @@ async def bulk_user_actions(payload: BulkUserActionRequest, request: Request):
     }
 
 
+@router.post('/{user_id}/wallet-adjust')
+async def adjust_user_wallet(user_id: str, payload: UserWalletAdjustmentRequest, request: Request):
+    admin = await require_admin(request)
+    if admin.get('role') not in ('admin', 'super_admin'):
+        raise HTTPException(status_code=403, detail='Only admin or super-admin can adjust user wallets')
+    if payload.amount == 0:
+        raise HTTPException(status_code=400, detail='Adjustment amount cannot be zero')
+
+    from deps import get_db
+    from routers.wallet_routes import _apply_tx_idempotent
+
+    db = get_db()
+    user = await db.users.find_one(
+        {'user_id': user_id}, {'_id': 0, 'user_id': 1, 'erased': 1},
+    )
+    if not user:
+        raise HTTPException(status_code=404, detail='User not found')
+    if user.get('erased'):
+        raise HTTPException(status_code=400, detail='Cannot adjust an erased account')
+
+    reason = payload.reason.strip()
+    if len(reason) < 10:
+        raise HTTPException(status_code=400, detail='Adjustment reason must be at least 10 characters')
+    operation_id = payload.operation_id.strip()
+    if len(operation_id) < 16:
+        raise HTTPException(status_code=400, detail='A valid operation ID is required')
+
+    result = await _apply_tx_idempotent(
+        db,
+        user_id,
+        'admin_adjust',
+        round(float(payload.amount), 2),
+        note=f"Admin adjustment by {admin.get('email', admin.get('user_id'))}: {reason}",
+        ref_order_id=f'admin_user_adjust:{operation_id}',
+    )
+    now = datetime.now(timezone.utc)
+    await db.audit_log.update_one(
+        {'audit_id': f'aud_wallet_adjust_{operation_id}'},
+        {'$setOnInsert': {
+            'audit_id': f'aud_wallet_adjust_{operation_id}',
+            'kind': 'admin_user_wallet_adjustment',
+            'admin_user_id': admin.get('user_id'),
+            'admin_email': admin.get('email'),
+            'target_user_id': user_id,
+            'amount': round(float(payload.amount), 2),
+            'reason': reason,
+            'operation_id': operation_id,
+            'at': now,
+        }},
+        upsert=True,
+    )
+    return {'ok': True, **result}
+
+
 @router.get('/{user_id}/360')
 async def user_360(user_id: str, request: Request):
     await require_admin(request)
@@ -156,12 +216,23 @@ async def user_360(user_id: str, request: Request):
     if not u:
         raise HTTPException(404, 'User not found')
 
-    wallet = await db.wallets.find_one({'user_id': user_id}, {'_id': 0})
+    wallet = await db.wallets.find_one({'user_id': user_id}, {'_id': 0}) or {}
     kyc = await db.kyc.find_one({'user_id': user_id}, {'_id': 0})
     orders = await db.orders.find({'user_id': user_id}, {'_id': 0}).sort('created_at', -1).limit(50).to_list(50)
+    payments = await db.payment_transactions.find({'user_id': user_id}, {'_id': 0}).sort('created_at', -1).limit(100).to_list(100)
     tickets = await db.tickets.find({'user_id': user_id}, {'_id': 0}).limit(200).to_list(200)
     scores = await db.game_scores.find({'user_id': user_id}, {'_id': 0}).sort('created_at', -1).limit(100).to_list(100)
-    txs = await db.wallet_transactions.find({'user_id': user_id}, {'_id': 0}).sort('created_at', -1).limit(100).to_list(100)
+    txs = await db.wallet_tx.find({'user_id': user_id}, {'_id': 0}).sort('created_at', -1).limit(100).to_list(100)
+    if not txs:
+        txs = await db.wallet_transactions.find({'user_id': user_id}, {'_id': 0}).sort('created_at', -1).limit(100).to_list(100)
+    bonus_grants = await db.bonus_grants.find({'user_id': user_id}, {'_id': 0}).sort('granted_at', -1).limit(100).to_list(100)
+    winnings_wallet = await db.winnings_wallets.find_one({'user_id': user_id}, {'_id': 0}) or {}
+    withdrawals = await db.cashout_requests.find(
+        {'user_id': user_id},
+        {'_id': 0, 'withdrawal_id': 1, 'amount_tokens': 1, 'amount_gbp': 1, 'status': 1,
+         'created_at': 1, 'paid_at': 1, 'kyc_status_snapshot': 1, 'admin_notes': 1,
+         'reject_reason': 1, 'payment_reference': 1},
+    ).sort('created_at', -1).limit(100).to_list(100)
     notifs = await db.notifications.find({'user_id': user_id}, {'_id': 0}).sort('created_at', -1).limit(30).to_list(30)
     support = await db.support_cases.find({'user_id': user_id}, {'_id': 0}).sort('created_at', -1).limit(30).to_list(30)
     referrals = await db.referrals.find(
@@ -239,10 +310,49 @@ async def user_360(user_id: str, request: Request):
         'topup_session_id': u.get('signup_bonus_topup_session_id'),
     }
 
+    from services.bonus_grants import wallet_bonus_view
+    bonus_view = await wallet_bonus_view(db, user_id, wallet)
+    wallet_breakdown = {
+        'balance_tokens': float(wallet.get('balance') or 0),
+        'bonus_tokens': float(wallet.get('bonus') or 0),
+        'purchased_tokens': max(0.0, float(wallet.get('balance') or 0)
+                                - float(wallet.get('bonus') or 0)
+                                - float(wallet.get('withdrawable') or 0)
+                                - float(wallet.get('withdrawable_pending') or 0)),
+        'withdrawable_tokens': float(wallet.get('withdrawable') or 0),
+        'pending_withdrawable_tokens': float(wallet.get('withdrawable_pending') or 0),
+        'winnings_pence': int(winnings_wallet.get('available_pence') or 0)
+                          + int(winnings_wallet.get('pending_pence') or 0),
+        'lifetime_winnings_pence': int(winnings_wallet.get('total_won_pence') or 0),
+        **bonus_view,
+    }
+    for grant in bonus_grants:
+        grant['spent_amount'] = round(max(0.0, float(grant.get('original_amount') or 0)
+                                          - float(grant.get('remaining_amount') or 0)
+                                          - float(grant.get('expired_amount') or 0)
+                                          - float(grant.get('revoked_amount') or 0)), 2)
+
     sessions = await db.user_sessions.find({'user_id': user_id}, {'_id': 0}).sort('created_at', -1).limit(20).to_list(20)
     admin_actions = await db.audit_log.find(
         {'target_user_id': user_id}, {'_id': 0},
     ).sort('at', -1).limit(50).to_list(50)
+    acquisition = await db.acquisition_attributions.find_one({'user_id': user_id}, {'_id': 0})
+    page_visits = []
+    if acquisition:
+        journey_sessions = list(dict.fromkeys(
+            value for value in (acquisition.get('session_id'), acquisition.get('registration_session_id')) if value
+        ))
+        if journey_sessions:
+            page_visits = await db.acquisition_page_views.find(
+                {'session_id': {'$in': journey_sessions}},
+                {'_id': 0, 'page_path': 1, 'page_key': 1, 'created_at': 1, 'engaged_ms': 1,
+                 'source_key': 1, 'campaign': 1},
+            ).sort('created_at', -1).limit(100).to_list(100)
+    influencer_attribution = await db.influencer_attributions.find_one({'user_id': user_id}, {
+        '_id': 0, 'attribution_id': 1, 'promo_id': 1, 'influencer_id': 1, 'code': 1,
+        'campaign_name': 1, 'influencer_name': 1, 'status': 1, 'created_at': 1,
+        'topup_qualified': 1, 'reward_granted': 1, 'reward_tokens': 1,
+    })
 
     # ------------------------------------------------------------------
     # Free World history (read-only): progression, per-level attempts,
@@ -322,17 +432,24 @@ async def user_360(user_id: str, request: Request):
         'wallet': wallet,
         'stats': {
             'orders_count': len(orders),
+            'payments_count': len(payments),
             'tickets_count': len(tickets),
             'scores_count': len(scores),
             'wallet_txs_count': len(txs),
+            'bonus_grants_count': len(bonus_grants),
+            'withdrawals_count': len(withdrawals),
             'notifications_count': len(notifs),
             'support_cases_count': len(support),
             'referrals_count': len(referrals),
         },
         'orders': orders,
+        'payments': payments,
         'tickets': tickets,
         'scores': scores,
         'wallet_transactions': txs,
+        'wallet_breakdown': wallet_breakdown,
+        'bonus_grants': bonus_grants,
+        'withdrawals': withdrawals,
         'notifications': notifs,
         'support_cases': support,
         'referrals': referrals,
@@ -341,6 +458,9 @@ async def user_360(user_id: str, request: Request):
         'signup_bonus': signup_bonus,
         'sessions': sessions,
         'admin_actions': admin_actions,
+        'acquisition': acquisition,
+        'page_visits': page_visits,
+        'influencer_attribution': influencer_attribution,
         'world': {
             'progress': world_progress,
             'level_attempts': world_level_attempts,

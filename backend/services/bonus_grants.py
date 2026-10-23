@@ -421,6 +421,21 @@ async def _notify_once(db, grant: dict, flag: str, kind: str, title: str, body: 
         inserted = result.upserted_id is not None
     except DuplicateKeyError:
         pass
+    if inserted:
+        try:
+            from services.push_delivery import queue_notification_event
+            await queue_notification_event(
+                db,
+                user_id=grant['user_id'],
+                kind=kind,
+                title=title,
+                body=body,
+                event_id=notification_id,
+                target_url='/my-account/wallet',
+            )
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception('Bonus Web Push enqueue failed grant=%s', grant.get('grant_id'))
     await db.bonus_grants.update_one({'grant_id': grant['grant_id'], flag: {'$exists': False}},
                                      {'$set': {flag: now}})
     return inserted

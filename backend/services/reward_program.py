@@ -196,9 +196,22 @@ async def create_influencer_attribution(
         "user_id": user_id,
 
         "promo_id": promo["promo_id"],
+        "influencer_id": promo.get("influencer_id"),
         "code": promo["code"],
         "influencer_name": promo.get("influencer_name") or "",
         "campaign_name": promo.get("campaign_name") or "",
+        "campaign_snapshot": {
+            key: promo.get(key)
+            for key in (
+                "reward_type", "registration_commission_pence", "registration_eligibility",
+                "registration_commission_tokens", "topup_commission_mode", "topup_commission_bps",
+                "topup_fixed_commission_pence", "topup_token_mode", "topup_commission_tokens",
+                "topup_qualification", "topup_first_n", "topup_minimum_pence", "attribution_window_days",
+                "exclude_tax", "signup_reward_tokens", "topup_reward_mode", "topup_reward_bps",
+                "topup_reward_tokens", "bonus_expiry_days", "commission_cap_pence", "budget_pence",
+                "starts_at", "expires_at",
+            )
+        },
 
         "status": "pending",
 

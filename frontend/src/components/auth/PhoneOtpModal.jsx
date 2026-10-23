@@ -14,9 +14,10 @@ import { useToast } from '../../hooks/use-toast';
  * Props:
  *   open        boolean
  *   onVerified  fn()  called after successful verify+bind (parent should refresh user)
- *   onDismiss   fn()  optional. Called when the dialog is closed with the X (no skip link).
+ *   onDismiss   fn()  optional. When omitted the modal is mandatory: no X, Escape or outside-click close.
+ *   onSignOut   fn()  optional. Offers sign-out so the user is never trapped; there is no skip.
  */
-export default function PhoneOtpModal({ open, onVerified, onDismiss }) {
+export default function PhoneOtpModal({ open, onVerified, onDismiss, onSignOut }) {
   const [step, setStep] = useState('phone'); // 'phone' | 'code'
   const [phone, setPhone] = useState('');
   const [normalizedPhone, setNormalizedPhone] = useState('');
@@ -63,7 +64,14 @@ export default function PhoneOtpModal({ open, onVerified, onDismiss }) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v && onDismiss) onDismiss(); }}>
-      <DialogContent className="max-w-md" style={{ zIndex: 60 }} data-testid="otp-modal">
+      <DialogContent
+        className={`max-w-md ${onDismiss ? '' : '[&>button]:hidden'}`}
+        style={{ zIndex: 60 }}
+        onPointerDownOutside={(e) => { if (!onDismiss) e.preventDefault(); }}
+        onEscapeKeyDown={(e) => { if (!onDismiss) e.preventDefault(); }}
+        onInteractOutside={(e) => { if (!onDismiss) e.preventDefault(); }}
+        data-testid="otp-modal"
+      >
         <DialogHeader>
           <div className="w-12 h-12 rounded-full bg-[#6C2BFF]/10 flex items-center justify-center mb-2">
             <ShieldCheck className="w-6 h-6 text-[#6C2BFF]" />
@@ -152,6 +160,13 @@ export default function PhoneOtpModal({ open, onVerified, onDismiss }) {
         <p className="text-xs text-slate-400 text-center mt-2">
           Mobile verification is required to play, enter contests and check out.
         </p>
+        {onSignOut && (
+          <div className="text-center">
+            <button type="button" onClick={onSignOut} data-testid="otp-signout-btn" className="text-xs text-slate-500 underline hover:text-slate-900">
+              Sign out
+            </button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

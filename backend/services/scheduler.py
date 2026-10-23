@@ -48,6 +48,44 @@ async def _tick(db):
     except Exception as e:  # noqa: BLE001
         log.exception("[scheduler] bonus expiry failed: %s", e)
 
+    try:
+        from routers.influencer_routes import recover_claimed_influencer_invites
+        recovered = await recover_claimed_influencer_invites(db)
+        if recovered:
+            log.info('[scheduler] recovered influencer invites: %s', recovered)
+    except Exception as e:  # noqa: BLE001
+        log.exception('[scheduler] influencer invite recovery failed: %s', e)
+
+    try:
+        from services.influencer_commissions import recover_pending_registration_commissions
+        recovered = await recover_pending_registration_commissions(db, now=now)
+        if recovered:
+            log.info('[scheduler] recovered influencer registrations: %s', recovered)
+    except Exception as e:  # noqa: BLE001
+        log.exception('[scheduler] influencer registration recovery failed: %s', e)
+
+    try:
+        from routers.admin_alerts_routes import process_due_campaigns
+        await process_due_campaigns(db, current_time=now)
+    except Exception as e:  # noqa: BLE001
+        log.exception('[scheduler] scheduled alert processing failed: %s', e)
+
+    try:
+        from services.push_delivery import process_web_push_outbox
+        processed = await process_web_push_outbox(db, current_time=now)
+        if processed:
+            log.info('[scheduler] processed Web Push events: %s', processed)
+    except Exception as e:  # noqa: BLE001
+        log.exception('[scheduler] Web Push outbox processing failed: %s', e)
+
+    try:
+        from services.push_delivery import process_contest_lifecycle_alerts
+        queued = await process_contest_lifecycle_alerts(db, current_time=now)
+        if queued:
+            log.info('[scheduler] queued contest Web Push reminders: %s', queued)
+    except Exception as e:  # noqa: BLE001
+        log.exception('[scheduler] contest Web Push lifecycle failed: %s', e)
+
 
 async def _loop(db):
     global _running

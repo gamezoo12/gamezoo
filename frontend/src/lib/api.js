@@ -104,6 +104,15 @@ export const userAPI = {
   acceptTerms: () => api.post('/users/me/accept-terms').then(r => r.data),
 };
 
+export const pushAPI = {
+  settings: () => api.get('/push/settings').then(r => r.data),
+  registerWebSubscription: (subscription) => api.post('/push/web-subscriptions', subscription).then(r => r.data),
+  updatePreferences: (payload) => api.patch('/push/preferences', payload).then(r => r.data),
+  removeWebDevice: (id) => api.delete(`/push/web-subscriptions/${encodeURIComponent(id)}`).then(r => r.data),
+  registerNativeDevice: (payload) => api.post('/push/native-devices', payload).then(r => r.data),
+  removeNativeDevice: (id) => api.delete(`/push/native-devices/${encodeURIComponent(id)}`).then(r => r.data),
+};
+
 export const productionAPI = {
   upcomingDraws: (hours = 24) => api.get('/production/upcoming-draws', { params: { hours } }).then(r => r.data),
   draw: (contestId) => api.post(`/production/draw/${contestId}`).then(r => r.data),
@@ -111,14 +120,15 @@ export const productionAPI = {
 
 export const adminAPI = {
   stats: () => api.get('/admin/stats').then(r => r.data),
-  dashboardSummary: (period = '24h') => api.get('/admin/dashboard/summary', { params: { period } }).then(r => r.data),
+  dashboardSummary: (period = '24h', range = {}) => api.get('/admin/dashboard/summary', { params: { period, ...range } }).then(r => r.data),
   userStats: (params = {}) => api.get('/admin/dashboard/user-stats', { params }).then(r => r.data),
   walletReport: (params = {}) => api.get('/admin/dashboard/wallet-report', { params }).then(r => r.data),
   walletIntegrity: (params = {}) => api.get('/admin/dashboard/wallet-integrity', { params }).then(r => r.data),
-  dashboardDetails: ({ metric, period = '24h', skip = 0, limit = 100 } = {}) => api.get('/admin/dashboard/details', { params: { metric, period, skip, limit } }).then(r => r.data),
+  dashboardDetails: ({ metric, period = '24h', skip = 0, limit = 100, ...filters } = {}) => api.get('/admin/dashboard/details', { params: { metric, period, skip, limit, ...filters } }).then(r => r.data),
   users: () => api.get('/admin/users').then(r => r.data),
   updateUser: (id, data) => api.put(`/admin/users/${id}`, data).then(r => r.data),
   bulkUserActions: (payload) => api.post('/admin/users/bulk-actions', payload).then(r => r.data),
+  adjustUserWallet: (id, payload) => api.post(`/admin/users/${encodeURIComponent(id)}/wallet-adjust`, payload).then(r => r.data),
   creditBonus: (payload) => api.post('/admin/bonus-grants', payload).then(r => r.data),
   bonusGrants: (params = {}) => api.get('/admin/bonus-grants', { params }).then(r => r.data),
   revokeBonusGrant: (grantId, reason) => api.post(`/admin/bonus-grants/${encodeURIComponent(grantId)}/revoke`, { reason }).then(r => r.data),
@@ -127,6 +137,8 @@ export const adminAPI = {
     api.post(`/admin/users/${id}/phone/send-otp`).then(r => r.data),
   verifyUserPhoneOtp: (id, code) =>
     api.post(`/admin/users/${id}/phone/verify-otp`, { code }).then(r => r.data),
+  sendContactVerificationLink: (id, channel) =>
+    api.post(`/admin/users/${encodeURIComponent(id)}/${channel}/send-verification-link`).then(r => r.data),
   setUserSmsConsent: (id, consent) =>
     api.post(`/admin/users/${id}/sms-consent`, { consent }).then(r => r.data),
   suspendUser: (id) => api.post(`/admin/users/${id}/suspend`).then(r => r.data),
@@ -179,6 +191,18 @@ export const adminAPI = {
 
   getSettings: () => api.get('/admin/settings').then(r => r.data),
   updateSettings: (data) => api.put('/admin/settings', data).then(r => r.data),
+  influencers: (params = {}) => api.get('/admin/influencers', { params }).then(r => r.data),
+  assignInfluencer: (payload) => api.post('/admin/influencers', payload).then(r => r.data),
+  createInfluencerInvite: (payload) => api.post('/admin/influencers/invites', payload).then(r => r.data),
+  updateInfluencer: (id, payload) => api.patch(`/admin/influencers/${encodeURIComponent(id)}`, payload).then(r => r.data),
+  influencerCommissions: (id, params = {}) => api.get(`/admin/influencers/${encodeURIComponent(id)}/commissions`, { params }).then(r => r.data),
+  exportInfluencerCommissions: (params = {}) => api.get('/admin/influencers/commissions.csv', { params, responseType: 'blob' }).then(r => r.data),
+  exportInfluencerCampaigns: (params = {}) => api.get('/admin/influencers/campaigns.csv', { params, responseType: 'blob' }).then(r => r.data),
+  reviewInfluencerCommission: (id, commissionId, payload) => api.post(`/admin/influencers/${encodeURIComponent(id)}/commissions/${encodeURIComponent(commissionId)}/review`, payload).then(r => r.data),
+  recordInfluencerPayment: (id, commissionId, payload) => api.post(`/admin/influencers/${encodeURIComponent(id)}/commissions/${encodeURIComponent(commissionId)}/record-payment`, payload).then(r => r.data),
+  influencerPromos: () => api.get('/admin/influencer-promos').then(r => r.data),
+  createInfluencerPromo: (payload) => api.post('/admin/influencer-promos', payload).then(r => r.data),
+  updateInfluencerPromo: (id, payload) => api.put(`/admin/influencer-promos/${encodeURIComponent(id)}`, payload).then(r => r.data),
 
   // Admin alerts
   alertCampaigns: (limit = 50) =>
@@ -215,10 +239,15 @@ export const legalAPI = {
   get: (slug) => api.get(`/legal/documents/${slug}`).then(r => r.data),
 };
 
+export const influencerAPI = {
+  dashboard: (params = {}) => api.get('/influencer/dashboard', { params }).then(r => r.data),
+  commissionsCsv: () => api.get('/influencer/commissions.csv', { responseType: 'blob' }).then(r => r.data),
+  recordVisit: (payload) => api.post('/influencer/visit', payload).then(r => r.data),
+};
+
 export const walletAPI = {
   me: () => api.get('/wallet/me').then(r => r.data),
   transactions: (limit = 50) => api.get('/wallet/transactions', { params: { limit } }).then(r => r.data),
-  topup: (amount) => api.post('/wallet/topup', { amount }).then(r => r.data),
 };
 
 export const cashoutAPI = {

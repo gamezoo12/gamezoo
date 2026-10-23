@@ -41,6 +41,7 @@ export default function SignupWizard() {
 
   const [emailCooldown, setEmailCooldown] = useState(0);
   const [phoneCooldown, setPhoneCooldown] = useState(0);
+  const [influencerInviteToken, setInfluencerInviteToken] = useState('');
 
   const [data, setData] = useState({
     name: '',
@@ -62,6 +63,20 @@ export default function SignupWizard() {
   // Preserve referral / influencer acquisition code during signup.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const inviteToken = String(params.get('invite') || '').trim();
+    if (inviteToken) {
+      localStorage.setItem('pl_influencer_invite', inviteToken);
+      localStorage.removeItem('pl_referral_code');
+      setInfluencerInviteToken(inviteToken);
+      setData(current => ({ ...current, referralCode: '' }));
+      return;
+    }
+    const savedInvite = String(localStorage.getItem('pl_influencer_invite') || '').trim();
+    if (savedInvite) {
+      setInfluencerInviteToken(savedInvite);
+      setData(current => ({ ...current, referralCode: '' }));
+      return;
+    }
 
     const queryCode = String(
       params.get('ref') || ''
@@ -72,6 +87,7 @@ export default function SignupWizard() {
         'pl_referral_code',
         queryCode
       );
+      localStorage.setItem('pl_referral_code_expires', String(Date.now() + 30 * 86400000));
 
       setData((current) => ({
         ...current,
@@ -84,12 +100,16 @@ export default function SignupWizard() {
     const savedCode = String(
       localStorage.getItem('pl_referral_code') || ''
     ).trim().toUpperCase();
+    const expiresAt = Number(localStorage.getItem('pl_referral_code_expires') || 0);
 
-    if (savedCode) {
+    if (savedCode && expiresAt > Date.now()) {
       setData((current) => ({
         ...current,
         referralCode: savedCode,
       }));
+    } else {
+      localStorage.removeItem('pl_referral_code');
+      localStorage.removeItem('pl_referral_code_expires');
     }
   }, []);
 
@@ -358,6 +378,19 @@ export default function SignupWizard() {
       });
     }
 
+    if (!influencerInviteToken && data.referralCode.trim()) {
+      const referralExpiresAt = Number(localStorage.getItem('pl_referral_code_expires') || 0);
+      if (referralExpiresAt <= Date.now()) {
+        localStorage.removeItem('pl_referral_code');
+        localStorage.removeItem('pl_referral_code_expires');
+        set('referralCode', '');
+        return toast({
+          title: 'Referral code expired',
+          description: 'Re-enter the code to apply its campaign attribution, or continue without one.',
+        });
+      }
+    }
+
     setBusy(true);
 
     try {
@@ -372,11 +405,12 @@ export default function SignupWizard() {
         dob: data.dob,
         address: data.address || null,
         referral_code:
-          data.referralCode.trim()
+          !influencerInviteToken && data.referralCode.trim()
             ? data.referralCode
                 .trim()
                 .toUpperCase()
             : null,
+        influencer_invite_token: influencerInviteToken || null,
         sms_consent: !!data.sms_consent,
         marketing_email_consent: !!data.marketing_email_consent,
       };
@@ -395,6 +429,7 @@ export default function SignupWizard() {
       localStorage.removeItem(
         'pl_referral_code'
       );
+      localStorage.removeItem('pl_influencer_invite');
 
       await refresh?.();
 
@@ -422,7 +457,7 @@ export default function SignupWizard() {
           ? requestedNext
           : '/choose-world';
 
-      nav(safeNext, {
+      nav(result?.user?.role === 'influencer' ? '/influencer' : safeNext, {
         replace: true,
       });
     } catch (error) {
@@ -613,18 +648,17 @@ export default function SignupWizard() {
             <Input
               data-testid="signup-referral-code"
               value={data.referralCode}
-              onChange={(event) =>
-                set(
-                  'referralCode',
-                  event.target.value
-                    .toUpperCase()
-                    .replace(
-                      /[^A-Z0-9]/g,
-                      ''
-                    )
-                    .slice(0, 32)
-                )
-              }
+              onChange={(event) => {
+                const code = event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 32);
+                set('referralCode', code);
+                if (code) {
+                  localStorage.setItem('pl_referral_code', code);
+                  localStorage.setItem('pl_referral_code_expires', String(Date.now() + 30 * 86400000));
+                } else {
+                  localStorage.removeItem('pl_referral_code');
+                  localStorage.removeItem('pl_referral_code_expires');
+                }
+              }}
               placeholder="Enter referral code"
               autoCapitalize="characters"
               autoComplete="off"

@@ -63,6 +63,8 @@ const CompanySettingsAdmin = lazy(() => import('./pages/admin/CompanySettings'))
 const PostalEntriesAdmin = lazy(() => import('./pages/admin/PostalEntriesAdmin'));
 const UserDetailsPage = lazy(() => import('./pages/admin/UserDetailsPage'));
 const ReferralsBonusesAdmin = lazy(() => import('./pages/admin/ReferralsBonusesAdmin'));
+const InfluencersAdmin = lazy(() => import('./pages/admin/InfluencersAdmin'));
+const InfluencerDashboard = lazy(() => import('./pages/InfluencerDashboard'));
 const FreeWorldAdmin = lazy(() => import('./pages/admin/FreeWorldAdmin'));
 const SpecialChallengeAdmin = lazy(() => import('./pages/admin/SpecialChallengeAdmin'));
 const WinningsPayoutsAdmin = lazy(() => import('./pages/admin/WinningsPayoutsAdmin'));
@@ -438,6 +440,11 @@ function AppRouter() {
         element={<AdminLogin />}
       />
 
+      <Route
+        path="/influencer"
+        element={<InfluencerDashboard />}
+      />
+
 
       {/* =========================
           GOOGLE AUTH CALLBACK
@@ -446,16 +453,6 @@ function AppRouter() {
       <Route
         path="/auth-callback"
         element={<AuthCallback />}
-      />
-
-
-      {/* =========================
-          PROMOTION DRAW STUDIO
-      ========================== */}
-
-      <Route
-        path="/admin/promotion/draw-studio"
-        element={<PromotionDrawStudio />}
       />
 
 
@@ -541,6 +538,11 @@ function AppRouter() {
           element={<PromotionCampaignsAdmin />}
         />
 
+        <Route
+          path="promotion/draw-studio"
+          element={<PromotionDrawStudio />}
+        />
+
 
         <Route
           path="wallets"
@@ -585,6 +587,11 @@ function AppRouter() {
         <Route
           path="acquisition"
           element={<AcquisitionAdmin />}
+        />
+
+        <Route
+          path="influencers"
+          element={<InfluencersAdmin />}
         />
 
         <Route

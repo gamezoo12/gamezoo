@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 import hashlib
 import logging
+import os
 import uuid
 
 from pymongo.errors import DuplicateKeyError
@@ -30,6 +31,25 @@ admin_wallet_router = APIRouter(prefix='/api/admin/wallets', tags=['admin-wallet
 class TopupInput(BaseModel):
     # amount = number of tokens (integer). 1 token = £1.
     amount: int = Field(..., ge=int(MIN_TOPUP), le=int(MAX_TOPUP), description=f'Number of tokens. Min {int(MIN_TOPUP)}, max {int(MAX_TOPUP)}.')
+
+
+def _mock_wallet_topup_enabled() -> bool:
+    environments = {
+        value.strip().lower()
+        for value in (os.getenv('ENVIRONMENT') or '', os.getenv('APP_ENV') or '')
+        if value.strip()
+    }
+    stripe_mode = (os.getenv('STRIPE_MODE') or '').strip().lower()
+    secret_key = os.getenv('STRIPE_SECRET_KEY', '')
+    explicit_opt_in = (os.getenv('ENABLE_MOCK_WALLET_TOPUP') or '').strip().lower() == 'true'
+    development_environments = {'development', 'dev', 'local', 'test'}
+    return bool(
+        explicit_opt_in
+        and environments
+        and environments.issubset(development_environments)
+        and stripe_mode != 'live'
+        and not secret_key.startswith('sk_live_')
+    )
 
 
 class AdminAdjustInput(BaseModel):
@@ -435,9 +455,9 @@ async def _apply_tx_idempotent(
 
     from services.bonus_grants import r2
     source_amounts = {
-        'bonus_amount': None,
-        'purchased_amount': None,
-        'withdrawable_amount': None,
+        'bonus_amount': 0.0,
+        'purchased_amount': 0.0,
+        'withdrawable_amount': 0.0,
     }
     inc = {
         "balance":
@@ -582,6 +602,7 @@ async def _apply_tx_idempotent(
         balance_after=new_balance,
         note=note,
         ref_order_id=ref_order_id,
+            **source_amounts,
     )
 
     tx_doc = tx.model_dump()
@@ -649,6 +670,8 @@ async def topup(inp: TopupInput, request: Request):
     """MOCKED token top-up for dev only — instantly credits N tokens.
     Production uses Stripe checkout via /payments/wallet-topup/*.
     """
+    if not _mock_wallet_topup_enabled():
+        raise HTTPException(status_code=404, detail='Not found')
     user = await require_verified_user(request)
     db = get_db()
     tokens = int(inp.amount)

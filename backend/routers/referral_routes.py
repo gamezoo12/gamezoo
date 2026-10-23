@@ -51,6 +51,7 @@ async def _notify_reward(
         title=title,
         body=body,
         ref_tx_id=ref_tx_id,
+        target_url='/my-account/referrals',
     )
 
 

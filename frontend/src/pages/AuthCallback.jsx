@@ -14,6 +14,7 @@ export default function AuthCallback() {
   const { setGoogleUser, refresh } = useAuth();
   const done = useRef(false);
   const [needsFinalize, setNeedsFinalize] = useState(false);
+  const [pendingUser, setPendingUser] = useState(null);
 
   useEffect(() => {
     if (done.current) return;
@@ -26,6 +27,7 @@ export default function AuthCallback() {
         const r = await authAPI.googleSession(m[1]);
         if (r?.session_token) localStorage.setItem('gz_token', r.session_token);
         if (r?.user) setGoogleUser(r.user);
+        setPendingUser(r?.user || null);
         // strip the session_id from URL bar
         window.history.replaceState(null, '', '/');
         const u = r?.user;
@@ -35,10 +37,9 @@ export default function AuthCallback() {
           setNeedsFinalize(true);
         } else {
           const savedNext = sessionStorage.getItem('pl_google_next');
-          const destination =
-            savedNext &&
-            savedNext.startsWith('/') &&
-            !savedNext.startsWith('//')
+          const destination = u?.role === 'influencer'
+            ? '/influencer'
+            : savedNext && savedNext.startsWith('/') && !savedNext.startsWith('//')
               ? savedNext
               : '/choose-world';
 
@@ -58,10 +59,9 @@ export default function AuthCallback() {
     await refresh?.();
 
     const savedNext = sessionStorage.getItem('pl_google_next');
-    const destination =
-      savedNext &&
-      savedNext.startsWith('/') &&
-      !savedNext.startsWith('//')
+    const destination = pendingUser?.role === 'influencer'
+      ? '/influencer'
+      : savedNext && savedNext.startsWith('/') && !savedNext.startsWith('//')
         ? savedNext
         : '/choose-world';
 

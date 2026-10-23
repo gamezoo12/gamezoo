@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -21,6 +21,13 @@ router = APIRouter(
 )
 
 
+async def _require_promo_admin(request: Request) -> dict:
+    user = await require_admin(request)
+    if user.get('role') not in ('admin', 'super_admin'):
+        raise HTTPException(status_code=403, detail='Admin or super admin only')
+    return user
+
+
 class PromoCreate(BaseModel):
     code: str = Field(..., min_length=2, max_length=32)
     influencer_name: str = Field(..., min_length=1, max_length=120)
@@ -34,6 +41,28 @@ class PromoCreate(BaseModel):
     starts_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
     active: bool = True
+    influencer_id: Optional[str] = Field(default=None, min_length=3, max_length=128)
+    reward_type: Literal['none', 'cash', 'tokens', 'both'] = 'none'
+    registration_commission_pence: int = Field(default=0, ge=0, le=1000000)
+    registration_commission_tokens: float = Field(default=0, ge=0, le=100000)
+    registration_eligibility: Literal['email_verified', 'mobile_verified', 'first_topup'] = 'email_verified'
+    topup_commission_mode: Literal['disabled', 'percentage', 'fixed'] = 'disabled'
+    topup_commission_bps: int = Field(default=0, ge=0, le=10000)
+    topup_fixed_commission_pence: int = Field(default=0, ge=0, le=1000000)
+    topup_token_mode: Literal['fixed', 'percentage'] = 'fixed'
+    topup_commission_tokens: float = Field(default=0, ge=0, le=100000)
+    topup_qualification: Literal['first_success', 'every_success', 'first_n'] = 'first_success'
+    topup_first_n: int = Field(default=1, ge=1, le=100)
+    topup_minimum_pence: int = Field(default=0, ge=0, le=1000000)
+    attribution_window_days: int = Field(default=30, ge=1, le=365)
+    exclude_tax: bool = True
+    signup_reward_tokens: float = Field(default=0, ge=0, le=10000)
+    topup_reward_tokens: float = Field(default=0, ge=0, le=10000)
+    topup_reward_mode: Literal['fixed', 'percentage'] = 'fixed'
+    topup_reward_bps: int = Field(default=0, ge=0, le=10000)
+    bonus_expiry_days: Optional[int] = Field(default=None, ge=1, le=3650)
+    commission_cap_pence: Optional[int] = Field(default=None, ge=0, le=100000000)
+    budget_pence: Optional[int] = Field(default=None, ge=0, le=1000000000)
 
 
 class PromoUpdate(BaseModel):
@@ -48,6 +77,27 @@ class PromoUpdate(BaseModel):
     starts_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
     active: Optional[bool] = None
+    reward_type: Optional[Literal['none', 'cash', 'tokens', 'both']] = None
+    registration_commission_pence: Optional[int] = Field(default=None, ge=0, le=1000000)
+    registration_commission_tokens: Optional[float] = Field(default=None, ge=0, le=100000)
+    registration_eligibility: Optional[Literal['email_verified', 'mobile_verified', 'first_topup']] = None
+    topup_commission_mode: Optional[Literal['disabled', 'percentage', 'fixed']] = None
+    topup_commission_bps: Optional[int] = Field(default=None, ge=0, le=10000)
+    topup_fixed_commission_pence: Optional[int] = Field(default=None, ge=0, le=1000000)
+    topup_token_mode: Optional[Literal['fixed', 'percentage']] = None
+    topup_commission_tokens: Optional[float] = Field(default=None, ge=0, le=100000)
+    topup_qualification: Optional[Literal['first_success', 'every_success', 'first_n']] = None
+    topup_first_n: Optional[int] = Field(default=None, ge=1, le=100)
+    topup_minimum_pence: Optional[int] = Field(default=None, ge=0, le=1000000)
+    attribution_window_days: Optional[int] = Field(default=None, ge=1, le=365)
+    exclude_tax: Optional[bool] = None
+    signup_reward_tokens: Optional[float] = Field(default=None, ge=0, le=10000)
+    topup_reward_tokens: Optional[float] = Field(default=None, ge=0, le=10000)
+    topup_reward_mode: Optional[Literal['fixed', 'percentage']] = None
+    topup_reward_bps: Optional[int] = Field(default=None, ge=0, le=10000)
+    bonus_expiry_days: Optional[int] = Field(default=None, ge=1, le=3650)
+    commission_cap_pence: Optional[int] = Field(default=None, ge=0, le=100000000)
+    budget_pence: Optional[int] = Field(default=None, ge=0, le=1000000000)
 
 
 def _clean_code(value: str) -> str:
@@ -64,19 +114,19 @@ def _clean_code(value: str) -> str:
 
 @router.get("/reward-settings")
 async def admin_reward_settings(request: Request):
-    await require_admin(request)
+    await _require_promo_admin(request)
     return await get_reward_settings(get_db())
 
 
 @router.put("/reward-settings")
 async def admin_update_reward_settings(payload: dict, request: Request):
-    await require_admin(request)
+    await _require_promo_admin(request)
     return await save_reward_settings(get_db(), payload)
 
 
 @router.get("/influencer-promos")
 async def list_influencer_promos(request: Request):
-    await require_admin(request)
+    await _require_promo_admin(request)
 
     db = get_db()
 
@@ -93,10 +143,15 @@ async def list_influencer_promos(request: Request):
 
 @router.post("/influencer-promos")
 async def create_influencer_promo(inp: PromoCreate, request: Request):
-    await require_admin(request)
+    await _require_promo_admin(request)
 
     db = get_db()
     code = _clean_code(inp.code)
+
+    if inp.influencer_id and not await db.influencers.find_one(
+        {'influencer_id': inp.influencer_id, 'status': 'active'}, {'_id': 1}
+    ):
+        raise HTTPException(status_code=404, detail='Active influencer profile not found')
 
     existing = await db.influencer_promos.find_one(
         {"code": code},
@@ -153,6 +208,28 @@ async def create_influencer_promo(inp: PromoCreate, request: Request):
         "expires_at": inp.expires_at,
 
         "active": inp.active,
+        "influencer_id": inp.influencer_id,
+        "reward_type": inp.reward_type,
+        "registration_commission_pence": inp.registration_commission_pence,
+        "registration_commission_tokens": inp.registration_commission_tokens,
+        "registration_eligibility": inp.registration_eligibility,
+        "topup_commission_mode": inp.topup_commission_mode,
+        "topup_commission_bps": inp.topup_commission_bps,
+        "topup_fixed_commission_pence": inp.topup_fixed_commission_pence,
+        "topup_token_mode": inp.topup_token_mode,
+        "topup_commission_tokens": inp.topup_commission_tokens,
+        "topup_qualification": inp.topup_qualification,
+        "topup_first_n": inp.topup_first_n,
+        "topup_minimum_pence": inp.topup_minimum_pence,
+        "attribution_window_days": inp.attribution_window_days,
+        "exclude_tax": inp.exclude_tax,
+        "signup_reward_tokens": inp.signup_reward_tokens,
+        "topup_reward_tokens": inp.topup_reward_tokens,
+        "topup_reward_mode": inp.topup_reward_mode,
+        "topup_reward_bps": inp.topup_reward_bps,
+        "bonus_expiry_days": inp.bonus_expiry_days,
+        "commission_cap_pence": inp.commission_cap_pence,
+        "budget_pence": inp.budget_pence,
         "created_at": now,
         "updated_at": now,
     }
@@ -170,7 +247,7 @@ async def update_influencer_promo(
     inp: PromoUpdate,
     request: Request,
 ):
-    await require_admin(request)
+    await _require_promo_admin(request)
 
     db = get_db()
 

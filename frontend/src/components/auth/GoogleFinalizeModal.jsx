@@ -20,7 +20,7 @@ import { useToast } from '../../hooks/use-toast';
  * abandon by leaving the page entirely (which will re-trigger the modal next
  * time they land on the app while unverified).
  */
-export default function GoogleFinalizeModal({ open, onComplete }) {
+export default function GoogleFinalizeModal({ open, onComplete, onSignOut }) {
   const [step, setStep] = useState(1);
   const [busy, setBusy] = useState(false);
   const [cooldown, setCooldown] = useState(0);
@@ -72,21 +72,30 @@ export default function GoogleFinalizeModal({ open, onComplete }) {
     if (!data.accept_terms) return toast({ title: 'Please accept the Terms & Privacy Policy' });
     setBusy(true);
     try {
+      const storedReferralExpiry = Number(localStorage.getItem('pl_referral_code_expires') || 0);
+      const referralIsCurrent = storedReferralExpiry > Date.now();
+      const sessionReferralCode = referralIsCurrent ? sessionStorage.getItem('pl_google_referral_code') : null;
+      const storedReferralCode = referralIsCurrent
+        ? localStorage.getItem('pl_referral_code')
+        : null;
+      if (!storedReferralCode && !sessionReferralCode) {
+        localStorage.removeItem('pl_referral_code');
+        localStorage.removeItem('pl_referral_code_expires');
+        sessionStorage.removeItem('pl_google_referral_code');
+      }
       const r = await api.post('/auth/google/finalize', {
         phone: data.normalizedPhone || data.phone,
         otp_code: data.code,
         accept_terms: true,
         dob: data.dob,
         address: data.address || null,
-        referral_code:
-          sessionStorage.getItem('pl_google_referral_code') ||
-          localStorage.getItem('pl_referral_code') ||
-          null,
+        referral_code: sessionReferralCode || storedReferralCode || null,
         sms_consent: !!data.sms_consent,
         marketing_email_consent: !!data.marketing_email_consent,
       }).then(x => x.data);
       sessionStorage.removeItem('pl_google_referral_code');
       localStorage.removeItem('pl_referral_code');
+      localStorage.removeItem('pl_referral_code_expires');
 
       toast({ title: 'You&apos;re all set 🎉', description: `Welcome, ${r?.user?.name?.split(' ')[0] || 'friend'}!` });
       onComplete?.(r?.user);
@@ -116,6 +125,13 @@ export default function GoogleFinalizeModal({ open, onComplete }) {
         data-testid="google-finalize-modal"
       >
         <Progress />
+        {onSignOut && (
+          <div className="absolute right-4 top-3">
+            <button type="button" onClick={onSignOut} data-testid="gf-signout" className="text-xs text-slate-500 underline hover:text-slate-900">
+              Sign out
+            </button>
+          </div>
+        )}
 
         {step === 1 && (
           <form onSubmit={submitDob} className="space-y-3">

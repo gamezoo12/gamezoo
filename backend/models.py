@@ -181,7 +181,7 @@ class User(BaseModel):
     picture: Optional[str] = None
     password_hash: Optional[str] = None  # only for email/password users
     method: Literal['email', 'google'] = 'email'
-    role: Literal['user', 'admin', 'super_admin', 'operator', 'support'] = 'user'
+    role: Literal['user', 'admin', 'super_admin', 'operator', 'support', 'influencer'] = 'user'
     must_change_password: bool = False  # forced on Super Admin first login
     free_world_started_global_contest: Optional[int] = None
     referral_code: str = Field(default_factory=lambda: uuid.uuid4().hex[:8].upper())
@@ -252,6 +252,7 @@ class RegisterInput(BaseModel):
     dob: str = Field(..., description="YYYY-MM-DD, 18+ enforced server-side")
     address: Optional[str] = None
     referral_code: Optional[str] = None
+    influencer_invite_token: Optional[str] = Field(default=None, max_length=128)
     sms_consent: bool = False
     marketing_email_consent: bool = False
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Package, ShoppingBag, Trophy, BarChart3, LogOut, Shield, CreditCard, Settings as SettingsIcon, ShieldCheck, Wallet as WalletIcon, Gamepad2, Menu, X, ClipboardList, FileText, Building2, Mailbox, Gift, Banknote, Bell, Medal, LifeBuoy } from 'lucide-react';
+import { LayoutDashboard, Users, Package, ShoppingBag, Trophy, BarChart3, LogOut, Shield, CreditCard, Settings as SettingsIcon, ShieldCheck, Wallet as WalletIcon, Gamepad2, Menu, X, ClipboardList, FileText, Building2, Mailbox, Gift, Banknote, Bell, Medal, LifeBuoy, Handshake } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import PrizeLeagueLogo from '../layout/PrizeLeagueLogo';
 import MeeraChat from '../MeeraChat';
@@ -38,6 +38,7 @@ const LINKS = [
    { to: '/admin/roles', label: 'Roles & Permissions', icon: ShieldCheck },
    { to: '/admin/kyc', label: 'KYC', icon: Shield },
    { to: '/admin/acquisition', label: 'Acquisition', icon: BarChart3 },
+  { to: '/admin/influencers', label: 'Influencers', icon: Handshake, adminOnly: true },
   { to: '/admin/promotion', label: 'Legacy Promotion Draw', icon: Gift },
   { to: '/admin/promotion-campaigns', label: 'Promotion Campaigns', icon: Gift },
    { to: '/admin/legal', label: 'Legal Docs', icon: FileText },
@@ -58,6 +59,7 @@ export default function AdminLayout() {
  useEffect(() => {
  if (loading) return;
  if (!user) nav('/admin/login', { replace: true });
+ else if (user.role === 'influencer') nav('/influencer', { replace: true });
  else if (!['admin', 'super_admin', 'operator', 'support'].includes(user.role)) nav('/', { replace: true });
  }, [user, loading, nav]);
 
@@ -74,7 +76,7 @@ export default function AdminLayout() {
  </Link>
  <div className="px-5 pt-4 pb-2 text-[10px] uppercase tracking-widest text-[#FFD54A]/70 font-bold">Admin Panel</div>
  <nav className="flex-1 p-3 space-y-3 overflow-y-auto" onClick={onNav}>
- {LINKS.map((group, index) => (
+ {LINKS.map((group, index) => ({ ...group, items: group.items.filter(item => !item.adminOnly || ['admin', 'super_admin'].includes(user.role)) })).filter(group => group.items.length > 0).map((group, index) => (
    <div key={group.group} className="space-y-1">
      <div className="px-2 pb-1 pt-1 text-[10px] uppercase tracking-[0.18em] text-white/40">{group.group}</div>
      {group.items.map((l) => (

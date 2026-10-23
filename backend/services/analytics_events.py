@@ -39,7 +39,8 @@ async def staff_user_ids(db) -> list:
     return [r['user_id'] for r in rows]
 
 
-async def record_staff_role_transition(db, user_id: str, old_role: str, new_role: str, at=None) -> None:
+async def record_staff_role_transition(db, user_id: str, old_role: str, new_role: str, at=None,
+                                       transition_id: str | None = None) -> None:
     """Record role intervals so a later promotion does not erase earlier public traffic."""
     old_staff = old_role in STAFF_ROLES
     new_staff = new_role in STAFF_ROLES
@@ -47,9 +48,15 @@ async def record_staff_role_transition(db, user_id: str, old_role: str, new_role
         return
     at = at or datetime.now(timezone.utc)
     if new_staff:
-        await db.staff_role_history.insert_one({
+        record = {
             'user_id': user_id, 'role': new_role, 'started_at': at, 'ended_at': None,
-        })
+        }
+        if transition_id:
+            record['transition_id'] = transition_id
+            await db.staff_role_history.update_one(
+                {'transition_id': transition_id}, {'$setOnInsert': record}, upsert=True)
+        else:
+            await db.staff_role_history.insert_one(record)
     else:
         await db.staff_role_history.update_one(
             {'user_id': user_id, 'ended_at': None}, {'$set': {'ended_at': at, 'end_role': new_role}},

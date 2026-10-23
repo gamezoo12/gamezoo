@@ -207,6 +207,9 @@ async def register(inp: RegisterInput, request: Request):
     #   1. an admin-created influencer promo code, OR
     #   2. an existing user's personal referral code.
     referral_code = (inp.referral_code or '').strip().upper()
+    invite_token = (inp.influencer_invite_token or '').strip()
+    if invite_token and referral_code:
+        raise HTTPException(status_code=400, detail='Use either a referral code or an influencer invitation, not both')
 
     if referral_code:
         from services.reward_program import (
@@ -266,9 +269,29 @@ async def register(inp: RegisterInput, request: Request):
         terms_accepted_at=datetime.now(timezone.utc),
     )
     doc = user.model_dump()
-    await db.users.insert_one(doc)
+    influencer_invite = None
+    if invite_token:
+        from routers.influencer_routes import claim_influencer_invite
+        influencer_invite = await claim_influencer_invite(
+            db, token=invite_token, email=normalized_email, user_id=user.user_id)
+        doc['influencer_invite_id'] = influencer_invite['invite_id']
+    try:
+        await db.users.insert_one(doc)
+    except Exception:
+        if influencer_invite:
+            await db.influencer_invites.update_one(
+                {'invite_id': influencer_invite['invite_id'], 'claimed_by_user_id': user.user_id, 'used': False},
+                {'$unset': {'claimed_by_user_id': '', 'claimed_at': '', 'claim_expires_at': ''}},
+            )
+        raise
 
-    if referred_by:
+    if influencer_invite:
+        from routers.influencer_routes import complete_influencer_invite
+        profile = await complete_influencer_invite(db, invite=influencer_invite, user_id=user.user_id)
+        doc['role'] = 'influencer'
+        doc['influencer_id'] = profile['influencer_id']
+
+    elif referred_by:
         # Existing personal referral behaviour — unchanged.
         r = Referral(
             referrer_user_id=referred_by,
@@ -296,6 +319,13 @@ async def register(inp: RegisterInput, request: Request):
             user_id=user.user_id,
             promo=influencer_promo,
         )
+
+        try:
+            from services.influencer_commissions import record_registration_commission
+            await record_registration_commission(db, user.user_id)
+        except Exception:
+            import logging
+            logging.exception('Influencer registration qualification failed user=%s', user.user_id)
 
         await db.users.update_one(
             {'user_id': user.user_id},
@@ -634,6 +664,31 @@ async def finalize_google_signup(inp: GoogleFinalizeInput, request: Request):
         raise HTTPException(status_code=400, detail='You must accept the Terms & Privacy Policy.')
     _assert_18_plus(inp.dob)
 
+    referral_code = (inp.referral_code or '').strip().upper()
+    created_at = user.get('created_at')
+    if isinstance(created_at, str):
+        try:
+            created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+        except ValueError:
+            created_at = None
+    if isinstance(created_at, datetime) and created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=timezone.utc)
+    is_new_google_signup = not user.get('terms_accepted_at') and created_at is not None and \
+        datetime.now(timezone.utc) - created_at <= timedelta(hours=24)
+    influencer_promo = None
+    if referral_code and is_new_google_signup:
+        influencer_promo = await db.influencer_promos.find_one(
+            {'code': referral_code, 'active': True}, {'_id': 0})
+        if influencer_promo and influencer_promo.get('influencer_id'):
+            from services.influencer_commissions import _utc
+            now = datetime.now(timezone.utc)
+            starts_at = _utc(influencer_promo.get('starts_at'))
+            expires_at = _utc(influencer_promo.get('expires_at'))
+            influencer = await db.influencers.find_one(
+                {'influencer_id': influencer_promo['influencer_id'], 'status': 'active'}, {'_id': 1})
+            if (starts_at and now < starts_at) or (expires_at and now > expires_at) or not influencer:
+                raise HTTPException(status_code=400, detail='Influencer campaign is not active')
+
     normalized_phone = await _verify_twilio_otp(inp.phone, inp.otp_code)
 
     other = await db.users.find_one(
@@ -673,12 +728,34 @@ async def finalize_google_signup(inp: GoogleFinalizeInput, request: Request):
         {'user_id': user['user_id']},
         {'$set': _fin_set},
     )
-    # Apply a personal referral once, at successful Google signup finalization.
-    # This does not alter the separate £10/top-up token reward programme.
-    referral_code = (inp.referral_code or '').strip().upper()
+    # Apply first-touch referral attribution only while completing a new Google signup.
+    if referral_code and is_new_google_signup:
+        if influencer_promo and influencer_promo.get('influencer_id'):
+            from services.reward_program import create_influencer_attribution
+            await create_influencer_attribution(db, user_id=user['user_id'], promo=influencer_promo)
+            try:
+                from services.influencer_commissions import record_registration_commission
+                await record_registration_commission(db, user['user_id'])
+            except Exception:
+                import logging
+                logging.exception('Google influencer registration qualification failed user=%s', user['user_id'])
+            await db.users.update_one(
+                {'user_id': user['user_id']},
+                {'$set': {'acquisition_type': 'influencer', 'influencer_promo_id': influencer_promo['promo_id'],
+                          'influencer_promo_code': influencer_promo['code']}},
+            )
+        else:
+            await _apply_google_personal_referral(db, user['user_id'], referral_code)
+
+    fresh = await db.users.find_one({'user_id': user['user_id']}, {'_id': 0, 'password_hash': 0})
+    return {'ok': True, 'user': _to_public(fresh)}
+
+
+async def _apply_google_personal_referral(db, user_id: str, referral_code: str) -> None:
+    """Preserve the existing personal referral flow for newly finalized Google accounts."""
     if referral_code:
         existing_ref = await db.referrals.find_one(
-            {'referred_user_id': user['user_id']},
+            {'referred_user_id': user_id},
             {'_id': 0, 'referral_id': 1},
         )
         if not existing_ref:
@@ -686,18 +763,18 @@ async def finalize_google_signup(inp: GoogleFinalizeInput, request: Request):
                 {'referral_code': referral_code},
                 {'_id': 0, 'user_id': 1},
             )
-            if not ref_user or ref_user.get('user_id') == user['user_id']:
+            if not ref_user or ref_user.get('user_id') == user_id:
                 raise HTTPException(status_code=400, detail='Invalid referral code.')
 
             from models import Referral
             referral = Referral(
                 referrer_user_id=ref_user['user_id'],
-                referred_user_id=user['user_id'],
+                referred_user_id=user_id,
                 code=referral_code,
             )
             await db.referrals.insert_one(referral.model_dump())
             await db.users.update_one(
-                {'user_id': user['user_id']},
+                {'user_id': user_id},
                 {'$set': {
                     'referred_by': ref_user['user_id'],
                     'signup_bonus_offer_eligible': True,
@@ -705,13 +782,7 @@ async def finalize_google_signup(inp: GoogleFinalizeInput, request: Request):
             )
 
             from routers.promotion_routes import auto_join_referred_signup
-            await auto_join_referred_signup(db, user['user_id'])
-
-    fresh = await db.users.find_one({'user_id': user['user_id']}, {'_id': 0, 'password_hash': 0})
-    return {
-        'ok': True,
-        'user': _to_public(fresh),
-    }
+            await auto_join_referred_signup(db, user_id)
 
 
 class PasswordResetSendInput(BaseModel):

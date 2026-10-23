@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 import requests
+from pymongo import MongoClient
 
 BASE = (os.environ.get('REACT_APP_BACKEND_URL') or 'http://localhost:8001').rstrip('/')
 API = f'{BASE}/api'
@@ -34,14 +35,21 @@ def seed_user(name, role='user', created='new Date()', complete=True):
 def world():
     users = {'admin': seed_user('admin', 'admin'), 'player': seed_user('player')}
     yield users
-    ids = json.dumps([u[0] for u in users.values()])
-    mongo(f'''const ids={ids};
-    ["users","user_sessions","acquisition_attributions","staff_activity_log","staff_role_history"].forEach(c=>db.getCollection(c).deleteMany({{$or:[{{user_id:{{$in:ids}}}}]}}));
-      db.acquisition_page_views.deleteMany({{campaign:"{CAMPAIGN}"}});
-      db.acquisition_sessions.deleteMany({{campaign:"{CAMPAIGN}"}});
-    db.acquisition_events.deleteMany({{$or:[{{visitor_id:/^v_{RUN}/}},{{user_id:{{$in:ids}}}}]}});
-      db.acquisition_visitors.deleteMany({{visitor_id:/^v_{RUN}/}});
-      db.acquisition_visits.deleteMany({{visitor_id:/^v_{RUN}/}});''')
+    ids = [u[0] for u in users.values()]
+    client = MongoClient(os.environ.get('MONGO_URL', 'mongodb://localhost:27017'))
+    try:
+        db = client[os.environ.get('DB_NAME', 'test_database')]
+        for collection in ('users', 'user_sessions', 'acquisition_attributions', 'staff_activity_log', 'staff_role_history'):
+            db[collection].delete_many({'user_id': {'$in': ids}})
+        db.acquisition_page_views.delete_many({'campaign': CAMPAIGN})
+        db.acquisition_sessions.delete_many({'campaign': CAMPAIGN})
+        db.acquisition_events.delete_many({'$or': [
+            {'visitor_id': {'$regex': f'^v_{RUN}'}}, {'user_id': {'$in': ids}},
+        ]})
+        db.acquisition_visitors.delete_many({'visitor_id': {'$regex': f'^v_{RUN}'}})
+        db.acquisition_visits.delete_many({'visitor_id': {'$regex': f'^v_{RUN}'}})
+    finally:
+        client.close()
 
 
 def view(visitor, session, path, prev='', headers=None, first=False, view_id=None, variant=''):

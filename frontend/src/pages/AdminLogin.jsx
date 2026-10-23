@@ -21,6 +21,11 @@ export default function AdminLogin() {
  try {
  const fd = new FormData(e.currentTarget);
  const u = await login({ email: fd.get('email'), password: fd.get('password') });
+ if (u.role === 'influencer') {
+ toast({ title: `Welcome, ${u.name || 'partner'}` });
+ nav('/influencer');
+ return;
+ }
  if (!['admin', 'super_admin', 'operator', 'support'].includes(u.role)) {
  toast({ title: 'Not a staff account', description: 'Use the player login page.' });
  nav('/');

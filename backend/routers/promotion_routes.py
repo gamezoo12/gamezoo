@@ -5,7 +5,7 @@ from pymongo.errors import DuplicateKeyError
 from fastapi import APIRouter, HTTPException, Request, Query
 from pydantic import BaseModel, Field
 from typing import Literal
-from auth import get_current_user, require_admin
+from auth import get_current_user, require_admin, require_verified_user
 from deps import get_db
 
 router=APIRouter(prefix='/api/promotion',tags=['promotion']);admin_router=APIRouter(prefix='/api/admin/promotion',tags=['admin-promotion'])
@@ -127,7 +127,7 @@ async def list_promotion_campaigns(request:Request):
 
 @router.post('/campaigns/{promotion_id}/claim')
 async def claim_promotion_campaign(promotion_id:str,request:Request):
- user=await get_current_user(request);db=get_db();campaign=await _get_campaign(db,promotion_id)
+ user=await require_verified_user(request);db=get_db();campaign=await _get_campaign(db,promotion_id)
  if not campaign:raise HTTPException(404,'Promotion not found')
  if not campaign.get('is_live'):raise HTTPException(410,'This promotion has expired or is not open yet.')
  if campaign.get('legacy'):
@@ -206,7 +206,7 @@ async def promotion_me(request:Request):
  return {'promotion':cfg,'joined':bool(entry),'tickets':tickets,'ticket_count':len(tickets),'base_ticket_count':sum(1 for t in tickets if t.get('source')=='join'),'referral_ticket_count':sum(1 for t in tickets if t.get('source')=='referral')}
 @router.post('/join')
 async def join_promotion(request:Request):
- user=await get_current_user(request);db=get_db();cfg=await _config(db)
+ user=await require_verified_user(request);db=get_db();cfg=await _config(db)
  if not cfg['is_live']:raise HTTPException(400,'Promotion is not currently open.')
  pid=cfg['promotion_id'];uid=user['user_id'];now=datetime.now(timezone.utc)
  await db.promotion_entries.update_one({'promotion_id':pid,'user_id':uid},{'$setOnInsert':{'promotion_id':pid,'user_id':uid,'joined_at':now}},upsert=True)

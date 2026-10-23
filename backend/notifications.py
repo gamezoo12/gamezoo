@@ -3,8 +3,11 @@ backend.  All notifications land in the `notifications` collection and are
 served by /api/users/notifications (existing).
 """
 import uuid
+import logging
 from datetime import datetime, timezone
 from typing import Optional
+
+log = logging.getLogger(__name__)
 
 
 async def notify(db, *,
@@ -15,7 +18,9 @@ async def notify(db, *,
                  contest_id: Optional[str] = None,
                  ref_order_id: Optional[str] = None,
                  ref_tx_id: Optional[str] = None,
-                 ref_ticket_id: Optional[str] = None) -> None:
+                 ref_ticket_id: Optional[str] = None,
+                 event_id: Optional[str] = None,
+                 target_url: Optional[str] = None) -> None:
     """Insert a notification doc. Idempotency is NOT enforced here — callers
     should only invoke on the state-transition event (e.g. first-time payment
     confirmation).
@@ -40,4 +45,22 @@ async def notify(db, *,
     if ref_order_id:    doc['ref_order_id'] = ref_order_id
     if ref_tx_id:       doc['ref_tx_id'] = ref_tx_id
     if ref_ticket_id:   doc['ref_ticket_id'] = ref_ticket_id
+    if target_url:      doc['target_url'] = target_url
     await db.notifications.insert_one(doc)
+    try:
+        from services.push_delivery import queue_notification_event
+        await queue_notification_event(
+            db,
+            user_id=user_id,
+            kind=kind,
+            title=title,
+            body=body,
+            event_id=event_id,
+            contest_id=contest_id,
+            ref_order_id=ref_order_id,
+            ref_tx_id=ref_tx_id,
+            ref_ticket_id=ref_ticket_id,
+            target_url=target_url,
+        )
+    except Exception:
+        log.exception('Web Push enqueue failed kind=%s user=%s', kind, user_id)
