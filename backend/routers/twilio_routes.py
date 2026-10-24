@@ -18,7 +18,7 @@ from twilio.base.exceptions import TwilioRestException
 
 from auth import create_jwt, get_current_user
 from models import UserPublic
-from otp_verify import normalize_phone, twilio_verify_client
+from otp_verify import _is_prod, normalize_phone, twilio_verify_client
 
 
 def _to_public(user_doc: dict) -> dict:
@@ -217,11 +217,17 @@ async def send_otp(inp: SendOtpInput):
         if isinstance(newest, str):
             try: newest = datetime.fromisoformat(newest)
             except Exception: newest = now
+        if newest.tzinfo is None:
+            newest = newest.replace(tzinfo=timezone.utc)
         secs_since = (now - newest).total_seconds()
         if secs_since < 30:
             raise HTTPException(status_code=429, detail=f'Please wait {int(30 - secs_since)}s before requesting another code.')
         if len(recent) >= 5:
             raise HTTPException(status_code=429, detail='Too many OTP requests. Please try again in 15 minutes.')
+
+    if os.environ.get('TEST_MODE') == '1' and not _is_prod():
+        await db.otp_attempts.insert_one({'phone': phone, 'sent_at': now})
+        return {'ok': True, 'status': 'pending', 'phone': phone}
 
     client, service_sid = _twilio_client()
     try:

@@ -3,7 +3,7 @@ Prize League — backfill sequential PLxxxxx public User IDs.
 
 Idempotent: only assigns to users missing `public_id`.
 Rules:
-  1. bachanta8@gmail.com → PL10000 (Super Admin)
+  1. <admin-email> → PL10000 (Super Admin)
   2. All other users, sorted by created_at ascending → PL10001, PL10002, ...
   3. Sets counter to (last allocated) so new registrations continue the sequence.
   4. Forces `must_change_password=True` on the Super Admin account.
@@ -28,7 +28,7 @@ from counters import (  # noqa: E402
     USER_PUBLIC_ID_START,
 )
 
-SUPER_ADMIN_EMAIL = 'bachanta8@gmail.com'
+SUPER_ADMIN_EMAIL = os.environ["SUPER_ADMIN_EMAIL"]
 
 
 async def main() -> None:

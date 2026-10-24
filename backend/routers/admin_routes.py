@@ -1284,7 +1284,7 @@ async def create_contest_api(payload: dict, request: Request):
         contest = Contest(
             slug=slug,
             title=title,
-            subtitle=payload.get('subtitle') or f"Â£{int(prize_amount)} cash prize",
+            subtitle=payload.get('subtitle') or f"£{int(prize_amount)} cash prize",
             category=category,
             tag=payload.get('tag') or tag_map.get(category, 'Prize Draws'),
             price=float(payload.get('price') or 1),

@@ -342,6 +342,20 @@ export default function UsersPage() {
     }
   };
 
+  const removeAllBonusTokens = async () => {
+    const reason = window.prompt('Reason for removing ALL active bonus tokens for ALL users (10+ characters):');
+    if (!reason || reason.trim().length < 10) return;
+    const confirm = window.prompt("This cannot be undone. Type 'REMOVE ALL BONUS' to confirm:");
+    if (confirm !== 'REMOVE ALL BONUS') return;
+    try {
+      const r = await adminAPI.revokeAllBonusGrants(reason.trim(), confirm);
+      toast({ title: 'Bonus tokens removed', description: `${r.tokens_removed} tokens removed from ${r.users_affected} users (${r.grants_revoked} grants).` });
+      load();
+    } catch (error) {
+      toast({ title: 'Could not remove bonus tokens', description: error?.response?.data?.detail || 'Please try again.' });
+    }
+  };
+
   const revokeUserWebPush = async (user) => {
     const reason = window.prompt('Reason for revoking Web Push consent (10+ characters):');
     if (!reason || reason.trim().length < 10) {
@@ -675,6 +689,9 @@ export default function UsersPage() {
           </Button>
           <Button type="button" variant="outline" onClick={() => openBulkAction('web_push_revoke')} disabled={!selectedUserIds.size}>
             Revoke Web Push
+          </Button>
+          <Button type="button" variant="outline" className="border-rose-300 text-rose-700" onClick={removeAllBonusTokens} data-testid="remove-all-bonus-tokens">
+            Remove bonus tokens (all users)
           </Button>
         </div>
       </div>

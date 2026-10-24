@@ -352,3 +352,97 @@ def test_expiry_options_validate_and_calculate_uk_day_end():
         compute_expiry(now, 'days', 0)
     with pytest.raises(Exception):
         compute_expiry(now, 'date', on_date='2026-06-30')
+
+
+def _as_role(monkeypatch, role):
+    async def admin(_request):
+        return {'user_id': f'test-{role}', 'email': f'{role}@example.test', 'role': role}
+    monkeypatch.setattr(bonus_grants_routes, 'require_admin', admin)
+
+
+def _revoke_all_input(confirm='REMOVE ALL BONUS'):
+    return bonus_grants_routes.RevokeAllInput(reason='bulk bonus removal integration test', confirm=confirm)
+
+
+def test_revoke_all_requires_super_admin_and_confirmation_phrase(monkeypatch, safe_db, user):
+    async def run(db):
+        import deps
+        monkeypatch.setattr(deps, 'get_db', lambda: db)
+        await _get_or_create_wallet(db, user)
+        await create_grant(db, user_id=user, amount=5, expires_at=None, actor_id='a', actor_email='a@test',
+                           reason='revoke-all authorization test', ref_key=f'{user}:auth')
+        _as_role(monkeypatch, 'admin')
+        with pytest.raises(HTTPException) as denied:
+            await bonus_grants_routes.revoke_all(_revoke_all_input(), None)
+        assert denied.value.status_code == 403
+        _as_role(monkeypatch, 'super_admin')
+        for bad in ('', 'remove all bonus', 'yes'):
+            with pytest.raises(HTTPException) as wrong:
+                await bonus_grants_routes.revoke_all(_revoke_all_input(bad), None)
+            assert wrong.value.status_code == 400
+        assert (await db.wallets.find_one({'user_id': user}))['bonus'] == 5
+        assert await db.audit_log.count_documents({'kind': 'admin_bonus_revoke_all', 'reason': 'bulk bonus removal integration test'}) == 0
+    run_db(safe_db, run)
+
+
+def test_revoke_all_removes_only_bonus_is_audited_and_repeat_is_noop(monkeypatch, safe_db, user):
+    async def run(db):
+        import deps
+        monkeypatch.setattr(deps, 'get_db', lambda: db)
+        _as_role(monkeypatch, 'super_admin')
+        await _get_or_create_wallet(db, user)
+        await _apply_tx(db, user, 'topup', 25, note='test top-up')
+        await _apply_tx(db, user, 'winnings', 15, note='test winnings')
+        await create_grant(db, user_id=user, amount=10, expires_at=None, actor_id='a', actor_email='a@test',
+                           reason='revoke-all preservation test', ref_key=f'{user}:keep')
+        before = await db.wallets.find_one({'user_id': user}, {'_id': 0})
+        assert before['balance'] == 50 and before['bonus'] == 10
+        first = await bonus_grants_routes.revoke_all(_revoke_all_input(), None)
+        assert first['grants_revoked'] >= 1 and first['tokens_removed'] >= 10
+        after = await db.wallets.find_one({'user_id': user}, {'_id': 0})
+        assert after['bonus'] == 0 and after['balance'] == 40 and after['withdrawable'] == 15
+        audit = await db.audit_log.find_one({'kind': 'admin_bonus_revoke_all', 'admin_user_id': 'test-super_admin'},
+                                            sort=[('at', -1)])
+        assert audit and audit['grants_revoked'] == first['grants_revoked'] and audit['reason']
+        again = await bonus_grants_routes.revoke_all(_revoke_all_input(), None)
+        assert again['grants_revoked'] == 0 and again['tokens_removed'] == 0
+        assert (await db.wallets.find_one({'user_id': user}, {'_id': 0}))['balance'] == 40
+        await db.audit_log.delete_many({'admin_user_id': 'test-super_admin'})
+    run_db(safe_db, run)
+
+
+def test_revoke_all_never_removes_spent_bonus_or_goes_negative_and_skips_expired(monkeypatch, safe_db, user):
+    async def run(db):
+        import deps
+        monkeypatch.setattr(deps, 'get_db', lambda: db)
+        _as_role(monkeypatch, 'super_admin')
+        await _get_or_create_wallet(db, user)
+        await _apply_tx(db, user, 'topup', 20, note='test top-up')
+        expired = await create_grant(db, user_id=user, amount=3, expires_at=datetime.now(timezone.utc) + timedelta(days=1),
+                                     actor_id='a', actor_email='a@test', reason='expired grant test', ref_key=f'{user}:old')
+        await db.bonus_grants.update_one({'grant_id': expired['grant_id']},
+                                         {'$set': {'expires_at': datetime.now(timezone.utc) - timedelta(seconds=1)}})
+        await run_expiry_job(db)
+        await create_grant(db, user_id=user, amount=10, expires_at=None, actor_id='a', actor_email='a@test',
+                           reason='partially spent grant test', ref_key=f'{user}:spent')
+        await _apply_tx(db, user, 'spend', -4, note='test spend')
+        w = await db.wallets.find_one({'user_id': user}, {'_id': 0})
+        assert w['bonus'] == 6 and w['balance'] == 26
+        result = await bonus_grants_routes.revoke_all(_revoke_all_input(), None)
+        assert result['grants_revoked'] >= 1
+        w = await db.wallets.find_one({'user_id': user}, {'_id': 0})
+        assert w['bonus'] == 0 and w['balance'] == 20 and w['balance'] >= 0
+        revoked = await db.bonus_grants.find_one({'ref_key': f'{user}:spent'}, {'_id': 0})
+        assert revoked['status'] == 'revoked' and revoked['revoked_amount'] == 6
+        old = await db.bonus_grants.find_one({'grant_id': expired['grant_id']}, {'_id': 0})
+        assert old['status'] == 'expired'
+        await db.audit_log.delete_many({'admin_user_id': 'test-super_admin'})
+    run_db(safe_db, run)
+
+
+def test_wallet_breakdown_separates_topup_bonus_winning_and_total():
+    from routers.wallet_routes import _with_tokens
+    w = _with_tokens({'balance': 50, 'bonus': 10, 'withdrawable': 15, 'withdrawable_pending': 0})
+    assert (w['purchased_tokens'], w['bonus_tokens'], w['withdrawable_tokens'], w['total_tokens']) == (25, 10, 15, 50)
+    w = _with_tokens({'balance': 50, 'bonus': 10, 'withdrawable': 15, 'withdrawable_pending': 5})
+    assert w['purchased_tokens'] == 20 and w['total_tokens'] == 50

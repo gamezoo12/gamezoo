@@ -3323,7 +3323,7 @@ def _validate_world_level_config(
                 status_code=400,
                 detail=(
                     f"Level {level} time limit "
-                    "must be 5Ã¢â‚¬â€œ900 seconds."
+                    "must be 5–900 seconds."
                 ),
             )
 

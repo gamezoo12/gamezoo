@@ -79,31 +79,35 @@ async def main():
     client = AsyncIOMotorClient(mongo_url)
     db = client[db_name]
 
-    # Admin user
-    admin_email = 'bachanta8@gmail.com'
+    # Admin user: credentials come from the environment; an existing account is never altered unless SEED_RESET_ADMIN_PASSWORD=1.
+    admin_email = os.environ.get('SEED_ADMIN_EMAIL', '').strip().lower()
+    admin_password = os.environ.get('SEED_ADMIN_PASSWORD', '')
+    if not admin_email or len(admin_password) < 12:
+        raise SystemExit('Set SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD (12+ characters) to seed an admin.')
     existing = await db.users.find_one({'email': admin_email})
     if not existing:
         admin = User(
             email=admin_email,
             name='Admin',
-            password_hash=hash_password('Herts@910022'),
+            password_hash=hash_password(admin_password),
             method='email',
             role='super_admin',
         )
         await db.users.insert_one(admin.model_dump())
         print(f'✓ Created admin user: {admin_email}')
-    else:
-        # Ensure role is super_admin and reset password to requested
+    elif os.environ.get('SEED_RESET_ADMIN_PASSWORD') == '1':
         await db.users.update_one(
             {'email': admin_email},
             {'$set': {
                 'role': 'super_admin',
-                'password_hash': hash_password('Herts@910022'),
+                'password_hash': hash_password(admin_password),
                 'method': 'email',
                 'suspended': False,
             }}
         )
-        print(f'✓ Updated admin user: {admin_email}')
+        print(f'✓ Reset admin user: {admin_email}')
+    else:
+        print(f'✓ Admin already exists: {admin_email} (unchanged)')
 
     # Contests — production launch: NO auto-seeded contests.
     # Admins create real contests via /admin/competitions. This prevents demo

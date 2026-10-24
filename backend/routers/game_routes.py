@@ -127,7 +127,9 @@ async def submit_score(inp: SubmitScoreInput, request: Request):
     # Turnstile challenge — required only when a site key is configured (prod).
     # Test envs (no key) skip this check so pytest suites keep working.
     import os as _os
-    if _os.environ.get('TURNSTILE_SITE_KEY') and not _os.environ.get('TEST_OTP_BYPASS_CODE'):
+    from otp_verify import _is_prod
+    captcha_waived = bool(_os.environ.get('TEST_OTP_BYPASS_CODE')) and not _is_prod()
+    if _os.environ.get('TURNSTILE_SITE_KEY') and not captcha_waived:
         from routers.captcha_routes import verify_challenge_token
         if not inp.challenge_token or not verify_challenge_token(inp.challenge_token, user['user_id'], contest['contest_id']):
             raise HTTPException(status_code=400, detail='CAPTCHA challenge missing or expired. Please refresh and try again.')

@@ -3,7 +3,7 @@ Prize League — production launch: purge demo/seed/mock data.
 
 Removes any data marked as demo/sample/mock so the platform launches with a
 clean slate. Preserves:
-  • The Super Admin account (bachanta8@gmail.com).
+  • The Super Admin account (<admin-email>).
   • Any real user account that ever completed a Stripe payment (has orders with
     non-null stripe_session_id) or has topped up their wallet through Stripe.
   • Their tickets, orders, wallet transactions and notifications.
@@ -33,7 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from dotenv import load_dotenv  # noqa: E402
 from motor.motor_asyncio import AsyncIOMotorClient  # noqa: E402
 
-PROTECT_EMAILS = {'bachanta8@gmail.com'}
+PROTECT_EMAILS = {os.environ["SUPER_ADMIN_EMAIL"]}
 
 
 async def main(confirm: bool) -> None:

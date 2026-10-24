@@ -97,7 +97,7 @@ async def change_password(inp: PasswordChange, request: Request):
     db = get_db()
     full = await db.users.find_one({'user_id': user['user_id']})
     if not full or not full.get('password_hash'):
-        raise HTTPException(status_code=400, detail='This account uses social login â€” no password to change')
+        raise HTTPException(status_code=400, detail='This account uses social login — no password to change')
     if not verify_password(inp.current_password, full['password_hash']):
         raise HTTPException(status_code=400, detail='Current password is incorrect')
     if len(inp.new_password) < 8:

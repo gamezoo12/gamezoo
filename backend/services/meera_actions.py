@@ -77,7 +77,7 @@ async def handle_create_contests(db, a: dict) -> dict:
     prize = float(a.get('prize_amount', 100))
     tickets = int(a.get('tickets_total', 150))
     duration = int(a.get('duration_days', 7))
-    title = a.get('title') or f"Win Â£{int(prize)} Cash"
+    title = a.get('title') or f"Win £{int(prize)} Cash"
     category = a.get('category') or ('jackpot' if prize >= 250 else 'prize-draws')
     tag_map = {'jackpot': 'Jackpot', 'instant-wins': 'Instant Wins', 'prize-draws': 'Prize Draws', 'new-games': 'New Game'}
     tag = tag_map.get(category, 'Prize Draws')
@@ -92,7 +92,7 @@ async def handle_create_contests(db, a: dict) -> dict:
         c = Contest(
             slug=_slug_for(title, i),
             title=f"{title}" + (f" #{i + 1}" if count > 1 else ''),
-            subtitle=f"Â£{int(prize)} cash prize",
+            subtitle=f"£{int(prize)} cash prize",
             category=category,
             tag=tag,
             price=price,

@@ -133,6 +133,7 @@ export const adminAPI = {
   enableUserWebPush: (id, evidence) => api.post(`/admin/users/${encodeURIComponent(id)}/web-push/enable`, { evidence }).then(r => r.data),
   creditBonus: (payload) => api.post('/admin/bonus-grants', payload).then(r => r.data),
   bonusGrants: (params = {}) => api.get('/admin/bonus-grants', { params }).then(r => r.data),
+  revokeAllBonusGrants: (reason, confirm) => api.post('/admin/bonus-grants/revoke-all', { reason, confirm }).then(r => r.data),
   revokeBonusGrant: (grantId, reason) => api.post(`/admin/bonus-grants/${encodeURIComponent(grantId)}/revoke`, { reason }).then(r => r.data),
   user360: (id) => api.get(`/admin/users/${id}/360`).then(r => r.data),
   sendUserPhoneOtp: (id) =>

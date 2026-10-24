@@ -15,7 +15,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import uuid
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from typing import Optional
 from urllib.parse import urlsplit
 
@@ -104,6 +106,30 @@ def _require_stripe_configuration(*, require_webhook: bool = False) -> str:
     return info['actual_mode']
 
 
+def _mock_payments_enabled() -> bool:
+    from otp_verify import _is_prod
+    return os.environ.get('TEST_MODE') == '1' and not _is_prod()
+
+
+def _create_checkout_session(kwargs: dict):
+    if _mock_payments_enabled():
+        session_id = f'cs_test_{uuid.uuid4().hex}'
+        return SimpleNamespace(
+            id=session_id,
+            url=f'https://checkout.stripe.com/c/pay/{session_id}',
+            livemode=False,
+        )
+    try:
+        return stripe.checkout.Session.create(**kwargs, managed_payments={'enabled': True})
+    except stripe.error.InvalidRequestError as exc:
+        message = (exc.user_message or '').lower()
+        if 'managed payments' not in message and 'ineligible' not in message:
+            raise
+        return stripe.checkout.Session.create(
+            **kwargs, automatic_tax={'enabled': True}, billing_address_collection='required',
+        )
+
+
 def _validate_paid_session(record: dict, session: dict, mode: str) -> dict:
     if session.get('id') != record.get('session_id'):
         raise HTTPException(status_code=503, detail='Stripe session does not match payment record')
@@ -183,17 +209,7 @@ async def create_topup_checkout(req: CheckoutRequest, request: Request):
             "kind": "wallet_topup",
         },
     )
-    # SMP-eligible GB account with digital tax code → managed_payments (tax handled by Stripe).
-    try:
-        session = stripe.checkout.Session.create(**kwargs, managed_payments={"enabled": True})
-    except stripe.error.InvalidRequestError as e:
-        msg = (e.user_message or "").lower()
-        if "managed payments" in msg or "ineligible" in msg:
-            session = stripe.checkout.Session.create(
-                **kwargs, automatic_tax={"enabled": True}, billing_address_collection="required",
-            )
-        else:
-            raise
+    session = _create_checkout_session(kwargs)
     if not session or not getattr(session, 'id', None) or not getattr(session, 'url', None):
         raise HTTPException(status_code=502, detail='Stripe did not return a valid Checkout session')
     if getattr(session, 'livemode', None) is not None and bool(session.livemode) != (stripe_mode == 'live'):
@@ -258,16 +274,7 @@ async def create_custom_topup(req: CustomTopupRequest, request: Request):
             "kind": "wallet_topup",
         },
     )
-    try:
-        session = stripe.checkout.Session.create(**kwargs, managed_payments={"enabled": True})
-    except stripe.error.InvalidRequestError as e:
-        msg = (e.user_message or "").lower()
-        if "managed payments" in msg or "ineligible" in msg:
-            session = stripe.checkout.Session.create(
-                **kwargs, automatic_tax={"enabled": True}, billing_address_collection="required",
-            )
-        else:
-            raise
+    session = _create_checkout_session(kwargs)
     if not session or not getattr(session, 'id', None) or not getattr(session, 'url', None):
         raise HTTPException(status_code=502, detail='Stripe did not return a valid Checkout session')
     if getattr(session, 'livemode', None) is not None and bool(session.livemode) != (stripe_mode == 'live'):
@@ -368,7 +375,7 @@ async def get_status(session_id: str):
 
     # Status alone is not a settlement signal: async Checkout sessions can be complete but unpaid.
     terminal = {'paid', 'failed', 'expired', 'refunded', 'disputed'}
-    if record.get('payment_status') not in terminal:
+    if record.get('payment_status') not in terminal and not _mock_payments_enabled():
         try:
             mode = _require_stripe_configuration()
             s = stripe.checkout.Session.retrieve(session_id)

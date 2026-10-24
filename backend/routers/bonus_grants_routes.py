@@ -122,6 +122,41 @@ async def revoke(grant_id: str, payload: RevokeInput, request: Request):
     return {'grant': result}
 
 
+class RevokeAllInput(BaseModel):
+    reason: str = Field(min_length=10, max_length=300)
+    confirm: str = Field(default='', max_length=40)
+
+
+@router.post('/revoke-all')
+async def revoke_all(payload: RevokeAllInput, request: Request):
+    admin = await _admin_or_403(request)
+    if admin.get('role') != 'super_admin':
+        raise HTTPException(status_code=403, detail='Only super admin can remove bonus tokens for all users')
+    if payload.confirm != 'REMOVE ALL BONUS':
+        raise HTTPException(status_code=400, detail="Type 'REMOVE ALL BONUS' to confirm")
+    from deps import get_db
+    db = get_db()
+    grant_ids = [g['grant_id'] async for g in db.bonus_grants.find({'status': 'active'}, {'_id': 0, 'grant_id': 1})]
+    revoked, skipped, tokens, users = 0, 0, 0.0, set()
+    for grant_id in grant_ids:
+        result = await revoke_grant(db, grant_id, admin['user_id'])
+        if result is None:
+            skipped += 1
+            continue
+        revoked += 1
+        tokens += float(result.get('revoked_amount') or 0)
+        users.add(result['user_id'])
+    await db.audit_log.insert_one({
+        'audit_id': f'aud_{uuid.uuid4().hex[:12]}', 'kind': 'admin_bonus_revoke_all',
+        'admin_user_id': admin['user_id'], 'admin_email': admin.get('email'),
+        'grants_revoked': revoked, 'grants_skipped': skipped, 'users_affected': len(users),
+        'tokens_removed': round(tokens, 2), 'reason': payload.reason.strip(),
+        'at': datetime.now(timezone.utc),
+    })
+    return {'grants_revoked': revoked, 'grants_skipped': skipped, 'users_affected': len(users),
+            'tokens_removed': round(tokens, 2)}
+
+
 @router.post('/run-expiry')
 async def run_expiry(request: Request):
     """Idempotent: safe to call at any time; the scheduler runs the same job every minute."""

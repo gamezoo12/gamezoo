@@ -38,8 +38,9 @@ export default function BonusTokensCard({ wallet, onRefresh }) {
   if (bonus <= 0 && grants.length === 0) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm" data-testid="wallet-breakdown">
-        <div className="flex justify-between"><span className="text-slate-600">Purchased tokens</span><b data-testid="wallet-purchased">{n(purchased)}</b></div>
-        {prize > 0 && <div className="mt-1 flex justify-between"><span className="text-slate-600">Prize tokens</span><b>{n(prize)}</b></div>}
+        <div className="flex justify-between"><span className="text-slate-600">Top-up tokens</span><b data-testid="wallet-purchased">{n(purchased)}</b></div>
+        <div className="mt-1 flex justify-between"><span className="text-slate-600">Bonus tokens</span><b data-testid="wallet-bonus-total">{n(bonus)}</b></div>
+        <div className="mt-1 flex justify-between"><span className="text-slate-600">Winning tokens</span><b data-testid="wallet-winning">{n(prize)}</b></div>
         <div className="mt-2 flex justify-between border-t border-slate-100 pt-2"><span className="font-semibold text-slate-800">Total available</span><b data-testid="wallet-total-available">{n(available)}</b></div>
       </div>
     );
@@ -61,8 +62,8 @@ export default function BonusTokensCard({ wallet, onRefresh }) {
           {n(wallet.bonus_expiring_soon_tokens)} bonus tokens expire within 7 days. Use them first; they are spent before purchased tokens.
         </div>
       )}
-      <div className="mt-2 flex justify-between"><span className="text-slate-700">Purchased tokens</span><b data-testid="wallet-purchased">{n(purchased)}</b></div>
-      {prize > 0 && <div className="mt-1 flex justify-between"><span className="text-slate-700">Prize tokens</span><b>{n(prize)}</b></div>}
+      <div className="mt-2 flex justify-between"><span className="text-slate-700">Top-up tokens</span><b data-testid="wallet-purchased">{n(purchased)}</b></div>
+      <div className="mt-1 flex justify-between"><span className="text-slate-700">Winning tokens</span><b data-testid="wallet-winning">{n(prize)}</b></div>
       <div className="mt-2 flex justify-between border-t border-amber-200 pt-2"><span className="font-semibold text-slate-900">Total available</span><b data-testid="wallet-total-available">{n(available)}</b></div>
     </div>
   );

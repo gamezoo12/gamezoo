@@ -109,6 +109,14 @@ async def _verify_destination(
         'TEST_OTP_BYPASS_CODE'
     )
 
+    if os.environ.get('TEST_MODE') == '1' and not _is_prod():
+        if bypass and code == bypass:
+            return destination
+        raise HTTPException(
+            status_code=400,
+            detail='Invalid or expired code',
+        )
+
     if (
         bypass
         and code == bypass
