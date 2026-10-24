@@ -189,7 +189,7 @@ class TestSubmitWithNewGameType:
         d = contest_and_gamer
         r = requests.get(f'{BASE_URL}/api/contests/{d["contest_id"]}/leaderboard', timeout=30)
         assert r.status_code == 200
-        rows = r.json()['leaderboard']
+        rows = r.json()['entries']
         assert len(rows) >= 1
         assert rows[0]['rank'] == 1
         assert rows[0]['points'] > 0

@@ -6,6 +6,11 @@ import asyncio
 import logging
 from pathlib import Path
 
+if os.environ.get('TEST_NETWORK_LOOPBACK_ONLY') == '1':
+    from network_safety import install_loopback_only_network_guard
+
+    install_loopback_only_network_guard()
+
 from deps import get_client, get_db
 
 ROOT_DIR = Path(__file__).parent

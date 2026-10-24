@@ -119,11 +119,14 @@ class TestRandomDraw:
         assert '0 eligible' in r.text or 'cannot pick' in r.text
 
     def test_03_wrong_engine_type_400(self, super_client):
-        # c_fd360e20adad is 'leaderboard'
-        r = super_client.post(f'{BASE_URL}/api/admin/engines/random-draw/c_fd360e20adad',
-                              json={'num_winners': 1}, timeout=15)
-        assert r.status_code == 400
-        assert 'random_draw' in r.text
+        cid = _create_contest(super_client, 'leaderboard', 'TEST_WrongEngine_iter25')
+        try:
+            r = super_client.post(f'{BASE_URL}/api/admin/engines/random-draw/{cid}',
+                                  json={'num_winners': 1}, timeout=15)
+            assert r.status_code == 400
+            assert 'random_draw' in r.text
+        finally:
+            db.contests.delete_one({'contest_id': cid})
 
     def test_04_happy_path_5_of_20(self, super_client):
         cid = TestRandomDraw.contest_id

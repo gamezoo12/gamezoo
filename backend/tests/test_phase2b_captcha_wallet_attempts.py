@@ -3,7 +3,7 @@
 Covers:
   - GET  /api/config/turnstile         â†’ returns enabled + site_key
   - POST /api/games/captcha/verify      â†’ 401 without auth; auth â†’ challenge_token issued (TEST secret always passes)
-  - POST /api/payments/wallet-topup/custom â†’ min Â£5 / max Â£1000 validation + happy path (session_id + checkout_url)
+  - POST /api/payments/wallet-topup/custom â†’ min £5 / max £1000 validation + happy path (session_id + checkout_url)
   - POST /api/payments/wallet-topup/checkout (legacy)  â†’ still works
   - Attempts-per-ticket enforcement (2 tickets Ã— 3 apt = 6 attempts allowed; 7th rejected)
   - GET  /api/orders/my-games returns tickets_owned + attempts_per_ticket + attempts_remaining
@@ -63,8 +63,10 @@ class TestTurnstile:
         r = requests.get(f"{API}/config/turnstile", timeout=10)
         assert r.status_code == 200
         body = r.json()
-        assert body['enabled'] is True
-        assert body['site_key'] == '1x00000000000000000000AA'
+        # The widget is only enabled when the server has a site key; unconfigured must report disabled with no key.
+        assert body['enabled'] is bool(body['site_key'])
+        if not body['enabled']:
+            assert body['site_key'] is None
 
     def test_captcha_verify_requires_auth(self):
         r = requests.post(f"{API}/games/captcha/verify",
@@ -200,71 +202,56 @@ class TestAttemptsPerTicket:
         # Simplest: use POST /api/wallet/admin-credit if exists, else skip.
         pass
 
-    def test_attempts_pool_6_allowed_7th_rejected(self):
+    def test_attempts_are_enforced_per_ticket_not_pooled(self):
+        """Extra tickets are independent entries; they never enlarge another ticket's allowance."""
         admin_tok = _admin_token()
         cid = self._create_skill_game_contest(admin_tok, apt=3)
 
-        # Register fresh user + fund wallet + buy 2 tickets.
         p, data = _register('apt')
-        user_tok = data['token']
-        user_id = data['user']['user_id']
-        headers = {'Authorization': f'Bearer {user_tok}'}
+        headers = {'Authorization': f"Bearer {data['token']}"}
 
-        # Fund the wallet via the MOCKED player top-up route (min Â£10 for legacy endpoint).
-        r = requests.post(
-            f"{API}/wallet/topup",
-            json={'amount': 10.0},
-            headers=headers, timeout=10,
-        )
+        r = requests.post(f"{API}/wallet/topup", json={'amount': 10.0}, headers=headers, timeout=10)
         assert r.status_code == 200, f'wallet topup failed: {r.status_code} {r.text}'
 
-        # Buy 2 tickets
         r = requests.post(
             f"{API}/orders/checkout",
             json={'items': [{'contest_id': cid, 'qty': 2, 'skill_answer': '4'}]},
             headers=headers, timeout=15,
         )
         assert r.status_code == 200, r.text
-        # Fetch my tickets â€” grab the first one to use as ticket_id
         r = requests.get(f"{API}/orders/my-tickets", headers=headers, timeout=10)
         assert r.status_code == 200
         tickets = [t for t in r.json() if t['contest_id'] == cid]
         assert len(tickets) == 2, f'expected 2 tickets, got {len(tickets)}'
-        ticket_id = tickets[0]['ticket_id']
+        first, second = tickets[0]['ticket_id'], tickets[1]['ticket_id']
 
-        # Submit 6 attempts (all should succeed)
-        for i in range(6):
-            r = requests.post(
+        def submit(ticket_id):
+            return requests.post(
                 f"{API}/games/submit",
                 json={'ticket_id': ticket_id, 'duration_ms': 5000, 'accuracy': 0.9, 'solved': True},
                 headers=headers, timeout=15,
             )
-            assert r.status_code == 200, f'attempt #{i+1} failed: {r.status_code} {r.text}'
-            body = r.json()
-            assert body['total_allowed'] == 6, body
-            assert body['tickets'] == 2, body
 
-        # 7th attempt must be rejected
-        r = requests.post(
-            f"{API}/games/submit",
-            json={'ticket_id': ticket_id, 'duration_ms': 5000, 'accuracy': 0.9, 'solved': True},
-            headers=headers, timeout=15,
-        )
+        for i in range(3):
+            r = submit(first)
+            assert r.status_code == 200, f'attempt #{i+1} failed: {r.status_code} {r.text}'
+            assert r.json()['total_allowed'] == 3, r.json()
+
+        r = submit(first)
         assert r.status_code == 400, r.text
         assert 'No attempts left' in r.json().get('detail', ''), r.text
 
-        # /my-games returns tickets_owned + attempts_per_ticket + attempts_remaining
+        # The second ticket is untouched by the first ticket's usage.
+        r = submit(second)
+        assert r.status_code == 200, r.text
+        assert r.json()['attempts_left'] == 2, r.json()
+
         r = requests.get(f"{API}/orders/my-games", headers=headers, timeout=10)
         assert r.status_code == 200
-        games = r.json()['games']
-        row = next((g for g in games if g['contest_id'] == cid), None)
-        assert row is not None, f'my-games missing contest: {games}'
-        assert row['attempts_per_ticket'] == 3
-        assert row['tickets_owned'] == 2
-        assert row['attempts_remaining'] == 0
-        assert row['max_attempts'] == 6
-        assert row['attempts_used'] == 6
+        rows = {g['ticket_id']: g for g in r.json()['games'] if g['contest_id'] == cid}
+        assert rows[first]['attempts_remaining'] == 0 and rows[first]['attempts_used'] == 3
+        assert rows[second]['attempts_remaining'] == 2 and rows[second]['attempts_used'] == 1
+        assert all(g['attempts_per_ticket'] == 3 and g['max_attempts'] == 3 and g['tickets_owned'] == 2 for g in rows.values())
 
-        # Cleanup contest
         requests.delete(f"{API}/admin/contests/{cid}",
                         headers={'Authorization': f'Bearer {admin_tok}'}, timeout=10)

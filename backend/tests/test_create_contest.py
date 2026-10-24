@@ -38,7 +38,7 @@ def admin_client(admin_token):
 
 
 VALID_PAYLOAD = {
-    "title": "TEST_CreateContest Â£77",
+    "title": "TEST_CreateContest £77",
     "subtitle": "TEST subtitle",
     "category": "prize-draws",
     "image": "https://images.pexels.com/photos/928187/pexels-photo-928187.jpeg?auto=compress&cs=tinysrgb&h=650&w=940",
@@ -79,7 +79,7 @@ class TestCreateContestValidation:
 
     def test_incomplete_skill_question_falls_back_to_dynamic(self, admin_client):
         """An incomplete static skill_question is treated as "no static
-        question given" â€” the endpoint falls back to the dynamic engine
+        question given" — the endpoint falls back to the dynamic engine
         instead of returning 400."""
         bad = dict(VALID_PAYLOAD)
         bad["title"] = "TEST_CreateContest_IncompleteSkill"
@@ -132,7 +132,7 @@ class TestCreateContestSuccess:
 
     def test_create_live_contest_visible_publicly(self, admin_client):
         payload = dict(VALID_PAYLOAD)
-        payload["title"] = "TEST_CreateContest LIVE Â£42"
+        payload["title"] = "TEST_CreateContest LIVE £42"
         payload["prize_amount"] = 42
         payload["status"] = "live"
         r = admin_client.post(f"{BASE_URL}/api/admin/contests", json=payload)

@@ -1,6 +1,7 @@
 """Backend tests: Free World token unlock/retry flow (iteration 35)."""
 import os
 import subprocess
+import sys
 import time
 import requests
 import pytest
@@ -14,8 +15,9 @@ BROKE = (os.environ.get("TEST_BROKE_EMAIL", ""), os.environ.get("TEST_PLAYER_PAS
 
 def reseed():
     r = subprocess.run(
-        ["python3", "/app/backend/scripts/seed_token_test_scenario.py"],
-        capture_output=True, text=True, timeout=60
+        [sys.executable, "/app/backend/scripts/seed_token_test_scenario.py"],
+        capture_output=True, text=True, timeout=60,
+        env={**os.environ, "PYTHON_DOTENV_DISABLED": "1"}
     )
     assert r.returncode == 0, r.stderr
 

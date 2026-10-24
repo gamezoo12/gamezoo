@@ -19,7 +19,7 @@ OP_TO_LAMBDA = {
     'multiplication': lambda a, b: a * b,
     'division': lambda a, b: a // b,
 }
-SYMBOL_TO_OP = {'+': 'addition', 'âˆ’': 'subtraction', 'Ã—': 'multiplication', 'Ã·': 'division'}
+SYMBOL_TO_OP = {'+': 'addition', '\u2212': 'subtraction', '\u00d7': 'multiplication', '\u00f7': 'division'}
 
 
 def _login_admin():
@@ -47,7 +47,7 @@ def contest(admin_client):
         "skill_question_type": "addition",
         "skill_question_difficulty": "medium",
         "entry_mode": "skill_game",
-        "status": "draft",
+        "status": "live",
     }
     r = admin_client.post(f"{BASE_URL}/api/admin/contests", json=payload)
     assert r.status_code == 200, r.text
@@ -120,7 +120,7 @@ class TestSkillChallenge:
             f"{BASE_URL}/api/admin/contests",
             json={"title": "TEST_DynSkill_B", "prize_amount": 25, "price": 1, "tickets_total": 50,
                   "skill_question_type": "addition", "skill_question_difficulty": "easy",
-                  "entry_mode": "skill_game", "status": "draft"},
+                  "entry_mode": "skill_game", "status": "live"},
         )
         c2 = r.json()["contest"]
         try:
@@ -150,7 +150,7 @@ class TestOperationsAndDifficulties:
             json={"title": f"TEST_Dyn_{op}_{diff}", "prize_amount": 10, "price": 1,
                   "tickets_total": 25, "skill_question_type": op,
                   "skill_question_difficulty": diff, "entry_mode": "skill_game",
-                  "status": "draft"},
+                  "status": "live"},
         )
         c = r.json()["contest"]
         try:

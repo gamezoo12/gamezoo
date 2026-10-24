@@ -71,6 +71,8 @@ def test_wallet_credit_is_atomic_under_concurrent_flip():
             'user_id': uid,
             'lookup_key': 'wallet_topup_20',
             'amount': 2000,  # £20 in pence
+            'amount_received_pence': 2000,
+            'amount_subtotal_pence': 2000,
             'currency': 'gbp',
             'status': 'completed',
             'payment_status': 'paid',
@@ -88,7 +90,7 @@ def test_wallet_credit_is_atomic_under_concurrent_flip():
         ], return_exceptions=True)
 
         # Exactly one call should have credited; the rest see wallet_credited=True and no-op.
-        credits = [r for r in results if isinstance(r, dict)]
+        credits = [r for r in results if isinstance(r, dict) and not r.get('idempotent_replay')]
         assert len(credits) == 1, f'expected exactly 1 credit, got {len(credits)}'
 
         wallet = await db.wallets.find_one({'user_id': uid}, {'_id': 0})
@@ -105,7 +107,7 @@ def test_wallet_credit_is_atomic_under_concurrent_flip():
         await db.payment_transactions.delete_many({'session_id': session_id})
         client.close()
 
-    asyncio.get_event_loop().run_until_complete(_run())
+    asyncio.run(_run())
 
 
 # --- P1: RBAC on refunds and winner publish ---------------------------------
@@ -113,7 +115,7 @@ def _seed_staff(role: str) -> tuple[str, str]:
     """Create a staff user with the given role, return (email, password)."""
     email = f'{role}_e2e_{uuid.uuid4().hex[:6]}@example.com'
     password = f'{role}Pass!12'
-    asyncio.get_event_loop().run_until_complete(_make_user(email, role=role, password=password))
+    asyncio.run(_make_user(email, role=role, password=password))
     return email, password
 
 

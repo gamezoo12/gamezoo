@@ -67,7 +67,7 @@ def admin_token():
 def buyer(admin_token):
     """DB-seeded test user + wallet-seed helper."""
     email = f"buyer.{uuid.uuid4().hex[:10]}@example.com"
-    user_id = asyncio.get_event_loop().run_until_complete(_seed_user_direct(email))
+    user_id = asyncio.run(_seed_user_direct(email))
     token = _login_direct(email)
     s = requests.Session()
     s.headers.update({"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
@@ -159,7 +159,7 @@ class TestHigh2RefundCreditsWallet:
         assert rr.json().get("refunded_amount") == 3.0
 
         w2 = buyer["session"].get(f"{BASE_URL}/api/wallet/me").json()
-        assert abs(w2["balance"] - 10.0) < 0.001, f"HIGH-2 REGRESSION â€” refund did not credit. balance={w2['balance']}"
+        assert abs(w2["balance"] - 10.0) < 0.001, f"HIGH-2 REGRESSION — refund did not credit. balance={w2['balance']}"
 
         # Idempotent
         rr2 = admin.post(f"{BASE_URL}/api/admin/orders/{order_id}/refund")
@@ -185,7 +185,7 @@ class TestMedium3AtomicWallet:
         for t in ts: t.join()
 
         successes = sum(1 for s in results if s == 200)
-        assert successes == 1, f"MEDIUM-3 REGRESSION â€” both spends succeeded: {results}"
+        assert successes == 1, f"MEDIUM-3 REGRESSION — both spends succeeded: {results}"
 
         w = buyer["session"].get(f"{BASE_URL}/api/wallet/me").json()
         assert w["balance"] >= 0
@@ -206,7 +206,7 @@ class TestMedium4NoOversell:
             buyers_sessions = []
             for _ in range(2):
                 email = f"racer.{uuid.uuid4().hex[:10]}@example.com"
-                uid = asyncio.get_event_loop().run_until_complete(_seed_user_direct(email))
+                uid = asyncio.run(_seed_user_direct(email))
                 tok = _login_direct(email)
                 admin.post(f"{BASE_URL}/api/admin/wallets/adjust", json={"user_id": uid, "amount": 5, "note": "seed"})
                 buyers_sessions.append(tok)
@@ -232,7 +232,7 @@ class TestMedium4NoOversell:
             for t in threads: t.join()
 
             successes = sum(1 for s in results if s == 200)
-            assert successes == 1, f"MEDIUM-4 REGRESSION â€” oversold: {results}"
+            assert successes == 1, f"MEDIUM-4 REGRESSION — oversold: {results}"
 
             cc = requests.get(f"{BASE_URL}/api/contests/{c['slug']}").json()
             assert cc["tickets_sold"] == 1

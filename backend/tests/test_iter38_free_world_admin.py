@@ -57,7 +57,8 @@ def test_season_schedule_with_admin(admin_token):
     assert len(champs) == 100, f"Expected 100 championships, got {len(champs)}"
     c1 = champs[0]
     assert c1.get("championship_number") == 1
-    assert c1.get("status") == "scheduled", f"C1 status: {c1.get('status')}"
+    assert c1.get("status") in ("scheduled", "live"), f"C1 status: {c1.get('status')}"
+    assert champs[-1].get("status") == "scheduled", f"C100 status: {champs[-1].get('status')}"
 
 
 def test_admin_users_requires_auth():

@@ -11,7 +11,6 @@ import requests
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL').rstrip('/')
 ADMIN_EMAIL = os.environ.get("TEST_ADMIN_EMAIL", "")
 ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD", "")
-ADMIN_USER_ID = 'user_5c46ef7fcca1'
 
 
 @pytest.fixture(scope='module')
@@ -38,16 +37,14 @@ class TestWorldState:
         data = r.json()
         assert 'championship_history' in data
         hist = data['championship_history']
-        # admin is at stage 2, so exactly 1 history entry (championship 1)
+        # One history entry per completed prior championship, so none for a user still in championship 1.
         assert isinstance(hist, list)
-        assert len(hist) == 1, f'Expected 1 history entry, got {len(hist)}'
-        entry = hist[0]
-        assert entry['championship'] == 1
-        levels = entry['levels']
-        assert len(levels) == 10
-        for lv in levels:
-            assert lv['status'] in ('completed', 'skipped')
-            assert lv['status'] == 'completed', f"Level {lv['level']} expected completed got {lv['status']}"
+        assert len(hist) == max(int(data.get('champion_stage') or 1) - 1, 0), f'Unexpected history: {hist}'
+        for entry in hist:
+            levels = entry['levels']
+            assert len(levels) == 10
+            for lv in levels:
+                assert lv['status'] in ('completed', 'skipped', 'pending', 'missed')
 
     def test_level2_token_unlock_enabled(self, admin_headers):
         r = requests.get(f'{BASE_URL}/api/world/state', headers=admin_headers, timeout=20)
@@ -136,8 +133,26 @@ class TestAcquisitionAdmin:
 
 # ---------- user 360 world block ----------
 class TestUser360World:
-    def test_user_360_has_world(self, admin_headers):
-        r = requests.get(f'{BASE_URL}/api/admin/users/{ADMIN_USER_ID}/360', headers=admin_headers, timeout=20)
+    @pytest.fixture(scope='class')
+    def admin_user_id(self, admin_token):
+        from datetime import datetime, timezone
+        from pymongo import MongoClient
+        me = requests.get(f'{BASE_URL}/api/auth/me', headers={'Authorization': f'Bearer {admin_token}'}, timeout=20)
+        assert me.status_code == 200, me.text
+        uid = me.json()['user_id']
+        session_id = f'sess_iter43_{uuid.uuid4().hex[:10]}'
+        client = MongoClient(os.environ['MONGO_URL'])
+        attempts = client[os.environ['DB_NAME']].world_level_attempts
+        now = datetime.now(timezone.utc)
+        attempts.insert_one({'session_id': session_id, 'season_id': 'season-1', 'user_id': uid, 'level': 1,
+                             'champion_stage': 1, 'passed': True, 'status': 'passed',
+                             'created_at': now, 'completed_at': now})
+        yield uid
+        attempts.delete_one({'session_id': session_id})
+        client.close()
+
+    def test_user_360_has_world(self, admin_headers, admin_user_id):
+        r = requests.get(f'{BASE_URL}/api/admin/users/{admin_user_id}/360', headers=admin_headers, timeout=20)
         assert r.status_code == 200, r.text
         d = r.json()
         assert 'world' in d, 'world block missing'

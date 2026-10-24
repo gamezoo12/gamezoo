@@ -54,14 +54,15 @@ def player_h(player_token):
 
 # ---------------- user-search ----------------
 class TestUserSearch:
-    def test_search_returns_pl10001(self, admin_h):
+    def test_search_returns_seeded_player(self, admin_h, player_h):
+        me = requests.get(f'{BASE_URL}/api/auth/me', headers=player_h, timeout=30).json()
         r = requests.get(
             f'{BASE_URL}/api/admin/users/alerts/user-search',
-            params={'q': 'earn'}, headers=admin_h, timeout=30)
+            params={'q': me['name'].split()[0]}, headers=admin_h, timeout=30)
         assert r.status_code == 200, r.text
         users = r.json().get('users', [])
         pids = {u.get('public_id') for u in users}
-        assert 'PL10001' in pids, f'Expected PL10001 in {pids}'
+        assert me['public_id'] in pids, f"Expected {me['public_id']} in {pids}"
 
     def test_short_q_empty(self, admin_h):
         r = requests.get(
@@ -104,7 +105,10 @@ class TestWinnerSources:
 
 # ---------------- Campaigns ----------------
 class TestCampaignUsers:
-    def test_users_campaign_targets_two_ignores_bogus(self, admin_h, player_token):
+    def test_users_campaign_targets_two_ignores_bogus(self, admin_h, player_h, player_token):
+        me = requests.get(f'{BASE_URL}/api/auth/me', headers=player_h, timeout=30).json()
+        other_email = os.environ.get('TEST_BROKE_EMAIL', '')
+        assert other_email, 'TEST_BROKE_EMAIL must identify a second seeded user'
         payload = {
             'title': 'TEST_targeted_users',
             'message': 'Hello specific users',
@@ -113,7 +117,7 @@ class TestCampaignUsers:
             'user_from': 1, 'user_to': 1,
             'audience': {
                 'mode': 'users',
-                'identifiers': ['PL10001', 'player1@example.com',
+                'identifiers': [me['public_id'], other_email,
                                 'bogus@none.com'],
             },
         }
@@ -261,9 +265,13 @@ class TestExtensionTimer:
         assert s0.status_code == 200, s0.text
         before = (s0.json().get('champion') or {}).get('champion_closes_at')
 
-        # Extend contest 2 by 1 day
+        # Extending a championship shifts it and every later one, so extend the one that is live now.
+        sched = requests.get(f'{BASE_URL}/api/admin/world/season-schedule', headers=admin_h, timeout=30)
+        assert sched.status_code == 200, sched.text
+        live = next((c for c in sched.json().get('championships', []) if c.get('status') == 'live'), None)
+        assert live, 'No live championship in the isolated season'
         er = requests.post(
-            f'{BASE_URL}/api/admin/world/contest/2/extend',
+            f"{BASE_URL}/api/admin/world/contest/{live['championship_number']}/extend",
             params={'days': 1}, headers=admin_h, timeout=30)
         assert er.status_code == 200, er.text
         new_close = er.json().get('new_champion_closes_at')

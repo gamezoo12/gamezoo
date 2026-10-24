@@ -15,11 +15,17 @@ API = f'{BASE}/api'
 MONGO = os.environ["MONGO_URL"] + '/' + os.environ["DB_NAME"]
 SEASON = 'season-1'
 RUN = uuid.uuid4().hex[:6]
-STAGE_START = '2026-10-09T23:00:00Z'  # active Global Contest 3 start in the dev DB
 
 
 def mongo(js):
     return subprocess.check_output(['mongosh', '--quiet', MONGO, '--eval', js], text=True)
+
+
+# Users start in Global Contest 1, so their personal championship equals the active contest number.
+STAGE = int(mongo('db.world_settings.findOne({_id:"active_global_contest"}).contest_number').strip())
+STAGE_START = mongo(
+    f'db.world_global_contests.findOne({{season_id:"season-1",contest_number:{STAGE}}}).start_at.toISOString()'
+).strip()
 
 
 def seed_user(name, role='user', completed=(), cache=None, champion=False):
@@ -28,7 +34,7 @@ def seed_user(name, role='user', completed=(), cache=None, champion=False):
     cache = list(completed) if cache is None else cache
     ready = len(completed) == 10
     attempts = ','.join(
-        f'{{attempt_id:"A{uid}{n}",session_id:"SES{uid}{n}",user_id:"{uid}",season_id:"{SEASON}",champion_stage:3,level:{n},passed:true,'
+        f'{{attempt_id:"A{uid}{n}",session_id:"SES{uid}{n}",user_id:"{uid}",season_id:"{SEASON}",champion_stage:{STAGE},level:{n},passed:true,'
         f'created_at:new Date("2026-10-10T10:00:00Z"),completed_at:new Date("2026-10-10T10:01:00Z"),duration_ms:{15000 + n}}}'
         for n in completed
     )
@@ -36,7 +42,7 @@ def seed_user(name, role='user', completed=(), cache=None, champion=False):
     db.users.insertOne({{user_id:"{uid}",email:"{uid}@example.com",name:"{name}",role:"{role}",method:"email",
       phone_verified:true,created_at:new Date("2026-09-01T00:00:00Z"),free_world_started_global_contest:1}});
     db.user_sessions.insertOne({{session_token:"{token}",user_id:"{uid}",expires_at:new Date(Date.now()+86400000)}});
-    db.world_progress.insertOne({{user_id:"{uid}",season_id:"{SEASON}",champion_stage:3,current_level:{min(len(cache) + 1, 10)},
+    db.world_progress.insertOne({{user_id:"{uid}",season_id:"{SEASON}",champion_stage:{STAGE},current_level:{min(len(cache) + 1, 10)},
       highest_unlocked_level:{min(len(cache) + 1, 10)},completed_levels:{json.dumps(cache)},champion_ready:{str(ready and len(cache) == 10).lower()},
       token_unlocked_levels:[],skipped_levels:[],season_complete:false,free_world_started_global_contest:1,
       personal_stage_started_at:new Date("{STAGE_START}"),created_at:new Date("2026-10-09T23:00:00Z"),updated_at:new Date()}});
@@ -44,13 +50,13 @@ def seed_user(name, role='user', completed=(), cache=None, champion=False):
     '''
     if champion:
         js += f'''
-        db.world_contest_entries.insertOne({{entry_id:"E{uid}",season_id:"{SEASON}",global_contest_number:3,user_id:"{uid}",
-          champion_stage_snapshot:3,status:"entered",entered_at:new Date("2026-10-11T10:00:00Z")}});
+        db.world_contest_entries.insertOne({{entry_id:"E{uid}",season_id:"{SEASON}",global_contest_number:{STAGE},user_id:"{uid}",
+          champion_stage_snapshot:{STAGE},status:"entered",entered_at:new Date("2026-10-11T10:00:00Z")}});
         db.world_champion_sessions.insertMany([
-          {{session_id:"S1{uid}",season_id:"{SEASON}",global_contest_number:3,user_id:"{uid}",begun_at:new Date()}},
-          {{session_id:"S2{uid}",season_id:"{SEASON}",global_contest_number:3,user_id:"{uid}",begun_at:new Date()}}]);
-        db.world_champion_scores.insertOne({{score_id:"C{uid}",season_id:"{SEASON}",global_contest_number:3,user_id:"{uid}",
-          score:30,duration_ms:33000,eligible:true,champion_stage_snapshot:3,submitted_at:new Date()}});
+          {{session_id:"S1{uid}",season_id:"{SEASON}",global_contest_number:{STAGE},user_id:"{uid}",begun_at:new Date()}},
+          {{session_id:"S2{uid}",season_id:"{SEASON}",global_contest_number:{STAGE},user_id:"{uid}",begun_at:new Date()}}]);
+        db.world_champion_scores.insertOne({{score_id:"C{uid}",season_id:"{SEASON}",global_contest_number:{STAGE},user_id:"{uid}",
+          score:30,duration_ms:33000,eligible:true,champion_stage_snapshot:{STAGE},submitted_at:new Date()}});
         '''
     mongo(js)
     return uid, {'Authorization': f'Bearer {token}'}

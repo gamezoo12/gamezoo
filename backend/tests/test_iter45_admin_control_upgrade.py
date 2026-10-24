@@ -30,7 +30,7 @@ BASE_URL = _load_backend_url()
 ADMIN_EMAIL = os.environ.get("TEST_ADMIN_EMAIL", "")
 ADMIN_PASS = os.environ.get("TEST_ADMIN_PASSWORD", "")
 PLAYER_EMAIL = os.environ.get("TEST_PLAYER_EMAIL", "")
-PLAYER_PASS = "Player@12345"
+PLAYER_PASS = os.environ["TEST_PLAYER_PASSWORD"]
 
 
 def _login(email, password):

@@ -16,6 +16,7 @@ import pytest
 import requests
 
 BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
+MONGO_URL = os.environ["MONGO_URL"]
 API = f"{BASE_URL}/api"
 
 PLAYER = (os.environ.get("TEST_PLAYER_EMAIL", ""), os.environ.get("TEST_PLAYER_PASSWORD", ""))
@@ -31,6 +32,26 @@ def _login(email, password):
 @pytest.fixture(scope="module")
 def user_token():
     return _login(*PLAYER)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _seed_withdrawable_funds():
+    """Withdrawable funds only come from championship winnings, so give the player a known amount."""
+    from pymongo import MongoClient
+    client = MongoClient(MONGO_URL)
+    try:
+        db = client[os.environ["DB_NAME"]]
+        user = db.users.find_one({"email": PLAYER[0].lower()})
+        assert user, "Seeded player missing from the isolated database"
+        db.wallets.update_one(
+            {"user_id": user["user_id"]},
+            {"$set": {"balance": 100.0, "bonus": 0.0, "withdrawable": 50.0, "withdrawable_pending": 0.0}},
+            upsert=True,
+        )
+        db.cashout_requests.delete_many({"user_id": user["user_id"]})
+    finally:
+        client.close()
+    yield
 
 
 @pytest.fixture(scope="module")
@@ -64,8 +85,8 @@ class TestFlagGating:
 
         # Need a bank id (add first, since bank creation is allowed regardless of flag)
         bank = requests.post(f"{API}/cashout/bank-accounts", headers=uh(user_token),
-                             json={"account_holder": "TEST Player", "sort_code": "12-34-56",
-                                   "account_number": "12345678"}, timeout=30)
+                             json={"account_holder": "TEST Player", "email": "cashout.test@example.com", "sort_code": "12-34-56",
+                                   "account_number": "12345678", "iban": "GB82WEST12345698765432", "bacs": "123456"}, timeout=30)
         assert bank.status_code == 200, bank.text
 
         r = requests.post(f"{API}/cashout/request", headers=uh(user_token),
@@ -136,8 +157,8 @@ class TestFullFlow:
 
         # add bank
         b = requests.post(f"{API}/cashout/bank-accounts", headers=uh(user_token),
-                          json={"account_holder": "TEST P One", "sort_code": "11-22-33",
-                                "account_number": "87654321"}, timeout=30).json()
+                          json={"account_holder": "TEST P One", "email": "cashout.test@example.com", "sort_code": "11-22-33",
+                                "account_number": "87654321", "iban": "GB82WEST12345698765432", "bacs": "123456"}, timeout=30).json()
         # ensure masked-only in list
         lst = requests.get(f"{API}/cashout/bank-accounts", headers=uh(user_token), timeout=30).json()
         for row in lst["items"]:
@@ -178,12 +199,14 @@ class TestFullFlow:
 
         # mark paid
         mp = requests.post(f"{API}/admin/cashout/withdrawals/{wid}/mark-paid",
+                           json={"notification_message": "Your cash-out has been paid."},
                            headers=uh(admin_token), timeout=30)
         assert mp.status_code == 200
         assert mp.json()["status"] == "paid"
 
         # idempotent
         mp2 = requests.post(f"{API}/admin/cashout/withdrawals/{wid}/mark-paid",
+                            json={"notification_message": "Your cash-out has been paid."},
                             headers=uh(admin_token), timeout=30)
         assert mp2.status_code == 200
         assert mp2.json()["status"] == "paid"
@@ -215,11 +238,20 @@ class TestFullFlow:
 
         # reject requires reason
         bad = requests.post(f"{API}/admin/cashout/withdrawals/{wid}/reject",
-                            headers=uh(admin_token), json={"reason": ""}, timeout=30)
+                            headers=uh(admin_token),
+                            json={"reason": "", "notification_message": "Rejected"}, timeout=30)
         assert bad.status_code == 400
 
+        # reject also requires a user-facing notification message
+        no_msg = requests.post(f"{API}/admin/cashout/withdrawals/{wid}/reject",
+                               headers=uh(admin_token),
+                               json={"reason": "test rejection", "notification_message": " "}, timeout=30)
+        assert no_msg.status_code == 400
+
         rej = requests.post(f"{API}/admin/cashout/withdrawals/{wid}/reject",
-                            headers=uh(admin_token), json={"reason": "test rejection"}, timeout=30)
+                            headers=uh(admin_token),
+                            json={"reason": "test rejection", "notification_message": "Your cash-out was rejected."},
+                            timeout=30)
         assert rej.status_code == 200
         assert rej.json()["status"] == "rejected"
 

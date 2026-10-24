@@ -90,6 +90,20 @@ async def set_progress(db, user_id):
     await db.world_level_unlock_reservations.delete_many({"user_id": user_id})
     await db.world_token_retry_daily.delete_many({"user_id": user_id})
     await db.world_token_retry_reservations.delete_many({"user_id": user_id})
+    # Completion is derived from verified attempts, so Level 1 needs a passed attempt on record.
+    await db.world_level_attempts.delete_many({"user_id": user_id, "season_id": SEASON})
+    await db.world_level_attempts.insert_one(
+        {
+            "session_id": f"sess_seed_{user_id}_l1",
+            "season_id": SEASON,
+            "user_id": user_id,
+            "level": 1,
+            "champion_stage": 1,
+            "passed": True,
+            "created_at": datetime.now(timezone.utc),
+            "completed_at": datetime.now(timezone.utc),
+        }
+    )
 
 
 async def main():

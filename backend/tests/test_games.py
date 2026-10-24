@@ -61,7 +61,7 @@ def game_contest(admin_token):
 
 @pytest.fixture(scope='module')
 def gamer(game_contest):
-    """A user with Â£10 wallet + 1 ticket bought on game_contest."""
+    """A user with £10 wallet + 1 ticket bought on game_contest."""
     ts = int(time.time() * 1000)
     email = f'test_gamer_{ts}@example.com'
     r = requests.post(f'{BASE_URL}/api/auth/register', json={'email': email, 'name': 'Gamer', 'password': 'Password123!'}, timeout=30)
@@ -146,6 +146,6 @@ class TestSubmitScore:
     def test_leaderboard_has_user(self, gamer, game_contest):
         r = requests.get(f'{BASE_URL}/api/contests/{game_contest["contest_id"]}/leaderboard', timeout=30)
         assert r.status_code == 200
-        rows = r.json()['leaderboard']
+        rows = r.json()['entries']
         assert len(rows) >= 1
         assert rows[0]['rank'] == 1

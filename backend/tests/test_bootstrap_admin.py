@@ -18,6 +18,12 @@ import pytest
 import requests
 from motor.motor_asyncio import AsyncIOMotorClient
 
+# Wipes every privileged user in the test DB, so it must not race other suites: RUN_BOOTSTRAP_TESTS=1 pytest -n 0 tests/test_bootstrap_admin.py
+pytestmark = pytest.mark.skipif(
+    os.environ.get('RUN_BOOTSTRAP_TESTS') != '1',
+    reason='destructive to shared test-DB admins; run alone with RUN_BOOTSTRAP_TESTS=1 and -n 0',
+)
+
 BASE_URL = os.environ['BACKEND_URL']
 MONGO_URL = os.environ['MONGO_URL']
 DB_NAME = os.environ['DB_NAME']
@@ -51,9 +57,9 @@ async def _restore(snapshot):
 
 @pytest.fixture(scope='module')
 def clean_admins():
-    snapshot = asyncio.get_event_loop().run_until_complete(_wipe_privileged())
+    snapshot = asyncio.run(_wipe_privileged())
     yield
-    asyncio.get_event_loop().run_until_complete(_restore(snapshot))
+    asyncio.run(_restore(snapshot))
 
 
 def test_bootstrap_when_no_admin_succeeds(clean_admins):

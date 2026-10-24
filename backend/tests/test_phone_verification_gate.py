@@ -4,6 +4,7 @@ gameplay / contest entry / checkout / top-ups; verified, legacy and staff are no
 Runs only against the isolated local test server and Mongo database.
 """
 import os
+import pytest
 import time
 import uuid
 import requests
@@ -91,6 +92,8 @@ def test_new_unverified_google_user_blocked_everywhere_then_unblocked_after_otp(
 
 def test_mock_wallet_topup_is_not_available():
     # The mock endpoint must be invisible (404) for everyone unless explicitly opted in for dev.
+    if os.environ.get('ENABLE_MOCK_WALLET_TOPUP', '').lower() == 'true':
+        pytest.skip('The isolated wallet suite explicitly enables the development mock top-up')
     for verified in (False, True):
         uid, h = _insert_user(method='email', verified=verified)
         try:

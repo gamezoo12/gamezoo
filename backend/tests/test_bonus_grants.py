@@ -287,8 +287,9 @@ def test_pending_admin_grant_recovers_idempotently_after_a_crash(safe_db, user):
             'reason': 'crash recovery test reason', 'related_tx_ids': [], 'reserved_amount': 0,
             'reserved_by': {}, 'expired_amount': 0, 'revoked_amount': 0,
         })
-        assert await recover_pending_grants(db) == 1
-        assert await recover_pending_grants(db) == 0
+        # recover_pending_grants scans the whole DB, so another parallel worker's pending grant may be counted too.
+        assert await recover_pending_grants(db) >= 1
+        await recover_pending_grants(db)  # second pass must be a no-op for this grant (checked below)
         wallet = await db.wallets.find_one({'user_id': user}, {'_id': 0})
         grant = await db.bonus_grants.find_one({'ref_key': ref}, {'_id': 0})
         assert wallet['balance'] == 10 and wallet['bonus'] == 10

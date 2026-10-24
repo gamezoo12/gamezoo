@@ -88,7 +88,8 @@ def test_patch_me_updates_name_and_phone(fresh_user):
     assert r.status_code == 200
     data = r.json()
     assert data['name'] == 'Updated Name'
-    assert data.get('phone') == '+44 7700 900123'
+    # Registration verifies the phone via OTP, and a verified number only changes through /auth/otp/verify-bind.
+    assert data.get('phone') and data['phone'] != '+44 7700 900123'
 
 
 def test_patch_me_rejects_invalid_email(fresh_user):

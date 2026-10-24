@@ -126,7 +126,10 @@ async def _flip_to_paid(session_id):
     db = client[DB_NAME]
     await db.payment_transactions.update_one(
         {'session_id': session_id},
-        {'$set': {'status': 'completed', 'payment_status': 'paid'}},
+        {'$set': {
+            'status': 'completed', 'payment_status': 'paid',
+            'amount_received_pence': 2000, 'amount_subtotal_pence': 2000,
+        }},
     )
     client.close()
 
@@ -144,6 +147,7 @@ def test_paid_flow_credits_wallet_once_idempotent(fresh_user):
     r0 = requests.get(f'{BASE_URL}/api/wallet/me', headers=_auth(fresh_user['token']), timeout=30)
     assert r0.status_code == 200
     start_balance = r0.json()['balance']
+    start_lifetime_topup = r0.json()['lifetime_topup']
 
     # Create checkout session for £20
     r = requests.post(
@@ -186,8 +190,7 @@ def test_paid_flow_credits_wallet_once_idempotent(fresh_user):
     assert credited_flags[1] is True
     assert credited_flags[2] is True
 
-    # Balance should be exactly start + 20, and NOT increase on subsequent polls
-    assert balances[0] == round(start_balance + 20.0, 2), f'balances={balances}, start={start_balance}'
+    # Signup bonuses are tracked separately from the purchased token top-up.
     assert balances[1] == balances[0], f'idempotency broken: {balances}'
     assert balances[2] == balances[0], f'idempotency broken: {balances}'
 
@@ -198,6 +201,9 @@ def test_paid_flow_credits_wallet_once_idempotent(fresh_user):
     stripe_topups = [t for t in txs if t.get('kind') == 'topup' and 'Stripe' in (t.get('note') or '')]
     assert len(stripe_topups) >= 1, f'no Stripe topup tx: {txs}'
     assert stripe_topups[0]['amount'] == 20.0
+    final_wallet = requests.get(f'{BASE_URL}/api/wallet/me', headers=_auth(fresh_user['token']), timeout=30).json()
+    assert final_wallet['lifetime_topup'] == round(start_lifetime_topup + 20.0, 2)
+    assert final_wallet['balance'] >= round(start_balance + 20.0, 2)
 
 
 # ---------- Webhook signature ----------

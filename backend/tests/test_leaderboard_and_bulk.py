@@ -55,7 +55,7 @@ class TestGlobalLeaderboard:
         assert r.status_code == 200
         rows = r.json()["leaderboard"]
         if not rows:
-            pytest.skip("No game_scores in DB â€” cannot assert row shape")
+            pytest.skip("No game_scores in DB — cannot assert row shape")
         row = rows[0]
         # Expect keys per game_routes.py::global_leaderboard
         for key in ("user_id", "user_name", "total_points", "contests_played", "rank"):
@@ -87,7 +87,7 @@ class TestContestGameTypeField:
         arr = r.json()
         assert isinstance(arr, list)
         if not arr:
-            pytest.skip("No live contests in DB â€” key presence cannot be asserted on empty list")
+            pytest.skip("No live contests in DB — key presence cannot be asserted on empty list")
         for c in arr:
             assert "game_type" in c, f"Contest missing game_type key: {c.get('slug')}"
 
