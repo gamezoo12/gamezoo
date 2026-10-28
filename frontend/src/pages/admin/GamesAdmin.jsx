@@ -2,6 +2,18 @@ import { useEffect, useState } from 'react';
 import { gamesAPI, adminAPI, uploadsAPI } from '../../lib/api';
 import { Gamepad2, Users, Trophy, Zap, Sparkles, Grid3x3, Brain, Target, Type, Puzzle, Play, X, PauseCircle, PlayCircle, Crown, Compass, Bomb, Calculator, Hash, LayoutGrid, Lock, Route } from 'lucide-react';
 import { GAME_MAP } from '../../components/games';
+import { MazeEscapePractice, BallSortPractice, HanoiPractice } from '../../components/games/universal/PracticePuzzles';
+import { LiquidSortPractice, SpotDifferencePractice, PathConnectPractice } from '../../components/games/universal/MorePracticePuzzles';
+
+const PRACTICE_PROTOTYPES = [
+  { id: 'maze_escape_practice', label: 'Maze Escape', Component: MazeEscapePractice },
+  { id: 'ball_sort_practice', label: 'Ball Sort', Component: BallSortPractice },
+  { id: 'hanoi_practice', label: 'Tower of Hanoi', Component: HanoiPractice },
+  { id: 'liquid_sort_practice', label: 'Liquid Sort & Fill', Component: LiquidSortPractice },
+  { id: 'spot_difference_practice', label: 'Spot the Difference', Component: SpotDifferencePractice },
+  { id: 'path_connect_practice', label: 'Path Connect', Component: PathConnectPractice },
+];
+const PRACTICE_DIFFICULTIES = ['beginner', 'easy', 'medium', 'hard', 'expert'];
 import { Button } from '../../components/ui/button';
 import { useToast } from '../../hooks/use-toast';
 
@@ -58,6 +70,7 @@ export default function GamesAdmin() {
   const [testing, setTesting] = useState(null);
   const [testKey, setTestKey] = useState(0);
   const [testResult, setTestResult] = useState(null);
+  const [practiceDifficulty, setPracticeDifficulty] = useState('easy');
   const [bulkBusy, setBulkBusy] = useState(false);
 
   // Public game-preview marketing controls.
@@ -584,13 +597,29 @@ export default function GamesAdmin() {
         })}
       </div>
 
+      {/* Local-only game prototypes: intentionally excluded from backend game assignment. */}
+      <section className="bg-white border border-indigo-100 rounded-3xl p-5 md:p-7" aria-labelledby="practice-prototypes-heading">
+        <div className="mb-5"><span className="text-xs uppercase tracking-widest text-indigo-700 font-extrabold">Development preview · No prize eligibility</span>
+          <h2 id="practice-prototypes-heading" className="font-display text-2xl font-black text-slate-950 mt-1">Six new game prototypes</h2>
+          <p className="text-slate-600 text-sm mt-2">Test mechanics and difficulty locally. These games are not registered for contest assignment and cannot credit wallets.</p>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {PRACTICE_PROTOTYPES.map(game => <button type="button" key={game.id} data-testid={`admin-prototype-${game.id}`}
+            onClick={() => { setTesting(game); setPracticeDifficulty('easy'); setTestResult(null); setTestKey(k => k + 1); }}
+            className="text-left rounded-2xl bg-indigo-50 border border-indigo-100 p-4 hover:bg-indigo-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600">
+            <span className="font-bold text-slate-950">{game.label}</span>
+            <span className="block text-xs text-indigo-700 mt-2">Play isolated practice preview</span>
+          </button>)}
+        </div>
+      </section>
+
       {/* Test-play modal */}
       {testing && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" data-testid="test-game-modal">
           <div className="bg-white rounded-3xl p-6 w-full max-w-2xl max-h-[95vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <div className="text-xs uppercase tracking-widest text-orange-600 font-bold">Test mode — no score saved</div>
+                <div className="text-xs uppercase tracking-widest text-orange-600 font-bold">{testing.Component ? "Prototype practice — not available for competitions" : "Test mode — no score saved"}</div>
                 <h3 className="font-display font-bold text-xl">{testing.label}</h3>
               </div>
               <button onClick={() => setTesting(null)} className="text-slate-500 hover:text-slate-900 text-2xl leading-none">
@@ -604,7 +633,7 @@ export default function GamesAdmin() {
                   {(testResult.duration_ms / 1000).toFixed(1)}s
                 </div>
                 <div className="text-sm text-slate-600 mt-1">
-                  {Math.round(testResult.accuracy * 100)}% accuracy · {testResult.solved ? '✅ solved' : '⚠️ not fully solved'}
+                  {typeof testResult.accuracy === 'number' ? `${Math.round(testResult.accuracy * 100)}% accuracy · ` : ''}{testResult.solved ? '✅ solved' : '⚠️ not fully solved'}
                 </div>
                 <div className="mt-4 flex gap-2 justify-center">
                   <Button onClick={() => { setTestResult(null); setTestKey(k => k + 1); }} className="bg-orange-500 hover:bg-orange-600 text-white">Play again</Button>
@@ -613,7 +642,8 @@ export default function GamesAdmin() {
               </div>
             ) : (
               <div key={testKey}>
-                {GAME_MAP[testing.id]
+                {testing.Component && <div className="mb-4 flex items-center gap-3"><label htmlFor="admin-prototype-difficulty" className="text-sm font-semibold">Difficulty</label><select id="admin-prototype-difficulty" className="border rounded-lg px-3 py-2" value={practiceDifficulty} onChange={e => {setPracticeDifficulty(e.target.value);setTestResult(null);setTestKey(k => k+1);}}>{PRACTICE_DIFFICULTIES.map(level => <option key={level} value={level}>{level}</option>)}</select></div>}
+                {testing.Component ? <testing.Component difficulty={practiceDifficulty} onComplete={setTestResult} /> : GAME_MAP[testing.id]
                   ? GAME_MAP[testing.id]({}, setTestResult)
                   : <div className="text-center text-slate-500 py-8">This game type is registered on the server but has no frontend component yet.</div>
                 }
