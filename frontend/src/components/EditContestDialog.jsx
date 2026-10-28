@@ -850,6 +850,24 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                     <option value="word_unscramble">Word Unscramble</option>
                     <option value="trivia_quiz">Trivia Quiz</option>
                   </optgroup>
+                  <optgroup label="Logic & Strategy">
+                    <option value="sudoku_mini">Sudoku Mini (4×4)</option>
+                    <option value="sequence_predict">Sequence Predict</option>
+                    <option value="countdown_numbers">Countdown Numbers</option>
+                    <option value="chess_mate_in_one">Chess: Mate in One</option>
+                    <option value="tower_of_hanoi">Tower of Hanoi</option>
+                    <option value="lights_out">Lights Out</option>
+                    <option value="minesweeper_mini">Minesweeper Mini</option>
+                    <option value="nonogram_mini">Nonogram Mini</option>
+                    <option value="tf2048_mini">2048 Mini</option>
+                    <option value="cryptogram">Cryptogram</option>
+                    <option value="spot_pattern">Spot the Pattern</option>
+                  </optgroup>
+                  <optgroup label="Word & Spatial">
+                    <option value="word_ladder">Word Ladder</option>
+                    <option value="anagram_finder">Anagram Finder</option>
+                    <option value="maze_solver">Maze Solver</option>
+                  </optgroup>
                 </select>
               </section>
             )}
