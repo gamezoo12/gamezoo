@@ -3,6 +3,7 @@ import { Link, Navigate } from 'react-router-dom';
 import { ArrowRight, Gamepad2, Play, ShieldCheck, X } from 'lucide-react';
 import { MazeEscapePractice, BallSortPractice, HanoiPractice } from '../components/games/universal/PracticePuzzles';
 import { LiquidSortPractice, SpotDifferencePractice, PathConnectPractice } from '../components/games/universal/MorePracticePuzzles';
+import { usePracticeAudio } from '../components/games/universal/usePracticeAudio';
 
 import { gamesAPI, api } from '../lib/api';
 import { GAME_MAP } from '../components/games';
@@ -19,6 +20,7 @@ const UNIVERSAL_PRACTICE_GAMES = [
 const PRACTICE_LEVELS = ['beginner', 'easy', 'medium', 'hard', 'expert'];
 
 export default function GameArena() {
+  const audio = usePracticeAudio();
   const [settings, setSettings] = useState(null);
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -150,7 +152,7 @@ export default function GameArena() {
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {UNIVERSAL_PRACTICE_GAMES.map(game => (
-            <button key={game.id} type="button" onClick={() => { setPracticeGame(game.id); setPracticeDifficulty('easy'); setPracticeResult(null); setPracticeKey(k => k + 1); }}
+            <button key={game.id} type="button" onClick={() => { setPracticeGame(game.id); setPracticeDifficulty('easy'); setPracticeResult(null); setPracticeKey(k => k + 1); audio.playEffect('tap'); }}
               className="text-left rounded-3xl overflow-hidden bg-white border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500"
               data-testid={`practice-card-${game.id}`}>
               <div className="h-36 flex items-center justify-center text-6xl bg-gradient-to-br from-indigo-900 via-violet-700 to-fuchsia-600" aria-hidden="true">{game.icon}</div>
@@ -176,7 +178,8 @@ export default function GameArena() {
                 </select>
                 <button type="button" className="rounded-xl bg-indigo-100 px-4 py-2 text-indigo-800 font-bold" onClick={() => {setPracticeResult(null);setPracticeKey(k => k+1);}}>New puzzle</button>
               </div>
-              <Component key={`${practiceGame}-${practiceDifficulty}-${practiceKey}`} difficulty={practiceDifficulty} onComplete={setPracticeResult}/>
+              <div className="flex flex-wrap items-center gap-3 mb-4 rounded-xl bg-slate-50 border border-slate-200 px-3 py-3"><button type="button" aria-pressed={!audio.muted} onClick={() => audio.setMuted(!audio.muted)} className="rounded-lg bg-white border px-3 py-2 text-sm font-semibold text-slate-800">{audio.muted ? "🔇 Sound off" : "🔊 Sound on"}</button><label htmlFor="practice-effects-volume" className="text-sm text-slate-700">Effects volume</label><input id="practice-effects-volume" type="range" min="0" max="100" value={audio.effectsVolume} disabled={audio.muted} onChange={e => audio.setEffectsVolume(e.target.value)} aria-label="Practice sound effects volume"/><span className="text-xs text-slate-500">{audio.effectsVolume}%</span></div>
+              <Component key={`${practiceGame}-${practiceDifficulty}-${practiceKey}`} difficulty={practiceDifficulty} onComplete={result => { setPracticeResult(result); audio.playEffect("win"); }}/>
               {practiceResult && <div className="mt-4 rounded-xl bg-emerald-50 text-emerald-900 p-4 font-semibold" role="status">Puzzle completed! {practiceResult.moves != null ? `${practiceResult.moves} moves · ` : ''}{(practiceResult.duration_ms / 1000).toFixed(1)} seconds. Practice only.</div>}
             </div>
           </div>;
