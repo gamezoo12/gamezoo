@@ -303,53 +303,56 @@ export function ImageJigsaw({ size = 3, config, onComplete }) {
 }
 
 // ---------- 15-slider puzzle ----------
-export function SliderPuzzle({ onComplete }) {
-  // 4x4 with one blank (idx 15)
+export function SliderPuzzle({ onComplete, config }) {
+  // Always start with a solvable board by scrambling the completed state
+  // through legal adjacent blank-tile moves. Arbitrary shuffles can be unsolvable.
   const [tiles, setTiles] = useState(() => {
-    let s;
-    do {
-      s = shuffle(Array.from({ length: 16 }, (_, i) => i));
-    } while (s.every((v, i) => v === i));
-    return s;
+    const board = Array.from({ length: 16 }, (_, i) => i);
+    let previousBlank = -1;
+    for (let step = 0; step < 120; step++) {
+      const blank = board.indexOf(15);
+      const row = Math.floor(blank / 4), col = blank % 4;
+      const neighbours = [
+        ...(row > 0 ? [blank - 4] : []),
+        ...(row < 3 ? [blank + 4] : []),
+        ...(col > 0 ? [blank - 1] : []),
+        ...(col < 3 ? [blank + 1] : []),
+      ].filter(pos => pos !== previousBlank);
+      const next = neighbours[Math.floor(Math.random() * neighbours.length)];
+      [board[blank], board[next]] = [board[next], board[blank]];
+      previousBlank = blank;
+    }
+    return board;
   });
   const [moves, setMoves] = useState(0);
   const [start] = useState(() => Date.now());
-  const size = 4;
-
+  const completed = useRef(false);
   const move = (pos) => {
+    if (completed.current) return;
     const blank = tiles.indexOf(15);
-    const bRow = Math.floor(blank / size); const bCol = blank % size;
-    const pRow = Math.floor(pos / size);   const pCol = pos % size;
-    const adj = (Math.abs(bRow - pRow) + Math.abs(bCol - pCol)) === 1;
-    if (!adj) return;
-    setTiles(prev => {
-      const n = [...prev];
-      [n[blank], n[pos]] = [n[pos], n[blank]];
-      return n;
-    });
+    const adjacent = Math.abs(Math.floor(blank / 4) - Math.floor(pos / 4)) +
+      Math.abs(blank % 4 - pos % 4) === 1;
+    if (!adjacent || pos === blank) return;
+    const next = [...tiles];
+    [next[blank], next[pos]] = [next[pos], next[blank]];
+    setTiles(next);
     setMoves(m => m + 1);
-  };
-
-  useEffect(() => {
-    if (tiles.every((v, i) => v === i)) {
-      const duration_ms = Date.now() - start;
-      const accuracy = Math.min(1, 30 / Math.max(moves, 30));
-      onComplete({ solved: true, accuracy, duration_ms });
+    if (next.every((v, i) => v === i)) {
+      completed.current = true;
+      onComplete({ solved: true, accuracy: Math.min(1, 30 / Math.max(moves + 1, 30)), duration_ms: Date.now() - start });
     }
-  }, [tiles, moves, start, onComplete]);
-
+  };
   return (
     <div className="max-w-md mx-auto">
-      <div className="text-center text-slate-600 text-sm mb-3">Slide numbered tiles into order 1→15. Moves: <b>{moves}</b></div>
+      <div className="text-center text-slate-600 text-sm mb-3">Slide numbered tiles into order 1→15. Every board is solvable. Moves: <b>{moves}</b></div>
       <div className="grid grid-cols-4 gap-1 bg-slate-100 p-1 rounded-xl">
         {tiles.map((v, pos) => (
-          <button
-            key={pos}
-            onClick={() => move(pos)}
-            data-testid={`slider-tile-${pos}`}
-            disabled={v === 15}
-            className={`aspect-square rounded-lg text-2xl font-bold shadow-sm ${v === 15 ? 'bg-transparent' : 'bg-gradient-to-br from-orange-500 to-fuchsia-600 text-white hover:scale-105 transition'}`}
-          >{v === 15 ? '' : v + 1}</button>
+          <button key={pos} type="button" onClick={() => move(pos)} data-testid={`slider-tile-${pos}`}
+            aria-label={v === 15 ? 'Empty space' : `Tile ${v + 1}`}
+            disabled={v === 15 || completed.current}
+            className={`aspect-square rounded-lg text-2xl font-bold shadow-sm ${v === 15 ? 'bg-transparent' : 'bg-gradient-to-br from-orange-500 to-fuchsia-600 text-white hover:scale-105 transition'}`}>
+            {v === 15 ? '' : v + 1}
+          </button>
         ))}
       </div>
     </div>
