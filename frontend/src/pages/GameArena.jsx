@@ -1,15 +1,31 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { ArrowRight, Gamepad2, Play, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Gamepad2, Play, ShieldCheck, X } from 'lucide-react';
+import { MazeEscapePractice, BallSortPractice, HanoiPractice } from '../components/games/universal/PracticePuzzles';
+import { LiquidSortPractice, SpotDifferencePractice, PathConnectPractice } from '../components/games/universal/MorePracticePuzzles';
 
 import { gamesAPI, api } from '../lib/api';
 import { GAME_MAP } from '../components/games';
 import { resolveMediaUrl } from '../lib/media';
 
+const UNIVERSAL_PRACTICE_GAMES = [
+  { id: 'maze_escape_practice', name: 'Maze Escape', description: 'Navigate a new maze and reach the exit.', icon: '🧭', component: MazeEscapePractice },
+  { id: 'ball_sort_practice', name: 'Ball Sort', description: 'Sort the coloured balls into matching tubes.', icon: '🔴', component: BallSortPractice },
+  { id: 'hanoi_practice', name: 'Tower of Hanoi', description: 'Move all discs to the final pole.', icon: '🏛️', component: HanoiPractice },
+  { id: 'liquid_sort_practice', name: 'Liquid Sort & Fill', description: 'Pour coloured liquid into matching bottles.', icon: '🧪', component: LiquidSortPractice },
+  { id: 'spot_difference_practice', name: 'Spot the Difference', description: 'Compare illustrated scenes and find the changes.', icon: '🔎', component: SpotDifferencePractice },
+  { id: 'path_connect_practice', name: 'Path Connect', description: 'Connect coloured endpoints without crossing paths.', icon: '🌈', component: PathConnectPractice },
+];
+const PRACTICE_LEVELS = ['beginner', 'easy', 'medium', 'hard', 'expert'];
+
 export default function GameArena() {
   const [settings, setSettings] = useState(null);
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [practiceGame, setPracticeGame] = useState(null);
+  const [practiceDifficulty, setPracticeDifficulty] = useState('easy');
+  const [practiceKey, setPracticeKey] = useState(0);
+  const [practiceResult, setPracticeResult] = useState(null);
 
   useEffect(() => {
     Promise.all([
@@ -123,6 +139,48 @@ export default function GameArena() {
             })}
           </div>
         )}
+      </section>
+
+      {/* New games are explicitly labelled local-only practice. No competition APIs are called. */}
+      <section className="max-w-7xl mx-auto px-4 lg:px-8 pb-16" aria-labelledby="universal-practice-heading">
+        <div className="mb-6">
+          <span className="inline-block text-xs font-bold tracking-widest uppercase text-indigo-600">New · Practice prototypes</span>
+          <h2 id="universal-practice-heading" className="text-3xl font-black text-slate-950 mt-1">Explore six new skill games</h2>
+          <p className="text-slate-600 mt-2">Try the gameplay before these games are approved for official competitions. Practice results are not recorded.</p>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {UNIVERSAL_PRACTICE_GAMES.map(game => (
+            <button key={game.id} type="button" onClick={() => { setPracticeGame(game.id); setPracticeDifficulty('easy'); setPracticeResult(null); setPracticeKey(k => k + 1); }}
+              className="text-left rounded-3xl overflow-hidden bg-white border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500"
+              data-testid={`practice-card-${game.id}`}>
+              <div className="h-36 flex items-center justify-center text-6xl bg-gradient-to-br from-indigo-900 via-violet-700 to-fuchsia-600" aria-hidden="true">{game.icon}</div>
+              <div className="p-5"><h3 className="font-black text-xl text-slate-950">{game.name}</h3><p className="text-slate-600 text-sm mt-2">{game.description}</p>
+                <div className="flex items-center justify-between mt-4 text-indigo-700 font-bold text-sm"><span>Play practice</span><ArrowRight className="w-5 h-5" /></div>
+              </div>
+            </button>
+          ))}
+        </div>
+        {practiceGame && (() => {
+          const game = UNIVERSAL_PRACTICE_GAMES.find(g => g.id === practiceGame);
+          if (!game) return null;
+          const Component = game.component;
+          return <div className="fixed inset-0 z-50 bg-slate-950/85 p-3 sm:p-6 overflow-y-auto" role="dialog" aria-modal="true" aria-label={`Practice ${game.name}`}>
+            <div className="max-w-2xl mx-auto bg-white rounded-3xl p-4 sm:p-6">
+              <div className="flex items-center justify-between gap-3 mb-5"><div><h3 className="text-xl font-black text-slate-900">{game.name}</h3><p className="text-xs text-slate-500">Isolated practice · Not a prize competition</p></div>
+                <button type="button" className="rounded-xl bg-slate-100 p-3 text-slate-900" aria-label="Close practice" onClick={() => setPracticeGame(null)}><X className="w-5 h-5"/></button></div>
+              <div className="flex flex-wrap gap-3 items-center mb-5">
+                <label className="text-sm font-semibold text-slate-800" htmlFor="practice-difficulty">Difficulty</label>
+                <select id="practice-difficulty" className="border rounded-xl px-3 py-2 text-slate-900" value={practiceDifficulty}
+                  onChange={e => { setPracticeDifficulty(e.target.value); setPracticeResult(null); setPracticeKey(k => k + 1); }}>
+                  {PRACTICE_LEVELS.map(level => <option value={level} key={level}>{level.charAt(0).toUpperCase() + level.slice(1)}</option>)}
+                </select>
+                <button type="button" className="rounded-xl bg-indigo-100 px-4 py-2 text-indigo-800 font-bold" onClick={() => {setPracticeResult(null);setPracticeKey(k => k+1);}}>New puzzle</button>
+              </div>
+              <Component key={`${practiceGame}-${practiceDifficulty}-${practiceKey}`} difficulty={practiceDifficulty} onComplete={setPracticeResult}/>
+              {practiceResult && <div className="mt-4 rounded-xl bg-emerald-50 text-emerald-900 p-4 font-semibold" role="status">Puzzle completed! {practiceResult.moves != null ? `${practiceResult.moves} moves · ` : ''}{(practiceResult.duration_ms / 1000).toFixed(1)} seconds. Practice only.</div>}
+            </div>
+          </div>;
+        })()}
       </section>
     </div>
   );
