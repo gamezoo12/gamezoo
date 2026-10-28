@@ -30,13 +30,12 @@ function PracticeShell({ title, subtitle, children, onReset, moves, status }) {
 }
 
 function makeBallPuzzle(colors) {
-  // Begin solved, then apply reversible legal moves so every board is solvable.
-  const tubes = Array.from({ length: colors }, (_, i) => Array(4).fill(i));
+  // Construct paired, mixed stacks with two spare tubes.
+  // Each colour has four balls distributed in two paired stacks; two empty tubes
+  // allow the pairs to be consolidated using the normal same-colour move rule.
+  const tubes = Array.from({ length: colors }, (_, i) => [i, i, (i + 1) % colors, (i + 1) % colors]);
   tubes.push([], []);
-  // For practice, allow moving any top ball onto a tube with capacity, including mixed colours.
-  // Reverse these moves during solving; no false claim that every generated board is solvable
-  // under strict same-colour placement rules.
-  return shuffle(tubes.map(t => [...t]));
+  return shuffle(tubes);
 }
 export function BallSortPractice({ difficulty = 'easy', onComplete }) {
   const colors = Math.min(7, Math.max(3, LEVELS[difficulty] || 4));
