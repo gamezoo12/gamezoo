@@ -4,6 +4,7 @@ import { Gamepad2, Users, Trophy, Zap, Sparkles, Grid3x3, Brain, Target, Type, P
 import { GAME_MAP } from '../../components/games';
 import { MazeEscapePractice, BallSortPractice, HanoiPractice } from '../../components/games/universal/PracticePuzzles';
 import { LiquidSortPractice, SpotDifferencePractice, PathConnectPractice } from '../../components/games/universal/MorePracticePuzzles';
+import { usePracticeAudio } from '../../components/games/universal/usePracticeAudio';
 
 const PRACTICE_PROTOTYPES = [
   { id: 'maze_escape_practice', label: 'Maze Escape', Component: MazeEscapePractice },
@@ -65,6 +66,7 @@ const DESC = {
 };
 
 export default function GamesAdmin() {
+  const practiceAudio = usePracticeAudio();
   const [games, setGames] = useState([]);
   const [contests, setContests] = useState([]);
   const [testing, setTesting] = useState(null);
@@ -642,8 +644,9 @@ export default function GamesAdmin() {
               </div>
             ) : (
               <div key={testKey}>
+                {testing.Component && <div className="mb-4 flex flex-wrap gap-3 items-center"><button type="button" className="rounded-lg border px-3 py-2 text-sm" onClick={() => practiceAudio.setMuted(!practiceAudio.muted)} aria-pressed={!practiceAudio.muted}>{practiceAudio.muted ? "🔇 Sound off" : "🔊 Sound on"}</button><label htmlFor="admin-practice-volume" className="text-sm">Effects volume</label><input id="admin-practice-volume" type="range" min="0" max="100" value={practiceAudio.effectsVolume} disabled={practiceAudio.muted} onChange={e => practiceAudio.setEffectsVolume(e.target.value)}/></div>}
                 {testing.Component && <div className="mb-4 flex items-center gap-3"><label htmlFor="admin-prototype-difficulty" className="text-sm font-semibold">Difficulty</label><select id="admin-prototype-difficulty" className="border rounded-lg px-3 py-2" value={practiceDifficulty} onChange={e => {setPracticeDifficulty(e.target.value);setTestResult(null);setTestKey(k => k+1);}}>{PRACTICE_DIFFICULTIES.map(level => <option key={level} value={level}>{level}</option>)}</select></div>}
-                {testing.Component ? <testing.Component difficulty={practiceDifficulty} onComplete={setTestResult} /> : GAME_MAP[testing.id]
+                {testing.Component ? <testing.Component difficulty={practiceDifficulty} onComplete={result => {setTestResult(result); practiceAudio.playEffect("win");}} /> : GAME_MAP[testing.id]
                   ? GAME_MAP[testing.id]({}, setTestResult)
                   : <div className="text-center text-slate-500 py-8">This game type is registered on the server but has no frontend component yet.</div>
                 }
