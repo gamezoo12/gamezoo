@@ -28,6 +28,7 @@ import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 
 import '../styles/freeWorldGameV3.css';
+import { WorldClientGame, isWorldClientGame } from './WorldClientGame';
 
 
 function shuffle(values) {
@@ -1778,6 +1779,17 @@ if (
     );
   }
 
+
+  if (stage === 'demo' && isWorldClientGame(level?.game_id)) {
+    return <WorldClientGame gameId={level.game_id} label="DEMO MODE · no attempt used"
+      onComplete={() => setStage('demo-complete')} onSkip={() => setStage('demo-complete')} />;
+  }
+
+  if (stage === 'official' && isWorldClientGame(session?.game_id)) {
+    return <WorldClientGame gameId={session.game_id} busy={busy}
+      label={championMode ? 'CHAMPION RUN' : 'OFFICIAL ATTEMPT'}
+      onComplete={(result) => submitOfficial({ solved: Boolean(result.solved), taps: [] })} />;
+  }
 
   /*
    * ==========================================================

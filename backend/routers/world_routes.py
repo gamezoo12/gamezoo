@@ -4475,6 +4475,11 @@ async def _effective_level_config_base(
                       "game_config": {"colours": colours, "rounds": rounds, "timer_mode": "countdown"}}
     elif selected == "number_sequence" and config.get("game_id") != "number_sequence":
         config = {**config, "game_id": "number_sequence", "game_config": {"target_number": 20}}
+    elif selected in _world_client_games():
+        meta = _world_client_games()[selected]
+        config = {**config, "game_id": selected, "game_config": {"client_game": True},
+                  "time_limit_seconds": min(300, max(int(config.get("time_limit_seconds") or 60),
+                                                     int(meta.get("target_time_s", 60)) * 2))}
     if selected:
         config = {**config, "gc_applied_model": row.get("applied_model")}
     return config
@@ -4691,6 +4696,13 @@ def _colour_questions(colours: int, rounds: int):
     return questions, expected
 
 
+def _world_client_games() -> dict:
+    """Registered skill games played via their existing client component (all except server-checked Number Sequence)."""
+    from routers.game_routes import GAME_TYPES
+
+    return {g["id"]: g for g in GAME_TYPES if g["id"] != "number_sequence"}
+
+
 async def _champion_game_for(db, contest_number) -> Optional[dict]:
     """GC3 Colour Match, or a Colour Match Champion applied to a GC4+ via GC settings."""
     if int(contest_number or 0) >= 4:
@@ -4703,6 +4715,8 @@ async def _champion_game_for(db, contest_number) -> Optional[dict]:
         if champion.get("game_id") == "colour_match":
             cfg = champion.get("game_config") or {}
             return {"game_id": "colour_match", "colours": int(cfg.get("colours", 6)), "rounds": int(cfg.get("rounds", 20))}
+        if champion.get("game_id") in _world_client_games():
+            return {"game_id": champion["game_id"], "client_game": True}
     return _champion_colour_game(contest_number)
 
 
@@ -6412,7 +6426,10 @@ async def free_world_state(
     applied_champion_game = await _champion_game_for(
         db, int((active_contest or {}).get("contest_number") or 0),
     ) if active_contest and int(active_contest.get("contest_number") or 0) >= 4 else None
-    if applied_champion_game:
+    if applied_champion_game and applied_champion_game.get("client_game"):
+        champion_config = {**champion_config, "game_id": applied_champion_game["game_id"],
+                           "game_config": {"client_game": True, "timer_mode": "stopwatch"}}
+    elif applied_champion_game:
         champion_config = {
             **champion_config,
             "game_id": "colour_match",
@@ -6967,7 +6984,10 @@ async def free_world_session_start(
     colour_questions = None
     colour_expected = None
 
-    if config.get("game_id") == "colour_match":
+    if config.get("game_id") in _world_client_games():
+        target = 0
+        challenge_numbers = []
+    elif config.get("game_id") == "colour_match":
         target = int(config["game_config"]["rounds"])
         colour_questions, colour_expected = _colour_questions(
             int(config["game_config"]["colours"]),
@@ -7414,6 +7434,11 @@ async def free_world_session_submit(
         body.taps
         == expected_taps
     )
+    if session.get("game_id") in _world_client_games():
+        # Client-component game: completion is browser-reported, so the score always
+        # uses the server-measured elapsed time; a client cannot claim a faster run.
+        sequence_valid = body.duration_ms <= server_elapsed_ms + 1500
+        body.duration_ms = max(100, min(server_elapsed_ms, 300000))
 
     submitted_in_time = (
         body.duration_ms
@@ -8644,10 +8669,10 @@ async def champion_session_start(
             {"_id": 0, "champion": 1},
         )
         selected_champion = (future_gc_config or {}).get("champion") or {}
-        if selected_champion.get("game_id") in ("number_sequence", "colour_match"):
+        if selected_champion.get("game_id") in ("number_sequence", "colour_match", *_world_client_games()):
             game_id = selected_champion["game_id"]
 
-    if game_id not in ("number_sequence", "colour_match"):
+    if game_id not in ("number_sequence", "colour_match", *_world_client_games()):
         raise HTTPException(
             status_code=409,
             detail={"code": "GAME_NOT_AVAILABLE", "message": "This Champion game's official engine is not available yet."},
@@ -9307,6 +9332,8 @@ async def champion_session_submit(
         body.taps
         == expected_taps
     )
+    if session.get("game_id") in _world_client_games():
+        sequence_valid = body.duration_ms <= server_elapsed_ms + 1500
 
     if timer_mode == "stopwatch":
         # No Champion countdown.

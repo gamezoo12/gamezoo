@@ -11,6 +11,7 @@ import {
 } from './ContestEngineControls';
 import { useToast } from '../hooks/use-toast';
 import { Upload, X, Loader2 } from 'lucide-react';
+import { GAME_CATALOG, GAME_CATEGORIES } from '../lib/gameCatalog';
 
 
 // Live preview of the auto-generated skill question. Whenever admin changes
@@ -835,34 +836,11 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                 >
                   <option value="">Select a game</option>
-
-                  <optgroup label="Puzzles">
-                    <option value="jigsaw_3x3">Image Jigsaw (3?3)</option>
-                    <option value="jigsaw_4x4">Image Jigsaw (4?4)</option>
-                    <option value="slider_puzzle">15-Slider Puzzle</option>
-                    <option value="odd_one_out">Odd One Out</option>
-                  </optgroup>
-
-                  <optgroup label="Memory">
-                    <option value="memory_match">Memory Match (pairs)</option>
-                    <option value="simon_says">Simon Says (sequence)</option>
-                    <option value="pattern_repeat">Pattern Repeat</option>
-                  </optgroup>
-
-                  <optgroup label="Reaction">
-                    <option value="number_sequence">Number Sequence 1?20</option>
-                    <option value="target_tap">Target Tap</option>
-                    <option value="reaction_time">Reaction Time</option>
-                    <option value="whack_a_mole">Whack-a-Mole</option>
-                    <option value="color_match">Color Match (Stroop)</option>
-                    <option value="math_sprint">Math Sprint</option>
-                  </optgroup>
-
-                  <optgroup label="Trivia & Word">
-                    <option value="emoji_riddle">Emoji Riddle</option>
-                    <option value="word_unscramble">Word Unscramble</option>
-                    <option value="trivia_quiz">Trivia Quiz</option>
-                  </optgroup>
+                  {GAME_CATEGORIES.map((category) => (
+                    <optgroup key={category} label={category}>
+                      {GAME_CATALOG.filter((g) => g.category === category).map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}
+                    </optgroup>
+                  ))}
                 </select>
               </section>
             )}

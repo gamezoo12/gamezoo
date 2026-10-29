@@ -9,7 +9,13 @@ from typing import Any
 MIN_CONFIGURABLE_GC = 4
 MAX_CONFIGURABLE_GC = 53
 COMPETITION_MODELS = {"champion_only", "every_level"}
-SUPPORTED_GAMES = {"number_sequence", "colour_match", "memory_match"}
+SUPPORTED_GAMES = {"number_sequence", "colour_match", "memory_match"} | {
+    "jigsaw_3x3", "jigsaw_4x4", "slider_puzzle", "emoji_riddle", "target_tap", "word_unscramble", "math_sprint",
+    "reaction_time", "trivia_quiz", "simon_says", "whack_a_mole", "odd_one_out", "color_match", "pattern_repeat",
+    "sudoku_mini", "sequence_predict", "countdown_numbers", "word_ladder", "chess_mate_in_one", "tower_of_hanoi",
+    "lights_out", "minesweeper_mini", "nonogram_mini", "tf2048_mini", "cryptogram", "anagram_finder",
+    "maze_solver", "spot_pattern",
+}
 DEFAULT_LEVEL_BONUS_REWARDS = {1: 5, 2: 4, 3: 3, 4: 2, 5: 1}
 MAX_LEVEL_BONUS_TOKENS = 500
 

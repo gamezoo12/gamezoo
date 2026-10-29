@@ -44,6 +44,7 @@ import FreeWorldLeaderboard
 
 import EveryLevelWorld
   from './components/EveryLevelWorld';
+import { GAME_CATALOG } from '../lib/gameCatalog';
 
 import FreeWorldNumberSequence
   from './components/FreeWorldNumberSequenceV3';
@@ -732,7 +733,7 @@ export default function PrizeLeagueWorld() {
                           ? 'Number Sequence'
                           : levelData.level?.game_id === 'colour_match'
                             ? 'Colour Match'
-                            : levelData.level?.game_id}
+                            : GAME_CATALOG.find((g) => g.id === levelData.level?.game_id)?.label || levelData.level?.game_id}
                       </strong>
                     </div>
 

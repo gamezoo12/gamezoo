@@ -2,9 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, CheckCircle2, CircleDot, FlaskConical, Lock, Save } from 'lucide-react';
 import { worldGcCompetitionAdminAPI } from '../../lib/api';
 import { GCPreviewPanel } from '../../components/admin/GCPreviewPanel';
+import { GAME_CATALOG } from '../../lib/gameCatalog';
 
 const gcOptions = Array.from({ length: 50 }, (_, index) => index + 4);
-const gameNames = { number_sequence: 'Number Sequence', colour_match: 'Colour Match', memory_match: 'Memory Match' };
+const gameNames = { ...Object.fromEntries(GAME_CATALOG.map((g) => [g.id, g.label])), colour_match: 'Colour Match (Free World, server-checked)' };
+const allGameIds = ['colour_match', ...GAME_CATALOG.map((g) => g.id)];
 const defaultRewards = { '1': 5, '2': 4, '3': 3, '4': 2, '5': 1 };
 const fieldClass = 'h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm disabled:bg-slate-100 disabled:text-slate-400';
 const labelClass = 'mb-1 block text-xs font-semibold text-slate-600';
@@ -81,9 +83,7 @@ export default function WorldGCCompetitionAdmin() {
   const isActiveGc = Boolean(states?.is_active_gc);
   const notStarted = states && !states.has_started && !isActiveGc;
   const fullEngine = data?.config?.engine === 'every_level_engine' || (status !== 'draft' && !data?.config?.engine && data?.config?.model === 'every_level');
-  const levelOpened = (n) => Boolean(states?.levels?.[n - 1]?.opened);
-  const gameOptions = fullEngine ? ['memory_match']
-    : notStarted && draft?.model === 'every_level' ? ['memory_match', 'number_sequence', 'colour_match'] : ['number_sequence', 'colour_match'];
+    const gameOptions = fullEngine ? ['memory_match'] : allGameIds;
 
   const rowFor = (n) => draft.levels.find((r) => Number(r.level) === n) || { level: n, bonus_rewards: defaultRewards };
   const updateLevel = (n, patch) => setDraft((cur) => ({ ...cur, levels: [...cur.levels.filter((r) => Number(r.level) !== n), { ...rowFor(n), ...patch, level: n }].sort((a, b) => a.level - b.level) }));
@@ -139,7 +139,7 @@ export default function WorldGCCompetitionAdmin() {
 
         {isActiveGc && <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950" data-testid="gc-live-rules">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
-          <p>{states.next_unopened_level ? `Changes apply from Level ${states.next_unopened_level} onward` : states.champion_unopened ? 'All numbered levels are open; only the Champion game can still change' : 'Every level has opened; nothing can be applied to this GC'}. Opened levels are locked. GCs already running use Number Sequence or Colour Match; Memory Match needs a GC that has not started.</p>
+          <p>{states.next_unopened_level ? `Changes apply from Level ${states.next_unopened_level} onward` : states.champion_unopened ? 'All numbered levels are open; only the Champion game can still change' : 'Every level has opened; nothing can be applied to this GC'}. Opened levels are locked. Any of the registered skill games can be chosen for the remaining levels.</p>
         </div>}
 
         <form onSubmit={saveDraft} className="space-y-5">

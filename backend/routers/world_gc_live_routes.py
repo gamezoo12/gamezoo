@@ -17,6 +17,7 @@ from services.world_championship_schedule import championship_window, ordered_co
 from services.world_gc_competition import (
     MAX_CONFIGURABLE_GC,
     MIN_CONFIGURABLE_GC,
+    SUPPORTED_GAMES,
     apply_memory_match_click,
     build_memory_match_board,
     default_gc_config,
@@ -25,7 +26,7 @@ from services.world_gc_competition import (
 )
 
 SEASON_ID = "season-1"
-LEGACY_GAMES = {"number_sequence", "colour_match"}
+LEGACY_GAMES = set(SUPPORTED_GAMES)
 APPLY_SAFETY_SECONDS = 120
 PAUSE_ID = "free_world_pause"
 PAUSED_DETAIL = {"code": "FREE_WORLD_PAUSED",
@@ -230,7 +231,7 @@ def strip_schedule_fields(payload: dict) -> dict:
 
 def _validate_game(label: str, game_id: str, game_config: dict, allowed: set):
     if game_id not in allowed:
-        names = "Memory Match" if allowed == {"memory_match"} else "Number Sequence or Colour Match"
+        names = "Memory Match only (full Every-Level engine)" if allowed == {"memory_match"} else "the registered skill games"
         raise HTTPException(status_code=422, detail=f"{label}: this engine supports {names}")
     if game_id == "colour_match":
         try:
@@ -430,9 +431,8 @@ async def apply_to_future_gc(gc_number: int, payload: ApplyInput, request: Reque
     games_all = games + [champion.get("game_id")]
     if any(not g for g in games_all):
         raise HTTPException(status_code=422, detail="Choose a game for every level and the Champion Level")
-    engine = "every_level_engine" if "memory_match" in games_all else "legacy_hybrid"
-    if engine == "every_level_engine" and model != "every_level":
-        raise HTTPException(status_code=422, detail="Memory Match requires the Every-Level + Champion model")
+    engine = ("every_level_engine" if model == "every_level" and all(g == "memory_match" for g in games_all)
+              else "legacy_hybrid")
     allowed = {"memory_match"} if engine == "every_level_engine" else LEGACY_GAMES
     levels = []
     for n in range(1, 11):
