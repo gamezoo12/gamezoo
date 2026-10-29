@@ -32,19 +32,6 @@ def public_vapid_config() -> dict[str, Any]:
 
 
 def web_push_status(user: dict, active_devices: int) -> str:
-    if user.get('web_push_browser_permission') == 'denied':
-        return 'Browser Permission Denied'
-    enabled = user.get('web_push_enabled') is True
-    if enabled:
-        return 'Enabled' if active_devices else 'Not Subscribed'
-    if user.get('web_push_consent_source') in {'admin', 'user'} and user.get('web_push_consent_at'):
-        return 'Disabled'
-    if user.get('web_push_browser_permission') == 'granted' or active_devices:
-        return 'Not Subscribed'
-    return 'Disabled'
-
-
-def web_push_status(user: dict, active_devices: int) -> str:
     if user.get('web_push_enabled') is True:
         return 'Enabled' if active_devices else 'Not Subscribed'
     if user.get('web_push_browser_permission') == 'denied':

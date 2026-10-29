@@ -345,7 +345,9 @@ async def apply_to_current_gc(gc_number: int, payload: ApplyInput, request: Requ
 
     live_champion = deepcopy((config or {}).get("champion") or {}) if config_engine(config) else {}
     draft_champion = draft.get("champion") or {}
-    champion_affected = bool(champion_unopened and draft_champion.get("game_id"))
+    champion_affected = bool(champion_unopened and draft_champion.get("game_id") and (
+        draft_champion.get("game_id") != live_champion.get("game_id")
+        or (draft_champion.get("game_config") or {}) != (live_champion.get("game_config") or {})))
     if champion_affected:
         _validate_game("Champion", draft_champion["game_id"], draft_champion.get("game_config") or {}, allowed)
         live_champion.update({"game_id": draft_champion["game_id"],
@@ -356,10 +358,13 @@ async def apply_to_current_gc(gc_number: int, payload: ApplyInput, request: Requ
     if not applied_parts:
         raise HTTPException(status_code=409, detail="Nothing to apply: the remaining unopened levels have no new settings")
 
-    fingerprint = _fingerprint(model, applied_parts)
+    fingerprint = _fingerprint(model, [p for p in applied_parts if p[0] != "champion"],
+                               draft_champion.get("game_id"), draft_champion.get("game_config") or {})
     if config and config.get("activation_status") == "active" and config.get("last_apply_fingerprint") == fingerprint:
-        return {"config": config, "idempotent_replay": True, "affected_levels": affected,
-                "champion_affected": champion_affected, "legacy_schedule_changed": False}
+        await db.world_gc_competition_configs.update_one(key, {"$unset": {"pending_draft": ""}})
+        return {"config": await db.world_gc_competition_configs.find_one(key, {"_id": 0}), "idempotent_replay": True,
+                "affected_levels": [], "locked_levels": [], "champion_affected": False,
+                "legacy_schedule_changed": False, "message": "Already applied; the draft matched the live settings."}
     if _first_unopened(schedule, datetime.now(timezone.utc)) != (first_level, champion_unopened):
         raise HTTPException(status_code=409, detail="A level opened while applying; reload and try again")
 
@@ -448,6 +453,7 @@ async def apply_to_future_gc(gc_number: int, payload: ApplyInput, request: Reque
             raise HTTPException(status_code=422, detail=str(exc)) from exc
     fingerprint = _fingerprint(model, engine, levels and [[r["level"], r["game_id"], r["game_config"], r["bonus_rewards"]] for r in levels], live_champion)
     if config and config.get("activation_status") == "active" and config.get("last_apply_fingerprint") == fingerprint:
+        await db.world_gc_competition_configs.update_one(key, {"$unset": {"pending_draft": ""}})
         return {"config": config, "idempotent_replay": True}
     previous = {k: (config or {}).get(k) for k in ("model", "engine", "activation_status", "levels", "champion")}
     new_fields = {"model": model, "engine": engine, "activation_status": "active",
@@ -714,8 +720,14 @@ async def preview_action(payload: PreviewActionInput, request: Request):
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         doc["log"].append("Preview settings updated")
     elif action == "set_time":
-        _utc(payload.sim_now)
+        sim = _utc(payload.sim_now)
         doc["sim_now"] = payload.sim_now
+        opens = [_utc(r["opens_at"]) for r in doc["levels"]] + [_utc(doc["champion"]["opens_at"])]
+        for i, row in enumerate(doc["levels"] + [doc["champion"]]):
+            if row.get("state") == "finalized":
+                continue
+            closes = opens[i + 1] if i < 10 else _utc(doc["champion"]["closes_at"])
+            row["state"] = "locked" if sim < opens[i] else "open" if sim < closes else "closed"
         doc["log"].append(f"Simulated time set to {payload.sim_now}")
     elif action == "set_level_time":
         _utc(payload.opens_at)

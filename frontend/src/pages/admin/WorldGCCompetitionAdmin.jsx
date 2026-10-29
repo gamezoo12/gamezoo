@@ -160,10 +160,10 @@ export default function WorldGCCompetitionAdmin() {
               const locked = (isActiveGc && n < (states.next_unopened_level || 11)) || status === 'completed';
               return <article key={n} className={`rounded-lg border p-4 ${locked ? 'border-slate-200 bg-slate-50' : 'border-slate-200 bg-white'}`} data-testid={`gc-level-card-${n}`}>
                 <div className="mb-3 flex items-center justify-between"><h3 className="font-semibold text-slate-800">Level {n}</h3>{locked && <span className="flex items-center gap-1 text-xs font-semibold text-slate-500"><Lock className="h-3 w-3" /> Opened — existing settings kept</span>}</div>
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {locked ? <p className="text-sm text-slate-600" data-testid={`gc-level-locked-${n}`}>Running: <b>{gameNames[states?.levels?.[n - 1]?.game_id] || 'Number Sequence (existing)'}</b>{states?.levels?.[n - 1]?.applied_model === 'every_level' ? ' · Every-Level Bonus Tokens' : ''}</p> : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <GameFields row={row} disabled={locked} options={gameOptions} onChange={(patch) => updateLevel(n, patch)} />
                   {draft.model === 'every_level' && [1, 2, 3, 4, 5].map((rank) => <label key={rank}><span className={labelClass}>{rank}{['st', 'nd', 'rd', 'th', 'th'][rank - 1]} place · Bonus Tokens</span><input className={fieldClass} disabled={locked} type="number" min="0" max="500" step="1" value={row.bonus_rewards?.[String(rank)] ?? defaultRewards[String(rank)]} onChange={(e) => updateLevel(n, { bonus_rewards: { ...defaultRewards, ...row.bonus_rewards, [String(rank)]: Number(e.target.value) } })} data-testid={`gc-bonus-${n}-${rank}`} /></label>)}
-                </div>
+                </div>}
               </article>;
             })}
           </section>

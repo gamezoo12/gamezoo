@@ -11,7 +11,7 @@ from services.world_championship_schedule import championship_window, ensure_utc
 from tests.test_admin_dashboard_stats_live import API, db_insert, db_read, db_name
 
 
-def test_memory_match_server_timing_best_rank_and_isolated_progress(db_name):
+def test_memory_match_server_timing_best_rank_and_isolated_progress(db_name):  # noqa: F811
     gc_number = 53
     user_id = f"world_gc_player_{uuid.uuid4().hex[:12]}"
     admin_id = f"world_gc_admin_{uuid.uuid4().hex[:12]}"
@@ -275,7 +275,7 @@ def test_memory_match_server_timing_best_rank_and_isolated_progress(db_name):
         db_insert(db_name, cleanup)
 
 
-def test_admin_configure_and_schedule_sidecar_without_changing_legacy_schedule(db_name):
+def test_admin_configure_and_schedule_sidecar_without_changing_legacy_schedule(db_name):  # noqa: F811
     gc_number = 52
     admin_id = f"world_gc_config_admin_{uuid.uuid4().hex[:12]}"
     season_start = datetime(2030, 1, 1, tzinfo=timezone.utc)
@@ -380,7 +380,7 @@ def test_admin_configure_and_schedule_sidecar_without_changing_legacy_schedule(d
         db_insert(db_name, cleanup)
 
 
-def test_legacy_champion_settlement_credits_top5_once_and_replays(db_name):
+def test_legacy_champion_settlement_credits_top5_once_and_replays(db_name):  # noqa: F811
     contest_number = 51
     run_id = uuid.uuid4().hex[:10]
     user_ids = [f"legacy_settle_{run_id}_{rank}" for rank in range(1, 6)]

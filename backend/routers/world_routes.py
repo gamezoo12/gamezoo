@@ -4691,6 +4691,21 @@ def _colour_questions(colours: int, rounds: int):
     return questions, expected
 
 
+async def _champion_game_for(db, contest_number) -> Optional[dict]:
+    """GC3 Colour Match, or a Colour Match Champion applied to a GC4+ via GC settings."""
+    if int(contest_number or 0) >= 4:
+        sidecar = await db.world_gc_competition_configs.find_one(
+            {"season_id": WORLD_SEASON_ID, "gc_number": int(contest_number), "activation_status": "active",
+             "$or": [{"model": "champion_only"}, {"engine": "legacy_hybrid"}]},
+            {"_id": 0, "champion": 1},
+        )
+        champion = (sidecar or {}).get("champion") or {}
+        if champion.get("game_id") == "colour_match":
+            cfg = champion.get("game_config") or {}
+            return {"game_id": "colour_match", "colours": int(cfg.get("colours", 6)), "rounds": int(cfg.get("rounds", 20))}
+    return _champion_colour_game(contest_number)
+
+
 def _champion_colour_game(contest_number) -> Optional[dict]:
     spec = WORLD_COLOUR_MATCH_CONTESTS.get(int(contest_number or 0))
     if not spec or not spec.get("champion"):
@@ -6394,6 +6409,16 @@ async def free_world_state(
         )
         or ROYAL_VILLAGE_CHAMPION
     )
+    applied_champion_game = await _champion_game_for(
+        db, int((active_contest or {}).get("contest_number") or 0),
+    ) if active_contest and int(active_contest.get("contest_number") or 0) >= 4 else None
+    if applied_champion_game:
+        champion_config = {
+            **champion_config,
+            "game_id": "colour_match",
+            "game_config": {"colours": applied_champion_game["colours"], "rounds": applied_champion_game["rounds"],
+                            "timer_mode": "stopwatch"},
+        }
 
     champion_stage = int(
         progress.get(
@@ -8484,7 +8509,7 @@ async def champion_status(
             attempts,
 
         "champion_game":
-            _champion_colour_game(contest_number),
+            await _champion_game_for(db, contest_number),
     }
 
 

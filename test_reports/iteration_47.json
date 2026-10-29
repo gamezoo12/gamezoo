@@ -1,0 +1,49 @@
+{
+  "summary": "E2E test (public URL, preview DB only) of GC Competition Settings live-apply fix, Free World Pause/Resume and isolated Preview sandbox. Backend: 12 pytest cases (11 pass, 1 fail = real bug). Frontend: GC settings page (GC4 live, status pipeline, read-only schedule cards, no datetime/copy/schedule/activate controls, L1-8 locked), Save Draft -> Apply to Current GC flow via UI (notice lists L9,10 + Champion, L1-8 kept, audit row added, button disabled after), Free World pause/resume UI incl. SCHEDULE_PASSED_DURING_PAUSE resolution box + ack, player /world paused banner, Preview panel (reset, model, game, sim time, open, Memory Match board with clicks/retries/stopwatch, simulate, finalize level + Champion, wallets, error states). Player /world/state reflects applied L9 game (colour_match) while L1-8 stay Number Sequence. Free World left RESUMED. GC4 config restored to the pre-test snapshot (L9 colour_match, L10 number_sequence, Champion colour_match). GC5 config deleted after apply-future test (was absent before).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "PUT /api/admin/world-gc/competitions/{gc} + POST .../apply-current", "issue": "If the saved draft is identical to the applied config, apply-current returns idempotent_replay=true via the fingerprint branch but never $unset pending_draft. has_unapplied_draft stays true, the UI shows 'ACTIVE · UNAPPLIED DRAFT' and keeps Apply to Current GC enabled forever (each click = no-op). This was already the state of GC4 when testing started (pending_draft saved 13:01 identical to applied). Fix: in the fingerprint-match branch (world_gc_live_routes.py ~line 360) unset pending_draft, or have PUT skip storing a pending_draft equal to the live config."},
+      {"endpoint": "POST /api/admin/world-gc/competitions/{gc}/apply-current", "issue": "champion_affected is true on every apply whenever the Champion is unopened and the draft has a champion game, even if unchanged; notice + audit always say '+ Champion' and champion applied_at is rewritten. Compare against the live champion before marking it affected."},
+      {"endpoint": "GET /api/world/state (champion block)", "issue": "For GC4 the sidecar Champion game is colour_match (champion_session_start uses it), but /world/state champion.game_id still reports number_sequence (target_number 30). Players may see the wrong Champion game before it opens. Could not verify the start path because the Champion opens 1 Nov."},
+      {"endpoint": "world_gc_competition_routes.py /schedule & /activate", "issue": "Both return 410 correctly, but ~120 lines of unreachable code remain after the raise. Remove it."},
+      {"endpoint": "POST /api/world/session/submit", "issue": "There is no pause guard on submit, so a session that was in progress when the pause started can still submit and record hybrid level bests while paused. This may be intended; please confirm."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "GCPreviewPanel errText", "issue": "errText returns e.response.data.detail as-is. A Pydantic 422 returns an array/object, which React will try to render as a child and crash. Use the same string/message normalisation as WorldGCCompetitionAdmin.", "selector": "[data-testid=preview-error]", "priority": "LOW"},
+      {"component": "GCPreviewPanel MemoryBoard", "issue": "After switching to the Champion level or jumping to another level, the board of the previous level (L1) stays visible.", "selector": "[data-testid=preview-memory-board]", "priority": "LOW"}
+    ],
+    "integration_issues": [
+      {"flow": "Preview simulated time", "issue": "preview-sim-time only stores sim_now. Levels do not auto-open or close from simulated time; only the manual Open/Close/Jump buttons work.", "affected_selectors": ["[data-testid=preview-sim-time]"]}
+    ],
+    "design_issues": [
+      {"screen": "/admin/world-gc-settings level cards 1-8", "issues": ["Locked cards show 'Choose game' with greyed bonus inputs (5/4/3/2/1) even though these levels actually run Number Sequence with no level bonuses. Show 'Number Sequence (existing)' and hide the bonus inputs on locked legacy levels to avoid confusion."]},
+      {"screen": "/admin/free-world", "issues": ["The Season Control card shows a 'DRAFT' badge while Championship 4 is live. This was there before this change but is confusing next to the new pause control."]}
+    ]
+  },
+  "test_report_links": ["/app/tests/e2e_public/test_gc_live_apply_pause_e2e.py", "/app/test_reports/pytest/gc_live_e2e.xml"],
+  "action_items": [
+    "Clear pending_draft on the idempotent fingerprint-match path of apply-current (or do not store a draft identical to the live config). GC4 in the preview DB currently has such a stale pending_draft, so the UI shows 'unapplied draft'.",
+    "Only mark champion_affected when the champion game/config actually changes.",
+    "Make the /world/state Champion block reflect the sidecar Champion game for GC4+.",
+    "Normalise error detail in GCPreviewPanel errText to a string.",
+    "Remove dead code after the 410 raises in /schedule and /activate.",
+    "Optional: clear the preview memory board when the level changes; drive preview level states from simulated time."
+  ],
+  "critical_code_review_comments": [
+    "world_routes.py is >13k lines and world_gc_live_routes.py is 787 lines; split these into smaller modules (pause, apply, preview).",
+    "Frontend api.js hardcodes the confirmation strings ('APPLY GC{n}'), so the backend's typed confirmation adds no real safety in the UI; window.confirm is the only guard.",
+    "PUT competitions allows any admin role to save drafts, while apply requires super_admin. This is acceptable but worth documenting.",
+    "Preview sandbox is stored in world_gc_preview_sandboxes keyed by admin user_id. Isolation verified: counts of world_progress/world_game_sessions/wallets/bonus_grants/world_gc_level_bests/world_gc_level_bonus_awards/world_winner_awards and the GC4 contest/config/world_settings docs were unchanged after a full preview run."
+  ],
+  "updated_files": ["/app/tests/e2e_public/test_gc_live_apply_pause_e2e.py (new; run with: cd /app/tests/e2e_public && python -m pytest test_gc_live_apply_pause_e2e.py -c /dev/null -p no:xdist -v)"],
+  "success_rate": {"backend": "92% (11/12; 1 real bug)", "frontend": "95%"},
+  "test_credentials": "super_admin bachanta8@gmail.com / Herts@910022; player1@example.com / Player@12345. A temporary admin-role user test_tmp_admin_gc@example.com was created for the 403 tests and deleted afterwards.",
+  "seed_data_creation": "None left behind. A GC5 config was created for the apply-future test and then deleted. GC4 config was restored from a mongodump snapshot. Apply/pause/resume audit rows created during testing remain in world_gc_config_audit.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "The backend/tests/conftest.py harness forces requests to a local isolated backend and skips public-URL tests, so the public E2E suite lives in /app/tests/e2e_public and must be run with -c /dev/null -p no:xdist. The system clock is about 29 Oct 2026; GC4 L1-8 are opened, L9 opens 30 Oct 00:00Z. test_identical_draft_replay_clears_pending is the regression test for the stale pending_draft bug. The pause test always resumes in its finally block.",
+  "rca of the issue": "Stale 'unapplied draft': PUT stores pending_draft for any active config. In apply-current, when draft_of(config) is truthy and the fingerprint matches last_apply_fingerprint, the function returns idempotent_replay early without $unset pending_draft. has_unapplied_draft stays true, so gc-apply-current stays enabled. Repro: PUT a body equal to config.levels/champion, POST apply-current, then GET shows has_unapplied_draft=true."
+}

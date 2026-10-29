@@ -35,7 +35,7 @@ def _get(path, headers, **params):
     return response.json()
 
 
-def test_business_review_rejects_unknown_period(db_name):
+def test_business_review_rejects_unknown_period(db_name):  # noqa: F811
     admin_id, headers, _ = seed(db_name, role='admin')
     try:
         response = requests.get(f'{API}/admin/dashboard/business-review', params={'period': 'fortnight'},
@@ -45,7 +45,7 @@ def test_business_review_rejects_unknown_period(db_name):
         cleanup(db_name, admin_id)
 
 
-def test_business_review_counts_recent_repeat_activity_after_daily_first_ping(db_name):
+def test_business_review_counts_recent_repeat_activity_after_daily_first_ping(db_name):  # noqa: F811
     admin_id, headers, now = seed(db_name, role='admin')
     user_id, _, _ = seed(db_name)
     old_ping = now - timedelta(hours=3)
@@ -66,7 +66,7 @@ def test_business_review_counts_recent_repeat_activity_after_daily_first_ping(db
         cleanup(db_name, user_id)
 
 
-def test_business_review_periods_staff_exclusion_and_tokens(db_name):
+def test_business_review_periods_staff_exclusion_and_tokens(db_name):  # noqa: F811
     admin_id, headers, now = seed(db_name, role='admin')
     user_id = google_id = staff_id = 'not_created'
     visitor, staff_visitor, legacy_staff_visitor = (f'visitor_{uuid.uuid4().hex[:8]}' for _ in range(3))
@@ -193,7 +193,7 @@ def test_business_review_periods_staff_exclusion_and_tokens(db_name):
 PERIODS = ('1h', '6h', '24h', 'yesterday', '7d', '1m', '1y', 'all_time')
 
 
-def test_every_shared_period_works_across_dashboard_acquisition_and_analytics(db_name):
+def test_every_shared_period_works_across_dashboard_acquisition_and_analytics(db_name):  # noqa: F811
     admin_id, headers, _ = seed(db_name, role='admin')
     try:
         for period in PERIODS:

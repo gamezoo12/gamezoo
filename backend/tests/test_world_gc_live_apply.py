@@ -108,6 +108,12 @@ def test_apply_current_pause_and_preview(gc_db):
         replay = requests.post(f"{API}/admin/world-gc/competitions/{GC}/apply-current", headers=sa,
                                json={"confirmation": f"APPLY GC{GC}"}, timeout=20).json()
         assert replay["idempotent_replay"] is True
+        same_draft = requests.put(f"{API}/admin/world-gc/competitions/{GC}", headers=sa, json=draft, timeout=20)
+        assert same_draft.status_code == 200
+        same_apply = requests.post(f"{API}/admin/world-gc/competitions/{GC}/apply-current", headers=sa,
+                                   json={"confirmation": f"APPLY GC{GC}"}, timeout=20).json()
+        assert same_apply.get("idempotent_replay") is True and same_apply["champion_affected"] is False, same_apply
+        assert requests.get(f"{API}/admin/world-gc/competitions/{GC}", headers=sa, timeout=20).json()["has_unapplied_draft"] is False
         audits = db_read(db_name, lambda db: db.world_gc_config_audit.count_documents({"gc_number": GC, "action": "apply_current"}))
         assert audits == 1
 
@@ -119,6 +125,10 @@ def test_apply_current_pause_and_preview(gc_db):
         l1, l7 = db_read(db_name, effective)
         assert l1["game_id"] == "number_sequence" and l7["game_id"] == "colour_match"
         assert l7["game_config"]["colours"] == 4 and l7["gc_applied_model"] == "every_level"
+
+        async def champion_game(db):
+            return await world_routes._champion_game_for(db, GC)
+        assert db_read(db_name, champion_game) == {"game_id": "colour_match", "colours": 6, "rounds": 20}
 
         # Players cannot use the Memory Match engine for a hybrid GC.
         assert requests.get(f"{API}/world/gc/active-model", timeout=20).json()["active"] is False
@@ -183,6 +193,9 @@ def test_apply_current_pause_and_preview(gc_db):
         act = lambda **kw: requests.post(f"{API}/admin/world-gc/preview/action", headers=sa, json=kw, timeout=20)  # noqa: E731
         assert act(action="update_config", config={"model": "every_level", "levels": [{"level": 1, "game_id": "memory_match", "game_config": {"pair_count": 2}}]}).status_code == 200
         assert act(action="simulate_players", level="L1", count=6).status_code == 200
+        timed = act(action="set_time", sim_now=reset.json()["preview"]["levels"][2]["opens_at"]).json()["preview"]
+        assert timed["levels"][1]["state"] == "closed" and timed["levels"][2]["state"] == "open" and timed["levels"][3]["state"] == "locked"
+        act(action="open_level", level="L1")
         start = act(action="memory_start", level="L1")
         assert start.status_code == 200 and start.json()["preview"]["memory"]["card_count"] == 4
         board = db_read(db_name, lambda db: db.world_gc_preview_sandboxes.find_one({"_id": admin_id}))["memory"]["board"]

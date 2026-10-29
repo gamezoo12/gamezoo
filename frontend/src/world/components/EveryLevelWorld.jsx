@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, Crown, RotateCcw, Trophy } from 'lucide-react';
 import { worldGcCompetitionAPI } from '../../lib/api';
 
+const defaultRewards = { '1': 5, '2': 4, '3': 3, '4': 2, '5': 1 };
+
 const levelOptions = [...Array.from({ length: 10 }, (_, index) => [`L${index + 1}`, `Level ${index + 1}`]), ['champion', 'Champion Level']];
 const gcOptions = Array.from({ length: 50 }, (_, index) => index + 4);
 

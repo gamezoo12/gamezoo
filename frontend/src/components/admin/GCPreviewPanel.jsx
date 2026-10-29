@@ -4,7 +4,12 @@ import { worldGcCompetitionAdminAPI as gcApi } from '../../lib/api';
 
 const levelKeys = [...Array.from({ length: 10 }, (_, i) => `L${i + 1}`), 'champion'];
 const btn = 'rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-100 disabled:opacity-40';
-const errText = (e) => e?.response?.data?.detail || 'Preview action failed.';
+const errText = (e) => {
+  const detail = e?.response?.data?.detail;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) return detail.map((d) => d?.msg).filter(Boolean).join('; ') || 'Invalid preview input.';
+  return detail?.message || 'Preview action failed.';
+};
 
 function MemoryBoard({ memory, revealed, onClick }) {
   if (!memory) return null;
@@ -72,7 +77,7 @@ export const GCPreviewPanel = ({ gcNumber }) => {
           <button type="button" className={btn} disabled={busy || row?.game_id !== 'memory_match'} onClick={() => { setRevealed({}); act('memory_start'); }} data-testid="preview-play-btn">Play Memory Match (retry)</button>
           <button type="button" className={btn} disabled={busy} onClick={() => act('finalize_level')} data-testid="preview-finalize-btn">{level === 'champion' ? 'Finalize Champion & payouts' : 'Finalize level'}</button>
         </div>
-        <MemoryBoard memory={preview.memory} revealed={revealed} onClick={click} />
+        <MemoryBoard memory={preview.memory?.level === level ? preview.memory : null} revealed={revealed} onClick={click} />
         <div className="grid gap-3 md:grid-cols-2 text-xs">
           <div data-testid="preview-leaderboard"><b>Simulated leaderboard</b>{ranked.slice(0, 10).map((s, i) => <div key={`${s.player_id}-${i}`}>{i + 1}. {s.name} · {(s.duration_ms / 1000).toFixed(2)}s</div>)}</div>
           <div data-testid="preview-wallets"><b>Simulated wallets</b>{Object.entries(preview.wallet || {}).map(([pid, w]) => <div key={pid}>{pid}: pending {w.bonus_pending || 0} · credited {w.bonus_credited || 0} · forfeited {w.bonus_forfeited || 0} · champion {w.champion_tokens || 0}</div>)}</div>
