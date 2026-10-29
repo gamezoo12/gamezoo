@@ -223,6 +223,134 @@ def test_registration_commission_recovers_after_interrupted_write(scenario, monk
             {'event_key': f"registration:{scenario['attribution_id']}"}) == 1
     run_db(scenario['db_name'], run)
 
+def test_influencer_exclusive_reward(scenario):
+    async def run(db):
+        from routers.referral_routes import _grant_signup_bonus_once
+        from routers.referral_routes import record_verified_topup
+        from routers.wallet_routes import _apply_tx
+
+        await db.reward_settings.update_one({'_id': 'app'}, {'$set': {
+            'normal_topup_bonus_enabled': True, 'normal_topup_bonus_mode': 'fixed',
+            'normal_topup_bonus_tokens': 9, 'normal_topup_bonus_minimum_gbp': 1,
+        }}, upsert=True)
+        await db.users.update_one({'user_id': scenario['user_id']}, {'$set': {
+            'signup_bonus_offer_eligible': True,
+        }})
+        await db.influencer_promos.update_one({'promo_id': scenario['promo_id']}, {'$set': {
+            'signup_reward_tokens': 5, 'registration_eligibility': 'email_verified',
+            'topup_reward_mode': 'fixed', 'topup_reward_tokens': 10,
+            'topup_minimum_pence': 1000, 'topup_qualification': 'first_success',
+            'bonus_expiry_days': 14,
+        }})
+
+        purchased = await _apply_tx(db, scenario['user_id'], 'topup', 20, note='verified Stripe top-up')
+        assert purchased['tx']['purchased_amount'] == 20
+        assert await record_registration_commission(db, scenario['user_id']) is not None
+        await record_verified_topup(db, scenario['user_id'], 20, scenario['session_id'])
+        await record_topup_commission(db, scenario['user_id'], scenario['session_id'])
+        assert await _grant_signup_bonus_once(db, scenario['user_id'], 'normal-signup-retry') is False
+
+        wallet = await db.wallets.find_one({'user_id': scenario['user_id']}, {'_id': 0})
+        assert wallet['balance'] == 35 and wallet['bonus'] == 15
+        grants = await db.bonus_grants.find({'user_id': scenario['user_id']}, {'_id': 0}).to_list(10)
+        assert len(grants) == 2
+        assert {g['ref_key'] for g in grants} == {
+            f"influencer-signup:{scenario['attribution_id']}:part:1",
+            f"influencer-topup:{scenario['session_id']}:part:1",
+        }
+        assert all(g['source'] == 'influencer_campaign' and g['expires_at'] for g in grants)
+
+        await record_registration_commission(db, scenario['user_id'])
+        await record_verified_topup(db, scenario['user_id'], 20, scenario['session_id'])
+        await record_topup_commission(db, scenario['user_id'], scenario['session_id'])
+        assert await db.bonus_grants.count_documents({'user_id': scenario['user_id']}) == 2
+        assert (await db.wallets.find_one({'user_id': scenario['user_id']}))['balance'] == 35
+
+    run_db(scenario['db_name'], run)
+
+
+def test_influencer_topup_lifecycle_below_minimum_first_repeat_and_concurrent_replays(scenario):
+    async def run(db):
+        from routers.referral_routes import record_verified_topup
+        from routers.wallet_routes import _apply_tx
+
+        await db.reward_settings.update_one({'_id': 'app'}, {'$set': {
+            'normal_topup_bonus_enabled': True, 'normal_topup_bonus_tokens': 9, 'normal_topup_bonus_minimum_gbp': 1,
+        }}, upsert=True)
+        await db.influencer_promos.update_one({'promo_id': scenario['promo_id']}, {'$set': {
+            'signup_reward_tokens': 0, 'topup_reward_mode': 'fixed', 'topup_reward_tokens': 6,
+            'topup_minimum_pence': 1000, 'topup_qualification': 'first_success', 'bonus_expiry_days': 10,
+        }})
+        uid = scenario['user_id']
+        small, big, repeat = f"{scenario['session_id']}_small", scenario['session_id'], f"{scenario['session_id']}_repeat"
+        for sid, pounds in ((small, 5), (repeat, 20)):
+            await db.payment_transactions.insert_one({
+                'session_id': sid, 'user_id': uid, 'payment_status': 'paid', 'wallet_credited': True,
+                'amount': pounds * 100, 'amount_received_pence': pounds * 100, 'amount_tax_pence': 0,
+                'created_at': datetime.now(timezone.utc)})
+
+        async def pay(sid, pounds):
+            await _apply_tx(db, uid, 'topup', pounds, note=f'verified {sid}')
+            await record_verified_topup(db, uid, pounds, sid)
+            await record_topup_commission(db, uid, sid)
+
+        await pay(small, 5)
+        assert await db.bonus_grants.count_documents({'user_id': uid}) == 0
+        await pay(big, 20)
+        await asyncio.gather(*[record_topup_commission(db, uid, big) for _ in range(5)])
+        await pay(repeat, 20)
+
+        wallet = await db.wallets.find_one({'user_id': uid}, {'_id': 0})
+        grants = await db.bonus_grants.find({'user_id': uid}, {'_id': 0}).to_list(10)
+        assert wallet['balance'] == 51 and wallet['bonus'] == 6  # 45 purchased + one 6-token campaign bonus
+        assert len(grants) == 1 and grants[0]['source'] == 'influencer_campaign' and grants[0]['expires_at']
+        assert grants[0]['ref_key'] == f'influencer-topup:{big}:part:1'
+        assert await db.bonus_grants.count_documents({'user_id': uid, 'source': {'$in': ['signup', 'normal_topup']}}) == 0
+        topups = await db.wallet_tx.find({'user_id': uid, 'kind': 'topup'}, {'_id': 0}).to_list(10)
+        assert sorted(t['purchased_amount'] for t in topups) == [5, 20, 20]
+    run_db(scenario['db_name'], run)
+
+
+def test_influencer_user_cannot_complete_conflicting_personal_referral(scenario):
+    async def run(db):
+        from routers.referral_routes import _complete_referral_if_eligible
+        referrer_id = f"personal_referrer_{scenario['user_id']}"
+        await db.users.insert_one({'user_id': referrer_id, 'email': f'{referrer_id}@example.test', 'role': 'user'})
+        await db.referrals.insert_one({
+            'referral_id': f"conflict_{scenario['user_id']}",
+            'referrer_user_id': referrer_id,
+            'referred_user_id': scenario['user_id'],
+            'code': 'PERSONAL', 'program_version': 'tokens_v2', 'status': 'pending',
+            'topup_qualified': True, 'contest_entered': True, 'reward_granted': False,
+            'offer_terms': {'enabled': True, 'referrer_reward_tokens': 7, 'referred_reward_tokens': 0,
+                            'qualifying_topup_gbp': 5, 'contest_entry_required': True, 'offer_version': 1},
+        })
+        assert await _complete_referral_if_eligible(db, scenario['user_id']) is False
+        ref = await db.referrals.find_one({'referred_user_id': scenario['user_id']}, {'_id': 0})
+        assert ref['reward_granted'] is False and ref['status'] == 'pending'
+        assert await db.bonus_grants.count_documents({'user_id': referrer_id}) == 0
+    run_db(scenario['db_name'], run)
+
+
+def test_existing_normal_bonus_is_preserved_and_blocks_new_influencer_reward(scenario):
+    async def run(db):
+        from services.bonus_grants import create_grant
+        await create_grant(db, user_id=scenario['user_id'], amount=5, expires_at=None,
+                           actor_id='signup-reward-system', actor_email='Prize League',
+                           reason='Historical normal signup reward',
+                           ref_key=f"signup_reward:{scenario['user_id']}", source='signup')
+        before = await db.wallets.find_one({'user_id': scenario['user_id']}, {'_id': 0, 'balance': 1})
+        await db.influencer_promos.update_one({'promo_id': scenario['promo_id']}, {'$set': {
+            'signup_reward_tokens': 7, 'registration_eligibility': 'email_verified',
+        }})
+        await record_registration_commission(db, scenario['user_id'])
+        after = await db.wallets.find_one({'user_id': scenario['user_id']}, {'_id': 0, 'balance': 1})
+        attribution = await db.influencer_attributions.find_one({'user_id': scenario['user_id']}, {'_id': 0})
+        assert before['balance'] == after['balance'] == 5
+        assert attribution['promo_conflict'] is True
+        assert attribution['promo_conflict_reason'] == 'normal_signup_bonus_already_issued'
+        assert await db.bonus_grants.count_documents({'user_id': scenario['user_id']}) == 1
+    run_db(scenario['db_name'], run)
 
 def test_failed_commission_insert_releases_reserved_campaign_budget(scenario, monkeypatch):
     async def run(db):
@@ -737,8 +865,10 @@ def test_user_360_returns_wallet_sources_grants_and_safe_withdrawal_history(scen
             return {'user_id': 'admin-test', 'role': 'admin'}
         monkeypatch.setattr(user360_routes, 'require_admin', admin)
         result = await user360_routes.user_360(scenario['user_id'], None)
-        assert result['wallet_breakdown']['purchased_tokens'] == 12
-        assert result['wallet_breakdown']['bonus_tokens'] == 5
+        assert result['wallet_breakdown']['purchased_tokens'] is None
+        assert result['wallet_breakdown']['source_classified'] is False
+        assert result['wallet_breakdown']['balance_tokens'] == 20
+        assert result['wallet_breakdown']['bonus_tokens'] is None
         assert result['wallet_breakdown']['winnings_pence'] == 1250
         assert result['wallet_breakdown']['lifetime_winnings_pence'] == 2000
         assert result['bonus_grants'][0]['spent_amount'] == 5

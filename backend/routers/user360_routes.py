@@ -16,7 +16,8 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from pydantic import BaseModel, Field
 from typing import Literal, Optional
 
-from auth import require_admin, verify_password
+from auth import phone_is_verified, require_admin, verify_password
+from services.promo_consent import admin_web_push_enable_updates
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ class UserWebPushDisableRequest(BaseModel):
 
 
 class UserWebPushGrantRequest(BaseModel):
-    evidence: str = Field(min_length=20, max_length=2000)
+    evidence: str = Field(min_length=10, max_length=2000)
 
 
 async def _sanitise(doc: dict) -> dict:
@@ -57,6 +58,8 @@ async def _sanitise(doc: dict) -> dict:
     d = dict(doc)
     d.pop('_id', None)
     d.pop('password_hash', None)
+    from auth import phone_is_verified
+    d['phone_verified'] = phone_is_verified(d)
     return d
 
 
@@ -78,8 +81,8 @@ async def bulk_user_actions(payload: BulkUserActionRequest, request: Request):
         if len(payload.consent_evidence.strip()) < 20:
             raise HTTPException(status_code=400, detail='Documented consent evidence of at least 20 characters is required')
     elif payload.action == 'web_push_grant':
-        if len(payload.consent_evidence.strip()) < 20:
-            raise HTTPException(status_code=400, detail='Documented Web Push opt-in evidence of at least 20 characters is required')
+        if len(payload.consent_evidence.strip()) < 10:
+            raise HTTPException(status_code=400, detail='A reason of at least 10 characters is required')
     elif payload.action in ('sms_revoke', 'web_push_revoke') and len(payload.note.strip()) < 10:
         raise HTTPException(status_code=400, detail='A revocation reason of at least 10 characters is required')
 
@@ -136,6 +139,8 @@ async def bulk_user_actions(payload: BulkUserActionRequest, request: Request):
             await db.users.update_one({'user_id': user_id}, {'$set': {
                 'web_push_enabled': False,
                 'web_push_enabled_at': None,
+                'web_push_admin_enabled': False,
+                'web_push_admin_pending': False,
                 'web_push_consent_at': now,
                 'web_push_consent_source': 'admin',
                 'web_push_admin_reason': payload.note.strip(),
@@ -160,17 +165,8 @@ async def bulk_user_actions(payload: BulkUserActionRequest, request: Request):
             active_devices = await db.web_push_subscriptions.count_documents(
                 {'user_id': user_id, 'active': True},
             )
-            if not active_devices:
-                items.append({'user_id': user_id, 'status': 'skipped', 'reason': 'Active browser subscription required'})
-                continue
             evidence = payload.consent_evidence.strip()
-            await db.users.update_one({'user_id': user_id}, {'$set': {
-                'web_push_enabled': True,
-                'web_push_enabled_at': now,
-                'web_push_consent_at': now,
-                'web_push_consent_source': 'admin',
-                'web_push_admin_reason': evidence,
-            }})
+            await db.users.update_one({'user_id': user_id}, {'$set': admin_web_push_enable_updates(now, admin.get('email'), evidence)})
             audit_id = f'aud_{payload.action}_{batch_id}_{user_id}'
             await db.audit_log.update_one({'audit_id': audit_id}, {'$setOnInsert': {
                 'audit_id': audit_id,
@@ -178,13 +174,14 @@ async def bulk_user_actions(payload: BulkUserActionRequest, request: Request):
                 'admin_user_id': admin.get('user_id'),
                 'admin_email': admin.get('email'),
                 'target_user_id': user_id,
-                'consent': True,
+                'consent': False,
+                'pending_browser_permission': True,
                 'source': 'admin',
                 'reason': evidence,
                 'batch_id': batch_id,
                 'at': now,
             }}, upsert=True)
-            items.append({'user_id': user_id, 'status': 'success', 'consent': True, 'active_devices': active_devices})
+            items.append({'user_id': user_id, 'status': 'success', 'pending_browser_permission': True, 'active_devices': active_devices})
             continue
 
         updates = {
@@ -296,6 +293,8 @@ async def disable_user_web_push(user_id: str, payload: UserWebPushDisableRequest
     await db.users.update_one({'user_id': user_id}, {'$set': {
         'web_push_enabled': False,
         'web_push_enabled_at': None,
+        'web_push_admin_enabled': False,
+        'web_push_admin_pending': False,
         'web_push_consent_at': now,
         'web_push_consent_source': 'admin',
         'web_push_admin_reason': reason,
@@ -320,8 +319,8 @@ async def enable_user_web_push(user_id: str, payload: UserWebPushGrantRequest, r
     if admin.get('role') not in ('admin', 'super_admin'):
         raise HTTPException(status_code=403, detail='Only admin or super-admin can grant Web Push consent')
     evidence = payload.evidence.strip()
-    if len(evidence) < 20:
-        raise HTTPException(status_code=400, detail='Documented Web Push opt-in evidence of at least 20 characters is required')
+    if len(evidence) < 10:
+        raise HTTPException(status_code=400, detail='A reason of at least 10 characters is required')
 
     from deps import get_db
     db = get_db()
@@ -335,24 +334,16 @@ async def enable_user_web_push(user_id: str, payload: UserWebPushGrantRequest, r
     active_devices = await db.web_push_subscriptions.count_documents(
         {'user_id': user_id, 'active': True},
     )
-    if not active_devices:
-        raise HTTPException(status_code=400, detail='An active browser subscription is required; the user must subscribe from their browser first')
-
     now = datetime.now(timezone.utc)
-    await db.users.update_one({'user_id': user_id}, {'$set': {
-        'web_push_enabled': True,
-        'web_push_enabled_at': now,
-        'web_push_consent_at': now,
-        'web_push_consent_source': 'admin',
-        'web_push_admin_reason': evidence,
-    }})
+    await db.users.update_one({'user_id': user_id}, {'$set': admin_web_push_enable_updates(now, admin.get('email'), evidence)})
     await db.audit_log.insert_one({
         'audit_id': f'aud_{uuid.uuid4().hex[:12]}',
         'kind': 'admin_web_push_consent_change',
         'admin_user_id': admin.get('user_id'),
         'admin_email': admin.get('email'),
         'target_user_id': user_id,
-        'consent': True,
+        'consent': False,
+        'pending_browser_permission': True,
         'source': 'admin',
         'reason': evidence,
         'active_devices': active_devices,
@@ -360,9 +351,7 @@ async def enable_user_web_push(user_id: str, payload: UserWebPushGrantRequest, r
     })
     return {
         'ok': True,
-        'web_push_enabled': True,
-        'web_push_consent_at': now.isoformat(),
-        'web_push_consent_source': 'admin',
+        'web_push_admin_pending': True,
         'web_push_device_count': active_devices,
     }
 
@@ -381,8 +370,10 @@ async def user_360(user_id: str, request: Request):
         {'user_id': user_id, 'active': True},
     )
     identity = await _sanitise(u)
+    identity['phone_verified'] = phone_is_verified(u)
     identity['web_push_device_count'] = web_push_device_count
     identity['web_push_status'] = web_push_status(u, web_push_device_count)
+    identity['web_push_admin_pending'] = u.get('web_push_admin_pending') is True
 
     wallet = await db.wallets.find_one({'user_id': user_id}, {'_id': 0}) or {}
     kyc = await db.kyc.find_one({'user_id': user_id}, {'_id': 0})
@@ -436,20 +427,15 @@ async def user_360(user_id: str, request: Request):
 
         outgoing_users = {x['user_id']: x for x in docs}
 
+    from services.offer_terms import referral_progress
+    from services.reward_program import get_reward_settings
+    reward_settings = await get_reward_settings(db)
     for ref in referrals:
         referred = outgoing_users.get(ref.get('referred_user_id'), {})
         ref['referred_name'] = referred.get('name')
         ref['referred_email'] = referred.get('email')
         ref['referred_public_id'] = referred.get('public_id')
-
-        if ref.get('status') == 'completed':
-            ref['display_status'] = 'Rewarded'
-        elif not ref.get('topup_qualified'):
-            ref['display_status'] = 'Waiting for £10 top-up'
-        elif not ref.get('contest_entered'):
-            ref['display_status'] = 'Waiting for contest entry'
-        else:
-            ref['display_status'] = 'Processing reward'
+        ref.update(referral_progress(ref, reward_settings))
 
     referrer_user = None
     if referred_by_referral and referred_by_referral.get('referrer_user_id'):
@@ -467,6 +453,8 @@ async def user_360(user_id: str, request: Request):
 
     signup_bonus = {
         'eligible': bool(u.get('signup_bonus_offer_eligible')),
+        'offer_terms': u.get('signup_offer_terms'),
+        'offer_version': u.get('signup_offer_version'),
         'qualifying_topup_completed': bool(u.get('qualifying_topup_completed')),
         'qualifying_topup_amount_gbp': u.get('qualifying_topup_amount_gbp'),
         'qualifying_topup_at': u.get('qualifying_topup_at'),
@@ -477,18 +465,35 @@ async def user_360(user_id: str, request: Request):
         'tx_id': u.get('signup_bonus_tx_id'),
         'topup_session_id': u.get('signup_bonus_topup_session_id'),
     }
+    from services.promo_status import user_promotion_status
+    promotion_status = await user_promotion_status(db, user_id)
 
     from services.bonus_grants import wallet_bonus_view
+    from services.promo_status import user_promotion_status
+    promotion_eligibility = await user_promotion_status(db, user_id)
     bonus_view = await wallet_bonus_view(db, user_id, wallet)
+    wallet_balance = float(wallet.get('balance') or 0)
+    bonus_tokens = float(wallet.get('bonus') or 0)
+    winning_bonus_tokens = float(wallet.get('winning_bonus') or 0)
+    winning_tokens = float(wallet.get('withdrawable') or 0)
+    pending_withdrawable = float(wallet.get('withdrawable_pending') or 0)
+    source_classified = wallet.get('source_migrated') is True
+    topup_tokens = max(0.0, wallet_balance - bonus_tokens - winning_bonus_tokens
+                       - winning_tokens - pending_withdrawable) if source_classified else None
+    total_available_tokens = (topup_tokens + bonus_tokens + winning_bonus_tokens + winning_tokens
+                              if source_classified else None)
     wallet_breakdown = {
-        'balance_tokens': float(wallet.get('balance') or 0),
-        'bonus_tokens': float(wallet.get('bonus') or 0),
-        'purchased_tokens': max(0.0, float(wallet.get('balance') or 0)
-                                - float(wallet.get('bonus') or 0)
-                                - float(wallet.get('withdrawable') or 0)
-                                - float(wallet.get('withdrawable_pending') or 0)),
-        'withdrawable_tokens': float(wallet.get('withdrawable') or 0),
-        'pending_withdrawable_tokens': float(wallet.get('withdrawable_pending') or 0),
+        'balance_tokens': wallet_balance,
+        'source_classified': source_classified,
+        'total_tokens': round(total_available_tokens, 2) if source_classified else None,
+        'topup_tokens': round(topup_tokens, 2) if source_classified else None,
+        'purchased_tokens': round(topup_tokens, 2) if source_classified else None,
+        'winning_tokens': round(winning_tokens, 2) if source_classified else None,
+        'withdrawable_tokens': round(winning_tokens, 2) if source_classified else None,
+        'winning_bonus_tokens': round(winning_bonus_tokens, 2) if source_classified else None,
+        'bonus_tokens': round(bonus_tokens, 2) if source_classified else None,
+        'available_to_cash_out': round(winning_tokens, 2) if source_classified else None,
+        'pending_withdrawable_tokens': round(pending_withdrawable, 2),
         'winnings_pence': int(winnings_wallet.get('available_pence') or 0)
                           + int(winnings_wallet.get('pending_pence') or 0),
         'lifetime_winnings_pence': int(winnings_wallet.get('total_won_pence') or 0),
@@ -624,6 +629,8 @@ async def user_360(user_id: str, request: Request):
         'referral_joined_via': referred_by_referral,
         'referrer_user': referrer_user,
         'signup_bonus': signup_bonus,
+        'promotion_status': promotion_status,
+        'promotion_eligibility': promotion_eligibility,
         'sessions': sessions,
         'admin_actions': admin_actions,
         'acquisition': acquisition,
@@ -1177,7 +1184,7 @@ class AdminAlertCreateRequest(BaseModel):
     alert_type: str = Field(default='custom', max_length=80)
     user_from: int = Field(default=1, ge=1)
     user_to: int = Field(default=1000, ge=1)
-    channels: List[Literal['in_app', 'email', 'sms']] = Field(
+    channels: List[Literal['in_app', 'email', 'sms', 'web_push', 'native_push']] = Field(
         default_factory=lambda: ['in_app']
     )
     audience: Optional[AudienceSpec] = None
@@ -1543,6 +1550,35 @@ async def _send_campaign_email(campaign_id: str, title: str, message: str, sends
     await _recount_campaign(db, campaign_id)
 
 
+async def _send_campaign_web_push(campaign_id: str, title: str, message: str, sends: list, marketing: bool) -> None:
+    """Deliver Web Push per user; consent, permission and subscription are enforced by send_web_push_to_user."""
+    from deps import get_db
+    from services.push_delivery import send_web_push_to_user
+    db = get_db()
+    for item in sends:
+        claimed = await db.alert_deliveries.find_one_and_update(
+            {'delivery_id': item['delivery_id'], 'status': 'pending'},
+            {'$set': {'status': 'sending', 'updated_at': datetime.now(timezone.utc)}},
+        )
+        if not claimed:
+            continue
+        try:
+            result = await send_web_push_to_user(
+                db, item['user_id'],
+                {'event_id': item['delivery_id'], 'title': title, 'body': message, 'url': '/my-account/notifications'},
+                marketing=marketing,
+            )
+            status, reason = result['status'], result.get('reason') or None
+        except Exception as exc:  # noqa: BLE001 - one bad device must not stop the campaign
+            logging.getLogger(__name__).warning('Campaign %s Web Push error: %s', campaign_id, type(exc).__name__)
+            status, reason = 'failed', 'send_error'
+        await db.alert_deliveries.update_one(
+            {'delivery_id': item['delivery_id']},
+            {'$set': {'status': status, 'reason': reason, 'updated_at': datetime.now(timezone.utc)}},
+        )
+    await _recount_campaign(db, campaign_id)
+
+
 async def _send_campaign_sms(campaign_id: str, message: str, sends: list) -> None:
     """Background delivery of campaign SMS via the Twilio Messaging Service.
 
@@ -1745,6 +1781,7 @@ async def create_alert_campaign(
     delivery_docs = []
     pending_sms = []
     pending_email = []
+    pending_push = []
 
     for position, user in enumerate(users, start=(camp_from or 1)):
         user_id = user.get('user_id')
@@ -1788,6 +1825,11 @@ async def create_alert_campaign(
                         'email': user['email'],
                         'unsubscribe_token': unsubscribe_token,
                     })
+            elif channel == 'web_push':
+                status, reason = 'pending', None
+                pending_push.append({'delivery_id': delivery_id, 'user_id': user_id})
+            elif channel == 'native_push':
+                status, reason = 'skipped', 'native_push_not_configured'
             else:  # sms
                 has_verified_phone = bool(
                     user.get('phone') and user.get('phone_verified')
@@ -1877,6 +1919,16 @@ async def create_alert_campaign(
             campaign['title'],
             campaign['message'],
             pending_email,
+        )
+
+    if pending_push:
+        background_tasks.add_task(
+            _send_campaign_web_push,
+            campaign_id,
+            campaign['title'],
+            campaign['message'],
+            pending_push,
+            campaign['alert_type'] in ('promotion', 'newsletter'),
         )
 
     # Send SMS in the background so bulk campaigns never block the API
@@ -1977,7 +2029,7 @@ async def get_alert_deliveries(
     if status:
         q['status'] = status
     if channel:
-        if channel not in ('in_app', 'email', 'sms'):
+        if channel not in ('in_app', 'email', 'sms', 'web_push', 'native_push'):
             raise HTTPException(status_code=400, detail='Invalid channel')
         q['channel'] = channel
 

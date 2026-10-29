@@ -25,7 +25,10 @@ export default function Winners() {
         <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-8">
           {winners.map((w) => (
             <div key={w.winner_id} className="rounded-2xl overflow-hidden bg-white border border-slate-100 shadow-sm hover:shadow-lg transition-shadow p-4">
-              <div className="flex items-center gap-1 text-orange-600 text-xs font-semibold mb-1"><Trophy className="w-3 h-3" /> {gbp(w.prize_amount)}</div>
+              <div className="flex items-center gap-1 text-orange-600 text-xs font-semibold mb-1"><Trophy className="w-3 h-3" />
+                {Number(w.prize_amount || 0) > 0 && gbp(w.prize_amount)}
+                {Number(w.prize_bonus_tokens || 0) > 0 && <span>{Number(w.prize_amount || 0) > 0 ? ' + ' : ''}{Number(w.prize_bonus_tokens).toLocaleString()} Winning Bonus Tokens</span>}
+              </div>
               <div className="font-display font-bold text-slate-900">{w.prize_title}</div>
               <div className="text-sm text-slate-500 mt-1">Won by {w.user_name}</div>
               <div className="text-xs text-slate-400">Ticket #{w.ticket_number}</div>

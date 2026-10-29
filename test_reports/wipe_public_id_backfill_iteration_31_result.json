@@ -16,7 +16,7 @@
       "passed": true,
       "detail": {
         "status": 200,
-        "body": "{\"user\":{\"user_id\":\"user_eb071248fabe\",\"public_id\":\"PL10000\",\"email\":\"bachanta8@gmail.com\",\"name\":\"Admin\",\"username\":null,\"picture\":null,\"role\":\"super_admin\",\"method\":\"email\",\"phone\":null,\"phone_verified\":false,\"dob\":null,\"address\":null,\"terms_accepted_at\":\"2026-07-30T20:39:46.500000\",\"must_change_p"
+        "body": "{\"user\":{\"user_id\":\"user_eb071248fabe\",\"public_id\":\"PL10000\",\"email\":\"<admin-email>\",\"name\":\"Admin\",\"username\":null,\"picture\":null,\"role\":\"super_admin\",\"method\":\"email\",\"phone\":null,\"phone_verified\":false,\"dob\":null,\"address\":null,\"terms_accepted_at\":\"2026-07-30T20:39:46.500000\",\"must_change_p"
       }
     },
     {

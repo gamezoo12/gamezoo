@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Download, Search, X } from 'lucide-react';
 import { adminAPI } from '../../lib/api';
 import { gbp } from '../../lib/format';
+import { periodLabel } from '../../components/admin/PeriodFilter';
 
 const COLUMNS = {
   active_users: [['name', 'Name'], ['email', 'Email'], ['username', 'Username'], ['last_active_at', 'Last activity'], ['created_at', 'Registered']],
@@ -13,7 +14,7 @@ const COLUMNS = {
   topups: [['session_id', 'Session'], ['user.name', 'User'], ['user.email', 'Email'], ['amount', 'Amount'], ['payment_status', 'Status'], ['stripe_payment_intent_id', 'Stripe reference'], ['created_at', 'Created']],
   live_contests: [['title', 'Contest'], ['contest_id', 'Contest ID'], ['status', 'Status'], ['tickets_sold', 'Tickets sold'], ['end_date', 'Ends']],
   tickets: [['ticket_number', 'Ticket'], ['user.name', 'User'], ['contest_id', 'Contest'], ['created_at', 'Created']],
-  visitors: [['visitor_id', 'Visitor'], ['user.email', 'Account'], ['visit_count', 'Visits'], ['source', 'Source'], ['channel', 'Channel'], ['landing_path', 'Last landing'], ['last_seen', 'Last seen']],
+  visitors: [['visitor_id', 'Visitor'], ['user.email', 'Account'], ['page_views', 'Page views'], ['visit_count', 'Sessions'], ['source', 'Source'], ['landing_path', 'First page'], ['last_seen', 'Last seen']],
   page_views: [['visitor_id', 'Visitor'], ['user_id', 'User ID'], ['page_path', 'Page'], ['created_at', 'Viewed']],
   paid_scores: [['user.name', 'User'], ['contest_id', 'Contest'], ['ticket_id', 'Ticket'], ['points', 'Score'], ['duration_ms', 'Time (ms)'], ['created_at', 'Submitted']],
   free_scores: [['user.name', 'User'], ['global_contest_number', 'Championship'], ['score', 'Score'], ['duration_ms', 'Time (ms)'], ['submitted_at', 'Submitted']],
@@ -97,7 +98,7 @@ export default function DashboardDetails({ metric, period, startDate = '', endDa
       <section className="flex max-h-[92vh] w-full max-w-[1500px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-indigo-700">{period === 'custom' ? `${startDate} to ${endDate}` : period} detail</p>
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-indigo-700">{period === 'custom' ? `${startDate} to ${endDate}` : periodLabel(period)} detail</p>
             <h2 id="dashboard-details-title" className="mt-1 text-xl font-black capitalize text-slate-950">{metric.replace(/_/g, ' ')}</h2>
             <p className="mt-1 text-xs text-slate-500">{total.toLocaleString()} matching records</p>
           </div>

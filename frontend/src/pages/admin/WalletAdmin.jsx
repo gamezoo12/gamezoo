@@ -98,7 +98,7 @@ export default function WalletAdmin() {
             <thead className="text-slate-400 text-left">
               <tr>
                 <th className="py-2">User</th>
-                <th>Balance</th>
+                <th>Available token categories</th>
                 <th>Lifetime top-up</th>
                 <th>Lifetime spend</th>
                 <th></th>
@@ -111,7 +111,15 @@ export default function WalletAdmin() {
                     <div className="font-medium text-white">{w.name || w.email || w.user_id}</div>
                     <div className="text-xs text-slate-500">{w.email}</div>
                   </td>
-                  <td className="font-bold text-orange-400">{gbp(w.balance)}</td>
+                  <td className="py-2 text-xs">
+                    {w.source_classified ? (
+                      <div className="space-y-0.5">
+                        <div>Top-up {Number(w.topup_tokens || 0).toLocaleString()} · Winning {Number(w.winning_tokens || 0).toLocaleString()}</div>
+                        <div>Winning bonus {Number(w.winning_bonus_tokens || 0).toLocaleString()} · Bonus {Number(w.bonus_tokens || 0).toLocaleString()}</div>
+                        <div className="font-bold text-white">Total {Number(w.total_tokens || 0).toLocaleString()} · Cashout {gbp(w.available_to_cash_out || 0)}</div>
+                      </div>
+                    ) : <span className="font-semibold text-amber-300">{Number(w.balance || 0).toLocaleString()} tokens · Legacy split unavailable</span>}
+                  </td>
                   <td>{gbp(w.lifetime_topup || 0)}</td>
                   <td>{gbp(w.lifetime_spend || 0)}</td>
                   <td>
@@ -137,7 +145,8 @@ export default function WalletAdmin() {
               <div>
                 <h3 className="font-display font-bold text-lg">{openUser.name || openUser.email}</h3>
                 <div className="text-sm text-slate-500">{openUser.email}</div>
-                <div className="mt-2 text-2xl font-extrabold text-orange-600">{gbp(openUser.balance)}</div>
+                <div className="mt-2 text-2xl font-extrabold text-orange-600">{Number(openUser.total_tokens ?? openUser.balance ?? 0).toLocaleString()} tokens</div>
+                {openUser.source_classified ? <div className="mt-1 text-xs text-slate-600">Top-up {Number(openUser.topup_tokens || 0).toLocaleString()} · Winning {Number(openUser.winning_tokens || 0).toLocaleString()} · Winning bonus {Number(openUser.winning_bonus_tokens || 0).toLocaleString()} · Bonus {Number(openUser.bonus_tokens || 0).toLocaleString()} · Cashout available {gbp(openUser.available_to_cash_out || 0)}</div> : <div className="mt-1 text-xs font-semibold text-amber-700">Legacy balance is not safely classified.</div>}
               </div>
               <button onClick={() => setOpenUser(null)} className="text-slate-500 hover:text-slate-900 text-2xl leading-none">×</button>
             </div>

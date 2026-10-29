@@ -102,6 +102,8 @@ export const userAPI = {
   markNotificationRead: (id) => api.post(`/users/notifications/${id}/read`).then(r => r.data),
   markNotificationUnread: (id) => api.post(`/users/notifications/${id}/unread`).then(r => r.data),
   acceptTerms: () => api.post('/users/me/accept-terms').then(r => r.data),
+  promotionsConsent: () => api.get('/users/me/promotions-consent').then(r => r.data),
+  savePromotionsConsent: (payload) => api.put('/users/me/promotions-consent', payload).then(r => r.data),
 };
 
 export const pushAPI = {
@@ -121,8 +123,14 @@ export const productionAPI = {
 export const adminAPI = {
   stats: () => api.get('/admin/stats').then(r => r.data),
   dashboardSummary: (period = '24h', range = {}) => api.get('/admin/dashboard/summary', { params: { period, ...range } }).then(r => r.data),
+  dashboardRecentActivity: (params = {}) => api.get('/admin/dashboard/recent-activity', { params }).then(r => r.data),
   userStats: (params = {}) => api.get('/admin/dashboard/user-stats', { params }).then(r => r.data),
+  businessReview: (period) => api.get('/admin/dashboard/business-review', { params: { period } }).then(r => r.data),
   walletReport: (params = {}) => api.get('/admin/dashboard/wallet-report', { params }).then(r => r.data),
+  tokenAccounting: (params = {}) => api.get('/admin/dashboard/token-accounting', { params }).then(r => r.data),
+  tokenLedger: (params = {}) => api.get('/admin/dashboard/token-ledger', { params }).then(r => r.data),
+  tokenLedgerCsv: (params = {}) => api.get('/admin/dashboard/token-ledger.csv', { params, responseType: 'blob' }).then(r => r.data),
+  worldActivity: (params = {}) => api.get('/admin/dashboard/world-activity', { params }).then(r => r.data),
   walletIntegrity: (params = {}) => api.get('/admin/dashboard/wallet-integrity', { params }).then(r => r.data),
   dashboardDetails: ({ metric, period = '24h', skip = 0, limit = 100, ...filters } = {}) => api.get('/admin/dashboard/details', { params: { metric, period, skip, limit, ...filters } }).then(r => r.data),
   users: () => api.get('/admin/users').then(r => r.data),
@@ -131,6 +139,8 @@ export const adminAPI = {
   adjustUserWallet: (id, payload) => api.post(`/admin/users/${encodeURIComponent(id)}/wallet-adjust`, payload).then(r => r.data),
   disableUserWebPush: (id, reason) => api.post(`/admin/users/${encodeURIComponent(id)}/web-push/disable`, { reason }).then(r => r.data),
   enableUserWebPush: (id, evidence) => api.post(`/admin/users/${encodeURIComponent(id)}/web-push/enable`, { evidence }).then(r => r.data),
+  userPromotionsConsent: (id) => api.get(`/admin/users/${encodeURIComponent(id)}/promotions-consent`).then(r => r.data),
+  saveUserPromotionsConsent: (id, payload) => api.put(`/admin/users/${encodeURIComponent(id)}/promotions-consent`, payload).then(r => r.data),
   creditBonus: (payload) => api.post('/admin/bonus-grants', payload).then(r => r.data),
   bonusGrants: (params = {}) => api.get('/admin/bonus-grants', { params }).then(r => r.data),
   revokeAllBonusGrants: (reason, confirm) => api.post('/admin/bonus-grants/revoke-all', { reason, confirm }).then(r => r.data),
@@ -346,6 +356,20 @@ export const referralAPI = {
   complete: () => api.post('/referrals/complete').then(r => r.data),
 };
 
+export const offersAPI = {
+  active: () => api.get('/offers/active').then(r => r.data),
+  promo: (code) => api.get(`/offers/promo/${encodeURIComponent(code)}`).then(r => r.data),
+  config: () => api.get('/admin/offers/config').then(r => r.data),
+  saveConfig: (payload) => api.put('/admin/offers/config', payload).then(r => r.data),
+  pricing: () => api.get('/admin/offers/pricing').then(r => r.data),
+  preview: (amounts) => api.get('/admin/offers/preview', { params: amounts ? { amounts: amounts.join(',') } : {} }).then(r => r.data),
+  promotionPreview: (promoId = '', amounts) => api.get('/admin/offers/promotion-preview', { params: { promo_id: promoId, ...(amounts ? { amounts: amounts.join(',') } : {}) } }).then(r => r.data),
+  history: () => api.get('/admin/offers/history').then(r => r.data),
+  referrals: (state = '') => api.get('/admin/offers/referrals', { params: state ? { state } : {} }).then(r => r.data),
+  rewardHistory: (source = '') => api.get('/admin/offers/reward-history', { params: source ? { source } : {} }).then(r => r.data),
+  promotionEligibility: (q = '', conflictsOnly = false) => api.get('/admin/offers/promotion-eligibility', { params: { q, conflicts_only: conflictsOnly, limit: 100 } }).then(r => r.data),
+};
+
 export const worldContestAPI = {
   championStatus: () =>
     api.get(
@@ -412,6 +436,20 @@ export const worldContestAPI = {
         },
       },
     ).then(r => r.data),
+};
+
+export const worldGcCompetitionAPI = {
+  activeModel: () => api.get('/world/gc/active-model').then(r => r.data),
+  pauseStatus: () => api.get('/world/pause-status').then(r => r.data),
+  progress: (gcNumber) => api.get(`/world/gc/progress/${gcNumber}`).then(r => r.data),
+  startMemoryMatch: (gcNumber, level) =>
+    api.post('/world/gc/memory-match/session/start', { gc_number: gcNumber, level }).then(r => r.data),
+  beginMemoryMatch: (sessionId) =>
+    api.post(`/world/gc/memory-match/session/${encodeURIComponent(sessionId)}/begin`).then(r => r.data),
+  clickMemoryMatch: (sessionId, position) =>
+    api.post(`/world/gc/memory-match/session/${encodeURIComponent(sessionId)}/click`, { position }).then(r => r.data),
+  leaderboard: (gcNumber, level) =>
+    api.get(`/world/gc/leaderboard/${gcNumber}/${encodeURIComponent(level)}`).then(r => r.data),
 };
 
 export const worldAdminAPI = {
@@ -487,6 +525,29 @@ export const worldAdminAPI = {
 
   setStageLevelConfig: (data) =>
     api.put('/admin/world/stage-level-config', data).then(r => r.data),
+};
+
+export const worldGcCompetitionAdminAPI = {
+  list: () => api.get('/admin/world-gc/competitions').then(r => r.data),
+  get: (gcNumber) => api.get(`/admin/world-gc/competitions/${gcNumber}`).then(r => r.data),
+  saveDraft: (gcNumber, config) =>
+    api.put(`/admin/world-gc/competitions/${gcNumber}`, config).then(r => r.data),
+  schedule: (gcNumber, confirmation) =>
+    api.post(`/admin/world-gc/competitions/${gcNumber}/schedule`, { confirmation }).then(r => r.data),
+  activate: (gcNumber, confirmation) =>
+    api.post(`/admin/world-gc/competitions/${gcNumber}/activate`, { confirmation }).then(r => r.data),
+  report: (gcNumber, level) =>
+    api.get(`/admin/world-gc/competitions/${gcNumber}/report/${encodeURIComponent(level)}`).then(r => r.data),
+  applyCurrent: (gcNumber) =>
+    api.post(`/admin/world-gc/competitions/${gcNumber}/apply-current`, { confirmation: `APPLY GC${gcNumber}` }).then(r => r.data),
+  applyFuture: (gcNumber) =>
+    api.post(`/admin/world-gc/competitions/${gcNumber}/apply-future`, { confirmation: `APPLY GC${gcNumber} FUTURE` }).then(r => r.data),
+  pauseStatus: () => api.get('/admin/world-gc/free-world/pause').then(r => r.data),
+  pause: (reason) => api.post('/admin/world-gc/free-world/pause', { reason }).then(r => r.data),
+  resume: (body = {}) => api.post('/admin/world-gc/free-world/resume', body).then(r => r.data),
+  previewGet: () => api.get('/admin/world-gc/preview').then(r => r.data),
+  previewReset: (gcNumber) => api.post('/admin/world-gc/preview/reset', { gc_number: gcNumber }).then(r => r.data),
+  previewAction: (body) => api.post('/admin/world-gc/preview/action', body).then(r => r.data),
 };
 
 export const worldAPI = {

@@ -33,14 +33,24 @@ export default function BonusTokensCard({ wallet, onRefresh }) {
   if (!wallet) return null;
   const bonus = Number(wallet.bonus || 0);
   const prize = Number(wallet.withdrawable || 0);
+  const winningBonus = Number(wallet.winning_bonus_tokens ?? wallet.winning_bonus ?? 0);
   const purchased = Number(wallet.purchased_tokens || 0);
-  const available = Math.max(0, Number(wallet.total_tokens ?? wallet.balance ?? 0) - Number(wallet.withdrawable_pending || 0));
+  const available = Math.max(0, Number(wallet.total_tokens ?? wallet.balance ?? 0));
+  if (wallet.source_classified === false) {
+    return (
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm" data-testid="wallet-breakdown-unclassified">
+        <div className="flex justify-between font-semibold text-slate-900"><span>Available token balance</span><b>{n(available)}</b></div>
+        <p className="mt-1 text-xs text-amber-800">This legacy balance is preserved; its token sources are not yet verified.</p>
+      </div>
+    );
+  }
   if (bonus <= 0 && grants.length === 0) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm" data-testid="wallet-breakdown">
         <div className="flex justify-between"><span className="text-slate-600">Top-up tokens</span><b data-testid="wallet-purchased">{n(purchased)}</b></div>
-        <div className="mt-1 flex justify-between"><span className="text-slate-600">Bonus tokens</span><b data-testid="wallet-bonus-total">{n(bonus)}</b></div>
         <div className="mt-1 flex justify-between"><span className="text-slate-600">Winning tokens</span><b data-testid="wallet-winning">{n(prize)}</b></div>
+        <div className="mt-1 flex justify-between"><span className="text-slate-600">Winning bonus tokens</span><b data-testid="wallet-winning-bonus">{n(winningBonus)}</b></div>
+        <div className="mt-1 flex justify-between"><span className="text-slate-600">Bonus tokens</span><b data-testid="wallet-bonus-total">{n(bonus)}</b></div>
         <div className="mt-2 flex justify-between border-t border-slate-100 pt-2"><span className="font-semibold text-slate-800">Total available</span><b data-testid="wallet-total-available">{n(available)}</b></div>
       </div>
     );
@@ -64,6 +74,7 @@ export default function BonusTokensCard({ wallet, onRefresh }) {
       )}
       <div className="mt-2 flex justify-between"><span className="text-slate-700">Top-up tokens</span><b data-testid="wallet-purchased">{n(purchased)}</b></div>
       <div className="mt-1 flex justify-between"><span className="text-slate-700">Winning tokens</span><b data-testid="wallet-winning">{n(prize)}</b></div>
+      <div className="mt-1 flex justify-between"><span className="text-slate-700">Winning bonus tokens</span><b data-testid="wallet-winning-bonus">{n(winningBonus)}</b></div>
       <div className="mt-2 flex justify-between border-t border-amber-200 pt-2"><span className="font-semibold text-slate-900">Total available</span><b data-testid="wallet-total-available">{n(available)}</b></div>
     </div>
   );

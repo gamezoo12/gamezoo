@@ -65,6 +65,7 @@ async def _get_or_create_wallet(db, user_id: str, *, allow_pending_bonus_grant: 
         new_w['bonus'] = 0.0
         new_w['bonus_untracked'] = 0.0
         new_w['withdrawable'] = 0.0
+        new_w['winning_bonus'] = 0.0
         new_w['source_migrated'] = True
         await db.wallets.insert_one(new_w)
         w = await db.wallets.find_one({'user_id': user_id}, {'_id': 0})
@@ -89,29 +90,29 @@ async def _get_or_create_wallet(db, user_id: str, *, allow_pending_bonus_grant: 
 
 async def _migrate_wallet_sources(db, user_id: str, w: dict) -> dict:
     """One-time, idempotent backfill of source sub-counters for a legacy
-    wallet. Bonus = min(current balance, sum of historical bonus credits).
-    Withdrawable defaults to 0 (existing balances are NON-withdrawable per
-    the cash-out safety rule) unless already set. Runs lazily on first
-    wallet access after deploy."""
-    balance = round(float(w.get('balance', 0) or 0), 2)
-    bonus_credited = 0.0
-    async for tx in db.wallet_tx.find(
-        {'user_id': user_id, 'kind': {'$in': list(BONUS_TX_KINDS)}, 'amount': {'$gt': 0}},
-        {'_id': 0, 'amount': 1},
+    wallet when its historical source counters are available. An ambiguous
+    legacy balance remains unclassified; wallet balances are never rewritten."""
+    if w.get('source_migration_blocked') is True:
+        return w
+    if not {'bonus', 'withdrawable', 'withdrawable_pending'}.issubset(w):
+        return w
+    if 'winning_bonus' not in w and await db.wallet_tx.find_one(
+        {'user_id': user_id, 'kind': 'paid_prize_bonus', 'amount': {'$gt': 0}},
+        {'_id': 1},
     ):
-        bonus_credited += float(tx.get('amount', 0) or 0)
-    # Preserve an already-materialised source counter; untracked existing bonus is non-expiring.
-    if 'bonus' in w:
-        bonus = round(min(balance, max(0.0, float(w.get('bonus', 0) or 0))), 2)
-    else:
-        bonus = round(min(balance, max(0.0, bonus_credited)), 2)
-        tracked_grants = await _tracked_active_grant_balance(db, user_id)
-        bonus_untracked = max(0.0, round(bonus - tracked_grants, 2))
+        return w
+
+    balance = round(float(w.get('balance', 0) or 0), 2)
+    bonus = round(min(balance, max(0.0, float(w.get('bonus', 0) or 0))), 2)
+    tracked_grants = await _tracked_active_grant_balance(db, user_id)
+    bonus_untracked = round(max(0.0, float(w.get('bonus_untracked', bonus - tracked_grants) or 0)), 2)
     withdrawable = round(float(w.get('withdrawable', 0) or 0), 2)
+    winning_bonus = round(float(w.get('winning_bonus', 0) or 0), 2)
     await db.wallets.update_one(
         {'user_id': user_id, 'source_migrated': {'$ne': True}},
         {'$set': {'bonus': bonus, 'bonus_untracked': bonus_untracked,
-              'withdrawable': withdrawable, 'source_migrated': True}},
+              'withdrawable': withdrawable, 'winning_bonus': winning_bonus,
+              'source_migrated': True}},
     )
     return await db.wallets.find_one({'user_id': user_id}, {'_id': 0})
 
@@ -125,6 +126,23 @@ async def _tracked_active_grant_balance(db, user_id: str, now=None) -> float:
         {'$group': {'_id': None, 'total': {'$sum': '$remaining_amount'}}},
     ]).to_list(1)
     return round(float(rows[0]['total']), 2) if rows else 0.0
+
+
+async def _refund_source_split(db, user_id: str, ref_order_id: Optional[str], amount: float) -> Optional[dict]:
+    if not ref_order_id:
+        return None
+    fields = ('bonus_amount', 'purchased_amount', 'withdrawable_amount', 'winning_bonus_amount')
+    rows = await db.wallet_tx.aggregate([
+        {'$match': {'user_id': user_id, 'kind': 'spend', 'ref_order_id': ref_order_id}},
+        {'$group': {'_id': None, **{field: {'$sum': f'${field}'} for field in fields},
+                    'count': {'$sum': 1}, 'classified': {'$sum': {'$cond': [{'$and': [
+                        {'$isNumber': '$bonus_amount'}, {'$isNumber': '$purchased_amount'},
+                        {'$isNumber': '$withdrawable_amount'}, {'$isNumber': '$winning_bonus_amount'}]}, 1, 0]}}}},
+    ]).to_list(1)
+    if not rows or rows[0].get('classified') != rows[0].get('count'):
+        return None
+    split = {key: round(abs(float(rows[0].get(key) or 0)), 2) for key in fields}
+    return split if abs(sum(split.values()) - round(float(amount), 2)) < 0.01 else None
 
 
 async def _ensure_untracked_bonus(db, user_id: str, wallet: dict) -> dict:
@@ -141,22 +159,26 @@ async def _ensure_untracked_bonus(db, user_id: str, wallet: dict) -> dict:
     return await db.wallets.find_one({'user_id': user_id}, {'_id': 0}) or wallet
 
 
-def _split_debit(balance: float, bonus: float, withdrawable: float, withdrawable_pending: float, amount: float):
-    """Return (d_bonus, d_withdrawable) to consume `amount` in the protected
-    spend order: bonus -> purchased -> withdrawable. Reserved cash-out funds
-    (withdrawable_pending) are never spendable. Purchased is derived
-    (balance - bonus - withdrawable - withdrawable_pending)."""
+def _split_debit(balance: float, bonus: float, winning_bonus: float, withdrawable: float,
+                 withdrawable_pending: float, amount: float):
+    """Return (d_bonus, d_winning_bonus, d_withdrawable) in the protected spend order:
+    bonus -> winning bonus -> top-up -> winning (withdrawable). Reserved cash-out funds
+    (withdrawable_pending) are never spendable. Top-up is derived
+    (balance - bonus - winning_bonus - withdrawable - withdrawable_pending)."""
     amt = round(float(amount), 2)
     bonus = max(0.0, round(bonus, 2))
+    winning_bonus = max(0.0, round(winning_bonus, 2))
     withdrawable = max(0.0, round(withdrawable, 2))
     pending = max(0.0, round(withdrawable_pending, 2))
     d_bonus = min(bonus, amt)
     rem = round(amt - d_bonus, 2)
-    purchased = max(0.0, round(balance - bonus - withdrawable - pending, 2))
+    d_wb = min(winning_bonus, rem)
+    rem = round(rem - d_wb, 2)
+    purchased = max(0.0, round(balance - bonus - winning_bonus - withdrawable - pending, 2))
     d_purch = min(purchased, rem)
     rem2 = round(rem - d_purch, 2)
     d_withdrawable = min(withdrawable, rem2)
-    return round(d_bonus, 2), round(d_withdrawable, 2)
+    return round(d_bonus, 2), round(d_wb, 2), round(d_withdrawable, 2)
 
 
 async def reserve_withdrawable(db, user_id: str, amount: float) -> bool:
@@ -204,35 +226,38 @@ async def credit_withdrawable(db, user_id: str, amount: float, note: str, ref_or
 
 
 def _with_tokens(w: Optional[dict]) -> Optional[dict]:
-    """Enrich a wallet dict with `tokens` / `lifetime_tokens_bought` /
-    `lifetime_tokens_spent` fields. 1 token = £1, so these are just the
-    integer views of the underlying float `balance` etc. — the frontend
-    labels them as tokens without any client-side maths.
+    """Enrich a wallet dict with the four token categories (1 token = GBP 1).
 
-    Source split (1 token = £1):
-      total_tokens          = balance (purchased + championship + bonus)
-      bonus_tokens          = free/promotional (non-withdrawable)
-      tokens                = total (kept for backward compat / Home total)
-      spendable_tokens      = total - bonus  (the user-facing "Tokens" line)
-      withdrawable_tokens   = unused championship-prize tokens (cash-outable)
-      available_to_cash_out = withdrawable_tokens (£, 1:1)
+      topup_tokens          = purchased through Stripe (derived residual)
+      winning_tokens        = withdrawable prize winnings (cash-out eligible)
+      winning_bonus_tokens  = non-withdrawable Paid World bonus-token prizes
+      bonus_tokens          = referral / admin / promotional credits (may expire)
+      total_tokens          = sum of the four AVAILABLE balances (pending cash-out excluded)
+      available_to_cash_out = winning_tokens only
     """
     if not w:
         return w
-    total = float(w.get('balance', 0) or 0)
+    balance = float(w.get('balance', 0) or 0)
     bonus = float(w.get('bonus', 0) or 0)
+    winning_bonus = float(w.get('winning_bonus', 0) or 0)
     withdrawable = float(w.get('withdrawable', 0) or 0)
     pending = float(w.get('withdrawable_pending', 0) or 0)
-    spendable = max(0.0, total - bonus - withdrawable - pending)
-    w['tokens'] = int(round(total))
-    w['total_tokens'] = int(round(total))
-    w['bonus_tokens'] = int(round(bonus))
-    # "Tokens" line = purchased + championship = total - bonus
-    w['spendable_tokens'] = int(round(max(0.0, total - bonus)))
-    w['purchased_tokens'] = int(round(spendable))
-    w['withdrawable_tokens'] = int(round(withdrawable))
+    classified = w.get('source_migrated') is True
+    topup = max(0.0, balance - bonus - winning_bonus - withdrawable - pending)
+    available = max(0.0, balance - pending)
+    w['topup_tokens'] = int(round(topup)) if classified else None
+    w['winning_tokens'] = int(round(withdrawable)) if classified else None
+    w['winning_bonus_tokens'] = int(round(winning_bonus)) if classified else None
+    w['bonus_tokens'] = int(round(bonus)) if classified else None
+    w['total_tokens'] = int(round(available))
+    w['tokens'] = int(round(available))
+    w['source_classified'] = classified
+    # Legacy aliases kept for existing clients.
+    w['purchased_tokens'] = w['topup_tokens']
+    w['withdrawable_tokens'] = w['winning_tokens']
+    w['spendable_tokens'] = int(round(max(0.0, balance - bonus)))
     w['withdrawable_pending_tokens'] = int(round(pending))
-    w['available_to_cash_out'] = round(withdrawable, 2)
+    w['available_to_cash_out'] = round(withdrawable, 2) if classified else None
     w['pending_cash_out'] = round(pending, 2)
     w['lifetime_tokens_bought'] = int(round(w.get('lifetime_topup', 0) or 0))
     w['lifetime_tokens_spent'] = int(round(w.get('lifetime_spend', 0) or 0))
@@ -242,10 +267,12 @@ def _with_tokens(w: Optional[dict]) -> Optional[dict]:
 # Kinds whose positive credits are BONUS (free / non-withdrawable) tokens.
 BONUS_TX_KINDS = {
     'signup_bonus', 'referral_bonus', 'referral', 'bonus', 'bonus_credit',
-    'influencer_bonus', 'promo', 'promo_bonus', 'reward', 'free_tokens', 'bonus_grant',
+    'influencer_bonus', 'promo', 'promo_bonus', 'reward', 'free_tokens', 'bonus_grant', 'admin_adjust',
 }
 # Kinds whose positive credits are WITHDRAWABLE championship-prize tokens.
-WITHDRAWABLE_TX_KINDS = {'champion_prize', 'championship_prize', 'winnings'}
+WITHDRAWABLE_TX_KINDS = {'champion_prize', 'championship_prize', 'winnings', 'paid_prize_cash'}
+# Kinds whose positive credits are non-withdrawable WINNING BONUS tokens (kept apart from Bonus).
+WINNING_BONUS_TX_KINDS = {'paid_prize_bonus'}
 
 
 def _source_inc_for_credit(kind: str, delta: float) -> dict:
@@ -258,6 +285,8 @@ def _source_inc_for_credit(kind: str, delta: float) -> dict:
                 extra['bonus_untracked'] = round(delta, 2)
         elif kind in WITHDRAWABLE_TX_KINDS:
             extra['withdrawable'] = round(delta, 2)
+        elif kind in WINNING_BONUS_TX_KINDS:
+            extra['winning_bonus'] = round(delta, 2)
     return extra
 
 
@@ -288,9 +317,10 @@ async def _apply_tx(db, user_id: str, kind: str, amount: float, note: str = '', 
         for _ in range(6):
             cur = await db.wallets.find_one(
                 {'user_id': user_id},
-                {'_id': 0, 'balance': 1, 'bonus': 1, 'bonus_untracked': 1,
+                {'_id': 0, 'balance': 1, 'bonus': 1, 'bonus_untracked': 1, 'winning_bonus': 1,
                  'withdrawable': 1, 'withdrawable_pending': 1},
             ) or {}
+            wbn = max(0.0, round(float(cur.get('winning_bonus', 0) or 0), 2))
             bal = round(float(cur.get('balance', 0) or 0), 2)
             bon = round(float(cur.get('bonus', 0) or 0), 2)
             legacy_bonus = max(0.0, round(float(cur.get('bonus_untracked', 0) or 0), 2))
@@ -304,7 +334,7 @@ async def _apply_tx(db, user_id: str, kind: str, amount: float, note: str = '', 
             bon_usable = min(max(0.0, round(bon - blocked, 2)), round(legacy_bonus + tracked_bonus, 2))
             if round(eff_bal - wp, 2) + 1e-9 < amt:
                 raise HTTPException(status_code=400, detail='Insufficient wallet balance')
-            d_bonus, d_wd = _split_debit(eff_bal, bon_usable, wd, wp, amt)
+            d_bonus, d_wb, d_wd = _split_debit(eff_bal, bon_usable, wbn, wd, wp, amt)
             reservation_id = uuid.uuid4().hex if d_bonus > 0 else ''
             reserved = await reserve_from_grants(db, user_id, d_bonus, reservation_id, now) if d_bonus > 0 else []
             grant_debit = round(sum(amount for _, amount in reserved), 2)
@@ -314,11 +344,12 @@ async def _apply_tx(db, user_id: str, kind: str, amount: float, note: str = '', 
                 if reserved:
                     await finalize_reservation(db, reserved, reservation_id, committed=False)
                 continue
-            d_purchased = round(amt - actual_bonus_debit - d_wd, 2)
+            d_purchased = round(amt - actual_bonus_debit - d_wb - d_wd, 2)
             inc = {
                 'balance': delta,
                 'bonus': -actual_bonus_debit,
                 'bonus_untracked': -legacy_debit,
+                'winning_bonus': -d_wb,
                 'withdrawable': -d_wd,
             }
             if kind == 'spend':
@@ -326,7 +357,7 @@ async def _apply_tx(db, user_id: str, kind: str, amount: float, note: str = '', 
             # Legacy wallets may not have source fields yet; match missing as well
             # as zero instead of repeatedly failing the optimistic update.
             guard = {'user_id': user_id, 'balance': cur.get('balance', 0)}
-            for field, value in (('bonus', bon), ('bonus_untracked', legacy_bonus),
+            for field, value in (('bonus', bon), ('bonus_untracked', legacy_bonus), ('winning_bonus', wbn),
                                  ('withdrawable', wd), ('withdrawable_pending', wp)):
                 guard[field] = cur[field] if field in cur else {'$exists': False}
             update = {'$inc': inc, '$set': {'updated_at': now}}
@@ -354,29 +385,45 @@ async def _apply_tx(db, user_id: str, kind: str, amount: float, note: str = '', 
             user_id=user_id, kind=kind, amount=delta,
             balance_after=new_balance, note=note, ref_order_id=ref_order_id,
             bonus_amount=-d_bonus, purchased_amount=-d_purchased, withdrawable_amount=-d_wd,
+            winning_bonus_amount=-d_wb,
         )
         await db.wallet_tx.insert_one(tx.model_dump())
         return {'balance': new_balance, 'tx': tx.model_dump()}
 
     # CREDIT path.
     inc = {'balance': delta}
-    source_amounts = {'bonus_amount': None, 'purchased_amount': None, 'withdrawable_amount': None}
+    source_amounts = {'bonus_amount': None, 'purchased_amount': None, 'withdrawable_amount': None,
+                      'winning_bonus_amount': None}
+    refund_split = await _refund_source_split(db, user_id, ref_order_id, delta) if delta > 0 and kind == 'refund' else None
     if delta > 0 and kind == 'topup':
         inc['lifetime_topup'] = round(delta, 2)
     inc.update(_source_inc_for_credit(kind, delta))
-    if delta > 0:
+    if refund_split is not None:
+        source_amounts = refund_split
+        inc['bonus'] = refund_split['bonus_amount']
+        inc['bonus_untracked'] = refund_split['bonus_amount']
+        inc['withdrawable'] = refund_split['withdrawable_amount']
+        inc['winning_bonus'] = refund_split['winning_bonus_amount']
+    elif delta > 0 and kind == 'refund':
+        pass
+    elif delta > 0:
         if kind in BONUS_TX_KINDS:
             source_amounts['bonus_amount'] = delta
         elif kind in WITHDRAWABLE_TX_KINDS:
             source_amounts['withdrawable_amount'] = delta
+        elif kind in WINNING_BONUS_TX_KINDS:
+            source_amounts['winning_bonus_amount'] = delta
         else:
             source_amounts['purchased_amount'] = delta
 
     filt = {'user_id': user_id}
 
+    update = {'$inc': inc, '$set': {'updated_at': now}}
+    if delta > 0 and kind == 'refund' and refund_split is None:
+        update['$set'].update({'source_migrated': False, 'source_migration_blocked': True})
     updated = await db.wallets.find_one_and_update(
         filt,
-        {'$inc': inc, '$set': {'updated_at': now}},
+        update,
         return_document=True,  # pymongo maps this to ReturnDocument.AFTER
         projection={'_id': 0, 'balance': 1},
     )
@@ -458,7 +505,9 @@ async def _apply_tx_idempotent(
         'bonus_amount': 0.0,
         'purchased_amount': 0.0,
         'withdrawable_amount': 0.0,
+        'winning_bonus_amount': 0.0,
     }
+    refund_split = await _refund_source_split(db, user_id, ref_order_id, delta) if delta > 0 and kind == 'refund' else None
     inc = {
         "balance":
             delta,
@@ -495,7 +544,7 @@ async def _apply_tx_idempotent(
         for _ in range(8):
             current = await db.wallets.find_one(
                 {'user_id': user_id},
-                {'_id': 0, 'balance': 1, 'bonus': 1, 'bonus_untracked': 1,
+                {'_id': 0, 'balance': 1, 'bonus': 1, 'bonus_untracked': 1, 'winning_bonus': 1,
                  'withdrawable': 1, 'withdrawable_pending': 1,
                  'applied_tx_refs': 1},
             ) or {}
@@ -503,13 +552,15 @@ async def _apply_tx_idempotent(
             if marker in refs:
                 idempotent_replay = True
                 new_balance = r2(current.get('balance'))
-                source_amounts = {'bonus_amount': None, 'purchased_amount': None, 'withdrawable_amount': None}
+                source_amounts = {'bonus_amount': None, 'purchased_amount': None, 'withdrawable_amount': None,
+                                  'winning_bonus_amount': None}
                 break
 
             balance = r2(current.get('balance'))
             bonus = r2(current.get('bonus'))
             legacy_bonus = max(0.0, r2(current.get('bonus_untracked')))
             withdrawable = r2(current.get('withdrawable'))
+            winning_bonus = max(0.0, r2(current.get('winning_bonus')))
             pending = r2(current.get('withdrawable_pending'))
             blocked = await expired_unprocessed(db, user_id, now)
             effective_balance = r2(balance - blocked)
@@ -517,8 +568,8 @@ async def _apply_tx_idempotent(
             usable_bonus = min(max(0.0, r2(bonus - blocked)), r2(legacy_bonus + tracked_bonus))
             if r2(effective_balance - pending) + 1e-9 < abs(delta):
                 raise HTTPException(status_code=400, detail='Insufficient wallet balance')
-            debit_bonus, debit_withdrawable = _split_debit(
-                effective_balance, usable_bonus, withdrawable, pending, abs(delta),
+            debit_bonus, debit_winning_bonus, debit_withdrawable = _split_debit(
+                effective_balance, usable_bonus, winning_bonus, withdrawable, pending, abs(delta),
             )
             reservation_id = f'{marker}:bonus' if debit_bonus > 0 else ''
             reserved = await reserve_from_grants(db, user_id, debit_bonus, reservation_id, now) if debit_bonus > 0 else []
@@ -530,13 +581,15 @@ async def _apply_tx_idempotent(
                     await finalize_reservation(db, reserved, reservation_id, committed=False)
                     reserved = []
                 continue
-            debit_purchased = r2(abs(delta) - actual_bonus_debit - debit_withdrawable)
+            debit_purchased = r2(abs(delta) - actual_bonus_debit - debit_winning_bonus - debit_withdrawable)
             debit_inc = {'balance': delta, 'bonus': -actual_bonus_debit,
-                         'bonus_untracked': -legacy_debit, 'withdrawable': -debit_withdrawable}
+                         'bonus_untracked': -legacy_debit, 'winning_bonus': -debit_winning_bonus,
+                         'withdrawable': -debit_withdrawable}
             if kind == 'spend':
                 debit_inc['lifetime_spend'] = abs(delta)
             guard = {'user_id': user_id, 'applied_tx_refs': {'$ne': marker}}
             for field, value in (('balance', balance), ('bonus', bonus), ('bonus_untracked', legacy_bonus),
+                                 ('winning_bonus', winning_bonus),
                                  ('withdrawable', withdrawable), ('withdrawable_pending', pending)):
                 guard[field] = current[field] if field in current else {'$exists': False}
             update = {
@@ -561,6 +614,7 @@ async def _apply_tx_idempotent(
                     'bonus_amount': -actual_bonus_debit,
                     'purchased_amount': -debit_purchased,
                     'withdrawable_amount': -debit_withdrawable,
+                    'winning_bonus_amount': -debit_winning_bonus,
                 }
                 break
             if reserved:
@@ -570,15 +624,28 @@ async def _apply_tx_idempotent(
             raise HTTPException(status_code=409, detail='Wallet changed during checkout. Please try again.')
     else:
         if delta > 0:
-            if kind in BONUS_TX_KINDS:
+            if kind == 'refund' and refund_split is not None:
+                source_amounts = refund_split
+                inc['bonus'] = refund_split['bonus_amount']
+                inc['bonus_untracked'] = refund_split['bonus_amount']
+                inc['withdrawable'] = refund_split['withdrawable_amount']
+                inc['winning_bonus'] = refund_split['winning_bonus_amount']
+            elif kind == 'refund':
+                source_amounts = {key: None for key in source_amounts}
+            elif kind in BONUS_TX_KINDS:
                 source_amounts['bonus_amount'] = delta
             elif kind in WITHDRAWABLE_TX_KINDS:
                 source_amounts['withdrawable_amount'] = delta
+            elif kind in WINNING_BONUS_TX_KINDS:
+                source_amounts['winning_bonus_amount'] = delta
             else:
                 source_amounts['purchased_amount'] = delta
+        wallet_set = {'updated_at': now}
+        if kind == 'refund' and refund_split is None:
+            wallet_set.update({'source_migrated': False, 'source_migration_blocked': True})
         updated = await db.wallets.find_one_and_update(
             {'user_id': user_id, 'applied_tx_refs': {'$ne': marker}},
-            {'$inc': inc, '$addToSet': {'applied_tx_refs': marker}, '$set': {'updated_at': now}},
+            {'$inc': inc, '$addToSet': {'applied_tx_refs': marker}, '$set': wallet_set},
             return_document=True, projection={'_id': 0, 'balance': 1},
         )
         if updated:
@@ -706,6 +773,13 @@ async def list_wallets(request: Request, limit: int = 500):
     totals = {
         'total_balance': round(sum(w['balance'] for w in wallets), 2),
         'total_tokens': int(round(sum(w['balance'] for w in wallets))),
+        'classified_total_tokens': round(sum(w.get('total_tokens', 0) for w in wallets if w.get('source_classified')), 2),
+        'unclassified_wallet_count': sum(not w.get('source_classified') for w in wallets),
+        'unclassified_balance_tokens': round(sum(float(w.get('balance', 0) or 0) for w in wallets if not w.get('source_classified')), 2),
+        'topup_tokens': round(sum(w.get('topup_tokens', 0) for w in wallets if w.get('source_classified')), 2),
+        'winning_tokens': round(sum(w.get('winning_tokens', 0) for w in wallets if w.get('source_classified')), 2),
+        'winning_bonus_tokens': round(sum(w.get('winning_bonus_tokens', 0) for w in wallets if w.get('source_classified')), 2),
+        'bonus_tokens': round(sum(w.get('bonus_tokens', 0) for w in wallets if w.get('source_classified')), 2),
         'total_lifetime_topup': round(sum(w.get('lifetime_topup', 0) for w in wallets), 2),
         'total_lifetime_spend': round(sum(w.get('lifetime_spend', 0) for w in wallets), 2),
         'wallet_count': len(wallets),

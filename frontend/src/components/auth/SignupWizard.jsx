@@ -1,12 +1,14 @@
+import { authAPI, api, offersAPI } from '../../lib/api';
 import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
+import PromotionsConsent, { EMPTY_PROMO } from '../account/PromotionsConsent';
 import { useToast } from '../../hooks/use-toast';
-import { authAPI } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
+import useActiveOffer, { gbpText, tokensText } from '../../lib/useActiveOffer';
 import {
   Phone,
   ShieldCheck,
@@ -35,6 +37,15 @@ export default function SignupWizard() {
   const nav = useNavigate();
   const { toast } = useToast();
   const { refresh } = useAuth();
+  const { offer } = useActiveOffer();
+  const [influencerCampaign, setInfluencerCampaign] = useState(null);
+  const [promoLookup, setPromoLookup] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const expiry = Number(localStorage.getItem('pl_referral_code_expires') || 0);
+    const code = params.get('ref') || (expiry > Date.now() ? localStorage.getItem('pl_referral_code') : '');
+    const invite = params.get('invite') || localStorage.getItem('pl_influencer_invite');
+    return invite ? 'influencer-invite' : code ? 'checking' : 'normal';
+  });
 
   const [step, setStep] = useState(1);
   const [busy, setBusy] = useState(false);
@@ -56,8 +67,7 @@ export default function SignupWizard() {
     address: '',
     referralCode: '',
     accept_terms: false,
-    sms_consent: false,
-    marketing_email_consent: false,
+    promo: { ...EMPTY_PROMO },
   });
 
   // Preserve referral / influencer acquisition code during signup.
@@ -112,6 +122,32 @@ export default function SignupWizard() {
       localStorage.removeItem('pl_referral_code_expires');
     }
   }, []);
+
+  useEffect(() => {
+    const code = data.referralCode.trim().toUpperCase();
+    if (!code || influencerInviteToken) {
+      setInfluencerCampaign(null);
+      const params = new URLSearchParams(window.location.search);
+      const referralExpiry = Number(localStorage.getItem('pl_referral_code_expires') || 0);
+      const pendingCode = String(params.get('ref') || (referralExpiry > Date.now() ? localStorage.getItem('pl_referral_code') : '') || '').trim();
+      const pendingInvite = String(params.get('invite') || localStorage.getItem('pl_influencer_invite') || '').trim();
+      setPromoLookup(influencerInviteToken || pendingInvite ? 'influencer-invite' : pendingCode ? 'checking' : 'normal');
+      return undefined;
+    }
+    let active = true;
+    setPromoLookup('checking');
+    setInfluencerCampaign(null);
+    const timer = setTimeout(() => {
+      offersAPI.promo(code).then((result) => {
+        if (!active) return;
+        setInfluencerCampaign(result?.valid ? result.campaign : null);
+        setPromoLookup(result?.valid ? 'influencer' : 'normal');
+      }).catch(() => {
+        if (active) setPromoLookup('unresolved');
+      });
+    }, 250);
+    return () => { active = false; clearTimeout(timer); };
+  }, [data.referralCode, influencerInviteToken]);
 
 
   useEffect(() => {
@@ -411,8 +447,11 @@ export default function SignupWizard() {
                 .toUpperCase()
             : null,
         influencer_invite_token: influencerInviteToken || null,
-        sms_consent: !!data.sms_consent,
-        marketing_email_consent: !!data.marketing_email_consent,
+        sms_consent: !!data.promo.sms,
+        marketing_email_consent: !!data.promo.email,
+        whatsapp_consent: !!data.promo.whatsapp,
+        newsletter_consent: !!data.promo.newsletter,
+        web_notifications_consent: !!data.promo.web_notifications,
       };
 
       const result = await authAPI.register(
@@ -671,19 +710,39 @@ export default function SignupWizard() {
             </p>
           </div>
 
-          <div className="rounded-xl border border-[#FFD54A]/50 bg-[#FFD54A]/10 px-3 py-2.5">
+          {promoLookup === 'checking' && (
+            <div className="rounded-xl border border-slate-200 bg-white/5 px-3 py-2.5 text-xs text-white" data-testid="signup-promo-checking">
+              Checking promotional code…
+            </div>
+          )}
+          {influencerCampaign && (
+            <div className="rounded-xl border border-emerald-300/40 bg-emerald-400/10 px-3 py-2.5 text-xs text-white" data-testid="signup-influencer-offer">
+              <strong>{influencerCampaign.campaign_name || influencerCampaign.influencer_name || 'Influencer campaign'}:</strong>{' '}
+              {influencerCampaign.conditions_text}
+            </div>
+          )}
+          {promoLookup === 'unresolved' && <div className="rounded-xl border border-amber-300/40 bg-amber-400/10 px-3 py-2.5 text-xs text-white" data-testid="signup-promo-unresolved">We could not verify this code right now. No promotional offer is shown until it can be checked.</div>}
+          {!influencerInviteToken && promoLookup !== 'checking' && promoLookup !== 'unresolved' && promoLookup !== 'influencer-invite' && !influencerCampaign && offer?.signup?.enabled && (
+          <div className="rounded-xl border border-[#FFD54A]/50 bg-[#FFD54A]/10 px-3 py-2.5" data-testid="signup-offer-box">
             <p className="text-xs text-slate-700">
               <strong>
                 New member offer:
               </strong>{' '}
-              top up £10 or more in one
-              verified payment after signup to
-              receive{' '}
-              <strong>
-                5 bonus tokens
-              </strong>.
+              {offer.signup.text}
             </p>
           </div>
+          )}
+          {!influencerInviteToken && promoLookup !== 'checking' && promoLookup !== 'unresolved' && promoLookup !== 'influencer-invite'
+            && !influencerCampaign && offer?.normal_topup_promo?.enabled && (
+            <div className="rounded-xl border border-emerald-300/40 bg-emerald-400/10 px-3 py-2.5 text-xs text-white" data-testid="normal-topup-offer-box">
+              Normal top-up promotion: {offer.normal_topup_promo.mode === 'percentage'
+                ? `${offer.normal_topup_promo.reward_percent}% Bonus Tokens`
+                : `${tokensText(offer.normal_topup_promo.reward_tokens)} Bonus Tokens`}
+              {' '}on verified top-ups of {gbpText(offer.normal_topup_promo.minimum_gbp)} or more.
+              {offer.normal_topup_promo.first_only ? ' First qualifying top-up only.' : ' Applies to each qualifying top-up.'}
+              {offer.normal_topup_promo.expiry_days ? ` Expires ${offer.normal_topup_promo.expiry_days} days after credit.` : ''}
+            </div>
+          )}
 
           <Button
             data-testid="signup-step1-next"
@@ -1016,27 +1075,12 @@ export default function SignupWizard() {
             </span>
           </label>
 
-          <label
-            className="flex items-start gap-3 cursor-pointer select-none py-2"
-            data-testid="signup-sms-consent-label"
-          >
-            <Checkbox
-              data-testid="signup-sms-consent"
-              checked={data.sms_consent}
-              onCheckedChange={(value) => set('sms_consent', !!value)}
-              className="mt-0.5"
-            />
-            <span className="text-sm text-slate-700">
-              I agree to receive SMS notifications from Prize League about
-              Champion Levels, contests, prizes, winners and promotions. I can
-              withdraw my consent at any time. <span className="text-slate-400">(Optional)</span>
-            </span>
-          </label>
-
-          <label className="flex items-start gap-3 cursor-pointer select-none py-2" data-testid="signup-email-marketing-consent-label">
-            <Checkbox data-testid="signup-email-marketing-consent" checked={data.marketing_email_consent} onCheckedChange={(value) => set('marketing_email_consent', !!value)} className="mt-0.5" />
-            <span className="text-sm text-slate-700">I agree to receive marketing emails from Prize League about competitions, prizes, special offers and promotions. I can unsubscribe at any time. <span className="text-slate-400">(Optional)</span></span>
-          </label>
+          <PromotionsConsent
+            values={data.promo}
+            onChange={(promo) => set('promo', promo)}
+            onSave={() => toast({ title: 'Preferences saved' })}
+            testid="signup-promotions-consent"
+          />
 
           <Button
             data-testid="signup-finish"

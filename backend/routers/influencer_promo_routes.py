@@ -120,7 +120,9 @@ async def admin_reward_settings(request: Request):
 
 @router.put("/reward-settings")
 async def admin_update_reward_settings(payload: dict, request: Request):
-    await _require_promo_admin(request)
+    user = await _require_promo_admin(request)
+    if user.get('role') != 'super_admin':
+        raise HTTPException(status_code=403, detail='Only Super Admin can change signup/referral reward settings')
     return await save_reward_settings(get_db(), payload)
 
 

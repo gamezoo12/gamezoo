@@ -28,7 +28,7 @@ export default function WinnersFeed() {
               </div>
               <div className="mt-3 text-sm text-slate-300 line-clamp-2">{w.prize_title}</div>
               <div className="mt-3 flex items-center justify-between">
-                <span className="text-teal-400 font-bold">{gbp(w.prize_amount)}</span>
+                <span className="text-teal-400 font-bold">{Number(w.prize_amount || 0) > 0 && gbp(w.prize_amount)}{Number(w.prize_bonus_tokens || 0) > 0 && ` + ${Number(w.prize_bonus_tokens).toLocaleString()} bonus tokens`}</span>
                 {w.paid_out ? <span className="text-xs px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-300 inline-flex items-center gap-1"><Check className="w-3 h-3" /> Paid</span> : <Button size="sm" onClick={() => markPaid(w.winner_id)} className="bg-teal-600 hover:bg-teal-700 text-xs">Mark paid</Button>}
               </div>
               <div className="text-[11px] text-slate-500 mt-2">{new Date(w.drawn_at).toLocaleString('en-GB')}</div>

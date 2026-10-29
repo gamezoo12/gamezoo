@@ -167,11 +167,33 @@ async def _create_commission(db, *, event_key: str, event_kind: str, user_id: st
 
 
 async def _grant_user_bonus(db, *, user_id: str, promo: dict, amount: float, ref_key: str,
-                            reason: str) -> list[dict]:
+                            reason: str, attribution: dict | None = None) -> list[dict]:
+    """The single choke point for campaign Bonus Token credits to the referred user.
+
+    Credits only influencer-classified accounts, holds credits for accounts that already hold a
+    normal signup bonus (flagged for review), and enforces the campaign's max_redemptions once per
+    account. An already-created grant is only replayed (idempotent), never re-gated.
+    """
     if amount <= 0:
         return []
+    from services.reward_program import claim_campaign_redemption, promo_conflict, resolve_acquisition_program
+
     expiry_days = promo.get('bonus_expiry_days')
     expires_at = datetime.now(timezone.utc) + timedelta(days=int(expiry_days)) if expiry_days else None
+    already = await db.bonus_grants.find_one({'ref_key': f'{ref_key}:part:1'}, {'_id': 1})
+    if not already:
+        if await resolve_acquisition_program(db, user_id) != 'influencer':
+            return []
+        if await promo_conflict(db, user_id):
+            if attribution:
+                await db.influencer_attributions.update_one(
+                    {'attribution_id': attribution['attribution_id']},
+                    {'$set': {'promo_conflict': True, 'promo_conflict_at': datetime.now(timezone.utc),
+                              'promo_conflict_reason': 'normal_signup_bonus_already_issued'}},
+                )
+            return []
+        if attribution and not await claim_campaign_redemption(db, attribution, promo):
+            return []
     return await grant_campaign_bonus(
         db, user_id=user_id, amount=amount, expires_at=expires_at,
         actor_id='campaign-system', actor_email='campaign-system@prizeleague.co.uk',
@@ -194,7 +216,7 @@ async def grant_campaign_bonus(db, *, user_id: str, amount: float, expires_at: d
         grants.append(await create_grant(
             db, user_id=user_id, amount=grant_amount, expires_at=expires_at,
             actor_id=actor_id, actor_email=actor_email, reason=reason[:300],
-            ref_key=f'{ref_key}:part:{part}',
+            ref_key=f'{ref_key}:part:{part}', source='influencer_campaign',
         ))
         remaining = round(remaining - grant_amount, 2)
     return grants
@@ -244,7 +266,8 @@ async def record_registration_commission(db, user_id: str, *, first_topup_qualif
             db, user_id=user_id, promo=promo_snapshot,
             amount=float(promo_snapshot.get('signup_reward_tokens') or 0),
             ref_key=f"influencer-signup:{attribution['attribution_id']}",
-            reason=f"Campaign {promo_snapshot.get('code') or promo['code']} eligible signup reward")
+            reason=f"Campaign {promo_snapshot.get('code') or promo['code']} eligible signup reward",
+            attribution=attribution)
     await db.influencer_attributions.update_one(
         {'attribution_id': attribution['attribution_id']},
         {'$set': {'registration_commission_checked_at': datetime.now(timezone.utc),
@@ -259,7 +282,15 @@ async def recover_pending_registration_commissions(db, limit: int = 100,
     now = now or datetime.now(timezone.utc)
     batch = max(1, min(int(limit), 500))
     rows = await db.influencer_attributions.find(
-        {'registration_eligible': True, 'registration_commission_checked_at': {'$exists': False},
+        {'registration_commission_checked_at': {'$exists': False},
+         '$or': [
+             {'registration_eligible': True},
+             {'campaign_snapshot.registration_eligibility': {'$exists': True, '$ne': 'first_topup'}},
+             {'campaign_snapshot.registration_eligibility': {'$exists': False},
+              'registration_eligibility': {'$exists': True, '$ne': 'first_topup'}},
+             {'campaign_snapshot.registration_eligibility': {'$exists': False},
+              'registration_eligibility': {'$exists': False}},
+         ],
          'created_at': {'$gte': now - timedelta(days=365)}},
         {'_id': 0, 'user_id': 1, 'registration_eligibility_rule': 1},
     ).sort('created_at', 1).limit(batch).to_list(batch)
@@ -277,6 +308,44 @@ async def recover_pending_registration_commissions(db, limit: int = 100,
             recovered += bool(fresh)
         except Exception:
             log.exception('Registration commission recovery failed user=%s', attribution.get('user_id'))
+    return recovered
+
+
+async def recover_pending_influencer_topups(db, limit: int = 100, now: datetime | None = None) -> int:
+    """Re-run campaign rewards for verified, wallet-credited top-ups whose reward hook never finished.
+
+    A processed session always leaves an `influencer_topup_events` row (qualifying or not), so a
+    missing row means the hook was interrupted. Everything downstream is idempotent.
+    """
+    now = now or datetime.now(timezone.utc)
+    batch = max(1, min(int(limit), 500))
+    since = now - timedelta(days=365)
+    attributed = await db.influencer_attributions.find(
+        {'created_at': {'$gte': since}}, {'_id': 0, 'user_id': 1},
+    ).sort('created_at', -1).limit(2000).to_list(2000)
+    user_ids = [row['user_id'] for row in attributed if row.get('user_id')]
+    if not user_ids:
+        return 0
+    payments = await db.payment_transactions.find(
+        {'user_id': {'$in': user_ids}, 'kind': 'wallet_topup', 'payment_status': 'paid',
+         'wallet_credited': True, 'credited_at': {'$gte': since}},
+        {'_id': 0, 'session_id': 1, 'user_id': 1},
+    ).sort('credited_at', 1).limit(batch * 4).to_list(batch * 4)
+    sessions = [row['session_id'] for row in payments if row.get('session_id')]
+    done = {row['session_id'] async for row in db.influencer_topup_events.find(
+        {'session_id': {'$in': sessions}}, {'_id': 0, 'session_id': 1})}
+    recovered = 0
+    for payment in payments:
+        session_id = payment.get('session_id')
+        if not session_id or session_id in done:
+            continue
+        try:
+            await record_topup_commission(db, payment['user_id'], session_id)
+            recovered += 1
+        except Exception:
+            log.exception('Influencer top-up recovery failed session=%s', session_id)
+        if recovered >= batch:
+            break
     return recovered
 
 
@@ -363,7 +432,8 @@ async def record_topup_commission(db, user_id: str, session_id: str) -> list[dic
     await _grant_user_bonus(
         db, user_id=user_id, promo=promo,
         amount=_user_topup_reward(promo, eligible_amount),
-        ref_key=f'influencer-topup:{session_id}', reason=f"Campaign {promo['code']} qualifying top-up reward")
+        ref_key=f'influencer-topup:{session_id}', reason=f"Campaign {promo['code']} qualifying top-up reward",
+        attribution=attribution)
     return [event] if event else []
 
 

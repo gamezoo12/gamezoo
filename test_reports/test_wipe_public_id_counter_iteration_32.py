@@ -16,8 +16,8 @@ BACKEND_ENV = Path('/app/backend/.env')
 FRONTEND_ENV = Path('/app/frontend/.env')
 RESULT_PATH = Path('/app/test_reports/wipe_public_id_counter_iteration_32_result.json')
 
-SUPER_EMAIL = 'bachanta8@gmail.com'
-SUPER_PASSWORD = 'Herts@910022'
+SUPER_EMAIL = os.environ["TEST_ADMIN_EMAIL"]
+SUPER_PASSWORD = os.environ["TEST_ADMIN_PASSWORD"]
 CONFIRM_PHRASE = 'WIPE DEMO DATA'
 
 WIPEABLE_COLLECTIONS = (

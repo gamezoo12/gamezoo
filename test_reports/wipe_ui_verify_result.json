@@ -18,7 +18,7 @@
     {
       "name": "admin_login_after_ui_wipe",
       "passed": true,
-      "detail": "status=200, body={\"user\":{\"user_id\":\"user_eb071248fabe\",\"public_id\":\"PL10000\",\"email\":\"bachanta8@gmail.com\",\"name\":\"Admin\",\"username\":null,\"picture\":null,\"role\":\"super_admin\",\"method\":\"email\",\"phone\":null,\"phone_verif"
+      "detail": "status=200, body={\"user\":{\"user_id\":\"user_eb071248fabe\",\"public_id\":\"PL10000\",\"email\":\"<admin-email>\",\"name\":\"Admin\",\"username\":null,\"picture\":null,\"role\":\"super_admin\",\"method\":\"email\",\"phone\":null,\"phone_verif"
     },
     {
       "name": "admin_orders_empty_after_ui_wipe",

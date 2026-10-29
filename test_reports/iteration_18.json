@@ -54,7 +54,7 @@
     "frontend": "100% for the review-request scenarios exercised (WalletPanel hero + balance + plus button + presets 5/10/20/50/100 + custom amount input with min=5, ?topup=1 auto-opens panel, filter chips today/week/month/year/all, tx-receipt modal with tx_id + date + amount + balance before/after + status Completed + Prize League logo, Admin EditContestDialog attempts_per_ticket field visible w/ correct helper text, TurnstileGate auto-passes with test key and game-arena renders on /play/<cid>/<tid>)"
   },
 
-  "test_credentials": "Admin: bachanta8@gmail.com / Herts@910022 (verified working). Fresh player minted per test via /api/auth/register + otp_code=000000. Session bootstrapped in UI by setting localStorage['gz_token'].",
+  "test_credentials": "Admin: <admin-email> / <redacted> (verified working). Fresh player minted per test via /api/auth/register + otp_code=000000. Session bootstrapped in UI by setting localStorage['gz_token'].",
 
   "seed_data_creation": "Registered ~10 fresh e2e users (e2e_p2b_*, e2e_wallet_*, e2e_play_*, e2e_cap/cust/cmin/cmax/leg/apt) via /api/auth/register. Created ~3 temporary skill-game contests via /api/admin/contests; each is deleted at the end of its test. Two mock wallet top-ups via /api/wallet/topup on the wallet-UI test user to seed transactions for the receipt modal check.",
 

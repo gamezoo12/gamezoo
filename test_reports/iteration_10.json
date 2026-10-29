@@ -29,7 +29,7 @@
   ],
   "updated_files": [],
   "success_rate": {"backend": "98.6% (70/71 pytest — 1 unrelated pre-existing failure)", "frontend": "100% (16/16 cards rendered, 8/8 new-game modals render without errors, EditContestDialog dropdown complete with all 16 games)"},
-  "test_credentials": "Admin: bachanta8@gmail.com / Herts@910022 (from /app/memory/test_credentials.md).",
+  "test_credentials": "Admin: <admin-email> / <redacted> (from /app/memory/test_credentials.md).",
   "seed_data_creation": "None. No test data created in this iteration.",
   "retest_needed": false,
   "main_agent_can_self_test": true,

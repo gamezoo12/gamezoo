@@ -129,9 +129,13 @@ def _as_utc(value) -> Optional[datetime]:
     return None
 
 
+def phone_is_verified(user: dict) -> bool:
+    return user.get('phone_verified') is True or _as_utc(user.get('phone_verified_at')) is not None
+
+
 def phone_gate_blocks(user: dict) -> bool:
     """True when this user must verify a mobile number before gameplay/payments."""
-    if user.get('phone_verified') is True or user.get('role') in _STAFF_ROLES:
+    if phone_is_verified(user) or user.get('role') in _STAFF_ROLES:
         return False
     # Google accounts must always verify; legacy email accounts stay exempt unless enforced.
     if user.get('method') == 'google':

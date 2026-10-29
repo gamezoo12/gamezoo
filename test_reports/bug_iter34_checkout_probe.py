@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 """Probe checkout status for the UI contest after browser timeouts."""
 import json
 import re
@@ -19,7 +20,7 @@ def ans(q):
 
 
 s = requests.Session()
-r = s.post(f'{BASE}/api/auth/login', json={'email': 'bachanta8@gmail.com', 'password': 'Herts@910022'}, timeout=30)
+r = s.post(f'{BASE}/api/auth/login', json={'email': os.environ["TEST_ADMIN_EMAIL"], 'password': os.environ["TEST_ADMIN_PASSWORD"]}, timeout=30)
 tok = r.json()['token']
 s.headers.update({'Authorization': f'Bearer {tok}'})
 ch = s.get(f'{BASE}/api/contests/{SLUG}/skill-challenge', timeout=30).json()

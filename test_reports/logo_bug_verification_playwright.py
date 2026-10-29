@@ -1,3 +1,4 @@
+import os
 """Focused Playwright verification for the Prize League logo regression.
 
 Run with: python3 /app/test_reports/logo_bug_verification_playwright.py
@@ -90,8 +91,8 @@ async def main():
 
         await page.goto(BASE + "/admin/login", wait_until="networkidle", timeout=60000)
         await visible_logo_infos(page, "/admin/login")
-        await page.locator('input[name="email"]').fill("bachanta8@gmail.com")
-        await page.locator('input[name="password"]').fill("Herts@910022")
+        await page.locator('input[name="email"]').fill(os.environ["TEST_ADMIN_EMAIL"])
+        await page.locator('input[name="password"]').fill(os.environ["TEST_ADMIN_PASSWORD"])
         await page.locator('button[type="submit"]').click()
         await page.wait_for_url(lambda url: "/admin" in url and "/admin/login" not in url, timeout=20000)
         await page.wait_for_selector('[data-testid="admin-layout"]', timeout=20000)

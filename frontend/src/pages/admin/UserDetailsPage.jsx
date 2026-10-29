@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, adminAPI, cashoutAPI } from '../../lib/api';
+import PromotionsConsent, { PROMO_OPTIONS } from '../../components/account/PromotionsConsent';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
@@ -38,6 +39,51 @@ const newWalletAdjustmentId = () => globalThis.crypto?.randomUUID?.()
   || `admin-adjust-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 
+function AdminPromotionsCard({ userId }) {
+  const { toast } = useToast();
+  const [view, setView] = useState(null);
+  const [values, setValues] = useState(null);
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    adminAPI.userPromotionsConsent(userId).then(r => { if (live) { setView(r); setValues(r.preferences); } }).catch(() => {});
+    return () => { live = false; };
+  }, [userId]);
+
+  const enabling = view && values && PROMO_OPTIONS.some(o => values[o.key] && !view.preferences[o.key]);
+  const save = async () => {
+    setSaving(true);
+    try {
+      const changed = Object.fromEntries(PROMO_OPTIONS.filter(o => values[o.key] !== view.preferences[o.key]).map(o => [o.key, values[o.key]]));
+      if (!Object.keys(changed).length) { toast({ title: 'No changes to save' }); return; }
+      const r = await adminAPI.saveUserPromotionsConsent(userId, { ...changed, reason: reason.trim() });
+      setView(r); setValues(r.preferences); setReason('');
+      toast({ title: 'Communication preferences saved' });
+    } catch (e) {
+      toast({ title: 'Could not save preferences', description: e?.response?.data?.detail || 'Please try again.' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const webState = { awaiting_user_subscription: 'Waiting for the user to allow notifications in their browser', browser_permission_denied: 'User has blocked browser notifications', not_opted_in: null }[view?.web_notifications_status];
+  return (
+    <div className="rounded-xl border border-slate-100 p-4" data-testid="admin-promotions-consent-card">
+      {!values ? <div className="h-32 animate-pulse rounded-lg bg-slate-100" /> : (
+        <>
+          <PromotionsConsent values={values} onChange={setValues} showSave={false} disabled={saving} testid="admin-promotions" />
+          {values.web_notifications && webState && <p className="mt-2 text-xs text-amber-700" data-testid="admin-web-notifications-status">{webState}</p>}
+          {view?.sources && Object.values(view.sources).includes('admin') && <p className="mt-2 text-xs text-slate-500">Set by admin: {PROMO_OPTIONS.filter(o => view.sources[o.key] === 'admin').map(o => o.label).join(', ')}</p>}
+          {enabling && <textarea rows={2} value={reason} onChange={e => setReason(e.target.value)} placeholder="Reason (10+ characters)" className="mt-3 w-full rounded-md border border-slate-200 px-3 py-2 text-sm" data-testid="admin-promotions-reason" />}
+          <Button size="sm" className="mt-3" onClick={save} disabled={saving || (enabling && reason.trim().length < 10)} data-testid="admin-promotions-save">{saving ? 'Saving…' : 'Save Preferences'}</Button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function ProfileManagementCard({ userId, identity, onReload, view = 'profile', hidden = false }) {
   const { toast } = useToast();
 
@@ -49,10 +95,6 @@ function ProfileManagementCard({ userId, identity, onReload, view = 'profile', h
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState('');
-  const [savingConsent, setSavingConsent] = useState(false);
-  const [savingWebPushConsent, setSavingWebPushConsent] = useState(false);
-  const [savingEmailConsent, setSavingEmailConsent] = useState(false);
-  const [emailConsentEvidence, setEmailConsentEvidence] = useState('');
 
   const makeForm = () => ({
     name: identity?.name || '',
@@ -244,84 +286,6 @@ function ProfileManagementCard({ userId, identity, onReload, view = 'profile', h
       });
     } finally {
       setVerifyingOtp(false);
-    }
-  };
-
-  const setSmsConsent = async (consent) => {
-    try {
-      setSavingConsent(true);
-      await adminAPI.setUserSmsConsent(userId, consent);
-      toast({
-        title: consent ? 'SMS consent granted' : 'SMS consent revoked',
-        description: consent
-          ? 'User is now eligible for Admin Alert SMS (verified phone still required).'
-          : 'User will no longer receive Admin Alert SMS.',
-      });
-      await onReload();
-    } catch (e) {
-      toast({
-        title: 'Could not update SMS consent',
-        description:
-          e?.response?.data?.detail || 'Please try again.',
-      });
-    } finally {
-      setSavingConsent(false);
-    }
-  };
-
-  const disableWebPush = async () => {
-    const reason = window.prompt('Reason for disabling Web Push (10+ characters):');
-    if (!reason || reason.trim().length < 10) return;
-    try {
-      setSavingWebPushConsent(true);
-      await adminAPI.disableUserWebPush(userId, reason.trim());
-      toast({ title: 'Web Push disabled', description: 'All registered devices are blocked from receiving Web Push.' });
-      await onReload();
-    } catch (error) {
-      toast({ title: 'Could not disable Web Push', description: error?.response?.data?.detail || 'Please try again.' });
-    } finally {
-      setSavingWebPushConsent(false);
-    }
-  };
-
-  const enableWebPush = async () => {
-    const evidence = window.prompt('Document how and when the user explicitly opted in to Web Push (20+ characters):');
-    if (!evidence || evidence.trim().length < 20) {
-      if (evidence !== null) toast({ title: 'Consent evidence required', description: 'Enter documented opt-in evidence of at least 20 characters.' });
-      return;
-    }
-    if (!window.confirm('Record this user’s explicit Web Push opt-in? This will not create a browser subscription.')) return;
-    try {
-      setSavingWebPushConsent(true);
-      await adminAPI.enableUserWebPush(userId, evidence.trim());
-      toast({ title: 'Web Push consent granted', description: 'The opt-in was recorded and audited for this subscribed browser.' });
-      await onReload();
-    } catch (error) {
-      toast({ title: 'Could not grant Web Push consent', description: error?.response?.data?.detail || 'Please try again.' });
-    } finally {
-      setSavingWebPushConsent(false);
-    }
-  };
-
-  const setEmailConsent = async (consent) => {
-    const evidence = emailConsentEvidence.trim();
-    if (consent && evidence.length < 10) {
-      toast({ title: 'Consent evidence required', description: 'Record how and when the user agreed to receive marketing emails (at least 10 characters).' });
-      return;
-    }
-    try {
-      setSavingEmailConsent(true);
-      await api.post(`/admin/users/${userId}/email-consent`, { consent, evidence: consent ? evidence : null });
-      toast({
-        title: consent ? 'Email consent granted' : 'Email consent revoked',
-        description: consent ? 'Marketing email consent has been recorded and audited.' : 'Marketing email consent has been revoked.',
-      });
-      setEmailConsentEvidence('');
-      await onReload();
-    } catch (e) {
-      toast({ title: 'Could not update email consent', description: e?.response?.data?.detail || 'Please try again.' });
-    } finally {
-      setSavingEmailConsent(false);
     }
   };
 
@@ -553,120 +517,7 @@ function ProfileManagementCard({ userId, identity, onReload, view = 'profile', h
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-100 p-4" data-testid="admin-sms-consent-card">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="font-bold text-sm">SMS Alerts Consent</div>
-              <div className="text-xs text-slate-500 mt-1">
-                Required before this user can receive Admin Alert SMS
-                (e.g. winner greetings). A verified phone is also required.
-              </div>
-            </div>
-            {identity?.sms_consent ? (
-              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700" data-testid="sms-consent-status">
-                Granted
-              </span>
-            ) : (
-              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600" data-testid="sms-consent-status">
-                Not granted
-              </span>
-            )}
-          </div>
-
-          {!identity?.erased && (
-            <div className="mt-4 flex items-center gap-2">
-              {identity?.sms_consent ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSmsConsent(false)}
-                  disabled={savingConsent}
-                  data-testid="revoke-sms-consent"
-                >
-                  {savingConsent ? 'Saving…' : 'Revoke SMS consent'}
-                </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  onClick={() => setSmsConsent(true)}
-                  disabled={savingConsent}
-                  data-testid="grant-sms-consent"
-                >
-                  {savingConsent ? 'Saving…' : 'Grant SMS consent'}
-                </Button>
-              )}
-            </div>
-          )}
-
-          {identity?.sms_opt_out && (
-            <p className="text-[11px] text-rose-600 mt-2">
-              User previously opted out (STOP). Granting consent clears the opt-out.
-            </p>
-          )}
-        </div>
-
-
-        <div className="rounded-xl border border-slate-100 p-4" data-testid="admin-web-push-consent-card">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="font-bold text-sm">Web Push Consent</div>
-              <div className="mt-1 text-xs text-slate-500">Record grants only when explicit opt-in is documented and a browser subscription already exists. This does not subscribe a browser.</div>
-            </div>
-            <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${identity?.web_push_status === 'Enabled' ? 'bg-emerald-100 text-emerald-700' : identity?.web_push_status === 'Browser Permission Denied' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'}`} data-testid="web-push-consent-status">
-              {identity?.web_push_status || 'Disabled'}
-            </span>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500">
-            <span>Registered browsers: {Number(identity?.web_push_device_count || 0)}</span>
-            <span>Browser permission: {identity?.web_push_browser_permission === 'denied' ? 'Denied' : identity?.web_push_browser_permission === 'granted' ? 'Granted' : 'Not requested'}</span>
-            <span>Consent source: {identity?.web_push_consent_source === 'admin' ? 'Admin' : identity?.web_push_consent_source === 'user' ? 'User' : 'None'}</span>
-            {identity?.web_push_consent_at && <span>Updated: {new Date(identity.web_push_consent_at).toLocaleString('en-GB', { timeZone: 'Europe/London' })}</span>}
-          </div>
-          {identity?.web_push_enabled && !identity?.erased && <Button type="button" variant="outline" size="sm" className="mt-3" onClick={disableWebPush} disabled={savingWebPushConsent} data-testid="revoke-web-push-consent">
-            {savingWebPushConsent ? 'Disabling…' : 'Disable Web Push'}
-          </Button>}
-          {!identity?.web_push_enabled && !identity?.erased && <Button type="button" size="sm" className="mt-3" onClick={enableWebPush} disabled={savingWebPushConsent || Number(identity?.web_push_device_count || 0) < 1} data-testid="grant-web-push-consent">
-            {savingWebPushConsent ? 'Saving…' : 'Grant Web Push Consent'}
-          </Button>}
-        </div>
-
-        <div className="rounded-xl border border-slate-100 p-4" data-testid="admin-email-consent-card">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="font-bold text-sm">Email Marketing Consent</div>
-              <div className="text-xs text-slate-500 mt-1">
-                Required before sending promotional email campaigns. Grant only when the user has actually opted in.
-              </div>
-            </div>
-            {identity?.marketing_email_consent && !identity?.marketing_email_unsubscribed ? (
-              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700" data-testid="email-consent-status">Granted</span>
-            ) : (
-              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600" data-testid="email-consent-status">Not granted</span>
-            )}
-          </div>
-          {!identity?.erased && (
-            <div className="mt-4 space-y-3">
-              {identity?.marketing_email_consent && !identity?.marketing_email_unsubscribed ? (
-                <Button variant="outline" size="sm" onClick={() => setEmailConsent(false)} disabled={savingEmailConsent} data-testid="revoke-email-consent">
-                  {savingEmailConsent ? 'Saving…' : 'Revoke Email consent'}
-                </Button>
-              ) : (
-                <>
-                  <div>
-                    <label htmlFor="email-consent-evidence" className="block text-xs font-bold text-slate-600 mb-1.5">Evidence of user's email marketing opt-in</label>
-                    <textarea id="email-consent-evidence" rows={2} value={emailConsentEvidence} onChange={e => setEmailConsentEvidence(e.target.value)} placeholder="When and how the user explicitly agreed to marketing emails" className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm" data-testid="email-consent-evidence" />
-                  </div>
-                  <Button size="sm" onClick={() => setEmailConsent(true)} disabled={savingEmailConsent || !identity?.email || emailConsentEvidence.trim().length < 10} data-testid="grant-email-consent">
-                    {savingEmailConsent ? 'Saving…' : 'Grant Email consent'}
-                  </Button>
-                </>
-              )}
-            </div>
-          )}
-          {identity?.marketing_email_unsubscribed && (
-            <p className="text-[11px] text-rose-600 mt-2">User previously unsubscribed. Only re-grant after fresh, documented opt-in.</p>
-          )}
-        </div>
+        {!identity?.erased && <AdminPromotionsCard userId={userId} />}
 
         {(identity?.phone_verified_at ||
           identity?.email_verified_at) && (
@@ -930,7 +781,7 @@ export default function UserDetailsPage() {
     referral_joined_via, referrer_user, signup_bonus,
     sessions, admin_actions, world, special_challenge,
     acquisition, page_visits, influencer_attribution,
-    wallet_breakdown, bonus_grants, payments, withdrawals,
+    wallet_breakdown, bonus_grants, payments, withdrawals, promotion_status,
   } = data;
   const suspended = !!identity.suspended;
   const erased = !!identity.erased;
@@ -1045,7 +896,14 @@ export default function UserDetailsPage() {
 
         <Section title="Wallet" icon={Wallet} hidden={activeSection !== 'wallet'}>
           <div className="text-3xl font-black text-emerald-700">{Number(wallet_breakdown?.balance_tokens || wallet?.balance || 0).toLocaleString()} tokens</div>
-          <div className="text-xs text-slate-500">Purchased: {Number(wallet_breakdown?.purchased_tokens || 0).toLocaleString()} · Bonus: {Number(wallet_breakdown?.bonus_tokens || 0).toLocaleString()} · Withdrawable: {Number(wallet_breakdown?.withdrawable_tokens || 0).toLocaleString()} · Lifetime top-ups: {gbp(totalDepositsPence / 100)} · Lifetime token spend: {Number(totalSpend || 0).toLocaleString()}</div>
+          {wallet_breakdown?.source_classified ? (
+            <>
+              <div className="text-xs text-slate-500">Top-up: {Number(wallet_breakdown.topup_tokens).toLocaleString()} · Winning: {Number(wallet_breakdown.winning_tokens).toLocaleString()} · Winning bonus: {Number(wallet_breakdown.winning_bonus_tokens).toLocaleString()} · Bonus: {Number(wallet_breakdown.bonus_tokens).toLocaleString()} · Total: {Number(wallet_breakdown.total_tokens).toLocaleString()}</div>
+              <div className="text-xs text-slate-500">Cashout available: {gbp(Number(wallet_breakdown.available_to_cash_out || 0))} · Lifetime top-ups: {gbp(totalDepositsPence / 100)} · Lifetime token spend: {Number(totalSpend || 0).toLocaleString()}</div>
+            </>
+          ) : (
+            <div className="text-xs font-semibold text-amber-700">Legacy wallet source split unavailable; no category amounts are inferred.</div>
+          )}
           <div className="mt-1 text-xs text-slate-500">Winnings available: {gbp(Number(wallet_breakdown?.winnings_pence || 0) / 100)} · Lifetime winnings: {gbp(Number(wallet_breakdown?.lifetime_winnings_pence || 0) / 100)}</div>
           {canManageUserFunds && <form className="mt-4 grid gap-3 rounded-xl border border-slate-200 p-4 sm:grid-cols-[10rem_1fr_auto] sm:items-end" onSubmit={adjustWallet}>
             <div className="space-y-1">
@@ -1245,7 +1103,9 @@ export default function UserDetailsPage() {
 
               <div className="flex justify-between gap-3">
                 <span className="text-slate-500">Required top-up</span>
-                <span className="font-semibold">£10+ in one verified payment</span>
+                <span className="font-semibold">{signup_bonus?.offer_terms?.qualifying_topup_gbp != null
+                  ? `${gbp(signup_bonus.offer_terms.qualifying_topup_gbp)}+ in one verified payment`
+                  : 'No offer terms snapshot'}</span>
               </div>
 
               <div className="flex justify-between gap-3">
@@ -1258,13 +1118,20 @@ export default function UserDetailsPage() {
               </div>
 
               <div className="flex justify-between gap-3">
-                <span className="text-slate-500">5-token bonus</span>
+                <span className="text-slate-500">Bonus reward</span>
                 <span className={signup_bonus?.granted ? 'text-emerald-700 font-semibold' : 'text-slate-600 font-semibold'}>
                   {signup_bonus?.granted
-                    ? `Granted · ${signup_bonus?.tokens || 5} tokens`
+                    ? `Granted · ${signup_bonus?.tokens ?? 0} tokens`
                     : 'Not granted'}
                 </span>
               </div>
+
+              {signup_bonus?.offer_version && <div className="flex justify-between gap-3">
+                <span className="text-slate-500">Offer version</span><span className="font-semibold">{signup_bonus.offer_version}</span>
+              </div>}
+              {signup_bonus?.offer_terms?.expiry_days && <div className="flex justify-between gap-3">
+                <span className="text-slate-500">Bonus expiry</span><span className="font-semibold">{signup_bonus.offer_terms.expiry_days} days after credit</span>
+              </div>}
 
               {signup_bonus?.granted_at && (
                 <div className="flex justify-between gap-3">
@@ -1289,6 +1156,24 @@ export default function UserDetailsPage() {
                 </div>
               )}
             </div>
+          </div>
+
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4" data-testid="user-promotion-eligibility">
+            <div className="font-bold text-sm mb-3">Promotional eligibility · Influencer Exclusive</div>
+            {promotion_status ? <div className="space-y-2 text-xs">
+              <div className="flex justify-between gap-3"><span className="text-slate-500">Acquisition</span><b>{promotion_status.acquisition_type}</b></div>
+              <div className="flex justify-between gap-3"><span className="text-slate-500">Campaign</span><b>{promotion_status.campaign_name || promotion_status.promo_code || '—'}</b></div>
+              <div className="flex justify-between gap-3"><span className="text-slate-500">Signup bonus</span><b>{promotion_status.signup_bonus_status}</b></div>
+              {promotion_status.signup_pending_condition && <div className="text-amber-700">{promotion_status.signup_pending_condition}</div>}
+              <div className="flex justify-between gap-3"><span className="text-slate-500">Top-up bonus</span><b>{promotion_status.topup_bonus_status}</b></div>
+              {promotion_status.topup_pending_condition && <div className="text-amber-700">{promotion_status.topup_pending_condition}</div>}
+              <div className="flex justify-between gap-3"><span className="text-slate-500">Normal bonus issued</span><b>{promotion_status.normal_bonus_tokens_issued ?? 'Unclassified'}</b></div>
+              <div className="flex justify-between gap-3"><span className="text-slate-500">Influencer bonus issued</span><b>{promotion_status.influencer_bonus_tokens_issued ?? 'Unclassified'}</b></div>
+              <div className="flex justify-between gap-3"><span className="text-slate-500">Purchased Top-up Tokens</span><b>{promotion_status.purchased_topup_tokens ?? 'Unclassified'}</b></div>
+              {!!promotion_status.conflicts?.length && <ul className="list-disc pl-4 text-rose-700">{promotion_status.conflicts.map((item) => <li key={item.code}>{item.message}</li>)}</ul>}
+              {!!promotion_status.reward_transaction_ids?.length && <div><div className="text-slate-500">Reward transaction IDs</div><div className="mt-1 break-all font-mono">{promotion_status.reward_transaction_ids.join(', ')}</div></div>}
+              {!!promotion_status.bonus_expiry?.length && <div><div className="text-slate-500">Reward expiry</div>{promotion_status.bonus_expiry.map((item, index) => <div key={`${item.source}-${index}`}>{item.source}: {item.remaining ?? '—'} remaining · {item.expires_at ? new Date(item.expires_at).toLocaleDateString('en-GB') : 'No expiry'}</div>)}</div>}
+            </div> : <p className="text-xs text-slate-500">Promotion status is unavailable.</p>}
           </div>
 
           {/* Referral details are shown in their own control-centre tab. */}
@@ -1319,14 +1204,14 @@ export default function UserDetailsPage() {
                 </div>
 
                 <div className="flex justify-between gap-3">
-                  <span className="text-slate-500">£10 top-up</span>
+                  <span className="text-slate-500">Qualifying top-up</span>
                   <span className={referral_joined_via.topup_qualified ? 'text-emerald-700 font-semibold' : 'text-amber-700 font-semibold'}>
-                    {referral_joined_via.topup_qualified ? 'Completed' : 'Waiting'}
+                    {referral_joined_via.topup_qualified ? 'Completed' : `Waiting · ${referral_joined_via.offer_terms?.qualifying_topup_gbp != null ? `${gbp(referral_joined_via.offer_terms.qualifying_topup_gbp)}+ verified payment` : 'terms unavailable'}`}
                   </span>
                 </div>
 
                 <div className="flex justify-between gap-3">
-                  <span className="text-slate-500">Contest entry</span>
+                  <span className="text-slate-500">Contest entry{referral_joined_via.offer_terms?.contest_entry_required === false ? ' (not required)' : ''}</span>
                   <span className={referral_joined_via.contest_entered ? 'text-emerald-700 font-semibold' : 'text-amber-700 font-semibold'}>
                     {referral_joined_via.contest_entered ? 'Completed' : 'Waiting'}
                   </span>
@@ -1336,7 +1221,7 @@ export default function UserDetailsPage() {
                   <span className="text-slate-500">Referrer reward</span>
                   <span className={referral_joined_via.reward_granted ? 'text-emerald-700 font-semibold' : 'text-slate-600 font-semibold'}>
                     {referral_joined_via.reward_granted
-                      ? `${referral_joined_via.reward_tokens || 5} tokens granted`
+                      ? `${referral_joined_via.reward_tokens ?? 0} tokens granted`
                       : 'Not granted'}
                   </span>
                 </div>
@@ -1369,7 +1254,7 @@ export default function UserDetailsPage() {
                   <tr>
                     <th className="text-left px-3 py-2">User</th>
                     <th className="text-left px-3 py-2">Code</th>
-                    <th className="text-left px-3 py-2">£10 top-up</th>
+                    <th className="text-left px-3 py-2">Qualifying top-up</th>
                     <th className="text-left px-3 py-2">Contest</th>
                     <th className="text-left px-3 py-2">Reward</th>
                     <th className="text-left px-3 py-2">Status</th>
@@ -1406,7 +1291,7 @@ export default function UserDetailsPage() {
                         {r.reward_granted
                           ? <span className="text-emerald-700 font-semibold inline-flex items-center gap-1">
                               <CheckCircle2 className="w-3 h-3" />
-                              {r.reward_tokens || 5} tokens
+                              {r.reward_tokens ?? 0} tokens
                             </span>
                           : '—'}
                       </td>
@@ -1438,7 +1323,7 @@ export default function UserDetailsPage() {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-left text-xs">
             <thead className="text-slate-500"><tr><th className="py-2">User</th><th>Code</th><th>Top-up</th><th>Contest entry</th><th>Reward</th><th>Status</th></tr></thead>
-            <tbody>{(referrals || []).map((referral, index) => <tr key={referral.referral_id || index} className="border-t border-slate-100"><td className="py-2">{referral.referred_name || referral.referred_email || referral.referred_user_id}</td><td className="font-mono">{referral.code || '—'}</td><td>{referral.topup_qualified ? 'Complete' : 'Waiting'}</td><td>{referral.contest_entered ? 'Complete' : 'Waiting'}</td><td>{referral.reward_granted ? `${referral.reward_tokens || 5} tokens` : '—'}</td><td>{referral.display_status || referral.status || 'pending'}</td></tr>)}</tbody>
+            <tbody>{(referrals || []).map((referral, index) => <tr key={referral.referral_id || index} className="border-t border-slate-100"><td className="py-2">{referral.referred_name || referral.referred_email || referral.referred_user_id}</td><td className="font-mono">{referral.code || '—'}</td><td>{referral.topup_qualified ? 'Complete' : `Waiting${referral.offer_terms?.qualifying_topup_gbp != null ? ` · ${gbp(referral.offer_terms.qualifying_topup_gbp)}+ verified payment` : ''}`}</td><td>{referral.offer_terms?.contest_entry_required === false ? 'Not required' : referral.contest_entered ? 'Complete' : 'Waiting'}</td><td>{referral.reward_granted ? `${referral.reward_tokens ?? 0} tokens` : '—'}</td><td>{referral.display_status || referral.status || 'pending'}{referral.reward_tx_id ? <div className="font-mono text-[10px]">{referral.reward_tx_id}</div> : null}</td></tr>)}</tbody>
           </table>
           {!referrals?.length && <p className="py-3 text-slate-400">No referrals made by this user.</p>}
         </div>

@@ -46,6 +46,7 @@ async def draw_contest(db, contest_id: str) -> dict:
         user_name=user['name'] if user else 'Anonymous',
         ticket_number=chosen['ticket_number'],
         prize_amount=c['prize_amount'],
+        prize_bonus_tokens=float(c.get('prize_bonus_tokens') or 0),
         prize_title=c['title'],
     )
     await db.winners.insert_one(winner.model_dump())
@@ -54,16 +55,20 @@ async def draw_contest(db, contest_id: str) -> dict:
         {'$set': {'status': 'drawn', 'drawn_at': datetime.now(timezone.utc)}},
     )
 
+    prize_summary = []
+    if float(c.get('prize_amount') or 0) > 0:
+        prize_summary.append(f"£{float(c['prize_amount']):g}")
+    if float(c.get('prize_bonus_tokens') or 0) > 0:
+        prize_summary.append(f"{float(c['prize_bonus_tokens']):g} Winning Bonus Tokens")
+
     # In-app notification for the winner
     await db.notifications.insert_one({
         'notification_id': f"n_{uuid.uuid4().hex[:12]}",
         'user_id': chosen['user_id'],
         'type': 'winner',
         'title': f"🎉 You won {c['title']}!",
-        'body': (
-            f"Congratulations! Your ticket #{chosen['ticket_number']} was drawn. "
-            f"Prize £{c['prize_amount']}. Our team will contact you within 24h."
-        ),
+        'body': (f"Congratulations! Your ticket #{chosen['ticket_number']} was drawn. "
+                 f"Prize {' + '.join(prize_summary)}. It will be credited to your wallet after Super Admin approval."),
         'contest_id': contest_id,
         'winner_id': winner.winner_id,
         'read': False,

@@ -26,6 +26,7 @@ NEW = datetime(2026, 10, 20, tzinfo=timezone.utc)
     ({'method': 'google', 'phone_verified': False, 'created_at': OLD, 'role': 'user'}, True),
     ({'method': 'google', 'created_at': OLD, 'role': 'user'}, True),
     ({'method': 'google', 'phone_verified': True, 'created_at': NEW, 'role': 'user'}, False),
+    ({'method': 'google', 'phone_verified': False, 'phone_verified_at': NEW, 'created_at': NEW, 'role': 'user'}, False),
     ({'method': 'google', 'phone_verified': False, 'created_at': NEW, 'role': 'admin'}, False),
     ({'method': 'email', 'phone_verified': False, 'created_at': NEW, 'role': 'user'}, True),
     ({'method': 'email', 'phone_verified': False, 'created_at': OLD, 'role': 'user'}, False),
@@ -34,6 +35,18 @@ NEW = datetime(2026, 10, 20, tzinfo=timezone.utc)
 def test_phone_gate_rules(monkeypatch, user, blocked):
     monkeypatch.delenv('PHONE_GATE_ENFORCE_LEGACY', raising=False)
     assert auth.phone_gate_blocks(user) is blocked
+
+
+@pytest.mark.parametrize('user,expected', [
+    ({'phone': '+15550100000'}, False),
+    ({'phone': '+15550100000', 'phone_verified': False}, False),
+    ({'phone_verified': True}, True),
+    ({'phone_verified_at': NEW}, True),
+    ({'phone_verified_at': NEW.isoformat()}, True),
+    ({'phone_verified_at': 'not-a-timestamp'}, False),
+])
+def test_admin_phone_verification_source_truth(user, expected):
+    assert auth.phone_is_verified(user) is expected
 
 
 @pytest.mark.parametrize('handler,args', [

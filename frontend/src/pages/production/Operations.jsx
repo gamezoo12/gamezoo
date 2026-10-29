@@ -139,7 +139,7 @@ export default function Operations() {
                 </div>
                 <div className="mt-3 text-sm text-slate-300 line-clamp-2">{w.prize_title}</div>
                 <div className="mt-2 flex items-center justify-between">
-                  <span className="text-teal-400 font-bold">{gbp(w.prize_amount)}</span>
+                  <span className="text-teal-400 font-bold">{Number(w.prize_amount || 0) > 0 && gbp(w.prize_amount)}{Number(w.prize_bonus_tokens || 0) > 0 && ` + ${Number(w.prize_bonus_tokens).toLocaleString()} bonus tokens`}</span>
                   <span className={`text-xs px-2 py-0.5 rounded-full ${w.paid_out ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}`}>
                     {w.paid_out ? <><CheckCircle2 className="w-3 h-3 inline mr-1" /> Paid</> : <><Clock className="w-3 h-3 inline mr-1" /> Awaiting payout</>}
                   </span>

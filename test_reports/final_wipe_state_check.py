@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Final preview DB cleanliness check after focused wipe testing."""
 from __future__ import annotations
+import os
 
 import json
 from pathlib import Path
@@ -30,7 +31,7 @@ for col in collections:
     except Exception:
         pass
 db.users.delete_many({'qa_run_id': {'$exists': True}})
-db.admin_audit.delete_many({'action': 'wipe_demo_data', 'by_email': 'bachanta8@gmail.com'})
+db.admin_audit.delete_many({'action': 'wipe_demo_data', 'by_email': os.environ["TEST_ADMIN_EMAIL"]})
 
 counts = {col: db[col].count_documents({}) for col in collections}
 users = list(db.users.find({}, {'_id': 0, 'email': 1, 'role': 1, 'user_id': 1}))

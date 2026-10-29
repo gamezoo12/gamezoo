@@ -59,7 +59,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
   const isCreate = mode === 'create';
   const emptyForm = {
     title: '', subtitle: '', category: 'prize-draws', image: '',
-    price: 1, tickets_total: 150, prize_amount: 100,
+    price: 1, tickets_total: 150, prize_amount: 100, prize_bonus_tokens: 0,
     end_date: new Date(Date.now() + 7 * 86400000).toISOString(),
     jackpot: false, featured: false, status: 'draft',
     public_coming_soon: false,
@@ -285,7 +285,8 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
         image: form.image,
         price: Number.isFinite(Number(form.price)) ? Number(form.price) : 0,
         tickets_total: parseInt(form.tickets_total, 10) || 100,
-        prize_amount: parseFloat(form.prize_amount) || 100,
+        prize_amount: Number.isFinite(Number(form.prize_amount)) ? Number(form.prize_amount) : 100,
+        prize_bonus_tokens: Number.isFinite(Number(form.prize_bonus_tokens)) ? Number(form.prize_bonus_tokens) : 0,
         end_date: form.end_date,
         jackpot: !!form.jackpot,
         featured: !!form.featured,
@@ -609,7 +610,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
 
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div>
-                  <Label>Prize Value (?)</Label>
+                  <Label>Cash prize (£)</Label>
                   <Input
                     type="number"
                     min="0"
@@ -617,6 +618,18 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                     value={form.prize_amount ?? 0}
                     onChange={e => upd('prize_amount', e.target.value)}
                     data-testid="real-prize-value"
+                  />
+                </div>
+
+                <div>
+                  <Label>Winning Bonus Tokens</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={form.prize_bonus_tokens ?? 0}
+                    onChange={e => upd('prize_bonus_tokens', e.target.value)}
+                    data-testid="real-prize-bonus-tokens"
                   />
                 </div>
 

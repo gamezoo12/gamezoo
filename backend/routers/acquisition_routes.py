@@ -36,21 +36,16 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-TIME_RANGES = {
-    '1h': timedelta(hours=1), '6h': timedelta(hours=6),
-    '24h': timedelta(hours=24), '7d': timedelta(days=7),
-    '1m': timedelta(days=30), '6m': timedelta(days=182),
-    '1y': timedelta(days=365), 'lifetime': None,
-}
-
-
 def _range_query(period: Optional[str], days: int):
     if period is not None:
-        if period not in TIME_RANGES:
-            from fastapi import HTTPException
+        from fastapi import HTTPException
+        from services.analytics_common import RANGE_KEYS, resolve_range
+        if period not in RANGE_KEYS or period == 'custom':
             raise HTTPException(status_code=400, detail='Unsupported acquisition time range')
-        duration = TIME_RANGES[period]
-        return ({'created_at': {'$gte': _now() - duration}} if duration else {}, period)
+        if period in ('all_time', 'lifetime'):
+            return {}, period
+        window = resolve_range(period)
+        return {'created_at': {'$gte': window['start'], '$lt': window['end']}}, period
     days = max(1, min(int(days), 365))
     return {'created_at': {'$gte': _now() - timedelta(days=days)}}, f'{days}d'
 
@@ -525,7 +520,7 @@ async def acquisition_summary(request: Request, days: int = 30, period: Optional
     by_landing = await _bucket(db, match, 'landing_path')
 
     # Daily trend.
-    trend_format = '%Y-%m' if period_label in ('6m', '1y', 'lifetime') else '%Y-%m-%d'
+    trend_format = '%Y-%m' if period_label in ('6m', '1y', 'lifetime', 'all_time') else '%Y-%m-%d'
     trend_rows = await db.acquisition_visits.aggregate([
         {'$match': match},
         {'$group': {

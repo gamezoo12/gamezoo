@@ -18,6 +18,7 @@ def _to_public(c: dict) -> dict:
         'tickets_sold': c.get('tickets_sold', 0),
         'tickets_total': c['tickets_total'],
         'prize_amount': c['prize_amount'],
+        'prize_bonus_tokens': float(c.get('prize_bonus_tokens') or 0),
         'end_date': c['end_date'],
         'image': c['image'],
         'jackpot': c.get('jackpot', False),

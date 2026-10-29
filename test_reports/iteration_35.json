@@ -28,7 +28,7 @@
     "/app/backend/tests/test_free_world_token_flow.py (new pytest coverage for unlock/retry token flows)"
   ],
   "success_rate": {"backend": "100% (5/5)", "frontend": "95% (all core token UX flows pass; minor post-confirm /login flash)"},
-  "test_credentials": "player1@example.com / Player@12345 (350 tokens, L1 done); player_broke@example.com / Player@12345 (0 tokens, L1 done). Re-run python3 /app/backend/scripts/seed_token_test_scenario.py before destructive tests.",
+  "test_credentials": "player1@example.com / <redacted> (350 tokens, L1 done); player_broke@example.com / <redacted> (0 tokens, L1 done). Re-run python3 /app/backend/scripts/seed_token_test_scenario.py before destructive tests.",
   "seed_data_creation": "Ran /app/backend/scripts/seed_token_test_scenario.py to reset player1 balance=350 / L2 time-locked and player_broke balance=0 before each destructive backend test and before frontend UI tests.",
   "retest_needed": true,
   "should_main_agent_self_test": true,

@@ -1,3 +1,4 @@
+import os
 {
   "run_id": "qa_wipe_iter30_1785538624",
   "api_base": "https://import-verify-6.preview.emergentagent.com",
@@ -20,7 +21,7 @@
       "evidence": {
         "status": 200,
         "role": "super_admin",
-        "email": "bachanta8@gmail.com",
+        "email": os.environ["TEST_ADMIN_EMAIL"],
         "body": null
       }
     },
@@ -230,7 +231,7 @@
     "users": [
       {
         "user_id": "user_eb071248fabe",
-        "email": "bachanta8@gmail.com",
+        "email": os.environ["TEST_ADMIN_EMAIL"],
         "role": "super_admin"
       }
     ],

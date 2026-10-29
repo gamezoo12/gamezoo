@@ -38,6 +38,27 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+GRANT_SOURCES = ('admin', 'signup', 'normal_topup', 'referral', 'influencer_campaign', 'promotion', 'world_competition', 'other')
+
+
+def grant_source(grant: dict) -> str:
+    """Stored source, or the best inference for grants created before the field existed."""
+    if grant.get('source') in GRANT_SOURCES:
+        return grant['source']
+    return 'influencer_campaign' if grant.get('actor_id') == 'campaign-system' else 'admin'
+
+
+def _credit_notice(grant: dict, amount: float) -> tuple[str, str]:
+    source = grant_source(grant)
+    label = {'signup': 'Signup bonus', 'referral': 'Referral bonus'}.get(source, 'Bonus tokens')
+    expires_at = grant.get('expires_at')
+    when = f' Use them before {uk_date(expires_at)}.' if expires_at else ' They do not expire.'
+    return (
+        f'{r2(amount):g} {label.lower()} tokens added',
+        f'{label}: {r2(amount):g} tokens have been credited to your wallet. Use them for eligible Prize League entries.{when}',
+    )
+
+
 def r2(value) -> float:
     return round(float(value or 0), 2)
 
@@ -81,7 +102,7 @@ def uk_date(value: datetime) -> str:
 # --------------------------------------------------------------------------- grant creation
 
 async def create_grant(db, *, user_id: str, amount: float, expires_at: Optional[datetime], actor_id: str,
-                       actor_email: str, reason: str, ref_key: str) -> dict:
+                       actor_email: str, reason: str, ref_key: str, source: str = 'admin') -> dict:
     """Credit bonus tokens and record the grant. Idempotent per `ref_key`."""
     from routers.wallet_routes import _apply_tx_idempotent
 
@@ -91,10 +112,9 @@ async def create_grant(db, *, user_id: str, amount: float, expires_at: Optional[
     existing = await db.bonus_grants.find_one({'ref_key': ref_key}, {'_id': 0})
     if existing:
         if existing.get('status') == 'active':
-            when = f' Use them before {uk_date(existing["expires_at"])}.' if existing.get('expires_at') else ' They do not expire.'
+            title, body = _credit_notice(existing, existing['original_amount'])
             await _notify_once(db, existing, 'credited_notified_at', 'bonus_credited',
-                               f'{amt:g} bonus tokens added',
-                               f'{amt:g} bonus tokens have been credited to your wallet.{when}')
+                               title, body)
             return {**existing, 'idempotent_replay': True}
         if existing.get('status') != 'creating':
             return {**existing, 'idempotent_replay': True}
@@ -113,7 +133,7 @@ async def create_grant(db, *, user_id: str, amount: float, expires_at: Optional[
         'original_amount': amt, 'remaining_amount': amt, 'granted_at': now, 'expires_at': expires_at,
         'status': 'creating', 'actor_id': actor_id, 'actor_email': actor_email, 'reason': reason,
         'related_tx_ids': [], 'expired_amount': 0.0, 'revoked_amount': 0.0,
-        'reserved_amount': 0.0, 'reserved_by': {},
+        'reserved_amount': 0.0, 'reserved_by': {}, 'source': source,
     }
     if existing is None:
         try:
@@ -136,10 +156,9 @@ async def create_grant(db, *, user_id: str, amount: float, expires_at: Optional[
     )
     grant = await db.bonus_grants.find_one({'grant_id': grant['grant_id']}, {'_id': 0})
 
-    when = f' Use them before {uk_date(expires_at)}.' if expires_at else ' They do not expire.'
+    title, body = _credit_notice(grant, amt)
     await _notify_once(db, grant, 'credited_notified_at', 'bonus_credited',
-                       f'{amt:g} bonus tokens added',
-                       f'{amt:g} bonus tokens have been credited to your wallet.{when}')
+                       title, body)
     return {**grant, 'idempotent_replay': False}
 
 
@@ -159,10 +178,9 @@ async def recover_pending_grants(db, limit: int = 200) -> int:
             {'$set': {'status': 'active', 'related_tx_ids': [tx['tx']['tx_id']], 'credited_at': _now()}},
         )
         fresh = await db.bonus_grants.find_one({'grant_id': grant['grant_id']}, {'_id': 0}) or grant
-        when = f" Use them before {uk_date(fresh['expires_at'])}." if fresh.get('expires_at') else ' They do not expire.'
+        title, body = _credit_notice(fresh, fresh['original_amount'])
         await _notify_once(db, fresh, 'credited_notified_at', 'bonus_credited',
-                           f"{r2(fresh['original_amount']):g} bonus tokens added",
-                           f"{r2(fresh['original_amount']):g} bonus tokens have been credited to your wallet.{when}")
+                   title, body)
         fixed += 1
     return fixed
 

@@ -15,6 +15,17 @@ def _request():
     return Request({'type': 'http', 'method': 'POST', 'path': '/', 'headers': []})
 
 
+@pytest.mark.parametrize('user,expected', [
+    ({'phone': '+15550100000'}, False),
+    ({'phone': '+15550100000', 'phone_verified': False}, False),
+    ({'phone': '+15550100000', 'phone_verified_at': '2026-10-24T12:00:00Z'}, True),
+    ({'phone': '+15550100000', 'phone_verified': True}, True),
+])
+def test_user360_sanitise_uses_verification_evidence(user, expected):
+    view = asyncio.run(user360_routes._sanitise(user))
+    assert view['phone_verified'] is expected
+
+
 def test_user_wallet_adjust_is_role_guarded_and_idempotent(monkeypatch):
     audit_rows = {}
     applied_refs = set()
@@ -129,10 +140,8 @@ def test_single_user_web_push_disable_is_reasoned_and_audited(monkeypatch):
     asyncio.run(run())
 
 
-@pytest.mark.parametrize('active_devices,expected_status', [(1, 200), (0, 400)])
-def test_single_user_web_push_grant_requires_subscription_and_audits_opt_in(
-    monkeypatch, active_devices, expected_status,
-):
+@pytest.mark.parametrize('active_devices', [1, 0])
+def test_single_user_web_push_enable_sets_pending_without_consent_or_subscription(monkeypatch, active_devices):
     updates = []
     audits = []
 
@@ -160,23 +169,14 @@ def test_single_user_web_push_grant_requires_subscription_and_audits_opt_in(
     ))
 
     async def run():
-        payload = user360_routes.UserWebPushGrantRequest(
-            evidence='User opted in on support call 2026-10-23',
-        )
-        if expected_status == 400:
-            with pytest.raises(HTTPException) as error:
-                await user360_routes.enable_user_web_push('target-user', payload, _request())
-            assert error.value.status_code == expected_status
-            assert not updates and not audits
-        else:
-            result = await user360_routes.enable_user_web_push('target-user', payload, _request())
-            assert result['web_push_enabled'] is True
-            assert result['web_push_device_count'] == active_devices
-            assert updates[0][1]['$set']['web_push_enabled'] is True
-            assert updates[0][1]['$set']['web_push_consent_source'] == 'admin'
-            assert audits[0]['kind'] == 'admin_web_push_consent_change'
-            assert audits[0]['consent'] is True
-            assert audits[0]['reason'] == payload.evidence
+        payload = user360_routes.UserWebPushGrantRequest(evidence='Enabled by support request 2026-10-23')
+        result = await user360_routes.enable_user_web_push('target-user', payload, _request())
+        assert result['web_push_admin_pending'] is True
+        changed = updates[0][1]['$set']
+        assert changed['web_push_admin_pending'] is True
+        assert 'web_push_enabled' not in changed and 'web_push_marketing_consent' not in changed
+        assert 'web_push_consent_at' not in changed
+        assert audits[0]['consent'] is False and audits[0]['pending_browser_permission'] is True
 
     asyncio.run(run())
 
@@ -223,8 +223,8 @@ def test_bulk_web_push_revoke_is_idempotently_audited(monkeypatch):
     asyncio.run(run())
 
 
-@pytest.mark.parametrize('active_devices,expected_status', [(1, 'success'), (0, 'skipped')])
-def test_bulk_web_push_grant_requires_active_subscription_and_audits_opt_in(
+@pytest.mark.parametrize('active_devices,expected_status', [(1, 'success'), (0, 'success')])
+def test_bulk_web_push_enable_is_pending_and_never_blocked_by_missing_subscription(
     monkeypatch, active_devices, expected_status,
 ):
     user = {'user_id': 'target-user', 'erased': False, 'web_push_enabled': False}
@@ -265,15 +265,11 @@ def test_bulk_web_push_grant_requires_active_subscription_and_audits_opt_in(
         result = await user360_routes.bulk_user_actions(payload, _request())
         item = result['items'][0]
         assert item['status'] == expected_status
-        if active_devices:
-            assert user['web_push_enabled'] is True
-            assert user['web_push_consent_source'] == 'admin'
-            assert user['web_push_consent_at'] is not None
-            assert next(iter(audits.values()))['reason'] == payload.consent_evidence
-            assert next(iter(audits.values()))['consent'] is True
-        else:
-            assert user['web_push_enabled'] is False
-            assert not audits
+        assert user['web_push_admin_pending'] is True
+        assert user['web_push_enabled'] is False
+        assert 'web_push_consent_at' not in user and 'web_push_marketing_consent' not in user
+        assert next(iter(audits.values()))['reason'] == payload.consent_evidence
+        assert next(iter(audits.values()))['consent'] is False
 
     asyncio.run(run())
 

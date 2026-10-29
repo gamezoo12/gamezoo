@@ -42,7 +42,7 @@
   ],
   "updated_files": [],
   "success_rate": {"backend": "100% (70/70 pytest)", "frontend": "100% (all P0 flows verified: 3 logout paths, rebrand, Meera scoping, wallet UI, admin wallet page, game dropdown, checkout, referral registration)"},
-  "test_credentials": "Admin: bachanta8@gmail.com / Herts@910022 (per /app/memory/test_credentials.md). Test users created dynamically: test_wallet_*, test_ref_*, test_gamer_*, test_ck_*, test_ui_* — all with pattern @example.com so DB-cleanup is trivial via db.users.delete_many({'email': /^test_/}).",
+  "test_credentials": "Admin: <admin-email> / <redacted> (per /app/memory/test_credentials.md). Test users created dynamically: test_wallet_*, test_ref_*, test_gamer_*, test_ck_*, test_ui_* — all with pattern @example.com so DB-cleanup is trivial via db.users.delete_many({'email': /^test_/}).",
   "seed_data_creation": "Created ~11 throwaway test users during pytest + Playwright runs (email prefix test_*). Also created TEST contests via /api/admin/contests that were cleaned up via DELETE in fixture teardown. One orphan 'TEST Memory Match Contest' may remain if the pytest game fixture teardown was interrupted — safe to leave.",
   "retest_needed": false,
   "main_agent_can_self_test": true,

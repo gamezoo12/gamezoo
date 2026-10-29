@@ -61,6 +61,7 @@ export default function Footer() {
  <ul className="space-y-2 text-sm">
  <li><Link to="/terms" data-testid="footer-terms" className="hover:text-[#FFD54A]">Terms &amp; Conditions</Link></li>
  <li><Link to="/privacy" data-testid="footer-privacy" className="hover:text-[#FFD54A]">Privacy Policy</Link></li>
+ <li><button type="button" onClick={() => window.dispatchEvent(new CustomEvent('pl-open-privacy-settings'))} data-testid="footer-privacy-settings" className="hover:text-[#FFD54A]">Privacy settings</button></li>
  <li><Link to="/website-terms" data-testid="footer-website-terms" className="hover:text-[#FFD54A]">Website Terms &amp; AUP</Link></li>
  <li><Link to="/mobile-terms" data-testid="footer-mobile-terms" className="hover:text-[#FFD54A]">Mobile Terms of Service</Link></li>
  <li><Link to="/verify" data-testid="footer-verify" className="hover:text-[#FFD54A]">Verify Winners</Link></li>

@@ -16,7 +16,7 @@
   ],
   "updated_files": [],
   "success_rate": {"backend": "n/a (not tested)", "frontend": "100%"},
-  "test_credentials": "player1@example.com / Player@12345 ; admin bachanta8@gmail.com / Herts@910022",
+  "test_credentials": "player1@example.com / <redacted> ; admin <admin-email> / <redacted>",
   "seed_data_creation": "Testing created and consumed 2 withdrawal requests for player1 (one rejected via admin, one marked paid). Player1 final state: available £0, pending £0, total_won £50, total_paid £50.",
   "retest_needed": false,
   "main_agent_can_self_test": true,

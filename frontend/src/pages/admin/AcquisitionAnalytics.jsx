@@ -1,11 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { acquisitionAdminAPI } from '../../lib/api';
 import { Download } from 'lucide-react';
 
-const RANGES = [
-  ['Today', 'today'], ['Yesterday', 'yesterday'], ['Last 7 days', '7d'],
-  ['Last 30 days', '30d'], ['This month', 'month'], ['Custom', 'custom'],
-];
 const SOURCES = [
   ['', 'All sources'], ['google_organic', 'Google organic'], ['google_ads', 'Google Ads'], ['instagram', 'Instagram'],
   ['facebook', 'Facebook'], ['x_twitter', 'X / Twitter'], ['tiktok', 'TikTok'], ['youtube', 'YouTube'],
@@ -51,10 +48,8 @@ function Table({ cols, rows, empty = 'No data in this period.' }) {
   );
 }
 
-export default function AcquisitionAnalytics() {
-  const [range, setRange] = useState('7d');
-  const [start, setStart] = useState('');
-  const [end, setEnd] = useState('');
+export default function AcquisitionAnalytics({ period: range }) {
+  const [searchParams] = useSearchParams();
   const [source, setSource] = useState('');
   const [campaign, setCampaign] = useState('');
   const [device, setDevice] = useState('');
@@ -66,16 +61,14 @@ export default function AcquisitionAnalytics() {
 
   const params = useCallback(() => {
     const p = { range };
-    if (range === 'custom') { p.start = start; p.end = end; }
     if (source) p.source = source;
     if (campaign.trim()) p.campaign = campaign.trim();
     if (device) p.device = device;
     if (page) p.page = page;
     return p;
-  }, [range, start, end, source, campaign, device, page]);
+  }, [range, source, campaign, device, page]);
 
   useEffect(() => {
-    if (range === 'custom' && (!start || !end)) return;
     let cancelled = false;
     const p = params();
     setError('');
@@ -86,12 +79,16 @@ export default function AcquisitionAnalytics() {
       .catch((e) => !cancelled && setError(e?.response?.data?.detail || 'Could not load analytics'));
     setSkip(0);
     return () => { cancelled = true; };
-  }, [params, range, start, end]);
+  }, [params]);
 
   useEffect(() => {
-    if (range === 'custom' && (!start || !end)) return;
     acquisitionAdminAPI.analytics('events', { ...params(), skip, limit: 25 }).then(setEvents).catch(() => {});
-  }, [params, skip, range, start, end]);
+  }, [params, skip]);
+
+  const focusReport = searchParams.get('report');
+  useEffect(() => {
+    if (focusReport && data.overview) document.getElementById(`acq-report-${focusReport}`)?.scrollIntoView({ block: 'start' });
+  }, [focusReport, data.overview]);
 
   const download = async (report) => {
     try {
@@ -110,20 +107,6 @@ export default function AcquisitionAnalytics() {
   return (
     <section className="space-y-5" data-testid="acquisition-analytics">
       <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
-        <div className="flex flex-wrap gap-2 items-center">
-          {RANGES.map(([label, value]) => (
-            <button key={value} type="button" onClick={() => setRange(value)} data-testid={`analytics-range-${value}`}
-              className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${range === value ? 'bg-[#6C2BFF] text-white' : 'text-slate-600 hover:bg-slate-50 border border-slate-200'}`}>
-              {label}
-            </button>
-          ))}
-          {range === 'custom' && (
-            <>
-              <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className={sel} data-testid="analytics-start" />
-              <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className={sel} data-testid="analytics-end" />
-            </>
-          )}
-        </div>
         <div className="flex flex-wrap gap-2">
           <select value={source} onChange={(e) => setSource(e.target.value)} className={sel} data-testid="analytics-source">
             {SOURCES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
@@ -176,7 +159,24 @@ export default function AcquisitionAnalytics() {
         </>
       )}
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-4" data-testid="analytics-funnel">
+      {data.overview?.signups && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3" data-testid="analytics-signups">
+          <h3 className="font-bold">Signups and influencer links</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Card testid="kpi-signups-total" label="Accounts created" value={data.overview.signups.accounts_created} />
+            <Card testid="kpi-signups-email" label="Email signups" value={data.overview.signups.email} />
+            <Card testid="kpi-signups-google" label="Google signups" value={data.overview.signups.google} hint={`${data.overview.signups.google_completed} completed onboarding`} />
+            <Card testid="kpi-influencer-signups" label="Influencer-link signups" value={data.overview.signups.influencer_totals?.signups ?? 0} hint={`${data.overview.signups.influencer_totals?.visits ?? 0} link visits`} />
+          </div>
+          <Table
+            cols={[['Influencer code', (r) => r.code], ['Link visits', (r) => r.visits], ['Unique visitors', (r) => r.unique_visitors], ['Signups', (r) => r.signups]]}
+            rows={data.overview.signups.influencer_links || []}
+            empty="No influencer link activity in this period."
+          />
+        </div>
+      )}
+
+      <div id="acq-report-funnel" className="bg-white rounded-2xl border border-slate-200 p-4" data-testid="analytics-funnel">
         <h3 className="font-bold mb-2">Funnel</h3>
         <Table
           cols={[
@@ -189,7 +189,7 @@ export default function AcquisitionAnalytics() {
         {(data.funnel?.notes || []).map((n) => <div key={n} className="text-[11px] text-slate-400 mt-1">{n}</div>)}
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-4" data-testid="analytics-sources">
+      <div id="acq-report-sources" className="bg-white rounded-2xl border border-slate-200 p-4" data-testid="analytics-sources">
         <h3 className="font-bold mb-2">Traffic sources</h3>
         <Table
           cols={[
@@ -201,7 +201,7 @@ export default function AcquisitionAnalytics() {
         />
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-4" data-testid="analytics-pages">
+      <div id="acq-report-pages" className="bg-white rounded-2xl border border-slate-200 p-4" data-testid="analytics-pages">
         <h3 className="font-bold mb-2">Pages</h3>
         <Table
           cols={[

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { ordersAPI, userAPI, walletAPI, referralAPI, paymentsAPI, authAPI, pushAPI } from '../lib/api';
+import { ordersAPI, userAPI, walletAPI, referralAPI, paymentsAPI, pushAPI } from '../lib/api';
 import PhoneOtpModal from '../components/auth/PhoneOtpModal';
 import WalletPanel from '../components/account/WalletPanel';
 import WinningsWallet from './WinningsWallet';
 import SupportPanel from '../components/account/SupportPanel';
 import MyGamesPanel from '../components/account/MyGamesPanel';
+import PromotionsConsent from '../components/account/PromotionsConsent';
 import {
   User, Wallet, Ticket, Gamepad2, Bell, ShieldCheck, Lock,
   LifeBuoy, FileText, Settings2, Gift, LogOut, ArrowRight,
@@ -66,23 +67,10 @@ export default function MyAccount() {
 
   const active = section || null;   // null → show tab list; else show selected panel
   const [signOutOpen, setSignOutOpen] = useState(false);
-  const [smsBusy, setSmsBusy] = useState(false);
   const [pushSettings, setPushSettings] = useState(null);
-  const [pushBusy, setPushBusy] = useState(false);
   const [phoneOtpOpen, setPhoneOtpOpen] = useState(false);
-
-  const handleSmsConsent = async (next) => {
-    setSmsBusy(true);
-    try {
-      await authAPI.setSmsConsent(next);
-      await refresh?.();
-      toast({ title: next ? 'SMS notifications enabled' : 'SMS notifications disabled' });
-    } catch (e) {
-      toast({ title: 'Could not update SMS consent', description: e?.response?.data?.detail || 'Please try again.' });
-    } finally {
-      setSmsBusy(false);
-    }
-  };
+  const [promo, setPromo] = useState(null);
+  const [promoSaving, setPromoSaving] = useState(false);
 
   const [tickets, setTickets] = useState([]);
   const [notifications, setNotifications] = useState([]);
@@ -120,9 +108,13 @@ export default function MyAccount() {
     userAPI.notifications().then(r => setNotifications(r?.notifications || [])).catch(() => {});
     walletAPI.me().then(setWallet).catch(() => {});
     walletAPI.transactions(20).then(r => setWalletTxs(r?.transactions || [])).catch(() => {});
-    referralAPI.me().then(setReferral).catch(() => {});
-    referralAPI.list().then(r => setReferralList(r?.referrals || [])).catch(() => {});
-    return undefined;
+    const refreshReferralStatus = () => {
+      referralAPI.me().then(setReferral).catch(() => {});
+      referralAPI.list().then(r => setReferralList(r?.referrals || [])).catch(() => {});
+    };
+    refreshReferralStatus();
+    window.addEventListener('pl:wallet-updated', refreshReferralStatus);
+    return () => window.removeEventListener('pl:wallet-updated', refreshReferralStatus);
   }, [user, loading, nav]);
 
   useEffect(() => {
@@ -140,100 +132,58 @@ export default function MyAccount() {
     return () => { active = false; };
   }, [user?.user_id, loading]);
 
-  const refreshPushSettings = async () => {
-    const settings = await pushAPI.settings();
-    setPushSettings(settings);
-    return settings;
-  };
-
-  const enableWebPush = async () => {
-    if (!pushSettings?.available || !pushSettings.public_key) {
-      toast({ title: 'Web Push is not configured on this site.' });
-      return;
-    }
-    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
-      toast({ title: 'Web Push is not supported by this browser.' });
-      return;
-    }
+  // Subscribes this browser so promotional Web Notifications can be delivered; never throws.
+  const subscribeBrowser = async () => {
+    if (!pushSettings?.available || !pushSettings.public_key) return 'unavailable';
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return 'unsupported';
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
       || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     const isInstalled = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-    if (isIOS && !isInstalled) {
-      toast({ title: 'Install Prize League to enable notifications', description: 'On iPhone and iPad, Web Push requires the installed home-screen app.' });
-      return;
-    }
-    setPushBusy(true);
+    if (isIOS && !isInstalled) return 'install_required';
     try {
       let permission = Notification.permission;
       if (permission === 'default') permission = await Notification.requestPermission();
       if (permission !== 'granted') {
         await pushAPI.updatePreferences({ web_push_browser_permission: permission });
-        await refreshPushSettings();
-        toast({ title: 'Notification permission was not granted.' });
-        return;
+        return 'permission_denied';
       }
       const registration = await navigator.serviceWorker.ready;
       const encodedKey = pushSettings.public_key.replace(/-/g, '+').replace(/_/g, '/');
       const paddedKey = encodedKey + '='.repeat((4 - (encodedKey.length % 4)) % 4);
-      const applicationServerKey = Uint8Array.from(
-        atob(paddedKey),
-        character => character.charCodeAt(0),
-      );
+      const applicationServerKey = Uint8Array.from(atob(paddedKey), character => character.charCodeAt(0));
       const subscription = await registration.pushManager.getSubscription()
         || await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey });
       const registered = await pushAPI.registerWebSubscription(subscription.toJSON());
       localStorage.setItem('pl_web_push_subscription_id', registered.subscription_id);
-      await refreshPushSettings();
-      toast({ title: 'Web Push enabled for this account.' });
-    } catch (error) {
-      toast({ title: 'Could not enable Web Push', description: error?.response?.data?.detail || error.message || 'Please try again.' });
-    } finally {
-      setPushBusy(false);
+      setPushSettings(await pushAPI.settings());
+      return 'subscribed';
+    } catch {
+      return 'failed';
     }
   };
 
-  const disableWebPush = async () => {
-    setPushBusy(true);
-    try {
-      await pushAPI.updatePreferences({ web_push_enabled: false });
-      await refreshPushSettings();
-      toast({ title: 'Web Push disabled for this account.' });
-    } catch (error) {
-      toast({ title: 'Could not update Web Push', description: error?.response?.data?.detail || 'Please try again.' });
-    } finally {
-      setPushBusy(false);
-    }
-  };
+  useEffect(() => {
+    if (loading || !user?.user_id) return;
+    userAPI.promotionsConsent().then(setPromo).catch(() => {});
+  }, [user?.user_id, loading]);
 
-  const setPushMarketingConsent = async consent => {
-    setPushBusy(true);
+  const savePromotions = async () => {
+    setPromoSaving(true);
     try {
-      await pushAPI.updatePreferences({ web_push_marketing_consent: consent });
-      await refreshPushSettings();
-      toast({ title: consent ? 'Promotional push enabled' : 'Promotional push disabled' });
-    } catch (error) {
-      toast({ title: 'Could not update preference', description: error?.response?.data?.detail || 'Please try again.' });
+      const saved = await userAPI.savePromotionsConsent(promo.preferences);
+      setPromo(saved);
+      const wantsWeb = saved.preferences.web_notifications;
+      const needsBrowser = wantsWeb && !(saved.web_push.enabled && saved.web_push.device_count > 0);
+      const outcome = needsBrowser ? await subscribeBrowser() : 'subscribed';
+      if (outcome === 'permission_denied') toast({ title: 'Preferences saved', description: 'Allow notifications in your browser settings to receive Web Notifications.' });
+      else if (outcome === 'install_required') toast({ title: 'Preferences saved', description: 'Install Prize League to your home screen to receive Web Notifications.' });
+      else if (outcome === 'unavailable' || outcome === 'unsupported' || outcome === 'failed') toast({ title: 'Preferences saved', description: 'Web Notifications are not available in this browser.' });
+      else toast({ title: 'Preferences saved' });
+      setPromo(await userAPI.promotionsConsent());
+    } catch (e) {
+      toast({ title: 'Could not save preferences', description: e?.response?.data?.detail || 'Please try again.' });
     } finally {
-      setPushBusy(false);
-    }
-  };
-
-  const removeWebDevice = async deviceId => {
-    setPushBusy(true);
-    try {
-      await pushAPI.removeWebDevice(deviceId);
-      if (localStorage.getItem('pl_web_push_subscription_id') === deviceId) {
-        const registration = await navigator.serviceWorker.ready;
-        const subscription = await registration.pushManager.getSubscription();
-        await subscription?.unsubscribe();
-        localStorage.removeItem('pl_web_push_subscription_id');
-      }
-      await refreshPushSettings();
-      toast({ title: 'This browser was removed from Web Push.' });
-    } catch (error) {
-      toast({ title: 'Could not remove device', description: error?.response?.data?.detail || 'Please try again.' });
-    } finally {
-      setPushBusy(false);
+      setPromoSaving(false);
     }
   };
 
@@ -610,53 +560,9 @@ export default function MyAccount() {
 
         {active === 'notifications' && (
           <div className="bg-white rounded-2xl border border-slate-100 p-6" data-testid="panel-notifications">
-            <section className="mb-6 rounded-xl border border-slate-200 p-4" data-testid="web-push-settings">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h3 className="font-display font-bold text-base">Web Push</h3>
-                  <p className="mt-1 max-w-2xl text-xs text-slate-500">Receive account and contest alerts on this browser, including when Prize League is closed. You control browser permission and can remove individual devices.</p>
-                  <p className="mt-2 text-xs font-semibold text-slate-700" data-testid="web-push-current-status">
-                    Status: {pushSettings?.web_push_status || 'Disabled'} · {Number(pushSettings?.web_push_device_count || pushSettings?.web_devices?.length || 0)} registered browser(s)
-                  </p>
-                  {pushSettings?.web_push_consent_at && <p className="mt-1 text-[11px] text-slate-500">
-                    Consent updated by {pushSettings.web_push_consent_source === 'admin' ? 'Admin' : 'User'} on {new Date(pushSettings.web_push_consent_at).toLocaleString('en-GB', { timeZone: 'Europe/London' })}
-                  </p>}
-                </div>
-                {pushSettings?.web_push_enabled ? (
-                  <Button type="button" variant="outline" onClick={disableWebPush} disabled={pushBusy}>Disable Web Push</Button>
-                ) : (
-                  <Button type="button" onClick={enableWebPush} disabled={pushBusy || !pushSettings?.available} data-testid="enable-web-push">
-                    {pushBusy ? 'Enabling…' : 'Enable Notifications'}
-                  </Button>
-                )}
-              </div>
-              {!pushSettings?.available && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">Web Push is not configured yet. The PWA installation and in-app notifications continue to work.</p>}
-              {pushSettings?.web_devices?.length > 0 && <div className="mt-4 space-y-2">
-                <h4 className="text-xs font-bold text-slate-700">Registered browsers</h4>
-                {pushSettings.web_devices.map(device => <div key={device.subscription_id} className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2 text-xs">
-                  <span className="min-w-0 flex-1 truncate text-slate-600">{device.user_agent || 'Browser'} · Added {device.created_at ? new Date(device.created_at).toLocaleDateString() : 'recently'}</span>
-                  <Button type="button" size="sm" variant="outline" onClick={() => removeWebDevice(device.subscription_id)} disabled={pushBusy}>Remove device</Button>
-                </div>)}
-              </div>}
-              <label className="mt-4 flex items-start gap-2 border-t border-slate-100 pt-3 text-xs text-slate-600">
-                <input type="checkbox" checked={!!pushSettings?.web_push_marketing_consent} onChange={event => setPushMarketingConsent(event.target.checked)} disabled={pushBusy || !pushSettings?.web_push_enabled} className="mt-0.5 h-4 w-4 accent-indigo-600" />
-                <span>Also allow promotional Web Push messages. This is separate from service and account alerts.</span>
-              </label>
-            </section>
-
-            <section className="mb-6 rounded-xl border border-slate-200 bg-slate-50 p-4" data-testid="native-push-settings">
-              <div className="font-display font-bold text-base">Native Push</div>
-              <p className="mt-1 text-xs text-slate-600">Android and iOS device-token registration is prepared, but no native app or provider credentials are connected. Native Push is not operational and no messages are sent through it.</p>
-              <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
-                <input type="checkbox" checked={false} disabled aria-label="Native Push unavailable" />
-                <span>Unavailable until a native Prize League app is connected.</span>
-              </div>
-            </section>
-
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h3 className="font-display font-bold text-lg">Notifications</h3>
-                <p className="text-xs text-slate-500">Unread notifications stay unread until you mark them read.</p>
               </div>
               <div className="inline-flex rounded-lg border border-slate-200 p-1" role="tablist" aria-label="Notification status">
                 {['all', 'unread', 'read'].map(filter => (
@@ -881,59 +787,22 @@ export default function MyAccount() {
           <div className="bg-white rounded-2xl border border-slate-100 p-6" data-testid="panel-preferences">
             <div className="flex items-center gap-2 mb-4">
               <Settings2 className="w-5 h-5 text-stone-600" />
-              <h3 className="font-display font-bold text-lg">Notifications &amp; account</h3>
+              <h3 className="font-display font-bold text-lg">Preferences</h3>
             </div>
-            <div className="space-y-4">
-              <div className="rounded-xl border border-violet-100 bg-violet-50/50 p-4" data-testid="sms-consent-block">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <div className="font-semibold text-sm text-slate-900">SMS notifications</div>
-                    <div className="text-xs text-slate-600 mt-1 leading-relaxed">
-                      I agree to receive SMS notifications from Prize League about Champion Levels,
-                      contests, prizes, winners and promotions. I can withdraw my consent at any time.
-                    </div>
-                  </div>
-                  <label className="relative inline-flex cursor-pointer items-center shrink-0">
-                    <input
-                      type="checkbox"
-                      data-testid="sms-consent-toggle"
-                      className="peer sr-only"
-                      checked={!!user.sms_consent}
-                      disabled={smsBusy}
-                      onChange={(e) => handleSmsConsent(e.target.checked)}
-                    />
-                    <div className="h-6 w-11 rounded-full bg-slate-300 peer-checked:bg-[#6C2BFF] transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all peer-checked:after:translate-x-5" />
-                  </label>
-                </div>
-                {!profile.phone_verified && (
-                  <div className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2" data-testid="sms-consent-phone-warning">
-                    Promotional SMS require a verified mobile number.{' '}
-                    <button
-                      type="button"
-                      className="font-semibold underline text-[#6C2BFF]"
-                      data-testid="sms-verify-phone-link"
-                      onClick={() => setPhoneOtpOpen(true)}
-                    >
-                      Verify your phone
-                    </button>{' '}
-                    to start receiving them.
-                  </div>
-                )}
-              </div>
-              {[
-                { key: 'newsletter', label: 'Weekly newsletter', desc: 'Big prize drops + new games' },
-                { key: 'win_email', label: 'Win notifications', desc: 'Email me when I win a prize' },
-                { key: 'reminder_email', label: 'Draw reminders', desc: 'Notify me when a contest I entered is closing' },
-              ].map(p => (
-                <label key={p.key} className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <div>
-                    <div className="font-medium text-sm">{p.label}</div>
-                    <div className="text-xs text-slate-500">{p.desc}</div>
-                  </div>
-                  <input type="checkbox" defaultChecked className="w-4 h-4 accent-orange-500" />
-                </label>
-              ))}
-            </div>
+            {promo ? (
+              <PromotionsConsent
+                values={promo.preferences}
+                onChange={(preferences) => setPromo(p => ({ ...p, preferences }))}
+                onSave={savePromotions}
+                saving={promoSaving}
+                testid="promotions-consent"
+              />
+            ) : <div className="h-40 animate-pulse rounded-xl bg-slate-100" />}
+            {promo && !profile.phone_verified && promo.preferences.sms && (
+              <button type="button" className="mt-3 text-xs font-semibold text-[#6C2BFF] underline" data-testid="sms-verify-phone-link" onClick={() => setPhoneOtpOpen(true)}>
+                Verify your phone to receive SMS
+              </button>
+            )}
             <div className="border-t border-slate-100 mt-6 pt-6">
               <h4 className="font-display font-bold text-sm text-rose-700 mb-2">Danger zone</h4>
               <p className="text-sm text-slate-500 mb-3">Permanently delete your account and all data. This cannot be undone.</p>
@@ -957,9 +826,10 @@ export default function MyAccount() {
 
               <div className="mb-5">
                 <div className="text-sm font-bold">Refer & Earn</div>
-                <div className="text-xs text-white/85 mt-1">
-                  Invite a friend. They must top up £10 or more in one verified payment
-                  and enter at least one contest. You then receive 5 referral reward tokens.
+                <div className="text-xs text-white/85 mt-1" data-testid="account-referral-offer">
+                  {referral?.offer?.referral?.enabled
+                    ? `Invite a friend. ${referral.offer.referral.text}`
+                    : referral ? 'The referral offer is not available at the moment.' : 'Loading…'}
                 </div>
               </div>
 
@@ -1024,7 +894,7 @@ export default function MyAccount() {
               </h3>
 
               <p className="text-sm text-slate-500 mb-4">
-                Track each referral&apos;s progress toward your 5-token reward.
+                Track each referral&apos;s progress toward its reward.
               </p>
 
               {referralList.length === 0 ? (
@@ -1034,32 +904,29 @@ export default function MyAccount() {
               ) : (
                 <ul className="divide-y divide-slate-100">
                   {referralList.map(r => {
-                    const rewarded =
-                      r.reward_granted === true ||
-                      r.status === 'completed';
+                    const rewarded = r.reward_state === 'credited';
+                    const rejected = r.reward_state === 'rejected';
+                    const topupCondition = (r.conditions || []).find(c => c.key === 'topup');
+                    const contestCondition = (r.conditions || []).find(c => c.key === 'contest_entry');
+                    const toppedUp = Boolean(topupCondition?.met);
+                    const entered = Boolean(contestCondition?.met);
 
-                    const toppedUp =
-                      r.topup_qualified === true;
-
-                    const entered =
-                      r.contest_entered === true;
-
-                    let statusLabel = 'Waiting for £10 top-up';
+                    let statusLabel = r.display_status || 'Pending';
                     let statusClass =
                       'bg-amber-100 text-amber-700';
 
                     if (rewarded) {
-                      statusLabel = `Rewarded +${r.reward_tokens || 5} tokens`;
+                      statusLabel = `Rewarded +${r.reward_tokens} tokens`;
                       statusClass =
                         'bg-emerald-100 text-emerald-700';
-                    } else if (toppedUp && !entered) {
-                      statusLabel = 'Waiting for contest entry';
-                      statusClass =
-                        'bg-blue-100 text-blue-700';
-                    } else if (toppedUp && entered) {
-                      statusLabel = 'Processing reward';
+                    } else if (rejected) {
+                      statusClass = 'bg-slate-100 text-slate-600';
+                    } else if (r.reward_state === 'qualified') {
                       statusClass =
                         'bg-violet-100 text-violet-700';
+                    } else if (toppedUp) {
+                      statusClass =
+                        'bg-blue-100 text-blue-700';
                     }
 
                     return (
@@ -1089,16 +956,16 @@ export default function MyAccount() {
                                   ? 'bg-emerald-50 text-emerald-700'
                                   : 'bg-slate-100 text-slate-500'
                               }`}>
-                                {toppedUp ? '✓ £10+ top-up' : '○ £10+ top-up'}
+                                {toppedUp ? '✓' : '○'} {topupCondition?.label || 'Verified top-up'}
                               </span>
 
-                              <span className={`text-[11px] px-2 py-0.5 rounded-full ${
+                              {contestCondition && <span className={`text-[11px] px-2 py-0.5 rounded-full ${
                                 entered
                                   ? 'bg-emerald-50 text-emerald-700'
                                   : 'bg-slate-100 text-slate-500'
                               }`}>
                                 {entered ? '✓ Contest entered' : '○ Contest entry'}
-                              </span>
+                              </span>}
                             </div>
                           </div>
                         </div>

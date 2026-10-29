@@ -1,15 +1,11 @@
 import { useEffect, useState } from 'react';
 import { acquisitionAdminAPI } from '../../lib/api';
 import AcquisitionAnalytics from './AcquisitionAnalytics';
+import PeriodFilter, { periodLabel, usePeriod } from '../../components/admin/PeriodFilter';
 import {
   Globe, Users, MousePointerClick, Smartphone, Monitor,
   Search, Share2, Link2, TrendingUp, RefreshCw, Target, UserCheck,
 } from 'lucide-react';
-
-const TIME_OPTIONS = [
-  ['1 hour', '1h'], ['6 hours', '6h'], ['24 hours', '24h'], ['7 days', '7d'],
-  ['1 month', '1m'], ['6 months', '6m'], ['1 year', '1y'], ['Lifetime', 'lifetime'],
-];
 
 const CHANNEL_LABELS = {
   direct: 'Direct',
@@ -70,8 +66,10 @@ function BarList({ title, icon: Icon, items, total, labelMap }) {
   );
 }
 
-export default function AcquisitionAdmin() {
-  const [period, setPeriod] = useState('1m');
+export default function AcquisitionAdmin({ period: sharedPeriod }) {
+  const [urlPeriod, setUrlPeriod] = usePeriod();
+  const embedded = sharedPeriod !== undefined;
+  const period = embedded ? sharedPeriod : urlPeriod;
   const [data, setData] = useState(null);
   const [visits, setVisits] = useState([]);
   const [pageViews, setPageViews] = useState([]);
@@ -109,22 +107,7 @@ export default function AcquisitionAdmin() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex bg-white border border-slate-200 rounded-xl p-1">
-            {TIME_OPTIONS.map(([label, value]) => (
-              <button
-                key={value}
-                onClick={() => setPeriod(value)}
-                data-testid={`acq-period-${value}`}
-                className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
-                  period === value
-                    ? 'bg-gradient-to-r from-[#8B5CFF] to-[#6C2BFF] text-white'
-                    : 'text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          {!embedded && <PeriodFilter period={period} onChange={setUrlPeriod} />}
           <button
             onClick={load}
             className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
@@ -136,7 +119,7 @@ export default function AcquisitionAdmin() {
         </div>
       </div>
 
-      <AcquisitionAnalytics />
+      <AcquisitionAnalytics period={period} />
 
       <h2 className="font-display font-black text-lg text-slate-700 pt-2">
         Landing visits (earlier report, one record per visitor per day)
@@ -152,19 +135,18 @@ export default function AcquisitionAdmin() {
       {state === 'ok' && data && (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-            <StatCard label="Visits" value={data.total_visits} icon={MousePointerClick} tone="indigo" />
-            <StatCard label="Page views" value={data.page_views || 0} icon={Globe} tone="blue" />
-            <StatCard label="Unique visitors" value={data.unique_visitors} icon={Users} tone="fuchsia" />
+            <StatCard label="Landing visits" value={data.total_visits} icon={MousePointerClick} tone="indigo" />
+            <StatCard label="Landing-record visitors" value={data.unique_visitors} icon={Users} tone="fuchsia" />
             <StatCard label="Players (signed up)" value={data.converted_visitors ?? 0} icon={UserCheck} tone="emerald" />
             <StatCard label="Conversion rate" value={`${data.overall_conversion_rate ?? 0}%`} icon={Target} tone="rose" />
-            <StatCard label="Window" value={data.period || period} icon={TrendingUp} tone="amber" />
+            <StatCard label="Window" value={periodLabel(period)} icon={TrendingUp} tone="amber" />
           </div>
 
           {/* Daily trend */}
           <div className="bg-white rounded-2xl border border-slate-200 p-5">
             <div className="flex items-center gap-2 mb-4">
               <TrendingUp className="w-4 h-4 text-indigo-600" />
-              <h2 className="font-display font-bold text-base">{['6m', '1y', 'lifetime'].includes(period) ? 'Monthly visits' : ['1h', '6h', '24h'].includes(period) ? 'Visits by hour window' : 'Daily visits'}</h2>
+              <h2 className="font-display font-bold text-base">{['1y', 'all_time'].includes(period) ? 'Monthly visits' : ['1h', '6h', '24h'].includes(period) ? 'Visits by day (selected hours)' : 'Daily visits'}</h2>
             </div>
             {!data.trend?.length ? (
               <div className="text-sm text-slate-400">No visits recorded yet.</div>

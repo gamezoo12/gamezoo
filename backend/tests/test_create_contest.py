@@ -94,6 +94,28 @@ class TestCreateContestValidation:
 
 
 class TestCreateContestSuccess:
+    def test_create_bonus_only_paid_world_prize(self, admin_client):
+        payload = dict(VALID_PAYLOAD)
+        payload.update({
+            'title': 'TEST_CreateContest_BonusPrize',
+            'prize_amount': 0,
+            'prize_bonus_tokens': 20,
+            'status': 'live',
+        })
+        response = admin_client.post(f"{BASE_URL}/api/admin/contests", json=payload)
+        assert response.status_code == 200, response.text
+        contest = response.json()['contest']
+        assert contest['prize_amount'] == 0
+        assert contest['prize_bonus_tokens'] == 20
+        try:
+            public = admin_client.get(f"{BASE_URL}/api/contests")
+            assert public.status_code == 200
+            public_contest = next(item for item in public.json()
+                                  if item['contest_id'] == contest['contest_id'])
+            assert public_contest['prize_bonus_tokens'] == 20
+        finally:
+            admin_client.delete(f"{BASE_URL}/api/admin/contests/{contest['contest_id']}")
+
     def test_create_draft_and_verify_and_cleanup(self, admin_client):
         # CREATE
         r = admin_client.post(f"{BASE_URL}/api/admin/contests", json=VALID_PAYLOAD)

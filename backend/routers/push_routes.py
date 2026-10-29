@@ -55,7 +55,7 @@ async def get_push_settings(request: Request):
         {'user_id': user['user_id']},
         {'_id': 0, 'web_push_enabled': 1, 'web_push_enabled_at': 1, 'web_push_consent_at': 1,
          'web_push_consent_source': 1, 'web_push_browser_permission': 1,
-         'web_push_marketing_consent': 1, 'native_push_enabled': 1},
+         'web_push_marketing_consent': 1, 'native_push_enabled': 1, 'web_push_admin_pending': 1},
     ) or {}
     web_devices = await db.web_push_subscriptions.find(
         {'user_id': user['user_id'], 'active': True}, {'_id': 1, 'created_at': 1, 'last_seen_at': 1, 'user_agent': 1},
@@ -72,6 +72,10 @@ async def get_push_settings(request: Request):
         'web_push_status': web_push_status(preferences, len(web_devices)),
         'web_push_device_count': len(web_devices),
         'web_push_marketing_consent': preferences.get('web_push_marketing_consent') is True,
+        'prompt_required': (
+            preferences.get('web_push_admin_pending') is True
+            and preferences.get('web_push_browser_permission') != 'denied'
+        ),
         'web_devices': [_safe_web_device(doc) for doc in web_devices],
         'native_push_enabled': preferences.get('native_push_enabled') is True,
         'native_push_available': False,
@@ -136,11 +140,13 @@ async def register_web_subscription(payload: WebPushSubscriptionInput, request: 
         }, '$setOnInsert': {'created_at': now}},
         upsert=True,
     )
-    await db.users.update_one({'user_id': user['user_id']}, {'$set': {
+    user_update = {
         'web_push_enabled': True, 'web_push_enabled_at': now,
         'web_push_consent_at': now, 'web_push_consent_source': 'user',
         'web_push_browser_permission': 'granted', 'web_push_browser_permission_at': now,
-    }})
+        'web_push_admin_pending': False,
+    }
+    await db.users.update_one({'user_id': user['user_id']}, {'$set': user_update})
     return {'ok': True, 'subscription_id': endpoint_id, 'web_push_enabled': True}
 
 
@@ -190,6 +196,8 @@ async def update_push_preferences(payload: PushPreferencesInput, request: Reques
         update['web_push_consent_source'] = 'user'
     if 'web_push_browser_permission' in update:
         update['web_push_browser_permission_at'] = now
+        if update['web_push_browser_permission'] == 'denied':
+            update['web_push_admin_pending'] = False
     if 'web_push_marketing_consent' in update:
         update['web_push_marketing_consent_at'] = now if update['web_push_marketing_consent'] else None
         update['web_push_marketing_consent_source'] = 'self_service'

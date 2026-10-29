@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 """Seed a fresh live skill-game contest for the browser checkout flow only."""
 import json
 import time
@@ -11,7 +12,7 @@ BASE = 'https://import-verify-6.preview.emergentagent.com'
 OUT = Path('/app/test_reports/bug_iter34_ui_seed.json')
 
 s = requests.Session()
-login = s.post(f'{BASE}/api/auth/login', json={'email': 'bachanta8@gmail.com', 'password': 'Herts@910022'}, timeout=30)
+login = s.post(f'{BASE}/api/auth/login', json={'email': os.environ["TEST_ADMIN_EMAIL"], 'password': os.environ["TEST_ADMIN_PASSWORD"]}, timeout=30)
 login.raise_for_status()
 tok = login.json()['token']
 s.headers.update({'Authorization': f'Bearer {tok}', 'Content-Type': 'application/json'})

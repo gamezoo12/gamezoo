@@ -28,7 +28,7 @@
     "/app/backend/tests/test_create_contest.py (new)"
   ],
   "success_rate": {"backend": "100% (37/37)", "frontend": "100% (rebrand, 3× logout, create-contest, edit-contest, prize-wheel spin state, winners-ticker all pass)"},
-  "test_credentials": "Admin bachanta8@gmail.com / Herts@910022 (from /app/memory/test_credentials.md).",
+  "test_credentials": "Admin <admin-email> / <redacted> (from /app/memory/test_credentials.md).",
   "seed_data_creation": "test_create_contest.py creates 'TEST_CreateContest £77' and 'TEST_CreateContest LIVE £42' during the module and deletes them via DELETE /api/admin/contests/{id} in each test's finally block. UI create test created 'TEST_UI Contest £77', edited it to add '[Edited]', then deleted via API. Verified 0 TEST_* residues after run (contest count back to baseline 51 live).",
   "retest_needed": false,
   "main_agent_can_self_test": true,

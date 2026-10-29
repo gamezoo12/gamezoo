@@ -108,7 +108,7 @@ user_problem_statement: |
   Payments: mock checkout (records orders to Mongo). Stripe deferred.
   50 seeded contests, Â£1 tickets, variety of prize amounts. Skill question required per contest.
   Admin panel + Production panel gated on role=='admin'.
-  Admin user seeded: bachanta8@gmail.com / Herts@910022 (role=admin).
+  Admin user seeded: <admin-email> / <redacted> (role=admin).
 
 backend:
   - task: "Auth: email register + login (JWT)"
@@ -124,7 +124,7 @@ backend:
           comment: "POST /api/auth/register creates user with bcrypt hashed password and returns JWT. POST /api/auth/login validates and returns JWT. GET /api/auth/me returns current user (accepts Bearer JWT or session_token cookie/bearer). POST /api/auth/logout clears session."
         - working: true
           agent: "testing"
-          comment: "âœ… TESTED & WORKING. Test 1: POST /api/auth/register successfully creates user and returns JWT token. Test 2: POST /api/auth/login with admin credentials (bachanta8@gmail.com / Herts@910022) returns 200 + token with role=admin. Test 3: GET /api/auth/me with Bearer token returns correct user info including user_id, email, name, role. All auth endpoints functioning correctly."
+          comment: "âœ… TESTED & WORKING. Test 1: POST /api/auth/register successfully creates user and returns JWT token. Test 2: POST /api/auth/login with admin credentials (<admin-email> / <redacted>) returns 200 + token with role=admin. Test 3: GET /api/auth/me with Bearer token returns correct user info including user_id, email, name, role. All auth endpoints functioning correctly."
 
   - task: "Auth: Emergent Google session exchange"
     implemented: true
@@ -288,7 +288,7 @@ frontend:
             âœ… ALL 6 AUTHENTICATION ROUTING TESTS PASSED
             
             TEST 1 - Email login redirect (PRIMARY FIX): âœ… PASS
-            - Logged in with player1@example.com / Player@12345
+            - Logged in with player1@example.com / <redacted>
             - Successfully redirected to /choose-world
             - World Selector page displayed with "PAID LEAGUES" and "FREE WORLD" artwork
             - URL: https://import-verify-6.preview.emergentagent.com/choose-world
@@ -318,7 +318,7 @@ frontend:
             - URL: https://import-verify-6.preview.emergentagent.com/
             
             TEST 6 - Admin login regression: âœ… PASS
-            - Logged in with admin credentials (bachanta8@gmail.com / Herts@910022)
+            - Logged in with admin credentials (<admin-email> / <redacted>)
             - Successfully redirected to /admin (admin dashboard)
             - Did NOT redirect to /choose-world (no regression)
             - Admin experience unchanged
@@ -416,7 +416,7 @@ agent_communication:
     - agent: "main"
       message: |
         NEW: Please test ONLY the Free World Season Launch backend changes in world_routes.py (POST /api/admin/world/activate idempotency + audit + server_time, and the exact 24h unlock schedule via GET /api/world/state). Do NOT retest previously-passing tasks.
-        Admin credentials are in /app/memory/test_credentials.md (bachanta8@gmail.com / Herts@910022, super_admin). This is the ISOLATED local test DB (test_database), NOT production, so seeding/activating here is safe.
+        Admin credentials are in /app/memory/test_credentials.md (<admin-email> / <redacted>, super_admin). This is the ISOLATED local test DB (test_database), NOT production, so seeding/activating here is safe.
         Follow the detailed a)-i) test plan in the new backend task's status_history. Key checks: 409 on shifting a LIVE season, no-op re-launch does not shift/duplicate audit, audit_log row created, admin-only auth, and unlock_at increments by exactly 24h per level. Clean up by deactivating or leaving the season SCHEDULED at the end. Do NOT modify wallets/tokens/user progression.
 
     - agent: "testing"
@@ -441,10 +441,10 @@ agent_communication:
 
     - agent: "main"
       message: |
-        Backend implementation complete. Seeded admin user (bachanta8@gmail.com / Herts@910022) and 50 contests.
+        Backend implementation complete. Seeded admin user (<admin-email> / <redacted>) and 50 contests.
         Please run backend API tests focusing on:
         1) POST /api/auth/register with a new email â€” verify returns 200 + JWT token.
-        2) POST /api/auth/login with bachanta8@gmail.com / Herts@910022 â€” verify returns 200 + token with role=admin.
+        2) POST /api/auth/login with <admin-email> / <redacted> â€” verify returns 200 + token with role=admin.
         3) GET /api/auth/me with the token â€” verify returns user info.
         4) GET /api/contests â€” verify 50 contests returned, each has skill_question_q + skill_question_options and NO answer leakage.
         5) GET /api/contests/contest-1 â€” verify same shape.
@@ -497,12 +497,12 @@ agent_communication:
         Post-authentication routing fix implemented. Email login now redirects to /choose-world (World Selector page) instead of home (/). Deep links via ?next= parameter are preserved. Admin login unchanged.
         
         Please test the following 6 scenarios:
-        TEST 1: Email login with player1@example.com / Player@12345 should redirect to /choose-world (PRIMARY FIX)
+        TEST 1: Email login with player1@example.com / <redacted> should redirect to /choose-world (PRIMARY FIX)
         TEST 2: Login with ?next=/competitions should honor the deep link and go to /competitions
         TEST 3: Refresh on /choose-world while authenticated should keep user on /choose-world
         TEST 4: Click "Free World" button on /choose-world should navigate to /world
         TEST 5: Click "Paid Leagues" button on /choose-world should navigate to / (home)
-        TEST 6: Admin login with bachanta8@gmail.com / Herts@910022 should go to /admin (NOT /choose-world)
+        TEST 6: Admin login with <admin-email> / <redacted> should go to /admin (NOT /choose-world)
         
         Credentials in /app/memory/test_credentials.md. Take screenshots at each step and report PASS/FAIL with observed URLs.
 
@@ -526,7 +526,7 @@ agent_communication:
         - Deep link preservation via ?next= parameter working as expected (safe same-origin paths only)
         - Authentication state persists across page refreshes and navigation
         - Both World Selector buttons functional (Free World â†’ /world, Paid Leagues â†’ /)
-        - Admin login flow unchanged (bachanta8@gmail.com redirects to /admin, not /choose-world)
+        - Admin login flow unchanged (<admin-email> redirects to /admin, not /choose-world)
         - No logout or redirect issues when navigating from World Selector
         
         All screenshots saved to .screenshots/ directory for visual verification.
@@ -552,7 +552,7 @@ agent_communication:
         
         Test both desktop (1920x1080) and mobile (390x844) viewports. Report PASS/FAIL per route with exact text observed for Â£257,500 header and any corruption artifacts found. Take screenshots. DO NOT modify any code.
         
-        Credentials: player1@example.com / Player@12345
+        Credentials: player1@example.com / <redacted>
 
     - agent: "testing"
       message: |

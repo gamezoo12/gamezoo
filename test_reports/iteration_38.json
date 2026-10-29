@@ -12,7 +12,7 @@
   ],
   "updated_files": ["/app/backend/tests/test_iter38_free_world_admin.py"],
   "success_rate": {"backend": "100% (7/7)", "frontend": "100% (all data-testids render; toggle behavior correct)"},
-  "test_credentials": "Admin bachanta8@gmail.com / Herts@910022 (super_admin). Seed users: player1@example.com, player_broke@example.com, bachanta8@gmail.com.",
+  "test_credentials": "Admin <admin-email> / <redacted> (super_admin). Seed users: player1@example.com, player_broke@example.com, <admin-email>.",
   "seed_data_creation": "None - strictly read-only verification.",
   "retest_needed": false,
   "should_main_agent_self_test": false,

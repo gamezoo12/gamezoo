@@ -47,6 +47,10 @@ def web_push_status(user: dict, active_devices: int) -> str:
 def web_push_status(user: dict, active_devices: int) -> str:
     if user.get('web_push_enabled') is True:
         return 'Enabled' if active_devices else 'Not Subscribed'
+    if user.get('web_push_browser_permission') == 'denied':
+        return 'Browser Permission Denied'
+    if user.get('web_push_admin_pending') is True:
+        return 'Pending Browser Permission'
     if user.get('web_push_consent_source') in {'admin', 'user'} and user.get('web_push_consent_at'):
         return 'Disabled'
     if user.get('web_push_browser_permission') == 'denied':

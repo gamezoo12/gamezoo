@@ -1,3 +1,4 @@
+import os
 """Playwright script used with mcp_browser_automation for the admin wipe UI."""
 
 
@@ -6,8 +7,8 @@ async def run(page):
     try:
         print("Opening admin login page")
         await page.goto("https://import-verify-6.preview.emergentagent.com/admin/login", wait_until="domcontentloaded")
-        await page.locator('input[name="email"]').fill('bachanta8@gmail.com')
-        await page.locator('input[name="password"]').fill('Herts@910022')
+        await page.locator('input[name="email"]').fill(os.environ["TEST_ADMIN_EMAIL"])
+        await page.locator('input[name="password"]').fill(os.environ["TEST_ADMIN_PASSWORD"])
         await page.get_by_role('button', name='Sign in to admin').click()
         await page.wait_for_url("**/admin**", timeout=15000)
         print("Admin login succeeded")
@@ -21,7 +22,7 @@ async def run(page):
         await page.locator('[data-testid="wipe-open-btn"]').click()
         await page.locator('[data-testid="wipe-password-input"]').wait_for(state="visible", timeout=5000)
         await page.locator('[data-testid="wipe-confirm-input"]').wait_for(state="visible", timeout=5000)
-        await page.locator('[data-testid="wipe-password-input"]').fill('Herts@910022')
+        await page.locator('[data-testid="wipe-password-input"]').fill(os.environ["TEST_ADMIN_PASSWORD"])
         await page.locator('[data-testid="wipe-confirm-input"]').fill('WIPE DEMO DATA')
         print("Wipe form opened and filled")
 

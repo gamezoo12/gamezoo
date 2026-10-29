@@ -33,7 +33,7 @@
   ],
   "updated_files": [],
   "success_rate": {"backend": "100% (47/47 pytest)", "frontend": "100% on regression items 1-7 + 8 (default-mode, main-login, admin-login, register-happy, duplicate-email-UX, wrong-password toast, CSP worker-src). Weak-password UX untestable end-to-end because backend does not reject short passwords (see backend minor issue)."},
-  "test_credentials": "Admin: bachanta8@gmail.com / Herts@910022 (from /app/memory/test_credentials.md). Fresh players registered on the fly via /api/auth/register.",
+  "test_credentials": "Admin: <admin-email> / <redacted> (from /app/memory/test_credentials.md). Fresh players registered on the fly via /api/auth/register.",
   "seed_data_creation": "Test created 2 fresh users during UI verification (pw<epoch>@test.com and weak_test_<epoch>@test.com via curl). They are harmless throwaway accounts.",
   "retest_needed": false,
   "main_agent_can_self_test": true,

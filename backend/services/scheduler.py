@@ -29,15 +29,26 @@ async def _tick(db):
     # Free World Season 1 uses the same 60-second scheduler.
     # This does not create a second background task.
     try:
-        await tick_free_world(
-            db,
-            now=now,
-        )
+        from routers.world_gc_live_routes import is_world_paused
+        if not await is_world_paused(db):
+            await tick_free_world(
+                db,
+                now=now,
+            )
     except Exception as e:  # noqa: BLE001
         log.exception(
             "[scheduler] Free World tick failed: %s",
             e,
         )
+
+    # Future Every-Level GC finalization is isolated from legacy schedule/progress collections.
+    try:
+        from services.world_gc_competition_engine import finalize_due_world_gc_levels
+        result = await finalize_due_world_gc_levels(db, now=now)
+        if result['finalized']:
+            log.info('[scheduler] future GC level finalizations: %s', result)
+    except Exception as e:  # noqa: BLE001
+        log.exception('[scheduler] future GC finalization failed: %s', e)
 
     # Bonus-token expiry: idempotent, also enforced lazily on wallet reads and spends.
     try:
@@ -65,6 +76,14 @@ async def _tick(db):
         log.exception('[scheduler] influencer registration recovery failed: %s', e)
 
     try:
+        from services.influencer_commissions import recover_pending_influencer_topups
+        recovered = await recover_pending_influencer_topups(db, now=now)
+        if recovered:
+            log.info('[scheduler] recovered influencer top-up rewards: %s', recovered)
+    except Exception as e:  # noqa: BLE001
+        log.exception('[scheduler] influencer top-up recovery failed: %s', e)
+
+    try:
         from routers.admin_alerts_routes import process_due_campaigns
         await process_due_campaigns(db, current_time=now)
     except Exception as e:  # noqa: BLE001
@@ -85,6 +104,14 @@ async def _tick(db):
             log.info('[scheduler] queued contest Web Push reminders: %s', queued)
     except Exception as e:  # noqa: BLE001
         log.exception('[scheduler] contest Web Push lifecycle failed: %s', e)
+
+    try:
+        from services.analytics_retention import rollup_missing_days
+        result = await rollup_missing_days(db, now=now)
+        if result['rolled_up']:
+            log.info('[scheduler] analytics daily rollups: %s', result)
+    except Exception as e:  # noqa: BLE001
+        log.exception('[scheduler] analytics retention job failed: %s', e)
 
 
 async def _loop(db):

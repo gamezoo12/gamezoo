@@ -26,7 +26,7 @@
   ],
   "updated_files": [],
   "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100% on core acceptance criteria (avatar always visible, waiting state, single timer, early-unlock scope, unlock success without /login flash, progression not advanced, insufficient-balance, guest access, leaderboard, mobile, retry-modal wiring present); 3 minor design/testability observations"},
-  "test_credentials": "player1@example.com / Player@12345 (350 tokens, L1 done); player_broke@example.com / Player@12345 (0 tokens, L1 done). Seed script re-run before AND after destructive test.",
+  "test_credentials": "player1@example.com / <redacted> (350 tokens, L1 done); player_broke@example.com / <redacted> (0 tokens, L1 done). Seed script re-run before AND after destructive test.",
   "seed_data_creation": "Ran /app/backend/scripts/seed_token_test_scenario.py twice â€” once before destructive test (player1 -> 350 tokens, L2 time-locked) and once after (to leave scenario clean for the next agent).",
   "retest_needed": false,
   "should_main_agent_self_test": true,

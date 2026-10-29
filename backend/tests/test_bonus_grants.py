@@ -364,6 +364,12 @@ def _revoke_all_input(confirm='REMOVE ALL BONUS'):
     return bonus_grants_routes.RevokeAllInput(reason='bulk bonus removal integration test', confirm=confirm)
 
 
+async def _scoped_revoke_all(db, uid):
+    # Scoped to the test user so parallel test modules' grants are untouched.
+    admin = {'user_id': 'test-super_admin', 'email': 'super_admin@example.test', 'role': 'super_admin'}
+    return await bonus_grants_routes.revoke_all_active_grants(db, admin, 'bulk bonus removal integration test', {'user_id': uid})
+
+
 def test_revoke_all_requires_super_admin_and_confirmation_phrase(monkeypatch, safe_db, user):
     async def run(db):
         import deps
@@ -397,14 +403,14 @@ def test_revoke_all_removes_only_bonus_is_audited_and_repeat_is_noop(monkeypatch
                            reason='revoke-all preservation test', ref_key=f'{user}:keep')
         before = await db.wallets.find_one({'user_id': user}, {'_id': 0})
         assert before['balance'] == 50 and before['bonus'] == 10
-        first = await bonus_grants_routes.revoke_all(_revoke_all_input(), None)
-        assert first['grants_revoked'] >= 1 and first['tokens_removed'] >= 10
+        first = await _scoped_revoke_all(db, user)
+        assert first['grants_revoked'] == 1 and first['tokens_removed'] == 10
         after = await db.wallets.find_one({'user_id': user}, {'_id': 0})
         assert after['bonus'] == 0 and after['balance'] == 40 and after['withdrawable'] == 15
         audit = await db.audit_log.find_one({'kind': 'admin_bonus_revoke_all', 'admin_user_id': 'test-super_admin'},
                                             sort=[('at', -1)])
         assert audit and audit['grants_revoked'] == first['grants_revoked'] and audit['reason']
-        again = await bonus_grants_routes.revoke_all(_revoke_all_input(), None)
+        again = await _scoped_revoke_all(db, user)
         assert again['grants_revoked'] == 0 and again['tokens_removed'] == 0
         assert (await db.wallets.find_one({'user_id': user}, {'_id': 0}))['balance'] == 40
         await db.audit_log.delete_many({'admin_user_id': 'test-super_admin'})
@@ -428,7 +434,7 @@ def test_revoke_all_never_removes_spent_bonus_or_goes_negative_and_skips_expired
         await _apply_tx(db, user, 'spend', -4, note='test spend')
         w = await db.wallets.find_one({'user_id': user}, {'_id': 0})
         assert w['bonus'] == 6 and w['balance'] == 26
-        result = await bonus_grants_routes.revoke_all(_revoke_all_input(), None)
+        result = await _scoped_revoke_all(db, user)
         assert result['grants_revoked'] >= 1
         w = await db.wallets.find_one({'user_id': user}, {'_id': 0})
         assert w['bonus'] == 0 and w['balance'] == 20 and w['balance'] >= 0
@@ -440,9 +446,153 @@ def test_revoke_all_never_removes_spent_bonus_or_goes_negative_and_skips_expired
     run_db(safe_db, run)
 
 
-def test_wallet_breakdown_separates_topup_bonus_winning_and_total():
+def test_wallet_breakdown_separates_the_four_categories_and_excludes_pending():
     from routers.wallet_routes import _with_tokens
-    w = _with_tokens({'balance': 50, 'bonus': 10, 'withdrawable': 15, 'withdrawable_pending': 0})
-    assert (w['purchased_tokens'], w['bonus_tokens'], w['withdrawable_tokens'], w['total_tokens']) == (25, 10, 15, 50)
-    w = _with_tokens({'balance': 50, 'bonus': 10, 'withdrawable': 15, 'withdrawable_pending': 5})
-    assert w['purchased_tokens'] == 20 and w['total_tokens'] == 50
+    w = _with_tokens({'balance': 60, 'bonus': 10, 'winning_bonus': 5, 'withdrawable': 15, 'withdrawable_pending': 0, 'source_migrated': True})
+    assert (w['topup_tokens'], w['bonus_tokens'], w['winning_bonus_tokens'], w['winning_tokens'], w['total_tokens']) == (30, 10, 5, 15, 60)
+    assert w['available_to_cash_out'] == 15
+    w = _with_tokens({'balance': 60, 'bonus': 10, 'winning_bonus': 5, 'withdrawable': 15, 'withdrawable_pending': 5, 'source_migrated': True})
+    assert w['topup_tokens'] == 25 and w['total_tokens'] == 55 and w['pending_cash_out'] == 5
+    legacy = _with_tokens({'balance': 50, 'bonus': 10, 'withdrawable': 15})
+    assert legacy['source_classified'] is False
+    assert legacy['winning_bonus_tokens'] is None and legacy['topup_tokens'] is None and legacy['total_tokens'] == 50
+
+
+def test_positive_admin_adjust_is_recorded_as_bonus_not_topup(safe_db, user):
+    async def run(db):
+        await _get_or_create_wallet(db, user)
+        result = await _apply_tx(db, user, 'admin_adjust', 7, note='admin promotional credit')
+        wallet = await db.wallets.find_one({'user_id': user}, {'_id': 0})
+        assert wallet['balance'] == 7 and wallet['bonus'] == 7
+        assert wallet.get('withdrawable', 0) == 0 and wallet.get('winning_bonus', 0) == 0
+        tx = result['tx']
+        assert tx['bonus_amount'] == 7 and tx['purchased_amount'] in (None, 0)
+        assert tx['withdrawable_amount'] in (None, 0) and tx['winning_bonus_amount'] in (None, 0)
+    run_db(safe_db, run)
+
+
+@pytest.mark.parametrize('idempotent', [False, True])
+def test_order_refund_restores_original_token_category(safe_db, user, idempotent):
+    async def run(db):
+        await _get_or_create_wallet(db, user)
+        await _apply_tx(db, user, 'topup', 10, note='test topup')
+        spend = await _apply_tx(db, user, 'spend', -4, note='test order spend', ref_order_id='order-refund-known')
+        assert spend['tx']['purchased_amount'] == -4
+        if idempotent:
+            refund = await _apply_tx_idempotent(db, user, 'refund', 4, note='test refund', ref_order_id='order-refund-known')
+        else:
+            refund = await _apply_tx(db, user, 'refund', 4, note='test refund', ref_order_id='order-refund-known')
+        wallet = await db.wallets.find_one({'user_id': user}, {'_id': 0})
+        assert wallet['balance'] == 10 and wallet['source_migrated'] is True
+        assert wallet['bonus'] == 0 and wallet['withdrawable'] == 0
+        refund_tx = refund['tx']
+        assert refund_tx['purchased_amount'] == 4 and refund_tx['bonus_amount'] == 0
+    run_db(safe_db, run)
+
+
+def test_order_refund_with_unclassified_source_stays_unclassified(safe_db, user):
+    async def run(db):
+        await db.wallets.insert_one({'user_id': user, 'balance': 10, 'bonus': 0, 'bonus_untracked': 0,
+                                     'withdrawable': 0, 'withdrawable_pending': 0,
+                                     'winning_bonus': 0, 'source_migrated': True})
+        await db.wallet_tx.insert_one({'tx_id': f'legacy_spend_{user}', 'user_id': user, 'kind': 'spend',
+            'amount': -4, 'balance_after': 6, 'ref_order_id': 'order-refund-legacy'})
+        refund = await _apply_tx(db, user, 'refund', 4, note='legacy refund', ref_order_id='order-refund-legacy')
+        wallet = await db.wallets.find_one({'user_id': user}, {'_id': 0})
+        assert wallet['balance'] == 14 and wallet['source_migrated'] is False
+        assert wallet['source_migration_blocked'] is True
+        assert all(refund['tx'][key] is None for key in ('bonus_amount', 'purchased_amount', 'withdrawable_amount', 'winning_bonus_amount'))
+    run_db(safe_db, run)
+
+
+def test_legacy_wallet_migration_preserves_existing_bonus_and_winning_bonus(safe_db, user):
+    from routers.wallet_routes import _migrate_wallet_sources, _with_tokens
+
+    async def run(db):
+        wallet = {
+            'user_id': user, 'balance': 60, 'bonus': 10, 'winning_bonus': 5,
+            'withdrawable': 15, 'withdrawable_pending': 0,
+        }
+        await db.wallets.insert_one(wallet.copy())
+        migrated = await _migrate_wallet_sources(db, user, wallet)
+        assert migrated['source_migrated'] is True
+        assert migrated['bonus'] == 10
+        assert migrated['bonus_untracked'] == 10
+        assert migrated['winning_bonus'] == 5
+        view = _with_tokens(migrated)
+        assert (view['topup_tokens'], view['winning_tokens'], view['winning_bonus_tokens'],
+                view['bonus_tokens'], view['total_tokens']) == (30, 15, 5, 10, 60)
+        await db.wallets.delete_one({'user_id': user})
+
+    run_db(safe_db, run)
+
+
+def test_ambiguous_legacy_wallet_stays_unclassified_without_balance_change(safe_db, user):
+    from routers.wallet_routes import _get_or_create_wallet
+
+    async def run(db):
+        await db.wallets.insert_one({'user_id': user, 'balance': 50})
+        wallet = await _get_or_create_wallet(db, user)
+        stored = await db.wallets.find_one({'user_id': user}, {'_id': 0})
+        assert wallet['source_classified'] is False
+        assert wallet['topup_tokens'] is None and wallet['winning_tokens'] is None
+        assert wallet['total_tokens'] == 50
+        assert stored['balance'] == 50 and stored.get('source_migrated') is not True
+        await db.wallets.delete_one({'user_id': user})
+
+    run_db(safe_db, run)
+
+
+def test_signup_and_referral_rewards_use_source_expiring_grants(safe_db, user):
+    from routers.referral_routes import _complete_referral_if_eligible, _grant_signup_bonus_once
+    from services.bonus_grants import _as_utc
+
+    async def run(db):
+        now = datetime.now(timezone.utc)
+        await db.reward_settings.update_one({'_id': 'app'}, {'$set': {
+            'signup_reward_tokens': 4, 'signup_bonus_expiry_enabled': True, 'signup_bonus_expiry_days': 2,
+            'referral_reward_tokens': 3, 'referral_bonus_expiry_enabled': True, 'referral_bonus_expiry_days': 5,
+        }}, upsert=True)
+        await db.users.update_one({'user_id': user}, {'$set': {'signup_bonus_offer_eligible': True}}, upsert=True)
+
+        assert await _grant_signup_bonus_once(db, user)
+        assert not await _grant_signup_bonus_once(db, user)
+        signup = await db.bonus_grants.find_one({'ref_key': f'signup_reward:{user}'}, {'_id': 0})
+        assert signup['source'] == 'signup' and signup['original_amount'] == 4
+        assert timedelta(days=1, hours=23) < _as_utc(signup['expires_at']) - now < timedelta(days=2, seconds=5)
+
+        referral_id = f'ref_expiry_{user}'
+        await db.referrals.insert_one({
+            'referral_id': referral_id, 'referrer_user_id': user, 'referred_user_id': f'friend_{user}',
+            'program_version': 'tokens_v2', 'status': 'pending', 'topup_qualified': True,
+            'contest_entered': True, 'reward_granted': False,
+        })
+        assert await _complete_referral_if_eligible(db, f'friend_{user}')
+        assert not await _complete_referral_if_eligible(db, f'friend_{user}')
+        referral = await db.bonus_grants.find_one({'ref_key': f'referral_reward:{referral_id}'}, {'_id': 0})
+        assert referral['source'] == 'referral' and referral['original_amount'] == 3
+        assert timedelta(days=4, hours=23) < _as_utc(referral['expires_at']) - now < timedelta(days=5, seconds=5)
+        notices = await db.notifications.count_documents({'user_id': user, 'type': 'bonus_credited'})
+        assert notices == 2
+        await db.referrals.delete_one({'referral_id': referral_id})
+        await db.reward_settings.delete_one({'_id': 'app'})
+    run_db(safe_db, run)
+    from services.reward_program import save_reward_settings
+    with pytest.raises(HTTPException) as invalid_days:
+        asyncio.run(save_reward_settings(None, {'signup_bonus_expiry_days': 2.5}))
+    assert invalid_days.value.status_code == 400
+
+
+def test_reward_expiry_settings_require_super_admin_and_whole_days(monkeypatch):
+    from fastapi import HTTPException
+    from routers import influencer_promo_routes
+
+    async def admin(_request):
+        return {'role': 'admin'}
+    monkeypatch.setattr(influencer_promo_routes, 'require_admin', admin)
+
+    async def run():
+        with pytest.raises(HTTPException) as denied:
+            await influencer_promo_routes.admin_update_reward_settings({'signup_bonus_expiry_enabled': True}, None)
+        assert denied.value.status_code == 403
+    asyncio.run(run())

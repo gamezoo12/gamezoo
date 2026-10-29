@@ -6,8 +6,10 @@ import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
 import { Phone, ShieldCheck, ArrowLeft, ArrowRight, Calendar, ScrollText } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { authAPI, api } from '../../lib/api';
+import { authAPI, api, offersAPI } from '../../lib/api';
+import useActiveOffer from '../../lib/useActiveOffer';
 import { useToast } from '../../hooks/use-toast';
+import PromotionsConsent, { EMPTY_PROMO } from '../account/PromotionsConsent';
 
 /**
  * Mandatory finalization wizard shown to Google users after OAuth.
@@ -24,8 +26,15 @@ export default function GoogleFinalizeModal({ open, onComplete, onSignOut }) {
   const [step, setStep] = useState(1);
   const [busy, setBusy] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  const [influencerCampaign, setInfluencerCampaign] = useState(null);
+  const [promoLookup, setPromoLookup] = useState(() => {
+    const expiry = Number(localStorage.getItem('pl_referral_code_expires') || 0);
+    return expiry > Date.now() && (sessionStorage.getItem('pl_google_referral_code') || localStorage.getItem('pl_referral_code'))
+      ? 'checking' : 'normal';
+  });
+  const { offer } = useActiveOffer();
   const [data, setData] = useState({
-    dob: '', phone: '', normalizedPhone: '', code: '', address: '', accept_terms: false, sms_consent: false, marketing_email_consent: false,
+    dob: '', phone: '', normalizedPhone: '', code: '', address: '', accept_terms: false, promo: { ...EMPTY_PROMO },
   });
   const { toast } = useToast();
 
@@ -34,6 +43,23 @@ export default function GoogleFinalizeModal({ open, onComplete, onSignOut }) {
     const t = setInterval(() => setCooldown((c) => Math.max(0, c - 1)), 1000);
     return () => clearInterval(t);
   }, [cooldown]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const expiry = Number(localStorage.getItem('pl_referral_code_expires') || 0);
+    const code = expiry > Date.now()
+      ? (sessionStorage.getItem('pl_google_referral_code') || localStorage.getItem('pl_referral_code') || '').trim().toUpperCase()
+      : '';
+    if (!code) { setInfluencerCampaign(null); setPromoLookup('normal'); return undefined; }
+    let active = true;
+    setPromoLookup('checking');
+    offersAPI.promo(code).then((result) => {
+      if (!active) return;
+      setInfluencerCampaign(result?.valid ? result.campaign : null);
+      setPromoLookup(result?.valid ? 'influencer' : 'normal');
+    }).catch(() => { if (active) setPromoLookup('unresolved'); });
+    return () => { active = false; };
+  }, [open]);
 
   const set = (k, v) => setData((d) => ({ ...d, [k]: v }));
 
@@ -90,8 +116,11 @@ export default function GoogleFinalizeModal({ open, onComplete, onSignOut }) {
         dob: data.dob,
         address: data.address || null,
         referral_code: sessionReferralCode || storedReferralCode || null,
-        sms_consent: !!data.sms_consent,
-        marketing_email_consent: !!data.marketing_email_consent,
+        sms_consent: !!data.promo.sms,
+        marketing_email_consent: !!data.promo.email,
+        whatsapp_consent: !!data.promo.whatsapp,
+        newsletter_consent: !!data.promo.newsletter,
+        web_notifications_consent: !!data.promo.web_notifications,
       }).then(x => x.data);
       sessionStorage.removeItem('pl_google_referral_code');
       localStorage.removeItem('pl_referral_code');
@@ -138,6 +167,18 @@ export default function GoogleFinalizeModal({ open, onComplete, onSignOut }) {
             <div className="w-12 h-12 rounded-full bg-[#FFD54A]/20 flex items-center justify-center"><Calendar className="w-6 h-6 text-[#6C2BFF]" /></div>
             <h3 className="font-display font-extrabold text-2xl text-slate-900">Almost there!</h3>
             <p className="text-sm text-slate-500">We need a couple of things before you can play.</p>
+            {promoLookup === 'checking' && <p className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600">Checking promotional code…</p>}
+            {promoLookup === 'unresolved' && <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">We could not verify the promotional code right now. No offer is shown until it can be checked.</p>}
+            {influencerCampaign && <p className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900" data-testid="google-influencer-offer">
+              <strong>{influencerCampaign.campaign_name || influencerCampaign.influencer_name || 'Influencer campaign'}:</strong>{' '}{influencerCampaign.conditions_text}
+            </p>}
+            {promoLookup !== 'checking' && promoLookup !== 'unresolved' && !influencerCampaign && offer?.signup?.enabled && <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-slate-700" data-testid="google-signup-offer">{offer.signup.text}</p>}
+            {promoLookup !== 'checking' && promoLookup !== 'unresolved' && !influencerCampaign && offer?.normal_topup_promo?.enabled && <p className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900" data-testid="google-normal-topup-offer">
+              Normal top-up promotion: {offer.normal_topup_promo.mode === 'percentage'
+                ? `${offer.normal_topup_promo.reward_percent}% Bonus Tokens`
+                : `${offer.normal_topup_promo.reward_tokens} Bonus Tokens`}
+              {' '}on verified top-ups of at least £{offer.normal_topup_promo.minimum_gbp}.
+            </p>}
             <div>
               <Label className="mb-1 block">Date of birth <span className="text-slate-400 text-xs font-normal">(18+ only)</span></Label>
               <Input data-testid="gf-dob" type="date" required value={data.dob} onChange={e => set('dob', e.target.value)} max={new Date().toISOString().slice(0, 10)} autoFocus />
@@ -207,14 +248,12 @@ export default function GoogleFinalizeModal({ open, onComplete, onSignOut }) {
               <Checkbox data-testid="gf-accept-terms" checked={data.accept_terms} onCheckedChange={(v) => set('accept_terms', !!v)} className="mt-0.5" />
               <span className="text-sm text-slate-700">I&apos;ve read and accept the Terms &amp; Privacy Policy. I&apos;m 18 or older.</span>
             </label>
-            <label className="flex items-start gap-3 cursor-pointer select-none py-2">
-              <Checkbox data-testid="gf-sms-consent" checked={data.sms_consent} onCheckedChange={(v) => set('sms_consent', !!v)} className="mt-0.5" />
-              <span className="text-sm text-slate-700">I agree to receive SMS notifications from Prize League about Champion Levels, contests, prizes, winners and promotions. I can withdraw my consent at any time. <span className="text-slate-400">(Optional)</span></span>
-            </label>
-            <label className="flex items-start gap-3 cursor-pointer select-none py-2" data-testid="gf-email-marketing-consent-label">
-              <Checkbox data-testid="gf-email-marketing-consent" checked={data.marketing_email_consent} onCheckedChange={(v) => set('marketing_email_consent', !!v)} className="mt-0.5" />
-              <span className="text-sm text-slate-700">I agree to receive marketing emails from Prize League about competitions, prizes, special offers and promotions. I can unsubscribe at any time. <span className="text-slate-400">(Optional)</span></span>
-            </label>
+            <PromotionsConsent
+              values={data.promo}
+              onChange={(promo) => set('promo', promo)}
+              onSave={() => toast({ title: 'Preferences saved' })}
+              testid="gf-promotions-consent"
+            />
             <Button data-testid="gf-finish" onClick={finish} disabled={busy || !data.accept_terms} className="w-full h-11 pl-btn-gold text-slate-900 font-extrabold">
               {busy ? 'Finalizing…' : 'Finish signup →'}
             </Button>

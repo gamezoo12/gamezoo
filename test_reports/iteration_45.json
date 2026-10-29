@@ -29,7 +29,7 @@
     "/app/backend/tests/test_iter45_admin_control_upgrade.py"
   ],
   "success_rate": {"backend": "100%", "frontend": "100%"},
-  "test_credentials": "bachanta8@gmail.com / Herts@910022 (super_admin); player1@example.com / Player@12345",
+  "test_credentials": "<admin-email> / <redacted> (super_admin); player1@example.com / <redacted>",
   "seed_data_creation": "No persistent data created. Extension to C2 and override (stage=2,level=5|7|8 attempts=5|7|9) applied during tests were cleared via module-scoped autouse fixture (reset + clear). Final schedule is clean, no overrides remain. Three audit rows (contest_extension + stage_level_config set/clear) written to world_progress_audit_log — expected behaviour.",
   "retest_needed": false,
   "should_main_agent_self_test": true,

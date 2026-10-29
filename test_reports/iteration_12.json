@@ -21,7 +21,7 @@
     "/app/backend/tests/test_games_v2.py (new — 20 pytest cases: types listing, 14-game parametrized assignment, e2e cryptogram submit + leaderboard)"
   ],
   "success_rate": {"backend": "100% (20/20 pytest passed)", "frontend": "100% (30/30 cards rendered; 14/14 new games mount + interact; 3/3 regression games mount)"},
-  "test_credentials": "Admin: bachanta8@gmail.com / Herts@910022 (from /app/memory/test_credentials.md)",
+  "test_credentials": "Admin: <admin-email> / <redacted> (from /app/memory/test_credentials.md)",
   "seed_data_creation": "Created and torn down two TEST_ contests during pytest (one for the 14-game assignment parametrize, one cryptogram e2e contest). One TEST_ gamer user was auto-created for the submit test — persists in DB but is harmless (isolated by ticket_id).",
   "retest_needed": false,
   "main_agent_can_self_test": true,

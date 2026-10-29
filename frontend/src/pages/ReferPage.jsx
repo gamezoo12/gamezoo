@@ -1,13 +1,21 @@
 import ReferAndEarnCard from '../components/home/ReferAndEarnCard';
+import useActiveOffer, { gbpText, tokensText } from '../lib/useActiveOffer';
 import { Gift, Users, Coins } from 'lucide-react';
 
-const HOW = [
+const howItWorks = (terms) => [
   { Icon: Gift, title: 'Get your code', text: 'Sign in to get your unique referral code and invite link.' },
-  { Icon: Users, title: 'Invite friends', text: 'Your friend enters your code during signup, tops up £10 or more in one verified payment, and enters at least one contest.' },
-  { Icon: Coins, title: 'Earn 5 tokens', text: 'Once both requirements are completed, 5 referral reward tokens are automatically credited to your wallet.' },
+  { Icon: Users, title: 'Invite friends', text: terms
+    ? `Your friend enters your code during signup, tops up ${gbpText(terms.qualifying_topup_gbp)} or more in one verified payment${terms.contest_entry_required ? ', and enters at least one contest' : ''}.`
+    : 'Your friend enters your code during signup and completes the qualifying steps.' },
+  { Icon: Coins, title: terms ? `Earn ${tokensText(terms.referrer_reward_tokens)}` : 'Earn tokens', text: terms
+    ? `Once the requirements are completed, ${tokensText(terms.referrer_reward_tokens)} are automatically credited to your wallet.`
+    : 'Rewards are credited automatically to your wallet.' },
 ];
 
 export default function ReferPage() {
+  const { offer } = useActiveOffer();
+  const terms = offer?.referral?.enabled ? offer.referral : null;
+  const HOW = howItWorks(terms);
   return (
     <div className="bg-white">
       <section className="pl-hero-bg text-white py-16 md:py-20">
@@ -16,7 +24,9 @@ export default function ReferPage() {
             Refer &amp; <span className="pl-gold-text">Earn</span>
           </h1>
           <p className="mt-4 text-white/75 max-w-xl mx-auto">
-            Invite friends to Prize League and earn 5 tokens when an eligible referral completes the qualifying requirements.
+            {terms
+              ? `Invite friends to Prize League and earn ${tokensText(terms.referrer_reward_tokens)} when an eligible referral completes the qualifying requirements.`
+              : 'Invite friends to Prize League. The referral offer is not available at the moment.'}
           </p>
         </div>
       </section>

@@ -17,7 +17,7 @@ from fastapi.responses import Response
 
 from auth import require_admin
 from services.analytics_common import (
-    PAGE_LABELS, REPORT_TZ_NAME, SOURCE_LABELS, resolve_range,
+    ALL_TIME_START, PAGE_LABELS, REPORT_TZ_NAME, SOURCE_LABELS, resolve_range,
 )
 from services.analytics_events import (
     excluded_user_ids, public_traffic_filter, user_game_activity,
@@ -120,6 +120,57 @@ def _pct(num, den) -> Optional[float]:
     return round(100.0 * num / den, 1) if den else None
 
 
+async def public_view_match(db, period: str, start: Optional[str] = None, end: Optional[str] = None) -> dict:
+    """Mongo filter for public page views in a period (staff and test traffic excluded)."""
+    return await _view_match_for(db, _parse(period, start, end, None, None, None, None))
+
+
+async def traffic_totals(db, period: str, start: Optional[str] = None, end: Optional[str] = None) -> dict:
+    """Public-traffic headline numbers; the single definition shared by dashboards and these reports."""
+    f = _parse(period, start, end, None, None, None, None)
+    vm = await _view_match_for(db, f)
+    r = f['range']
+    visit_match = {'created_at': {'$gte': r['start'], '$lt': r['end']}, **await public_traffic_filter(db)}
+    legacy = {k: v for k, v in vm.items() if k != 'session_id'}
+    return {
+        'page_views': await db.acquisition_page_views.count_documents(vm),
+        'unique_visitors': await _count_distinct(db, 'acquisition_page_views', vm, 'visitor_id'),
+        'sessions': await db.acquisition_sessions.count_documents(await _session_match(db, f, vm)),
+        'visits': await db.acquisition_visits.count_documents(visit_match),
+        'page_views_before_session_tracking': await db.acquisition_page_views.count_documents(
+            {**legacy, 'session_id': {'$exists': False}}),
+    }
+
+
+async def signup_breakdown(db, f: dict) -> dict:
+    """Accounts created in range by sign-up method, plus influencer-link visits and registrations per link."""
+    r = f['range']
+    created = {} if r['start'] == ALL_TIME_START else {'created_at': {'$gte': r['start'], '$lt': r['end']}}
+    base = {**created, 'user_id': {'$nin': await excluded_user_ids(db)}}
+    complete = {'phone_verified': True, 'terms_accepted_at': {'$exists': True, '$ne': None}}
+    google = await db.users.count_documents({**base, 'method': 'google'})
+    google_complete = await db.users.count_documents({**base, 'method': 'google', **complete})
+    total = await db.users.count_documents(base)
+    links: dict = {}
+    async for row in db.influencer_visits.aggregate([
+        {'$match': created}, {'$group': {'_id': '$promo_id', 'visits': {'$sum': 1}, 'visitors': {'$addToSet': '$visitor_id'}}},
+    ]):
+        links[row['_id']] = {'visits': row['visits'], 'unique_visitors': len(row['visitors']), 'signups': 0}
+    async for row in db.influencer_attributions.aggregate([
+        {'$match': created}, {'$group': {'_id': '$promo_id', 'signups': {'$sum': 1}}},
+    ]):
+        links.setdefault(row['_id'], {'visits': 0, 'unique_visitors': 0, 'signups': 0})['signups'] = row['signups']
+    promos = {p['promo_id']: p async for p in db.influencer_promos.find(
+        {'promo_id': {'$in': list(links)}}, {'_id': 0, 'promo_id': 1, 'code': 1, 'influencer_id': 1})}
+    rows = [{'promo_id': pid, 'code': promos.get(pid, {}).get('code') or pid, **v} for pid, v in links.items()]
+    rows.sort(key=lambda x: (-x['signups'], -x['visits']))
+    return {
+        'accounts_created': total, 'email': total - google, 'google': google, 'google_completed': google_complete,
+        'influencer_links': rows[:50],
+        'influencer_totals': {key: sum(x[key] for x in rows) for key in ('visits', 'signups')},
+    }
+
+
 async def _cohort(db, f: dict) -> list:
     """User ids registered in range (all, or only those attributed when a filter is active)."""
     r = f['range']
@@ -209,11 +260,12 @@ async def overview(request: Request, range: str = '7d', start: Optional[str] = N
     activity = await user_game_activity(db, cohort)
     first_game = sum(1 for a in activity.values() if a['first_start'] is not None)
 
+    monthly_trend = (r['end'] - r['start']).days > 400
     trend = [
         {'day': row['_id'], 'views': row['views'], 'sessions': len(row['sessions'])}
         async for row in db.acquisition_page_views.aggregate([
             {'$match': vm},
-            {'$group': {'_id': {'$dateToString': {'format': '%Y-%m-%d', 'date': '$created_at', 'timezone': REPORT_TZ_NAME}},
+            {'$group': {'_id': {'$dateToString': {'format': '%Y-%m' if monthly_trend else '%Y-%m-%d', 'date': '$created_at', 'timezone': REPORT_TZ_NAME}},
                         'views': {'$sum': 1}, 'sessions': {'$addToSet': '$session_id'}}},
             {'$sort': {'_id': 1}},
         ])
@@ -245,6 +297,7 @@ async def overview(request: Request, range: str = '7d', start: Optional[str] = N
             'registered_cohort_started_game': first_game,
         },
         'visitor_states': states,
+        'signups': await signup_breakdown(db, f),
         'impressions': IMPRESSIONS,
         'trend': trend,
         'definitions': DEFINITIONS,
@@ -322,8 +375,11 @@ async def _pages_rows(db, f: dict) -> list:
         {'$limit': 2000},
     ]):
         i = row['_id']
+        if not i.get('p'):
+            continue
+        page_key = i.get('k') or 'other'
         pages[i['p']] = {
-            'page': i['p'], 'page_key': i['k'], 'label': PAGE_LABELS.get(i['k'], i['k']),
+            'page': i['p'], 'page_key': page_key, 'label': PAGE_LABELS.get(page_key, page_key),
             'views': row['views'], 'unique_visitors': row['unique_visitors'], 'sessions': row['sessions'],
             'entrances': row['entrances'], 'exits': 0,
             'avg_engagement_seconds': round(row['engaged_sum'] / row['engaged_n'] / 1000, 1) if row['engaged_n'] else None,
@@ -347,7 +403,8 @@ async def _pages_rows(db, f: dict) -> list:
             {'$group': {'_id': {'p': '$page_path', 'v': f'${field}'}, 'n': {'$sum': 1}}},
             {'$sort': {'n': -1}}, {'$limit': 5000},
         ]):
-            best.setdefault(row['_id']['p'], row['_id']['v'])
+            if row['_id'].get('p') and row['_id'].get('v'):
+                best.setdefault(row['_id']['p'], row['_id']['v'])
         for p, v in best.items():
             if p in pages:
                 pages[p][into] = v
@@ -358,14 +415,15 @@ async def _pages_rows(db, f: dict) -> list:
         {'$group': {'_id': {'from': '$prev_path', 'to': '$page_path'}, 'n': {'$sum': 1}}},
         {'$sort': {'n': -1}}, {'$limit': 5000},
     ]):
-        nxt.setdefault(row['_id']['from'], row['_id']['to'])
+        if row['_id'].get('from') and row['_id'].get('to'):
+            nxt.setdefault(row['_id']['from'], row['_id']['to'])
     for p, to in nxt.items():
         if p in pages:
             pages[p]['next_page'] = to
     async for row in db.acquisition_page_views.aggregate([
         {'$match': vm}, {'$group': {'_id': {'p': '$page_path', 'd': '$device_type'}, 'n': {'$sum': 1}}}]):
-        if row['_id']['p'] in pages:
-            pages[row['_id']['p']]['devices'][row['_id']['d']] = row['n']
+        if row['_id'].get('p') in pages:
+            pages[row['_id']['p']]['devices'][row['_id'].get('d') or 'unknown'] = row['n']
     return sorted(pages.values(), key=lambda x: -x['views'])
 
 

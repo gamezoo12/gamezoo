@@ -33,7 +33,7 @@
     "/app/backend/tests/test_iter22_launch.py (new)"
   ],
   "success_rate": {"backend": "91% (10/11)", "frontend": "100% (all flows verified)"},
-  "test_credentials": "Super Admin bachanta8@gmail.com / Herts@910022 — works. Login returns token, must_change_password=true (expected).",
+  "test_credentials": "Super Admin <admin-email> / <redacted> — works. Login returns token, must_change_password=true (expected).",
   "seed_data_creation": "Created and cleaned up 1 postal entry (TEST_iter22_*). Company legal_review_notes was set to a TEST_iter22_* marker as part of audit-write verification — remains in settings.company doc; may need cleanup by main agent if a clean launch state is desired.",
   "retest_needed": true,
   "main_agent_can_self_test": true,

@@ -26,6 +26,7 @@ class Contest(BaseModel):
     tickets_sold: int = 0
     tickets_total: int = 150
     prize_amount: float = 100.0
+    prize_bonus_tokens: float = 0.0
     end_date: datetime
     image: str
     jackpot: bool = False
@@ -80,6 +81,12 @@ class Contest(BaseModel):
 class Wallet(BaseModel):
     user_id: str
     balance: float = 0.0
+    bonus: float = 0.0
+    bonus_untracked: float = 0.0
+    withdrawable: float = 0.0
+    withdrawable_pending: float = 0.0
+    winning_bonus: float = 0.0
+    source_migrated: bool = False
     lifetime_topup: float = 0.0
     lifetime_spend: float = 0.0
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -88,7 +95,7 @@ class Wallet(BaseModel):
 class WalletTx(BaseModel):
     tx_id: str = Field(default_factory=lambda: new_id('tx'))
     user_id: str
-    kind: Literal['topup', 'spend', 'refund', 'admin_adjust', 'referral_bonus', 'signup_bonus', 'influencer_bonus', 'champion_prize', 'winnings', 'bonus_grant', 'bonus_expiry', 'bonus_revoke']
+    kind: Literal['topup', 'spend', 'refund', 'admin_adjust', 'referral_bonus', 'signup_bonus', 'influencer_bonus', 'champion_prize', 'winnings', 'bonus_grant', 'bonus_expiry', 'bonus_revoke', 'promo_bonus', 'paid_prize_cash', 'paid_prize_bonus']
     amount: float  # positive for credits, negative for debits
     balance_after: float
     note: str = ''
@@ -97,6 +104,7 @@ class WalletTx(BaseModel):
     bonus_amount: Optional[float] = None
     purchased_amount: Optional[float] = None
     withdrawable_amount: Optional[float] = None
+    winning_bonus_amount: Optional[float] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -107,7 +115,12 @@ class Referral(BaseModel):
     code: str
 
     # pending until both referral requirements are satisfied
-    status: Literal['pending', 'completed'] = 'pending'
+    status: Literal['pending', 'completed', 'rejected'] = 'pending'
+
+    # Offer terms in force when the referral was captured; they govern this referral.
+    offer_version: Optional[int] = None
+    offer_terms: Optional[dict] = None
+    rejected_reason: Optional[str] = None
 
     # New token referral programme
     program_version: str = 'tokens_v2'
@@ -127,6 +140,8 @@ class Referral(BaseModel):
     reward_granted: bool = False
     reward_tokens: float = 0.0
     reward_tx_id: Optional[str] = None
+    referred_reward_tokens: float = 0.0
+    referred_reward_tx_id: Optional[str] = None
     completed_at: Optional[datetime] = None
 
     # Legacy field retained only so old Mongo records remain compatible
@@ -160,6 +175,7 @@ class ContestPublic(BaseModel):
     tickets_sold: int
     tickets_total: int
     prize_amount: float
+    prize_bonus_tokens: float = 0.0
     end_date: datetime
     image: str
     jackpot: bool
@@ -255,6 +271,9 @@ class RegisterInput(BaseModel):
     influencer_invite_token: Optional[str] = Field(default=None, max_length=128)
     sms_consent: bool = False
     marketing_email_consent: bool = False
+    whatsapp_consent: bool = False
+    newsletter_consent: bool = False
+    web_notifications_consent: bool = False
 
 
 class LoginInput(BaseModel):
@@ -302,6 +321,12 @@ class Winner(BaseModel):
     user_name: str
     ticket_number: int
     prize_amount: float
+    prize_bonus_tokens: float = 0.0
     prize_title: str
     drawn_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     paid_out: bool = False
+    payment_status: str = 'pending'
+    paid_at: Optional[datetime] = None
+    paid_by_user_id: Optional[str] = None
+    wallet_transaction_ids: List[str] = Field(default_factory=list)
+    wallet_transaction_refs: List[str] = Field(default_factory=list)

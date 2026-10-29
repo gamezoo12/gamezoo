@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Component, useEffect, useMemo, useState } from 'react';
+import { apiErrorMessage } from '../../lib/apiError';
 import { Bell, RefreshCw, Send, Users, CheckCircle2, Clock3, Ban } from 'lucide-react';
 import { adminAPI } from '../../lib/api';
 
@@ -2075,6 +2076,40 @@ const ALERT_TYPES = [
   ['credit', 'Credit'],
 ];
 
+const asArray = (value) => Array.isArray(value) ? value : [];
+const asRecord = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+
+const normalizeCampaign = (campaign) => ({
+      ...campaign,
+      channels: asArray(campaign?.channels),
+                  delivery_counts: asRecord(campaign?.delivery_counts),
+});
+
+class AlertsErrorBoundary extends Component {
+      state = { failed: false };
+
+      static getDerivedStateFromError() {
+            return { failed: true };
+      }
+
+      componentDidCatch(error) {
+            console.error('[admin-alerts] Rendering failed', error);
+      }
+
+      render() {
+            if (!this.state.failed) return this.props.children;
+            return (
+                  <section className="rounded-xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-900" role="alert" data-testid="alerts-render-error">
+                        <h2 className="font-bold">Alerts could not be displayed</h2>
+                        <p className="mt-1">Your admin session and other pages are unaffected.</p>
+                        <button type="button" className="mt-3 rounded-md border border-rose-300 bg-white px-3 py-1.5 font-semibold" onClick={() => this.setState({ failed: false })}>
+                              Retry Alerts
+                        </button>
+                  </section>
+            );
+      }
+}
+
 function CountCard({ label, value, icon: Icon }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4">
@@ -2086,7 +2121,7 @@ function CountCard({ label, value, icon: Icon }) {
   );
 }
 
-export default function AlertsAdmin() {
+function AlertsAdminContent() {
   const [form, setForm] = useState({
     user_from: 1,
     user_to: 1000,
@@ -2127,8 +2162,11 @@ export default function AlertsAdmin() {
     if (audienceMode !== 'users' || searchQ.trim().length < 2) { setSearchResults([]); return undefined; }
     const t = setTimeout(() => {
       adminAPI.alertUserSearch(searchQ.trim())
-        .then((d) => setSearchResults(d?.users || []))
-        .catch(() => setSearchResults([]));
+                        .then((d) => setSearchResults(asArray(d?.users)))
+                        .catch((e) => {
+                              setSearchResults([]);
+                              setError(apiErrorMessage(e, 'Unable to load recipients.'));
+                        });
     }, 300);
     return () => clearTimeout(t);
   }, [searchQ, audienceMode]);
@@ -2153,9 +2191,11 @@ export default function AlertsAdmin() {
   const loadWinners = async () => {
     try {
       const d = await adminAPI.alertWinners(winnerSource, winnerRef);
-      setWinnerPreview(d);
-    } catch {
+                  setWinnerPreview({ count: Number(d?.count) || 0, users: asArray(d?.users) });
+                  setError('');
+            } catch (e) {
       setWinnerPreview({ count: 0, users: [] });
+                  setError(apiErrorMessage(e, 'Unable to load winners.'));
     }
   };
 
@@ -2170,9 +2210,10 @@ export default function AlertsAdmin() {
   const loadCampaigns = async () => {
     try {
       const data = await adminAPI.alertCampaigns(100);
-      setCampaigns(data?.campaigns || []);
+      setCampaigns(asArray(data?.campaigns).filter((item) => item && typeof item === 'object').map(normalizeCampaign));
+      setError('');
     } catch (e) {
-      setError(e?.response?.data?.detail || 'Unable to load alert campaigns.');
+      setError(apiErrorMessage(e, 'Unable to load alert campaigns.'));
     }
   };
 
@@ -2257,7 +2298,7 @@ export default function AlertsAdmin() {
       setNotice(`Campaign created. ${result?.targeted_count ?? 0} users targeted.`);
       await loadCampaigns();
     } catch (e2) {
-      setError(e2?.response?.data?.detail || 'Alert campaign failed.');
+      setError(apiErrorMessage(e2, 'Alert campaign failed.'));
     } finally {
       setLoading(false);
     }
@@ -2271,11 +2312,12 @@ export default function AlertsAdmin() {
         adminAPI.alertCampaign(id),
         adminAPI.alertDeliveries(id, { limit: 200 }),
       ]);
-      setSelected(campaign);
-      setDeliveries(deliveryData?.deliveries || []);
+                  if (!campaign || typeof campaign !== 'object') throw new Error('Invalid campaign response');
+                  setSelected(normalizeCampaign(campaign));
+                  setDeliveries(asArray(deliveryData?.deliveries).filter((item) => item && typeof item === 'object'));
       setFilter({ status: '', channel: '' });
     } catch (e) {
-      setError(e?.response?.data?.detail || 'Unable to load campaign.');
+      setError(apiErrorMessage(e, 'Unable to load campaign.'));
     } finally {
       setDetailLoading(false);
     }
@@ -2292,8 +2334,11 @@ export default function AlertsAdmin() {
         adminAPI.alertCampaign(selected.campaign_id),
         adminAPI.alertDeliveries(selected.campaign_id, params),
       ]);
-      setSelected(campaign);
-      setDeliveries(data?.deliveries || []);
+                  if (!campaign || typeof campaign !== 'object') throw new Error('Invalid campaign response');
+                  setSelected(normalizeCampaign(campaign));
+                  setDeliveries(asArray(data?.deliveries).filter((item) => item && typeof item === 'object'));
+    } catch (e) {
+      setError(apiErrorMessage(e, 'Unable to refresh delivery results.'));
     } finally {
       setDetailLoading(false);
     }
@@ -2301,7 +2346,10 @@ export default function AlertsAdmin() {
 
   const counts = selected?.delivery_counts || {};
   const sumStatus = (status) =>
-    Object.values(counts).reduce((n, c) => n + Number(c?.[status] || 0), 0);
+            Object.values(asRecord(counts)).reduce((n, c) => {
+                  const value = Number(asRecord(c)[status] || 0);
+                  return n + (Number.isFinite(value) ? value : 0);
+            }, 0);
 
   return (
     <div className="space-y-6">
@@ -2569,4 +2617,12 @@ export default function AlertsAdmin() {
       )}
     </div>
   );
+}
+
+export default function AlertsAdmin() {
+      return (
+            <AlertsErrorBoundary>
+                  <AlertsAdminContent />
+            </AlertsErrorBoundary>
+      );
 }

@@ -16,7 +16,7 @@
     "/app/backend/tests/test_iter43_history_acquisition.py"
   ],
   "success_rate": {"backend": "100%", "frontend": "100%"},
-  "test_credentials": "bachanta8@gmail.com / Herts@910022 (super_admin, user_5c46ef7fcca1)",
+  "test_credentials": "<admin-email> / <redacted> (super_admin, user_5c46ef7fcca1)",
   "seed_data_creation": "3 test acquisition_visits documents inserted with TEST_ visitor_id prefixes via public tracking endpoint (google, utm-campaign, direct). No progression/prize data touched.",
   "retest_needed": false,
   "should_main_agent_self_test": false,

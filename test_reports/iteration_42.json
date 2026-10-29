@@ -27,7 +27,7 @@
   ],
   "updated_files": ["/app/backend/tests/test_cashout_iter42.py"],
   "success_rate": {"backend": "100% (8/8 pytest)", "frontend": "100% functionally verified via UI (all data-testids present, all flows completed, screenshot evidence)"},
-  "test_credentials": "player1@example.com/Player@12345, bachanta8@gmail.com/Herts@910022 (from /app/memory/test_credentials.md)",
+  "test_credentials": "player1@example.com/<redacted>, <admin-email>/<redacted> (from /app/memory/test_credentials.md)",
   "seed_data_creation": "Multiple TEST_ bank accounts added for player1; several WD-* cashout requests created and processed (paid/rejected) during testing. Player1 wallet ended at Total 379, Bonus 0, Available £10 (from 50 seeded — £20 paid, £20 pending settled, plus rejects released). Flag reset to OFF at end.",
   "retest_needed": false,
   "main_agent_can_self_test": true,

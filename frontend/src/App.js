@@ -50,6 +50,7 @@ const AcquisitionAdmin = lazy(() => import('./pages/admin/AcquisitionAdmin'));
 import AcquisitionTracker from './components/AcquisitionTracker';
 import AnalyticsConsent from './components/AnalyticsConsent';
 import ActivityPing from './components/ActivityPing';
+import WebPushPrompt from './components/WebPushPrompt';
 const AdminKyc = lazy(() => import('./pages/admin/KycPage'));
 const AdminPayments = lazy(() => import('./pages/admin/PaymentsPage'));
 const AdminSettings = lazy(() => import('./pages/admin/SettingsPage'));
@@ -66,6 +67,7 @@ const ReferralsBonusesAdmin = lazy(() => import('./pages/admin/ReferralsBonusesA
 const InfluencersAdmin = lazy(() => import('./pages/admin/InfluencersAdmin'));
 const InfluencerDashboard = lazy(() => import('./pages/InfluencerDashboard'));
 const FreeWorldAdmin = lazy(() => import('./pages/admin/FreeWorldAdmin'));
+const WorldGCCompetitionAdmin = lazy(() => import('./pages/admin/WorldGCCompetitionAdmin'));
 const SpecialChallengeAdmin = lazy(() => import('./pages/admin/SpecialChallengeAdmin'));
 const WinningsPayoutsAdmin = lazy(() => import('./pages/admin/WinningsPayoutsAdmin'));
 const CashOutAdmin = lazy(() => import('./pages/admin/CashOutAdmin'));
@@ -516,6 +518,11 @@ function AppRouter() {
         />
 
         <Route
+          path="world-gc-settings"
+          element={<WorldGCCompetitionAdmin />}
+        />
+
+        <Route
           path="special-challenge"
           element={<SpecialChallengeAdmin />}
         />
@@ -688,6 +695,7 @@ function App() {
           <AcquisitionTracker />
           <AnalyticsConsent />
           <ActivityPing />
+          <WebPushPrompt />
 
 
           {/* Handles promotion intent

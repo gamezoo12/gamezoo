@@ -38,7 +38,7 @@
     "frontend": "100% for the review-request scenarios exercised (contest detail, cart, draw centre both routes, header trophy + mobile drawer stripped, admin users columns/order/verification pill, profile tab @username + user_id + DOB read-only + address editable & persisted)"
   },
 
-  "test_credentials": "Admin: bachanta8@gmail.com / Herts@910022 (verified working). Player: fresh user minted per test via /api/auth/register with otp_code=000000. Session bootstrapped in UI by setting localStorage['gz_token'].",
+  "test_credentials": "Admin: <admin-email> / <redacted> (verified working). Player: fresh user minted per test via /api/auth/register with otp_code=000000. Session bootstrapped in UI by setting localStorage['gz_token'].",
 
   "seed_data_creation": "Registered ~5 fresh test users (e2e_p2_*, e2e_profile_*) via /api/auth/register during this iteration. User count now 149. Consider a periodic cleanup of TEST_/e2e_ prefixed users to keep the admin list tidy.",
 

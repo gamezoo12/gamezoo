@@ -19,7 +19,7 @@
   ],
   "updated_files": [],
   "success_rate": {"backend": "100% (14/14 iter22 regression)", "frontend": "100% (6/6 UI cases)"},
-  "test_credentials": "Super admin bachanta8@gmail.com / Herts@910022 (worked). Test contest slug test-skill-leaderboard-contest-a0e33a / contest_id c_fd360e20adad (live).",
+  "test_credentials": "Super admin <admin-email> / <redacted> (worked). Test contest slug test-skill-leaderboard-contest-a0e33a / contest_id c_fd360e20adad (live).",
   "seed_data_creation": "None. Temporary edits made and reverted: contest short_description set then cleared to null; free_postal_entry_available toggled True then False; company.postal_address_line1 set to 'PO Box 999' then restored to '118 Windsor Road'; contest engine_type cycled through random_draw/instant_win and restored to leaderboard. Verified via public GET after restore.",
   "retest_needed": false,
   "main_agent_can_self_test": true,

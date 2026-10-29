@@ -24,6 +24,7 @@ import {
 import {
   worldAPI,
   worldContestAPI,
+  worldGcCompetitionAPI,
   acquisitionAPI,
 } from '../lib/api';
 import { analyticsAllowed } from '../components/AcquisitionTracker';
@@ -40,6 +41,9 @@ import WorldCanvas
 
 import FreeWorldLeaderboard
   from './components/FreeWorldLeaderboard';
+
+import EveryLevelWorld
+  from './components/EveryLevelWorld';
 
 import FreeWorldNumberSequence
   from './components/FreeWorldNumberSequenceV3';
@@ -79,6 +83,25 @@ export default function PrizeLeagueWorld() {
 
   const [championMode, setChampionMode] =
     useState(false);
+
+  const [futureGcModel, setFutureGcModel] = useState(null);
+  const [worldPaused, setWorldPaused] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    const check = () => worldGcCompetitionAPI.pauseStatus().then((r) => { if (active) setWorldPaused(r?.paused ? r.message : null); }).catch(() => {});
+    check();
+    const timer = setInterval(() => { if (document.visibilityState === 'visible') check(); }, 30000);
+    return () => { active = false; clearInterval(timer); };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    worldGcCompetitionAPI.activeModel().then((result) => {
+      if (active && result?.active && result.model === 'every_level') setFutureGcModel(result);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   // Keep the game overlay above the fixed announcement/header while playing.
   useEffect(() => {
@@ -428,9 +451,14 @@ export default function PrizeLeagueWorld() {
   ]);
 
 
+  if (futureGcModel?.active && futureGcModel.model === 'every_level') {
+    return <EveryLevelWorld gcNumber={futureGcModel.gc_number} onExit={() => navigate('/choose-world')} />;
+  }
+
   return (
     <div className="pl-world-page">
       <WorldAlertPopup />
+      {worldPaused && <div role="status" data-testid="free-world-paused-banner" style={{ position: 'fixed', left: '50%', transform: 'translateX(-50%)', top: 'calc(var(--pl-topbar-h, 113px) + 12px)', zIndex: 60, background: '#1f1147', color: '#FFD54A', border: '1px solid #FFD54A', borderRadius: 999, padding: '10px 18px', fontWeight: 800, fontSize: 14, maxWidth: '92vw', textAlign: 'center' }}>{worldPaused}</div>}
 
       {!showWorldLeaderboard && (
 <WorldCanvas />

@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import uuid
 import hashlib,hmac,json,secrets
 from fastapi import APIRouter,HTTPException,Request
 from auth import require_admin
@@ -69,8 +70,10 @@ async def mark_winner_paid(place:int,request:Request,promotion_id:str|None=None)
  if not draw:raise HTTPException(404,'Draw not found.')
  winner=next((w for w in draw.get('winners',[]) if int(w.get('place',0))==place),None)
  if not winner:raise HTTPException(404,'Winner not found.')
+ if winner.get('payment_status')=='paid':
+  return {'ok':True,'status':'paid','idempotent':True,'wallet_transaction_ref':winner.get('wallet_transaction_ref'),'wallet_transaction_id':winner.get('wallet_transaction_id')}
  if winner.get('verification_status')!='verified':raise HTTPException(400,'Verify the winner before marking paid.')
- ref=f'promotion:{pid}:winner:{place}';amount=round(float(winner.get('prize_gbp',0)),2);tx=await _apply_tx_idempotent(db,winner['user_id'],'promo_bonus',amount,note=f'{cfg["name"]} Winner #{place} prize',ref_order_id=ref);actor=admin if isinstance(admin,dict) else {};now=datetime.now(timezone.utc);await db.promotion_draws.update_one({'promotion_id':pid,'winners.place':place},{'$set':{'winners.$.payment_status':'paid','winners.$.paid_at':now,'winners.$.paid_by_user_id':actor.get('user_id'),'winners.$.wallet_transaction_ref':ref}});return {'ok':True,'status':'paid','tokens_credited':amount,'wallet_transaction_ref':ref,'balance':tx.get('balance')}
+ ref=f'promotion:{pid}:winner:{place}';amount=round(float(winner.get('prize_gbp',0)),2);tx=await _apply_tx_idempotent(db,winner['user_id'],'paid_prize_cash',amount,note=f'{cfg["name"]} Winner #{place} prize',ref_order_id=ref);actor=admin if isinstance(admin,dict) else {};now=datetime.now(timezone.utc);tx_id=(tx.get('tx') or {}).get('tx_id');await db.promotion_draws.update_one({'promotion_id':pid,'winners.place':place},{'$set':{'winners.$.payment_status':'paid','winners.$.paid_at':now,'winners.$.paid_by_user_id':actor.get('user_id'),'winners.$.wallet_transaction_ref':ref,'winners.$.wallet_transaction_id':tx_id}});await db.audit_log.insert_one({'audit_id':f'aud_{uuid.uuid4().hex[:12]}','kind':'promotion_prize_wallet_credit','promotion_id':pid,'place':place,'winner_user_id':winner['user_id'],'prize_amount_gbp':amount,'wallet_transaction_id':tx_id,'wallet_transaction_ref':ref,'admin_user_id':actor.get('user_id'),'admin_email':actor.get('email'),'at':now});return {'ok':True,'status':'paid','tokens_credited':amount,'wallet_transaction_ref':ref,'wallet_transaction_id':tx_id,'balance':tx.get('balance')}
 @router.get('/draw/history')
 async def draw_history(request:Request):
  await require_admin(request);db=get_db();items=await db.promotion_draws.find({}, {'_id':0}).sort('drawn_at',-1).limit(100).to_list(100);return {'items':items,'count':len(items)}

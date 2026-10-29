@@ -39,7 +39,7 @@
     "backend": "100% (3/3 endpoints: verify feed 200, track-view 200 + 404, admin contests exposes counters)",
     "frontend": "75% (3/4 P0 features work: /verify, WinnersReveal replay, focal grid; admin mobile hint missing)"
   },
-  "test_credentials": "bachanta8@gmail.com / Herts@910022 (super_admin)",
+  "test_credentials": "<admin-email> / <redacted> (super_admin)",
   "seed_data_creation": "Temporarily set c_fd360e20adad status=live, mobile_views=16, desktop_views=6, mobile_image=null; seeded 3 game_scores (Alice/Bob/Carol) + 3 test users to make WinnersReveal podium render. After the two card-click tests bumped counters to mobile_views=17, desktop_views=7. All seed data cleaned up at end: contest reverted to status=closed_no_entries, mobile_views=0, desktop_views=0, mobile_image=null; test users and game_scores deleted.",
   "retest_needed": true,
   "should_main_agent_self_test": true,

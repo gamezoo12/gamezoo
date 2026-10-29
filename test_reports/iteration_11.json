@@ -28,7 +28,7 @@
     "backend": "100% (15/15 new tests passing)",
     "frontend": "100% (all data-testid selectors present and clickable; toast + counters update after bulk actions)"
   },
-  "test_credentials": "Admin: bachanta8@gmail.com / Herts@910022 (from /app/memory/test_credentials.md)",
+  "test_credentials": "Admin: <admin-email> / <redacted> (from /app/memory/test_credentials.md)",
   "seed_data_creation": "None. Test relies on the 3 pre-seeded contests (memory_match, number_sequence, emoji_riddle) mentioned by main agent. bulk/launch relaunches them at the end of the test so subsequent runs / UI checks continue to see them as live.",
   "retest_needed": false,
   "main_agent_can_self_test": true,

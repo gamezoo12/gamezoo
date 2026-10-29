@@ -127,16 +127,9 @@ class RevokeAllInput(BaseModel):
     confirm: str = Field(default='', max_length=40)
 
 
-@router.post('/revoke-all')
-async def revoke_all(payload: RevokeAllInput, request: Request):
-    admin = await _admin_or_403(request)
-    if admin.get('role') != 'super_admin':
-        raise HTTPException(status_code=403, detail='Only super admin can remove bonus tokens for all users')
-    if payload.confirm != 'REMOVE ALL BONUS':
-        raise HTTPException(status_code=400, detail="Type 'REMOVE ALL BONUS' to confirm")
-    from deps import get_db
-    db = get_db()
-    grant_ids = [g['grant_id'] async for g in db.bonus_grants.find({'status': 'active'}, {'_id': 0, 'grant_id': 1})]
+async def revoke_all_active_grants(db, admin: dict, reason: str, scope: Optional[dict] = None) -> dict:
+    """`scope` narrows the grants (isolated tests only); the endpoint always revokes everything."""
+    grant_ids = [g['grant_id'] async for g in db.bonus_grants.find({'status': 'active', **(scope or {})}, {'_id': 0, 'grant_id': 1})]
     revoked, skipped, tokens, users = 0, 0, 0.0, set()
     for grant_id in grant_ids:
         result = await revoke_grant(db, grant_id, admin['user_id'])
@@ -150,11 +143,22 @@ async def revoke_all(payload: RevokeAllInput, request: Request):
         'audit_id': f'aud_{uuid.uuid4().hex[:12]}', 'kind': 'admin_bonus_revoke_all',
         'admin_user_id': admin['user_id'], 'admin_email': admin.get('email'),
         'grants_revoked': revoked, 'grants_skipped': skipped, 'users_affected': len(users),
-        'tokens_removed': round(tokens, 2), 'reason': payload.reason.strip(),
+        'tokens_removed': round(tokens, 2), 'reason': reason.strip(),
         'at': datetime.now(timezone.utc),
     })
     return {'grants_revoked': revoked, 'grants_skipped': skipped, 'users_affected': len(users),
             'tokens_removed': round(tokens, 2)}
+
+
+@router.post('/revoke-all')
+async def revoke_all(payload: RevokeAllInput, request: Request):
+    admin = await _admin_or_403(request)
+    if admin.get('role') != 'super_admin':
+        raise HTTPException(status_code=403, detail='Only super admin can remove bonus tokens for all users')
+    if payload.confirm != 'REMOVE ALL BONUS':
+        raise HTTPException(status_code=400, detail="Type 'REMOVE ALL BONUS' to confirm")
+    from deps import get_db
+    return await revoke_all_active_grants(get_db(), admin, payload.reason)
 
 
 @router.post('/run-expiry')

@@ -46,6 +46,7 @@ export default function DashboardWalletReport() {
   if (failed) return <div className="text-sm text-rose-600">Wallet report is unavailable.</div>;
   if (!report) return <div className="text-sm text-slate-400">Loading wallet report…</div>;
   const b = report.bonus_tokens; const p = report.purchased_tokens; const w = report.winnings;
+  const bonusSources = b.by_source || {};
   return (
     <section className="space-y-3" data-testid="dashboard-wallet-report">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -56,7 +57,16 @@ export default function DashboardWalletReport() {
         </div>
       </div>
       <div className="text-[11px] text-slate-400">{report.units}</div>
-      <div className="grid gap-3 lg:grid-cols-3">
+      <div className="grid gap-3 lg:grid-cols-4">
+        <Group testid="wallet-balance-summary" title="Available balances (tokens)" tone="text-slate-700">
+          <Row label="Top-up Tokens" value={t(report.token_balances?.topup_tokens)} />
+          <Row label="Winning Tokens" value={t(report.token_balances?.winning_tokens)} />
+          <Row label="Winning Bonus Tokens" value={t(report.token_balances?.winning_bonus_tokens)} />
+          <Row label="Bonus Tokens" value={t(report.token_balances?.bonus_tokens)} />
+          <Row label="TOTAL TOKENS" value={t(report.token_balances?.total_available_tokens)} testid="wallet-total-available" />
+          <Row label="CASHOUT AVAILABLE" value={t(report.token_balances?.cashout_available_tokens)} />
+          <Row label="Unclassified legacy" value={t(report.token_balances?.unclassified_legacy_tokens)} />
+        </Group>
         <Group testid="wallet-bonus-group" title="Bonus tokens (tokens)" tone="text-amber-700">
           <Row label="Available now" value={t(b.available)} testid="bonus-available" />
           <Row label="Issued" value={t(b.issued)} />
@@ -68,15 +78,41 @@ export default function DashboardWalletReport() {
           <Row label="Expiring within 24h" value={t(b.due_to_expire_24h)} testid="bonus-due-24h" />
           <Row label="Expiring within 7 days" value={t(b.due_to_expire_7d)} testid="bonus-due-7d" />
         </Group>
+        <Group testid="wallet-bonus-source-group" title="Bonus source accounting (tracked grants)" tone="text-amber-700">
+          {[["Signup", bonusSources.signup], ["Normal top-up", bonusSources.normal_topup], ["Referral", bonusSources.referral], ["Admin", bonusSources.admin], ["Influencer", bonusSources.influencer], ["World competition", bonusSources.world_competition], ["Other", bonusSources.other]].map(([label, source]) => (
+            <div key={label} className="border-b border-slate-100 pb-2 last:border-0">
+              <div className="font-semibold text-slate-700">{label}</div>
+              <Row label="Issued" value={t(source?.issued)} />
+              <Row label="Outstanding tracked" value={t(source?.outstanding_tracked)} />
+              <Row label="Spent / expired" value={`${t(source?.spent_tracked)} / ${t(source?.expired_tracked)}`} />
+            </div>
+          ))}
+          <p className="text-[11px] text-slate-500">Untracked legacy bonus balance: {t(b.legacy_non_expiring_held)} tokens; its original source cannot be verified.</p>
+        </Group>
+        <Group testid="wallet-winning-bonus-group" title="Winning bonus tokens" tone="text-teal-700">
+          <Row label="Issued" value={t(report.winning_bonus_tokens?.issued)} />
+          <Row label="Outstanding" value={t(report.winning_bonus_tokens?.held)} testid="winning-bonus-held" />
+        </Group>
         <Group testid="wallet-purchased-group" title="Purchased tokens (tokens) and top-ups (GBP)" tone="text-violet-700">
           <Row label="Held by users" value={t(p.held)} />
           <Row label="Tokens purchased" value={t(p.purchased_total)} />
+          <Row label="Top-up tokens held" value={t(p.held)} />
+          <Row label="Top-up tokens spent" value={p.spent_source_labeled == null ? 'Unavailable for legacy rows' : t(p.spent_source_labeled)} />
           <Row label="Tokens spent (all types)" value={t(p.spent_total_all_token_types)} />
-          <Row label="Top-up value paid (GBP)" value={gbp(p.topup_value_gbp)} />
+          <Row label="Live Stripe cash received (GBP)" value={gbp(p.live_stripe_cash_received_gbp)} />
+          <Row label="Live Stripe refunds (GBP)" value={gbp(p.live_stripe_refunds_gbp)} />
+          <Row label="Historical paid mode unknown (GBP)" value={gbp(p.historical_paid_without_mode_gbp)} />
+          <Row label="Recognized revenue / fees / net" value={p.net_revenue_gbp == null ? 'Not tracked' : gbp(p.net_revenue_gbp)} />
           <Row label="Refunds (tokens)" value={t(p.refunds_tokens)} />
           <Row label="Admin adjustments (tokens)" value={`+${t(p.admin_adjustments_tokens.credited)} / -${t(p.admin_adjustments_tokens.debited)}`} />
         </Group>
         <Group testid="wallet-winnings-group" title="Winnings" tone="text-emerald-700">
+          <Row label="Free World Winning Tokens issued" value={t(w.free_world_tokens_issued)} />
+          <Row label="Paid World cash Winning Tokens issued" value={t(w.paid_world_cash_tokens_issued)} />
+          <Row label="Paid World Winning Bonus Tokens issued" value={t(w.paid_world_bonus_tokens_issued)} />
+          <Row label="Pending Paid World prizes" value={`${w.pending_paid_world_prizes?.count ?? 0} prizes`} />
+          <Row label="Pending cash prizes (tokens)" value={t(w.pending_paid_world_prizes?.cash_tokens)} />
+          <Row label="Pending bonus prizes (tokens)" value={t(w.pending_paid_world_prizes?.winning_bonus_tokens)} />
           <Row label="Champion prizes awarded (tokens)" value={t(w.championship_prize_tokens.awarded)} />
           <Row label="Held, withdrawable (tokens)" value={t(w.championship_prize_tokens.held_withdrawable)} />
           <Row label="Cash-outs pending (GBP)" value={gbp(w.championship_prize_tokens.pending_requests_gbp)} />

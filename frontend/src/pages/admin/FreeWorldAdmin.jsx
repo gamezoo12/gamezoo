@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 
 import { worldAdminAPI } from '../../lib/api';
+import { FreeWorldPauseControl } from '../../components/admin/FreeWorldPauseControl';
 import { Button } from '../../components/ui/button';
 import { useToast } from '../../hooks/use-toast';
 
@@ -526,6 +527,8 @@ export default function FreeWorldAdmin() {
           Refresh
         </Button>
       </div>
+
+      <FreeWorldPauseControl />
 
       {/* SECTION 1 — SEASON CONTROL */}
       <section className="rounded-2xl border border-slate-200 bg-white p-5"

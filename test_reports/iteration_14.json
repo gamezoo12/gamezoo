@@ -31,7 +31,7 @@
     "/app/backend/tests/test_uploads.py (new â€” 9 pytest tests for upload feature)"
   ],
   "success_rate": {"backend": "100% (9/9)", "frontend": "93% (14/15; only 'home hero carousel shows uploaded image' was inconclusive because the carousel slices .slice(0,6) of the API list and the newly-created contest sits further down the sort order â€” same underlying image field IS returned by the API and DOES render on the /competitions grid + /competition/:slug detail, so this is not a code bug, just a carousel-slot allocation)"},
-  "test_credentials": "Admin: bachanta8@gmail.com / Herts@910022 (from /app/memory/test_credentials.md)",
+  "test_credentials": "Admin: <admin-email> / <redacted> (from /app/memory/test_credentials.md)",
   "seed_data_creation": "Created two test contests via the flow (TEST_UploadContest_<hex> via backend integration test with `featured=true`, and TESTUpFE<timestamp> via the UI flow with `live` status). Both persist in Mongo `contests` collection and are visible under /admin/competitions and /competitions.",
   "retest_needed": true,
   "main_agent_can_self_test": true,

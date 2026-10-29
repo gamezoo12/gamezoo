@@ -2,11 +2,14 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { referralAPI } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
+import useActiveOffer, { gbpText, tokensText } from '../../lib/useActiveOffer';
 import { Gift, Users, ArrowRight, Copy, Check } from 'lucide-react';
 import { Button } from '../ui/button';
 
 export default function ReferralPromo() {
   const { user } = useAuth();
+  const { offer } = useActiveOffer();
+  const terms = offer?.referral;
   const [code, setCode] = useState(null);
   const [copied, setCopied] = useState(false);
 
@@ -41,17 +44,17 @@ export default function ReferralPromo() {
                 <Gift className="w-3.5 h-3.5 text-amber-300" /> Refer &amp; Earn
               </div>
               <h2 className="mt-4 font-display text-3xl lg:text-4xl font-extrabold leading-tight">
-                Invite a friend and <span className="text-amber-300">earn</span> <span className="bg-gradient-to-r from-amber-200 to-orange-300 bg-clip-text text-transparent">5 tokens</span>
+                Invite a friend and <span className="text-amber-300">earn</span> <span className="bg-gradient-to-r from-amber-200 to-orange-300 bg-clip-text text-transparent">{terms?.enabled ? tokensText(terms.referrer_reward_tokens) : 'rewards'}</span>
               </h2>
               <p className="mt-3 text-white/80 text-base max-w-lg">
-                Share your unique referral link. Your friend must sign up with your code, top up £10 or more in one verified payment and enter at least one contest. Once qualified, you automatically receive 5 referral reward tokens.
+                {terms?.enabled ? `Share your unique referral link. ${terms.text}` : 'The referral offer is not available at the moment.'}
               </p>
-              <ul className="mt-5 space-y-2 text-sm text-white/80">
+              {terms?.enabled && <ul className="mt-5 space-y-2 text-sm text-white/80">
                 <li className="flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center font-bold text-xs">1</span> Share your link</li>
                 <li className="flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center font-bold text-xs">2</span> Friend signs up with your referral code</li>
-                <li className="flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center font-bold text-xs">3</span> Friend tops up £10+ and enters at least one contest</li>
-                <li className="flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center font-bold text-xs">4</span> You receive 5 referral reward tokens 🪙</li>
-              </ul>
+                <li className="flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center font-bold text-xs">3</span> Friend tops up {gbpText(terms.qualifying_topup_gbp)}+{terms.contest_entry_required ? ' and enters at least one contest' : ''}</li>
+                <li className="flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center font-bold text-xs">4</span> You receive {tokensText(terms.referrer_reward_tokens)} 🪙</li>
+              </ul>}
             </div>
 
             <div className="bg-white/10 backdrop-blur border border-white/20 rounded-2xl p-6">

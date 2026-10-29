@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { gbp, tokens as fmtTokens, tokenCount } from '../../lib/format';
-import { walletAPI, paymentsAPI } from '../../lib/api';
+import { walletAPI, paymentsAPI, referralAPI } from '../../lib/api';
+import useActiveOffer, { tokensText, refreshActiveOffer } from '../../lib/useActiveOffer';
 import { useToast } from '../../hooks/use-toast';
 import { Coins, ShieldCheck, TrendingUp, TrendingDown, Plus, Minus, Sparkles, Receipt, Wallet as WalletIcon, X } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -10,8 +11,6 @@ import PrizeLeagueLogo from '../layout/PrizeLeagueLogo';
 import CashOutCard from './CashOutCard';
 import BonusTokensCard from './BonusTokensCard';
 
-const MIN_TOPUP = 5;   // tokens (1 token = £1)
-const MAX_TOPUP = 1000;
 const FILTERS = [
  { id: 'today', label: 'Today', days: 1 },
  { id: 'week', label: 'Week', days: 7 },
@@ -100,8 +99,60 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  const [selectedTx, setSelectedTx] = useState(null);
  const [showTopup, setShowTopup] = useState(!!autoOpenTopup);
  const [confirmingPayment, setConfirmingPayment] = useState(false);
+ const [myOffer, setMyOffer] = useState(null);
+ const [myPromotion, setMyPromotion] = useState(null);
+ const { offer } = useActiveOffer();
  const { toast } = useToast();
+ const minTopup = offer?.topup?.min_gbp;
+ const maxTopup = offer?.topup?.max_gbp;
+ const presets = offer?.topup?.presets_gbp || [];
 
+ // The user's own signup terms (stored when they joined) decide what a payment earns them.
+ const loadMyOffer = useCallback(() => referralAPI.me().then((r) => {
+   setMyOffer(r?.signup_bonus || null);
+   setMyPromotion(r?.promotion || null);
+   return r;
+ }).catch(() => null), []);
+ useEffect(() => { loadMyOffer(); }, [loadMyOffer]);
+ const isInfluencer = myPromotion?.acquisition_type === 'influencer';
+ const promoUnresolved = myPromotion?.acquisition_type === 'unresolved';
+ const signupBonusFor = (amount) => {
+   if (isInfluencer || promoUnresolved) return 0;
+   const s = myOffer;
+   return s && s.eligible && !s.granted && s.offer_enabled && amount >= Number(s.required_topup_gbp) ? Number(s.reward_tokens) : 0;
+ };
+ const purchasedTokensFor = (amount) => amount * Number(offer?.topup?.tokens_per_gbp ?? 1);
+ const normalTopupBonusFor = (amount) => {
+   if (isInfluencer || promoUnresolved) return 0;
+   const terms = myPromotion?.normal_topup_promo;
+   if (!terms?.enabled || amount < Number(terms.minimum_gbp || 0)) return 0;
+   if (terms.first_only && Number(myPromotion?.normal_topup_bonus_tokens_issued || 0) > 0) return 0;
+   const purchased = purchasedTokensFor(amount);
+   return terms.mode === 'percentage'
+     ? purchased * Number(terms.reward_percent || 0) / 100
+     : Number(terms.reward_tokens || 0);
+ };
+ const influencerSignupBonusFor = (amount) => {
+   const p = myPromotion;
+   const campaign = p?.campaign;
+   if (!isInfluencer || !p?.campaign_active || p?.blocked_reason || p?.signup_bonus_status !== 'pending') return 0;
+   if (campaign?.signup_when !== 'first_topup') return 0;
+   if (amount < Number(campaign.topup_minimum_gbp || 0)) return 0;
+   return Number(campaign.signup_reward_tokens || 0);
+ };
+ const influencerTopupBonusFor = (amount) => {
+   const p = myPromotion;
+   const campaign = p?.campaign;
+   if (!isInfluencer || !p?.campaign_active || p?.blocked_reason || !campaign) return 0;
+   const rank = Number(p.next_influencer_topup_rank || 1);
+   const rule = campaign.topup_qualification;
+   if (rule === 'first_success' && rank !== 1) return 0;
+   if (rule === 'first_n' && rank > Number(campaign.topup_first_n || 1)) return 0;
+   if (amount < Number(campaign.topup_minimum_gbp || 0)) return 0;
+   return campaign.topup_reward_mode === 'percentage'
+     ? amount * Number(campaign.topup_reward_percent || 0) / 100
+     : Number(campaign.topup_reward_tokens || 0);
+ };
  const refreshWallet = useCallback(async () => {
    const next = await walletAPI.me();
    setWallet(next);
@@ -130,6 +181,10 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
          setWallet(w);
          setConfirmingPayment(false);
          toast({ title: 'Payment confirmed 🎉', description: `+${Math.round(Number(w.balance) - startBalance)} tokens added to your wallet.` });
+         // Reward status can change as soon as a verified payment lands.
+         refreshActiveOffer();
+         loadMyOffer();
+         window.dispatchEvent(new CustomEvent('pl:wallet-updated'));
          // Refresh transactions too
          import('../../lib/api').then(m => m.walletAPI.transactions(20).then(r => setWalletTxs(r?.transactions || [])).catch(() => {}));
          return;
@@ -161,7 +216,8 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  }, [filteredTxs]);
 
  const topupPreset = async (amount) => {
- if (amount < MIN_TOPUP) return toast({ title: `Minimum purchase is ${fmtTokens(MIN_TOPUP)}` });
+ if (!offer?.topup) return toast({ title: 'Top-up pricing unavailable', description: 'Please try again shortly.' });
+ if (amount < minTopup) return toast({ title: `Minimum purchase is ${fmtTokens(minTopup)}` });
  setBusy(true);
  try {
  const originUrl = window.location.origin;
@@ -182,8 +238,9 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
 
  const submitCustom = () => {
  const n = parseInt(customAmount, 10);
- if (Number.isNaN(n) || n < MIN_TOPUP) return toast({ title: `Enter at least ${fmtTokens(MIN_TOPUP)}` });
- if (n > MAX_TOPUP) return toast({ title: `Maximum single purchase is ${fmtTokens(MAX_TOPUP)}` });
+ if (!offer?.topup) return toast({ title: 'Top-up pricing unavailable', description: 'Please try again shortly.' });
+ if (Number.isNaN(n) || n < minTopup) return toast({ title: `Enter at least ${fmtTokens(minTopup)}` });
+ if (n > maxTopup) return toast({ title: `Maximum single purchase is ${fmtTokens(maxTopup)}` });
  topupPreset(n);
  };
 
@@ -208,7 +265,7 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  <span>{wallet ? tokenCount(wallet.tokens ?? wallet.balance) : 0}</span>
  <span className="text-xl md:text-2xl text-white/80 font-bold">tokens</span>
  </div>
- <div className="mt-2 text-xs text-white/85">Use tokens to enter contests · minimum {MIN_TOPUP} tokens per purchase</div>
+ <div className="mt-2 text-xs text-white/85">Use tokens to enter contests · {minTopup != null ? `minimum ${minTopup} tokens per purchase` : 'top-up pricing loading'}</div>
  </div>
  <button
  onClick={() => setShowTopup(true)}
@@ -244,23 +301,49 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  <h3 className="font-display font-extrabold text-2xl text-slate-900">Buy tokens</h3>
  <button className="text-slate-400 hover:text-slate-700" onClick={() => setShowTopup(false)} aria-label="Close"><X className="w-4 h-4" /></button>
  </div>
- <p className="text-sm text-slate-500 mb-4">Minimum {fmtTokens(MIN_TOPUP)} · Secure Stripe checkout · Tokens credited instantly.</p>
+ <p className="text-sm text-slate-500 mb-4">{minTopup != null ? `Minimum ${fmtTokens(minTopup)}` : 'Pricing unavailable'} · Secure Stripe checkout · Tokens credited after payment confirmation.</p>
+ {isInfluencer && myPromotion?.campaign && (
+  <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 mb-4 text-xs text-emerald-900" data-testid="topup-influencer-offer">
+   <strong>{myPromotion.campaign_name || myPromotion.influencer_name || 'Influencer campaign'}:</strong> {myPromotion.campaign.conditions_text}
+   {myPromotion.blocked_reason && <div className="mt-1">Promotional reward is held for review.</div>}
+  </div>
+ )}
+ {!isInfluencer && !promoUnresolved && myOffer?.eligible && !myOffer.granted && myOffer.offer_enabled && myOffer.conditions_text && (
+  <div className="rounded-xl border border-[#FFD54A]/60 bg-[#FFD54A]/10 px-3 py-2.5 mb-4 text-xs text-slate-700" data-testid="topup-signup-offer">
+   <strong>Your signup offer:</strong> {myOffer.conditions_text}
+  </div>
+ )}
+ {!isInfluencer && !promoUnresolved && myPromotion?.normal_topup_promo?.enabled && (
+  <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 mb-4 text-xs text-emerald-900" data-testid="normal-topup-promo-terms">
+   Normal top-up promotion: {myPromotion.normal_topup_promo.mode === 'percentage'
+     ? `${myPromotion.normal_topup_promo.reward_percent}% Bonus Tokens`
+     : `${tokensText(myPromotion.normal_topup_promo.reward_tokens)} Bonus Tokens`}
+   {' '}on verified top-ups of {gbp(myPromotion.normal_topup_promo.minimum_gbp)} or more.
+   {myPromotion.normal_topup_promo.first_only ? ' First qualifying top-up only.' : ' Each qualifying top-up.'}
+   {myPromotion.normal_topup_promo.expiry_days ? ` Expires ${myPromotion.normal_topup_promo.expiry_days} days after credit.` : ''}
+  </div>
+ )}
+ {promoUnresolved && <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 mb-4 text-xs text-amber-900" data-testid="topup-promo-unresolved">Promotional rewards are paused while your promotion attribution is reviewed. Purchased Top-up Tokens are unaffected.</div>}
 
  <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
- {[5, 10, 20, 50, 100].map(n => (
+ {presets.map(n => (
  <button
  key={n}
  type="button"
- disabled={busy}
+ disabled={busy || !offer?.topup}
  onClick={() => topupPreset(n)}
  data-testid={`stripe-topup-${n}`}
  className={`group relative rounded-2xl border-2 p-4 text-center transition disabled:opacity-50 ${n === 20 ? 'border-[#FFD54A] bg-[#FFD54A]/5' : 'border-slate-200 hover:border-[#6C2BFF]'}`}
  >
  {n === 20 && <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-[#FFD54A] text-slate-900 text-[10px] font-bold px-2 py-0.5 rounded-full">Popular</span>}
  <div className="font-display text-2xl md:text-3xl font-extrabold text-slate-900 flex items-center justify-center gap-1">
- <Coins className="w-5 h-5 text-[#FFD54A]" />{n}
+ <Coins className="w-5 h-5 text-[#FFD54A]" />{purchasedTokensFor(n)}
  </div>
- <div className="text-[11px] text-slate-500 mt-1 font-semibold">tokens</div>
+ <div className="text-[11px] text-slate-500 mt-1 font-semibold">top-up tokens</div>
+ {signupBonusFor(n) > 0 && <div className="mt-1 text-[10px] font-bold text-emerald-700" data-testid={`topup-bonus-${n}`}>+ {tokensText(signupBonusFor(n))} Signup Bonus</div>}
+ {influencerSignupBonusFor(n) > 0 && <div className="mt-1 text-[10px] font-bold text-emerald-700" data-testid={`topup-influencer-signup-${n}`}>+ {tokensText(influencerSignupBonusFor(n))} Influencer Signup Bonus</div>}
+ {influencerTopupBonusFor(n) > 0 && <div className="mt-1 text-[10px] font-bold text-teal-700" data-testid={`topup-influencer-topup-${n}`}>+ {tokensText(influencerTopupBonusFor(n))} Influencer Top-up Bonus</div>}
+ {normalTopupBonusFor(n) > 0 && <div className="mt-1 text-[10px] font-bold text-emerald-700" data-testid={`normal-topup-bonus-${n}`}>+ {tokensText(normalTopupBonusFor(n))} Normal Top-up Bonus</div>}
  </button>
  ))}
  </div>
@@ -272,21 +355,29 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  <Coins className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
  <Input
  type="number"
- min={MIN_TOPUP}
- max={MAX_TOPUP}
+ min={minTopup}
+ max={maxTopup}
  step={1}
- placeholder={`Min ${MIN_TOPUP} tokens`}
+ placeholder={`Min ${minTopup} tokens`}
  className="pl-9 h-11 font-bold text-lg"
  value={customAmount}
  onChange={(e) => setCustomAmount(e.target.value)}
  data-testid="wallet-custom-amount"
  />
  </div>
- <Button onClick={submitCustom} disabled={busy} data-testid="wallet-custom-topup" className="pl-btn-gold text-slate-900 h-11 font-extrabold px-6">
+ <Button onClick={submitCustom} disabled={busy || !offer?.topup} data-testid="wallet-custom-topup" className="pl-btn-gold text-slate-900 h-11 font-extrabold px-6">
  <Sparkles className="w-4 h-4 mr-1" /> Buy tokens
  </Button>
  </div>
- <div className="text-[11px] text-slate-500 mt-2">You'll receive {parseInt(customAmount, 10) || 0} tokens. The exact charge amount is shown at Stripe checkout.</div>
+ <div className="text-[11px] text-slate-500 mt-2">
+  {(() => {
+    const amount = parseInt(customAmount, 10) || 0;
+    const signup = signupBonusFor(amount) + influencerSignupBonusFor(amount);
+    const normalTopup = normalTopupBonusFor(amount);
+    const promo = influencerTopupBonusFor(amount);
+    return `You'll receive ${purchasedTokensFor(amount)} purchased Top-up Tokens${signup ? ` + ${tokensText(signup)} signup bonus` : ''}${normalTopup ? ` + ${tokensText(normalTopup)} normal top-up bonus` : ''}${promo ? ` + ${tokensText(promo)} influencer top-up bonus` : ''}.`;
+  })()} The exact charge amount is shown at Stripe checkout.
+ </div>
  </div>
  <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
  <ShieldCheck className="w-4 h-4 text-emerald-600" /> Powered by Stripe. Card details never touch our servers.

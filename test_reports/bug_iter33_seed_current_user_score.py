@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 """Seed a current-user game score so the signed-in UI can show the YOU badge."""
 import json
 import uuid
@@ -22,7 +23,7 @@ fe = env("/app/frontend/.env")
 be = env("/app/backend/.env")
 base = fe["REACT_APP_BACKEND_URL"].rstrip("/") + "/api"
 s = requests.Session()
-r = s.post(base + "/auth/login", json={"email": "bachanta8@gmail.com", "password": "Herts@910022"}, timeout=20)
+r = s.post(base + "/auth/login", json={"email": os.environ["TEST_ADMIN_EMAIL"], "password": os.environ["TEST_ADMIN_PASSWORD"]}, timeout=20)
 r.raise_for_status()
 u = r.json()["user"]
 db = MongoClient(be["MONGO_URL"])[be.get("DB_NAME", "test_database")]

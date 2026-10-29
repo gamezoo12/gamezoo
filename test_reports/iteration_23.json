@@ -21,7 +21,7 @@
   ],
   "updated_files": ["/app/backend/tests/test_iter22_launch.py"],
   "success_rate": {"backend": "100% (14/14)", "frontend": "not tested (backend-only per request)"},
-  "test_credentials": "Super Admin bachanta8@gmail.com / Herts@910022 — works.",
+  "test_credentials": "Super Admin <admin-email> / <redacted> — works.",
   "seed_data_creation": "1 TEST_iter22_* postal entry created + deleted within test. legal_review_notes remains set to a TEST_iter22_* marker from an earlier update-and-audit test (idempotent).",
   "retest_needed": false,
   "main_agent_can_self_test": true,

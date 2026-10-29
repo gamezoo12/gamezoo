@@ -151,6 +151,10 @@ export default function Login() {
     sessionStorage.setItem('pl_google_referral_code', referralCode);
     localStorage.setItem('pl_referral_code', referralCode);
     localStorage.setItem('pl_referral_code_expires', String(Date.now() + 30 * 86400000));
+  } else if (Number(localStorage.getItem('pl_referral_code_expires') || 0) > Date.now()) {
+    // A code captured earlier (affiliate link) must survive the OAuth redirect.
+    const saved = String(localStorage.getItem('pl_referral_code') || '').trim().toUpperCase();
+    if (saved) sessionStorage.setItem('pl_google_referral_code', saved);
   }
 
   const redirectUrl = window.location.origin + '/auth-callback';

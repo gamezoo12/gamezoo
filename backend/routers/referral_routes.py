@@ -1,58 +1,86 @@
 """
 Prize League referral + signup bonus programme.
 
-Rules:
-- Minimum normal wallet top-up remains £5.
-- Signup bonus:
-    New eligible user completes ONE verified Stripe top-up of £10+
-    -> user receives 5 bonus tokens once.
-- Referral:
-    Referred user signs up with a valid referral code,
-    completes ONE verified Stripe top-up of £10+,
-    and successfully enters at least one contest
-    -> referrer receives 5 bonus tokens once.
+Every threshold, reward amount, expiry and the contest-entry requirement comes from the
+saved reward settings (services.reward_program) or from the terms snapshotted onto the
+user / referral when they became eligible (services.offer_terms). Nothing is hardcoded.
 
-Rewards are server-driven only.
-No free-ticket rewards.
-No £5 fallback credit.
+Rewards are server-driven only: triggered by VERIFIED Stripe payments and paid orders,
+with idempotent wallet grants so webhook retries, refreshes and concurrent requests
+cannot credit twice.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import logging
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, HTTPException, Request
 
 from auth import get_current_user
 from deps import get_db
-from services.reward_program import get_reward_settings
+from services.offer_terms import (
+    expiry_from_terms, public_offer, referral_progress, referral_terms,
+    signup_conditions_text, signup_terms,
+)
+from services.reward_program import get_reward_settings, resolve_acquisition_program
 
 
 router = APIRouter(prefix='/api/referrals', tags=['referrals'])
 
-QUALIFYING_TOPUP_GBP = 10.0
-SIGNUP_BONUS_TOKENS = 5.0
-REFERRAL_REWARD_TOKENS = 5.0
 PROGRAM_VERSION = 'tokens_v2'
+LOCK_TTL = timedelta(minutes=5)  # a crashed worker's claim becomes retryable after this
+
+logger = logging.getLogger(__name__)
 
 
-async def _notify_reward(
-    db,
-    user_id: str,
-    kind: str,
-    title: str,
-    body: str,
-    ref_tx_id: str | None = None,
-):
-    from notifications import notify
+async def _grant_normal_topup_bonus_once(db, user_id: str, amount_gbp: float, session_id: str | None) -> bool:
+    """Grant an enrolled Normal user's configured top-up promotion once per qualifying payment."""
+    if not session_id or await resolve_acquisition_program(db, user_id) != 'normal':
+        return False
+    user = await db.users.find_one({'user_id': user_id}, {'_id': 0, 'normal_topup_offer_terms': 1}) or {}
+    terms = user.get('normal_topup_offer_terms')
+    if not terms or not terms.get('enabled') or amount_gbp < float(terms.get('minimum_gbp') or 0):
+        return False
 
-    await notify(
-        db,
-        user_id=user_id,
-        kind=kind,
-        title=title,
-        body=body,
-        ref_tx_id=ref_tx_id,
-        target_url='/my-account/referrals',
-    )
+    ref_key = f'normal-topup:{user_id}:{session_id}'
+    if terms.get('first_only'):
+        existing = await db.bonus_grants.find_one({'user_id': user_id, 'source': 'normal_topup'},
+                                                   {'_id': 0, 'ref_key': 1})
+        if existing and existing.get('ref_key') != ref_key:
+            return False
+        now = datetime.now(timezone.utc)
+        claim = await db.users.find_one_and_update(
+            {'user_id': user_id, '$or': [
+                {'normal_topup_bonus_claimed_session_id': session_id},
+                {'normal_topup_bonus_claimed_session_id': {'$exists': False}},
+            ]},
+            {'$set': {'normal_topup_bonus_claimed_session_id': session_id,
+                      'normal_topup_bonus_processing_at': now}},
+            return_document=True,
+        )
+        if not claim:
+            return False
+
+    from services.bonus_grants import create_grant
+    from services.offer_terms import TOPUP_TOKENS_PER_GBP
+    base_tokens = round(float(amount_gbp) * TOPUP_TOKENS_PER_GBP, 2)
+    amount = (round(base_tokens * float(terms.get('reward_percent') or 0) / 100, 2)
+              if terms.get('mode') == 'percentage' else round(float(terms.get('reward_tokens') or 0), 2))
+    if amount <= 0:
+        return False
+    try:
+        await create_grant(
+            db, user_id=user_id, amount=amount, expires_at=expiry_from_terms(terms),
+            actor_id='normal-topup-promo-system', actor_email='Prize League',
+            reason=f'Normal top-up promotion for verified payment {session_id}',
+            ref_key=ref_key, source='normal_topup',
+        )
+        await db.users.update_one({'user_id': user_id, 'normal_topup_bonus_claimed_session_id': session_id},
+                                  {'$unset': {'normal_topup_bonus_processing_at': ''}})
+        return True
+    except Exception:
+        await db.users.update_one({'user_id': user_id, 'normal_topup_bonus_claimed_session_id': session_id},
+                                  {'$unset': {'normal_topup_bonus_processing_at': ''}})
+        raise
 
 
 async def _grant_signup_bonus_once(
@@ -61,26 +89,30 @@ async def _grant_signup_bonus_once(
     qualifying_session_id: str | None = None,
 ) -> bool:
     """
-    Atomically claim and grant the 5-token signup bonus.
+    Atomically claim and grant the signup bonus using the terms stored when the account
+    was enrolled (current saved terms for accounts enrolled before versioning).
 
-    Only accounts explicitly enrolled at registration are eligible.
-    Existing legacy users are therefore not retroactively rewarded.
+    Only accounts explicitly enrolled at registration are eligible, so legacy users are
+    never retroactively rewarded. A disabled offer grants nothing.
     """
     now = datetime.now(timezone.utc)
+    settings = await get_reward_settings(db)
+
+    # Influencer-attributed and unresolved accounts never receive the normal signup bonus.
+    if await resolve_acquisition_program(db, user_id) != 'normal':
+        return False
 
     claim = await db.users.find_one_and_update(
         {
             'user_id': user_id,
             'signup_bonus_offer_eligible': True,
             'signup_bonus_granted': {'$ne': True},
-            'signup_bonus_processing': {'$ne': True},
+            '$or': [
+                {'signup_bonus_processing': {'$ne': True}},
+                {'signup_bonus_processing_at': {'$lt': now - LOCK_TTL}},
+            ],
         },
-        {
-            '$set': {
-                'signup_bonus_processing': True,
-                'signup_bonus_processing_at': now,
-            }
-        },
+        {'$set': {'signup_bonus_processing': True, 'signup_bonus_processing_at': now}},
         return_document=True,
     )
 
@@ -88,26 +120,26 @@ async def _grant_signup_bonus_once(
         return False
 
     try:
-        from routers.wallet_routes import _apply_tx
+        terms = claim.get('signup_offer_terms') or signup_terms(settings)
+        if not terms.get('enabled', True):
+            await db.users.update_one({'user_id': user_id}, {'$unset': {
+                'signup_bonus_processing': '', 'signup_bonus_processing_at': '',
+            }})
+            return False
+        signup_reward_tokens = round(float(terms['reward_tokens']), 2)
+        reward_tx = None
 
-        reward_settings = await get_reward_settings(db)
-        signup_reward_tokens = round(
-            float(reward_settings['signup_reward_tokens']),
-            2,
-        )
+        if signup_reward_tokens > 0:
+            from services.bonus_grants import create_grant
 
-        result = await _apply_tx(
-            db,
-            user_id,
-            'signup_bonus',
-            signup_reward_tokens,
-            note=(
-                f'{signup_reward_tokens:g}-token signup bonus — '
-                'verified qualifying Stripe top-up'
-            ),
-        )
-
-        reward_tx = (result.get('tx') or {}).get('tx_id')
+            grant = await create_grant(
+                db, user_id=user_id, amount=signup_reward_tokens,
+                expires_at=expiry_from_terms(terms, now),
+                actor_id='signup-reward-system', actor_email='Prize League',
+                reason='Verified qualifying Stripe top-up signup reward',
+                ref_key=f'signup_reward:{user_id}', source='signup',
+            )
+            reward_tx = next(iter(grant.get('related_tx_ids') or []), None)
 
         await db.users.update_one(
             {'user_id': user_id},
@@ -118,21 +150,14 @@ async def _grant_signup_bonus_once(
                     'signup_bonus_tokens': signup_reward_tokens,
                     'signup_bonus_tx_id': reward_tx,
                     'signup_bonus_topup_session_id': qualifying_session_id,
+                    'signup_bonus_offer_version': terms.get('offer_version'),
+                    'signup_offer_terms': terms,
                 },
                 '$unset': {
                     'signup_bonus_processing': '',
                     'signup_bonus_processing_at': '',
                 },
             },
-        )
-
-        await _notify_reward(
-            db,
-            user_id,
-            'signup_bonus',
-            f'🎉 {signup_reward_tokens:g} signup bonus tokens added',
-            'Your verified £10+ top-up qualified for the Prize League signup bonus.',
-            reward_tx,
         )
 
         return True
@@ -152,35 +177,45 @@ async def _grant_signup_bonus_once(
 
 async def _complete_referral_if_eligible(db, referred_user_id: str) -> bool:
     """
-    Reward the referrer only when BOTH conditions are stored:
-
-    1. referred user has a verified £10+ Stripe top-up
-    2. referred user has successfully entered a contest
+    Reward the referrer (and optionally the referred user) once every condition in the
+    referral's own terms is stored: a verified qualifying top-up and, when that snapshot
+    requires it, a contest entry. A disabled offer grants nothing.
     """
     now = datetime.now(timezone.utc)
+    settings = await get_reward_settings(db)
+    if await resolve_acquisition_program(db, referred_user_id) != 'normal':
+        return False
 
-    reward_settings = await get_reward_settings(db)
+    candidate = await db.referrals.find_one(
+        {
+            'referred_user_id': referred_user_id,
+            'program_version': PROGRAM_VERSION,
+            'status': 'pending',
+            'topup_qualified': True,
+            'reward_granted': {'$ne': True},
+        },
+        {'_id': 0},
+    )
+    if not candidate:
+        return False
 
-    claim_filter = {
-        'referred_user_id': referred_user_id,
-        'program_version': PROGRAM_VERSION,
-        'status': 'pending',
-        'topup_qualified': True,
-        'reward_granted': {'$ne': True},
-        'reward_processing': {'$ne': True},
-    }
-
-    if reward_settings['referral_contest_entry_required']:
-        claim_filter['contest_entered'] = True
+    terms = candidate.get('offer_terms') or referral_terms(settings)
+    if not terms.get('enabled', True):
+        return False
+    if terms.get('contest_entry_required') and not candidate.get('contest_entered'):
+        return False
 
     ref = await db.referrals.find_one_and_update(
-        claim_filter,
         {
-            '$set': {
-                'reward_processing': True,
-                'reward_processing_at': now,
-            }
+            'referral_id': candidate['referral_id'],
+            'status': 'pending',
+            'reward_granted': {'$ne': True},
+            '$or': [
+                {'reward_processing': {'$ne': True}},
+                {'reward_processing_at': {'$lt': now - LOCK_TTL}},
+            ],
         },
+        {'$set': {'reward_processing': True, 'reward_processing_at': now}},
         return_document=True,
     )
 
@@ -188,26 +223,30 @@ async def _complete_referral_if_eligible(db, referred_user_id: str) -> bool:
         return False
 
     try:
-        from routers.wallet_routes import _apply_tx
+        from services.bonus_grants import create_grant
 
-        reward_settings = await get_reward_settings(db)
-        referral_reward_tokens = round(
-            float(reward_settings['referral_reward_tokens']),
-            2,
-        )
+        expires_at = expiry_from_terms(terms, now)
+        referral_reward_tokens = round(float(terms['referrer_reward_tokens']), 2)
+        referred_tokens = round(float(terms.get('referred_reward_tokens') or 0), 2)
+        reward_tx = referred_tx = None
 
-        result = await _apply_tx(
-            db,
-            ref['referrer_user_id'],
-            'referral_bonus',
-            referral_reward_tokens,
-            note=(
-                f"{referral_reward_tokens:g}-token referral reward — "
-                f"referral {ref['referral_id']}"
-            ),
-        )
+        if referral_reward_tokens > 0:
+            grant = await create_grant(
+                db, user_id=ref['referrer_user_id'], amount=referral_reward_tokens, expires_at=expires_at,
+                actor_id='referral-reward-system', actor_email='Prize League',
+                reason=f"Qualified referral reward {ref['referral_id']}",
+                ref_key=f"referral_reward:{ref['referral_id']}", source='referral',
+            )
+            reward_tx = next(iter(grant.get('related_tx_ids') or []), None)
 
-        reward_tx = (result.get('tx') or {}).get('tx_id')
+        if referred_tokens > 0:
+            grant = await create_grant(
+                db, user_id=ref['referred_user_id'], amount=referred_tokens, expires_at=expires_at,
+                actor_id='referral-reward-system', actor_email='Prize League',
+                reason=f"Referral welcome reward {ref['referral_id']}",
+                ref_key=f"referral_referred_reward:{ref['referral_id']}", source='referral',
+            )
+            referred_tx = next(iter(grant.get('related_tx_ids') or []), None)
 
         await db.referrals.update_one(
             {'referral_id': ref['referral_id']},
@@ -217,6 +256,10 @@ async def _complete_referral_if_eligible(db, referred_user_id: str) -> bool:
                     'reward_granted': True,
                     'reward_tokens': referral_reward_tokens,
                     'reward_tx_id': reward_tx,
+                    'referred_reward_tokens': referred_tokens,
+                    'referred_reward_tx_id': referred_tx,
+                    'offer_terms': terms,
+                    'offer_version': terms.get('offer_version'),
                     'completed_at': now,
                 },
                 '$unset': {
@@ -224,15 +267,6 @@ async def _complete_referral_if_eligible(db, referred_user_id: str) -> bool:
                     'reward_processing_at': '',
                 },
             },
-        )
-
-        await _notify_reward(
-            db,
-            ref['referrer_user_id'],
-            'referral_reward',
-            f'🎁 {referral_reward_tokens:g} referral tokens added',
-            'Your referred friend completed a verified £10+ top-up and entered their first contest.',
-            reward_tx,
         )
 
         return True
@@ -257,84 +291,60 @@ async def record_verified_topup(
     session_id: str | None = None,
 ):
     """
-    Called only from the verified Stripe wallet-credit flow.
+    Called only from the verified Stripe wallet-credit flow (and its recovery).
 
-    £5 normal top-ups remain valid but do NOT qualify.
-    Only ONE Stripe payment of £10+ qualifies.
+    Each programme compares the payment with ITS OWN terms; only the first qualifying
+    payment is recorded against an account and later payments never overwrite it.
     """
     amount_gbp = round(float(amount_gbp), 2)
-
-    reward_settings = await get_reward_settings(db)
-
-    signup_minimum = float(
-        reward_settings['signup_qualifying_topup_gbp']
-    )
-    referral_minimum = float(
-        reward_settings['referral_qualifying_topup_gbp']
-    )
-
-    signup_qualified = amount_gbp >= signup_minimum
-    referral_qualified = amount_gbp >= referral_minimum
-
-    # Influencer qualification has its own per-code/default threshold and
-    # is handled independently below.
-    if not signup_qualified and not referral_qualified:
-        try:
-            from services.reward_program import record_influencer_topup
-
-            await record_influencer_topup(
-                db,
-                user_id,
-                amount_gbp,
-                session_id,
-            )
-        except Exception:
-            import logging
-            logging.exception(
-                'Influencer top-up qualification failed user=%s session=%s',
-                user_id,
-                session_id,
-            )
-
-        return {
-            'qualifying': False,
-            'signup_qualified': False,
-            'referral_qualified': False,
-            'amount_gbp': amount_gbp,
-        }
-
+    settings = await get_reward_settings(db)
     now = datetime.now(timezone.utc)
 
-    # Save the verified qualifying payment against the account.
-    await db.users.update_one(
+    user = await db.users.find_one(
         {'user_id': user_id},
-        {
-            '$set': {
-                'qualifying_topup_completed': True,
-                'qualifying_topup_amount_gbp': amount_gbp,
-                'qualifying_topup_at': now,
-                'qualifying_topup_session_id': session_id,
-            }
-        },
+        {'_id': 0, 'signup_bonus_offer_eligible': 1, 'signup_bonus_granted': 1, 'signup_offer_terms': 1},
+    ) or {}
+    signup_in_force = user.get('signup_offer_terms') or signup_terms(settings)
+    program = await resolve_acquisition_program(db, user_id)
+    signup_qualified = bool(
+        program == 'normal'
+        and user.get('signup_bonus_offer_eligible')
+        and not user.get('signup_bonus_granted')
+        and amount_gbp >= float(signup_in_force['qualifying_topup_gbp'])
     )
 
-    # Signup bonus is independent of referral participation.
+    referral = await db.referrals.find_one(
+        {'referred_user_id': user_id, 'program_version': PROGRAM_VERSION, 'status': 'pending'},
+        {'_id': 0},
+    )
+    referral_in_force = (referral or {}).get('offer_terms') or referral_terms(settings)
+    referral_qualified = bool(
+        program == 'normal' and referral and amount_gbp >= float(referral_in_force['qualifying_topup_gbp'])
+    )
+
     if signup_qualified:
-        await _grant_signup_bonus_once(
-            db,
-            user_id,
-            qualifying_session_id=session_id,
+        await db.users.update_one(
+            {'user_id': user_id, 'qualifying_topup_completed': {'$ne': True}},
+            {
+                '$set': {
+                    'qualifying_topup_completed': True,
+                    'qualifying_topup_amount_gbp': amount_gbp,
+                    'qualifying_topup_at': now,
+                    'qualifying_topup_session_id': session_id,
+                }
+            },
+        )
+        await _grant_signup_bonus_once(db, user_id, qualifying_session_id=session_id)
+
+    normal_topup_bonus_qualified = False
+    if program == 'normal':
+        normal_topup_bonus_qualified = await _grant_normal_topup_bonus_once(
+            db, user_id, amount_gbp, session_id,
         )
 
-    # If this account was referred and meets the referral threshold,
-    # record the referral milestone.
     if referral_qualified:
         await db.referrals.update_one(
-        {
-            'referred_user_id': user_id,
-            'program_version': PROGRAM_VERSION,
-            'status': 'pending',
-        },
+            {'referral_id': referral['referral_id'], 'status': 'pending', 'topup_qualified': {'$ne': True}},
             {
                 '$set': {
                     'topup_qualified': True,
@@ -344,37 +354,23 @@ async def record_verified_topup(
                 }
             },
         )
-
-    # Handles either order of events:
-    # top-up first or contest entry first.
-    if referral_qualified:
+        # Handles either order of events: top-up first or contest entry first.
         await _complete_referral_if_eligible(db, user_id)
 
-    # Influencer qualification uses the same VERIFIED Stripe event.
-    # No browser-triggered reward path exists.
+    # Influencer qualification has its own per-code threshold and uses the same VERIFIED event.
     try:
         from services.reward_program import record_influencer_topup
 
-        await record_influencer_topup(
-            db,
-            user_id,
-            amount_gbp,
-            session_id,
-        )
+        await record_influencer_topup(db, user_id, amount_gbp, session_id)
     except Exception:
-        import logging
-        logging.exception(
-            'Influencer top-up qualification failed user=%s session=%s',
-            user_id,
-            session_id,
-        )
+        logger.exception('Influencer top-up qualification failed user=%s session=%s', user_id, session_id)
 
     return {
-        'qualifying': bool(
-            signup_qualified or referral_qualified
-        ),
+        'qualifying': bool(signup_qualified or referral_qualified or normal_topup_bonus_qualified),
         'signup_qualified': signup_qualified,
+        'normal_topup_bonus_qualified': normal_topup_bonus_qualified,
         'referral_qualified': referral_qualified,
+        'program': program,
         'amount_gbp': amount_gbp,
     }
 
@@ -394,6 +390,7 @@ async def record_contest_entry(
             'referred_user_id': user_id,
             'program_version': PROGRAM_VERSION,
             'status': 'pending',
+            'contest_entered': {'$ne': True},
         },
         {
             '$set': {
@@ -408,58 +405,53 @@ async def record_contest_entry(
 
     # Influencer qualification uses the same successful contest-entry event.
     try:
-        from services.reward_program import (
-            record_influencer_contest_entry,
-        )
+        from services.reward_program import record_influencer_contest_entry
 
-        await record_influencer_contest_entry(
-            db,
-            user_id,
-            order_id,
-        )
+        await record_influencer_contest_entry(db, user_id, order_id)
     except Exception:
-        import logging
-        logging.exception(
-            'Influencer contest-entry qualification failed user=%s order=%s',
-            user_id,
-            order_id,
-        )
+        logger.exception('Influencer contest-entry qualification failed user=%s order=%s', user_id, order_id)
 
 
 async def _sync_current_user(db, user_id: str):
     """
     Safe recovery check.
 
-    If a webhook/reward hook was temporarily interrupted, opening the
-    referral page can reconstruct eligibility from VERIFIED database facts.
+    If a webhook/reward hook was interrupted, opening the referral page re-evaluates
+    VERIFIED payments (paid and wallet-credited) and paid orders against the stored
+    terms. Re-running is harmless because every step is idempotent.
     """
-    user = await db.users.find_one(
-        {'user_id': user_id},
-        {
-            '_id': 0,
-            'signup_bonus_offer_eligible': 1,
-        },
+    user = await db.users.find_one({'user_id': user_id}, {
+        '_id': 0, 'signup_bonus_offer_eligible': 1, 'normal_topup_offer_terms': 1,
+    })
+    program = await resolve_acquisition_program(db, user_id)
+    pending_referral = await db.referrals.find_one(
+        {'referred_user_id': user_id, 'program_version': PROGRAM_VERSION, 'status': 'pending'},
+        {'_id': 1},
     )
 
-    if user and user.get('signup_bonus_offer_eligible'):
-        payment = await db.payment_transactions.find_one(
-            {
-                'user_id': user_id,
-                'kind': 'wallet_topup',
-                'payment_status': 'paid',
-                'wallet_credited': True,
-                'amount': {'$gte': int(QUALIFYING_TOPUP_GBP * 100)},
-            },
-            {'_id': 0},
-            sort=[('credited_at', 1)],
-        )
+    if program == 'influencer':
+        # Re-run campaign top-up rewards for verified payments whose hook was interrupted; idempotent.
+        from services.influencer_commissions import record_topup_commission, record_registration_commission
+        await record_registration_commission(db, user_id)
+        payments = await db.payment_transactions.find(
+            {'user_id': user_id, 'kind': 'wallet_topup', 'payment_status': 'paid', 'wallet_credited': True},
+            {'_id': 0, 'session_id': 1},
+        ).sort('credited_at', 1).limit(25).to_list(25)
+        for payment in payments:
+            if payment.get('session_id'):
+                await record_topup_commission(db, user_id, payment['session_id'])
 
-        if payment:
+    normal_topup_terms = (user or {}).get('normal_topup_offer_terms') or {}
+    if ((program == 'normal' and user and (user.get('signup_bonus_offer_eligible')
+          or normal_topup_terms.get('enabled'))) or pending_referral or program == 'influencer'):
+        payments = await db.payment_transactions.find(
+            {'user_id': user_id, 'kind': 'wallet_topup', 'payment_status': 'paid', 'wallet_credited': True},
+            {'_id': 0},
+        ).sort('credited_at', 1).limit(25).to_list(25)
+
+        for payment in payments:
             await record_verified_topup(
-                db,
-                user_id,
-                round(payment['amount'] / 100.0, 2),
-                payment.get('session_id'),
+                db, user_id, round(payment['amount'] / 100.0, 2), payment.get('session_id'),
             )
 
     ref = await db.referrals.find_one(
@@ -495,6 +487,7 @@ async def my_referral(request: Request):
     db = get_db()
 
     await _sync_current_user(db, user['user_id'])
+    settings = await get_reward_settings(db)
 
     full = await db.users.find_one(
         {'user_id': user['user_id']},
@@ -506,6 +499,8 @@ async def my_referral(request: Request):
             'signup_bonus_granted': 1,
             'signup_bonus_granted_at': 1,
             'signup_bonus_tokens': 1,
+            'signup_bonus_tx_id': 1,
+            'signup_offer_terms': 1,
             'qualifying_topup_completed': 1,
             'qualifying_topup_amount_gbp': 1,
         },
@@ -557,20 +552,48 @@ async def my_referral(request: Request):
         {'_id': 0},
     )
 
+    if my_invitation:
+        my_invitation = {**my_invitation, **referral_progress(my_invitation, settings)}
+
+    own_terms = (full or {}).get('signup_offer_terms') or signup_terms(settings)
+    eligible = bool((full or {}).get('signup_bonus_offer_eligible'))
+    granted = bool((full or {}).get('signup_bonus_granted'))
+
+    from services.promo_status import user_promotion_status
+    promotion = await user_promotion_status(db, user['user_id'])
+    influencer_exclusive = bool(promotion and promotion['acquisition_type'] == 'influencer')
+    if influencer_exclusive:
+        eligible = False
+
     return {
         'code': code,
         'link_path': f"/login?tab=signup&ref={code}",
         'completed': completed,
         'pending': pending,
         'tokens_earned': tokens_earned,
+        'offer': public_offer(settings),
+        'promotion': promotion and {
+            k: promotion[k] for k in (
+                'acquisition_type', 'stacking_rule', 'influencer_name', 'promo_code', 'campaign_name', 'campaign',
+                'signup_bonus_status', 'topup_bonus_status', 'signup_pending_condition', 'topup_pending_condition',
+                'influencer_bonus_tokens_issued', 'bonus_expiry', 'blocked_reason', 'campaign_active',
+                'influencer_topup_event_count', 'next_influencer_topup_rank', 'normal_topup_promo',
+                'normal_topup_bonus_tokens_issued', 'normal_bonus_tokens_issued')
+        },
 
         'signup_bonus': {
-            'eligible': bool((full or {}).get('signup_bonus_offer_eligible')),
-            'required_topup_gbp': QUALIFYING_TOPUP_GBP,
-            'reward_tokens': SIGNUP_BONUS_TOKENS,
+            'eligible': eligible,
+            'required_topup_gbp': None if influencer_exclusive else own_terms['qualifying_topup_gbp'],
+            'reward_tokens': None if influencer_exclusive else own_terms['reward_tokens'],
+            'expiry_days': own_terms.get('expiry_days'),
+            'offer_version': own_terms.get('offer_version'),
+            'offer_enabled': bool(own_terms.get('enabled', True)),
+            'conditions_text': signup_conditions_text(own_terms) if eligible and not granted else None,
             'topup_completed': bool((full or {}).get('qualifying_topup_completed')),
-            'granted': bool((full or {}).get('signup_bonus_granted')),
+            'granted': granted,
             'granted_at': (full or {}).get('signup_bonus_granted_at'),
+            'credited_tokens': (full or {}).get('signup_bonus_tokens') if granted else None,
+            'tx_id': (full or {}).get('signup_bonus_tx_id') if granted else None,
         },
 
         'my_referral_status': my_invitation,
@@ -581,6 +604,7 @@ async def my_referral(request: Request):
 async def list_my_referrals(request: Request):
     user = await get_current_user(request)
     db = get_db()
+    settings = await get_reward_settings(db)
 
     refs = await db.referrals.find(
         {
@@ -613,21 +637,18 @@ async def list_my_referrals(request: Request):
             r['referred_name'] = u.get('name')
             r['referred_public_id'] = u.get('public_id')
 
-            if r.get('status') == 'completed':
-                r['display_status'] = 'Rewarded'
-            elif not r.get('topup_qualified'):
-                r['display_status'] = 'Waiting for £10 top-up'
-            elif not r.get('contest_entered'):
-                r['display_status'] = 'Waiting for contest entry'
-            else:
-                r['display_status'] = 'Processing reward'
+    for r in refs:
+        r.update(referral_progress(r, settings))
 
+    terms = referral_terms(settings)
     return {
         'referrals': refs,
+        'offer': public_offer(settings),
         'requirements': {
-            'topup_gbp': QUALIFYING_TOPUP_GBP,
-            'contest_entries': 1,
-            'reward_tokens': REFERRAL_REWARD_TOKENS,
+            'topup_gbp': terms['qualifying_topup_gbp'],
+            'contest_entries': 1 if terms['contest_entry_required'] else 0,
+            'reward_tokens': terms['referrer_reward_tokens'],
+            'referred_reward_tokens': terms['referred_reward_tokens'],
         },
     }
 
@@ -637,12 +658,12 @@ async def complete_referral(request: Request):
     """
     Legacy endpoint intentionally disabled.
 
-    Referral rewards are now generated automatically by verified backend
-    events and cannot be triggered by the browser.
+    Referral rewards are generated automatically by verified backend events and
+    cannot be triggered by the browser.
     """
     await get_current_user(request)
 
     raise HTTPException(
         status_code=410,
-        detail='Referral rewards are automatic after a verified £10+ top-up and first contest entry.',
+        detail='Referral rewards are automatic once the conditions in the active offer are met.',
     )

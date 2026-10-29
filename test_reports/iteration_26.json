@@ -34,7 +34,7 @@
   ],
   "updated_files": [],
   "success_rate": {"backend": "100% (39/39 iter22+iter25 regression)", "frontend": "6/7 flows pass; CompetitionCard <picture> serves mobile variant only when mobile_image is passed in, but the parent mapping strips it."},
-  "test_credentials": "bachanta8@gmail.com / Herts@910022 (super_admin)",
+  "test_credentials": "<admin-email> / <redacted> (super_admin)",
   "seed_data_creation": "Temporarily set mobile_image + status=live on c_fd360e20adad to verify HeroBanner picture element; reverted after test (mobile_image=None, status=closed_no_entries). No draws, no instant_win_configs created. Company engine flags never enabled during this iteration.",
   "retest_needed": true,
   "should_main_agent_self_test": true,

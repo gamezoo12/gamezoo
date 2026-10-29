@@ -35,7 +35,7 @@
     "/app/backend/tests/test_iter46_targeted_alerts_and_popup.py"
   ],
   "success_rate": {"backend": "100%", "frontend": "70%"},
-  "test_credentials": "bachanta8@gmail.com / Herts@910022 (super_admin); player1@example.com / Player@12345",
+  "test_credentials": "<admin-email> / <redacted> (super_admin); player1@example.com / <redacted>",
   "seed_data_creation": "Several in-app admin_alert notifications were created for player1 during testing (titles starting with TEST_, FE_POPUP_TEST_, FE_SKIP_, FE_WORLD_, FE_WORLD2_, FE_WORLD3_). They are harmless in test_database (will accumulate in the player's notifications collection). Championship-2 extension was applied once and reset at the end of the extension test. Final state: no championship_extensions remain.",
   "retest_needed": true,
   "should_main_agent_self_test": false,

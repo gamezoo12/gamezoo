@@ -723,11 +723,14 @@ async def partner_commissions_csv(request: Request):
 async def record_affiliate_visit(payload: AffiliateVisit, request: Request):
     if request.headers.get('DNT') == '1' or request.headers.get('Sec-GPC') == '1':
         return {'recorded': False, 'reason': 'privacy_signal'}
+    from services.analytics_common import is_staff, is_test_account
+    try:
+        viewer = await get_current_user(request)
+    except Exception:
+        viewer = None
+    if viewer and (is_staff(viewer) or is_test_account(viewer)):
+        return {'recorded': False, 'reason': 'internal_account'}
     visitor_key = _affiliate_visitor_key(request)
-    if not visitor_key:
-        return {'recorded': False, 'reason': 'identity_unavailable'}
-    db = get_db()
-    code = payload.code.strip().upper()
     now = datetime.now(timezone.utc)
     promo = await db.influencer_promos.find_one({
         'code': code, 'active': True,

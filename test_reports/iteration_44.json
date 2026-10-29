@@ -16,7 +16,7 @@
     "/app/backend/tests/test_iter44_champion_attempts_and_conversion.py"
   ],
   "success_rate": {"backend": "100%", "frontend": "100%"},
-  "test_credentials": "bachanta8@gmail.com / Herts@910022 (super_admin, champion_stage 2)",
+  "test_credentials": "<admin-email> / <redacted> (super_admin, champion_stage 2)",
   "seed_data_creation": "3 TEST_ acquisition_visits inserted via public /api/acquisition/track (google referrer, utm fb/newsletter campaign 'launch44', direct). No champion attempts were consumed (only status GET + a rejected reserve call).",
   "retest_needed": false,
   "should_main_agent_self_test": false,

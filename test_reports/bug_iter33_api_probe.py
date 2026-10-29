@@ -52,7 +52,7 @@ def main():
     }
     s = requests.Session()
     try:
-        r = s.post(f"{BASE}/auth/login", json={"email": "bachanta8@gmail.com", "password": "Herts@910022"}, timeout=20)
+        r = s.post(f"{BASE}/auth/login", json={"email": os.environ["TEST_ADMIN_EMAIL"], "password": os.environ["TEST_ADMIN_PASSWORD"]}, timeout=20)
         result["steps"].append({"login_status": r.status_code})
         r.raise_for_status()
         token = r.json()["token"]

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Gift, Copy, Check, Share2, ArrowRight } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { referralAPI } from '../../lib/api';
+import useActiveOffer from '../../lib/useActiveOffer';
 
 /**
  * Premium homepage Refer & Earn card.
@@ -11,6 +12,7 @@ import { referralAPI } from '../../lib/api';
  */
 export default function ReferAndEarnCard() {
   const { user } = useAuth();
+  const { offer } = useActiveOffer();
   const [ref, setRef] = useState(null);
   const [copied, setCopied] = useState(false);
 
@@ -68,10 +70,10 @@ export default function ReferAndEarnCard() {
               <h2 className="mt-2 font-display text-3xl md:text-4xl font-extrabold text-white leading-tight">
                 Invite your friends and <span className="pl-gold-text">earn exciting rewards</span>
               </h2>
-              <p className="mt-3 text-white/70 max-w-lg">
-                Share your unique code. When your friend signs up with your code,
-                tops up £10 or more in one verified payment and enters at least one contest,
-                you receive 5 referral reward tokens.
+              <p className="mt-3 text-white/70 max-w-lg" data-testid="refer-offer-text">
+                {offer?.referral?.enabled
+                  ? `Share your unique code. ${offer.referral.text}`
+                  : offer ? 'The referral offer is not available at the moment.' : ''}
               </p>
 
               {user ? (

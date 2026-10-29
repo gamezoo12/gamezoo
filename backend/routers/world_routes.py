@@ -544,6 +544,31 @@ async def _active_contest(db):
     )
 
 
+async def _assert_world_not_paused(db):
+    from routers.world_gc_live_routes import assert_world_not_paused
+
+    await assert_world_not_paused(db)
+
+
+async def _assert_legacy_competition_mode(db, contest_number: int | None = None):
+    if contest_number is None:
+        contest = await _active_contest(db)
+        contest_number = int(contest.get("contest_number") or 0) if contest else 0
+    if int(contest_number or 0) < 4:
+        return
+    sidecar = await db.world_gc_competition_configs.find_one(
+        {"season_id": WORLD_SEASON_ID, "gc_number": int(contest_number),
+         "activation_status": "active", "model": "every_level",
+         "engine": {"$ne": "legacy_hybrid"}},
+        {"_id": 0, "model": 1},
+    )
+    if sidecar:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "EVERY_LEVEL_MODEL_ACTIVE", "message": "Use the active Every-Level competition interface for this GC."},
+        )
+
+
 async def _user_champion_stage(db, user_id: str) -> int:
     """
     Personal Champion progression.
@@ -645,6 +670,7 @@ async def get_my_world_contest(request: Request):
 async def enter_world_contest(request: Request):
     user = await require_verified_user(request)
     db = get_db()
+    await _assert_world_not_paused(db)
 
     contest = await _active_contest(db)
 
@@ -653,6 +679,8 @@ async def enter_world_contest(request: Request):
             status_code=409,
             detail="There is no active Champion Contest.",
         )
+
+    await _assert_legacy_competition_mode(db, int(contest.get("contest_number") or 0))
 
     now = _utcnow()
 
@@ -852,6 +880,8 @@ async def world_public_leaderboard(
                 "contest_number": contest_number,
             }
         )
+
+    await _assert_legacy_competition_mode(db, int(contest_number or 0))
 
     safe_limit = max(
         1,
@@ -4424,6 +4454,37 @@ async def _effective_level_config_base(
     level: int,
     champion_stage: Optional[int] = None,
 ) -> dict:
+    config = await _effective_level_config_core(db, level, champion_stage)
+    active = await _active_contest(db)
+    gc = int((active or {}).get("contest_number") or 0)
+    if gc < 4:
+        return config
+    sidecar = await db.world_gc_competition_configs.find_one(
+        {"season_id": WORLD_SEASON_ID, "gc_number": gc, "activation_status": "active",
+         "$or": [{"model": "champion_only"}, {"engine": "legacy_hybrid"}]},
+        {"_id": 0, "levels": 1},
+    )
+    row = next((r for r in (sidecar or {}).get("levels", []) if int(r.get("level", 0)) == int(level)), None)
+    selected = (row or {}).get("game_id")
+    if selected == "colour_match":
+        game_config = row.get("game_config") or {}
+        colours = int(game_config.get("colours", min(2 + level // 2, 8)))
+        rounds = int(game_config.get("rounds", 10))
+        if 2 <= colours <= len(WORLD_COLOUR_PALETTE) and 1 <= rounds <= 100:
+            config = {**config, "game_id": "colour_match",
+                      "game_config": {"colours": colours, "rounds": rounds, "timer_mode": "countdown"}}
+    elif selected == "number_sequence" and config.get("game_id") != "number_sequence":
+        config = {**config, "game_id": "number_sequence", "game_config": {"target_number": 20}}
+    if selected:
+        config = {**config, "gc_applied_model": row.get("applied_model")}
+    return config
+
+
+async def _effective_level_config_core(
+    db,
+    level: int,
+    champion_stage: Optional[int] = None,
+) -> dict:
     """
     Active GLOBAL contest determines the game/config every user
     receives.
@@ -4519,6 +4580,18 @@ async def _effective_level_config_base(
         ),
     }
 
+    scheduled_gc_config = None
+    active_gc_number = int(active.get("contest_number") or 0)
+    if active_gc_number >= 4:
+        scheduled_gc_config = await db.world_gc_competition_configs.find_one(
+            {"season_id": WORLD_SEASON_ID, "gc_number": active_gc_number,
+             "activation_status": "active",
+             "$or": [{"model": "champion_only"}, {"engine": "legacy_hybrid"}]},
+            {"_id": 0, "levels": 1},
+        )
+    scheduled_level = next((row for row in (scheduled_gc_config or {}).get("levels", [])
+                            if int(row.get("level", 0)) == int(level)), None)
+
     # Free World V2 locked normal-level game rules.
     #
     # Existing contest/admin configuration may still control the
@@ -4553,6 +4626,21 @@ async def _effective_level_config_base(
     merged["time_limit_seconds"] = (
         locked_times[level]
     )
+
+    # Only an explicitly scheduled GC4+ Champion-only sidecar can select a
+    # supported legacy game. The existing per-level attempt/retry/unlock rules
+    # and GC1-GC3 game selection remain on the legacy path above.
+    if scheduled_level:
+        selected_game = scheduled_level.get("game_id")
+        if selected_game == "colour_match":
+            game_config = scheduled_level.get("game_config") or {}
+            colours = int(game_config.get("colours", min(2 + level // 2, 8)))
+            rounds = int(game_config.get("rounds", 10))
+            if 2 <= colours <= len(WORLD_COLOUR_PALETTE) and 1 <= rounds <= 100:
+                merged["game_id"] = "colour_match"
+                merged["game_config"] = {"colours": colours, "rounds": rounds, "timer_mode": "countdown"}
+        elif selected_game == "number_sequence":
+            merged["game_id"] = "number_sequence"
 
     # Normal Free World levels 1-10 default to 3 initial free attempts, but
     # Admin may override per level via levels_config. Default stays 3.
@@ -6733,6 +6821,7 @@ async def free_world_level(
         )
 
     db = get_db()
+    await _assert_legacy_competition_mode(db)
 
     progress = await _free_world_progress(
         db,
@@ -6788,6 +6877,8 @@ async def free_world_session_start(
     """
     user = await require_verified_user(request)
     db = get_db()
+    await _assert_world_not_paused(db)
+    await _assert_legacy_competition_mode(db)
 
     level = body.level
 
@@ -6991,6 +7082,8 @@ async def free_world_session_begin(
     """
     user = await require_verified_user(request)
     db = get_db()
+    await _assert_world_not_paused(db)
+    await _assert_legacy_competition_mode(db)
     await _touch_world_activity(db, user["user_id"], "gameplay")
 
     session = await db.world_game_sessions.find_one(
@@ -7198,6 +7291,7 @@ async def free_world_session_submit(
     """
     user = await require_verified_user(request)
     db = get_db()
+    await _assert_legacy_competition_mode(db)
 
     session = await db.world_game_sessions.find_one(
         {
@@ -7411,6 +7505,9 @@ async def free_world_session_submit(
     )
 
     if passed and session_stage == int(progress_before.get("champion_stage") or 1):
+        from routers.world_gc_live_routes import record_hybrid_level_best
+
+        await record_hybrid_level_best(db, user, level, int(body.duration_ms), body.session_id, now)
         if level < 10:
             next_level = (
                 level + 1
@@ -8412,6 +8509,7 @@ async def champion_session_start(
     )
 
     db = get_db()
+    await _assert_world_not_paused(db)
 
     contest = await _active_contest(
         db
@@ -8431,6 +8529,8 @@ async def champion_session_start(
                     ),
             },
         )
+
+    await _assert_legacy_competition_mode(db, int(contest.get("contest_number") or 0))
 
     now = _utcnow()
 
@@ -8499,32 +8599,34 @@ async def champion_session_start(
             },
         )
 
-    # All personal Champion stages C1-C100 use the official
-    # Number Sequence engine, even when a legacy global contest
-    # record has an empty or older game_id. Preserve all other
-    # contest settings and the existing eligibility checks.
-    game_id = "number_sequence"
-
-    if game_id != "number_sequence":
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "code":
-                    "GAME_NOT_AVAILABLE",
-
-                "message":
-                    (
-                        "This Champion game's official "
-                        "engine is not available yet."
-                    ),
-            },
-        )
-
     contest_number = int(
         contest[
             "contest_number"
         ]
     )
+
+    # GC1-GC3 keep their exact existing Champion game selection. A scheduled
+    # GC4+ Champion-only sidecar may select a game already supported by this
+    # legacy Champion session flow, while leaving its attempts, scoring and
+    # prize path unchanged.
+    game_id = "number_sequence"
+    future_gc_config = None
+    if contest_number >= 4:
+        future_gc_config = await db.world_gc_competition_configs.find_one(
+            {"season_id": WORLD_SEASON_ID, "gc_number": contest_number,
+             "activation_status": "active",
+             "$or": [{"model": "champion_only"}, {"engine": "legacy_hybrid"}]},
+            {"_id": 0, "champion": 1},
+        )
+        selected_champion = (future_gc_config or {}).get("champion") or {}
+        if selected_champion.get("game_id") in ("number_sequence", "colour_match"):
+            game_id = selected_champion["game_id"]
+
+    if game_id not in ("number_sequence", "colour_match"):
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "GAME_NOT_AVAILABLE", "message": "This Champion game's official engine is not available yet."},
+        )
 
     # -------------------------------------------------------
     # QUALIFICATION MUST HAPPEN BEFORE CHAMPION ENTRY CREATION.
@@ -8655,17 +8757,27 @@ async def champion_session_start(
             "game_config"
         ) or {}
     )
+    selected_champion = (future_gc_config or {}).get("champion") or {}
+    game_config.update(selected_champion.get("game_config") or {})
 
     # All Champion stages use Number Sequence 1-30 unless the contest is Colour Match.
     target = 30
     colour_questions = None
     colour_expected = None
     colour_game = _champion_colour_game(contest_number)
+    if game_id == "colour_match" and future_gc_config:
+        game_config.setdefault("colours", 6)
+        game_config.setdefault("rounds", 20)
+        colour_game = {
+            "game_id": "colour_match",
+            "colours": int(game_config["colours"]),
+            "rounds": int(game_config["rounds"]),
+        }
     if colour_game:
         game_id = "colour_match"
-        target = colour_game["rounds"]
+        target = int(colour_game["rounds"])
         colour_questions, colour_expected = _colour_questions(
-            colour_game["colours"],
+            int(colour_game["colours"]),
             target,
         )
 
@@ -8854,6 +8966,8 @@ async def champion_session_begin(
     )
 
     db = get_db()
+    await _assert_world_not_paused(db)
+    await _assert_legacy_competition_mode(db)
     await _touch_world_activity(db, user["user_id"], "gameplay")
 
     session = await db.world_champion_sessions.find_one(
@@ -9060,6 +9174,7 @@ async def champion_session_submit(
     )
 
     db = get_db()
+    await _assert_legacy_competition_mode(db)
 
     session = await db.world_champion_sessions.find_one(
         {
@@ -9858,6 +9973,8 @@ async def reserve_world_token_retry(
     )
 
     db = get_db()
+    await _assert_world_not_paused(db)
+    await _assert_legacy_competition_mode(db)
 
     user_id = user["user_id"]
     level = int(body.level)
@@ -10498,6 +10615,8 @@ async def reserve_world_level_unlock(
     )
 
     db = get_db()
+    await _assert_world_not_paused(db)
+    await _assert_legacy_competition_mode(db)
 
     level = int(
         body.level
@@ -11552,6 +11671,7 @@ async def public_champion_leaderboard(
             status_code=404,
             detail="Champion Contest not found.",
         )
+    await _assert_legacy_competition_mode(db, int(contest_number or 0))
 
     safe_limit = max(1, min(int(limit), 1000))
     rows = await db.world_champion_scores.aggregate([
@@ -11900,6 +12020,15 @@ async def _settle_world_champion_contest(
                     "Champion Contest not found.",
             },
         )
+
+    sidecar = await db.world_gc_competition_configs.find_one(
+        {"season_id": WORLD_SEASON_ID, "gc_number": contest_number,
+         "activation_status": {"$in": ["active", "completed"]}, "model": "every_level",
+         "engine": {"$ne": "legacy_hybrid"}},
+        {"_id": 0, "model": 1},
+    )
+    if sidecar:
+        raise HTTPException(status_code=409, detail="Legacy Champion settlement is disabled for this Every-Level GC")
 
     status = str(
         contest.get(
@@ -12872,6 +13001,8 @@ async def settle_admin_world_contest(
         )
 
     db = get_db()
+
+    await _assert_legacy_competition_mode(db, int(contest_number))
 
     result = await _settle_world_champion_contest(
         db,

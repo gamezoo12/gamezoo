@@ -28,7 +28,7 @@
     "/app/backend/tests/test_profile.py (new, 10 tests)"
   ],
   "success_rate": {"backend": "100% (47/47)", "frontend": "95% — all 6 tabs render, both sign-out buttons work, profile CRUD works; 1 medium bug: phone not persisted-visually on refresh"},
-  "test_credentials": "Admin bachanta8@gmail.com / Herts@910022 (from /app/memory/test_credentials.md). Fresh player accounts registered on-the-fly by test_profile.py.",
+  "test_credentials": "Admin <admin-email> / <redacted> (from /app/memory/test_credentials.md). Fresh player accounts registered on-the-fly by test_profile.py.",
   "seed_data_creation": "test_profile.py registers two fresh users per run with emails test_profile_<uuid>@example.com — they remain in DB but are prefixed and harmless. No admin data mutated. UI test edited admin name to 'Admin Updated' then reverted to 'Admin' via API post-test. Admin phone cleared to null after test.",
   "retest_needed": false,
   "main_agent_can_self_test": true,

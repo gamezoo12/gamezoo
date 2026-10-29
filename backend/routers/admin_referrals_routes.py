@@ -17,6 +17,7 @@ from fastapi import APIRouter, Request
 
 from auth import require_admin
 from deps import get_db
+from services.offer_terms import TOPUP_MIN_GBP
 
 
 router = APIRouter(
@@ -104,6 +105,15 @@ async def admin_referrals_bonuses(request: Request):
             if u.get('user_id')
         }
 
+    from services.offer_terms import referral_progress
+    from services.reward_program import (
+        get_reward_settings,
+        influencer_admin_snapshot,
+    )
+
+    reward_settings = await get_reward_settings(db)
+    influencer = await influencer_admin_snapshot(db)
+
     for ref in referrals:
         referrer = user_map.get(ref.get('referrer_user_id'), {})
         referred = user_map.get(ref.get('referred_user_id'), {})
@@ -116,25 +126,7 @@ async def admin_referrals_bonuses(request: Request):
         ref['referred_email'] = referred.get('email')
         ref['referred_public_id'] = referred.get('public_id')
 
-        if ref.get('reward_granted') or ref.get('status') == 'completed':
-            ref['display_status'] = 'Rewarded'
-        elif not ref.get('topup_qualified'):
-            ref['display_status'] = 'Waiting for £10 top-up'
-        elif not ref.get('contest_entered'):
-            ref['display_status'] = 'Waiting for contest entry'
-        else:
-            ref['display_status'] = 'Processing reward'
-
-    # ---------------------------------------------------------
-    # Influencer programme
-    # ---------------------------------------------------------
-    from services.reward_program import (
-        get_reward_settings,
-        influencer_admin_snapshot,
-    )
-
-    reward_settings = await get_reward_settings(db)
-    influencer = await influencer_admin_snapshot(db)
+        ref.update(referral_progress(ref, reward_settings))
 
     # ---------------------------------------------------------
     # Summary
@@ -252,7 +244,8 @@ async def admin_referrals_bonuses(request: Request):
         'influencer_attributions': influencer['attributions'],
         'reward_settings': reward_settings,
         'rules': {
-            'minimum_wallet_topup_gbp': 5,
+            'offer_version': reward_settings['offer_version'],
+            'minimum_wallet_topup_gbp': TOPUP_MIN_GBP,
             'signup_qualifying_topup_gbp':
                 reward_settings['signup_qualifying_topup_gbp'],
             'signup_bonus_tokens':

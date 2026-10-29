@@ -29,13 +29,16 @@ export default function WinnersAdmin() {
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {winners.map(w => (
             <div key={w.winner_id} className="bg-white rounded-2xl border border-slate-100 p-4">
-              <div className="flex items-center gap-2 text-orange-600 text-sm font-semibold"><Trophy className="w-4 h-4" /> {gbp(w.prize_amount)}</div>
+              <div className="flex items-center gap-2 text-orange-600 text-sm font-semibold"><Trophy className="w-4 h-4" />
+                {Number(w.prize_amount || w.prize_cash_amount || 0) > 0 && gbp(w.prize_cash_amount ?? w.prize_amount)}
+                {Number(w.prize_bonus_tokens || 0) > 0 && <span>{Number(w.prize_amount || 0) > 0 ? ' + ' : ''}{Number(w.prize_bonus_tokens).toLocaleString()} Winning Bonus Tokens</span>}
+              </div>
               <div className="font-display font-bold text-slate-900 mt-1">{w.prize_title}</div>
               <div className="text-sm text-slate-500 mt-1">{w.user_name} · Ticket #{w.ticket_number}</div>
               <div className="text-xs text-slate-400 mt-1">{new Date(w.drawn_at).toLocaleString('en-GB')}</div>
               <div className="mt-3">
-                {w.paid_out ? <span className="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 inline-flex items-center gap-1"><Check className="w-3 h-3" /> Paid out</span>
-                  : <Button size="sm" onClick={() => markPaid(w.winner_id)} className="bg-[#6C2BFF] hover:bg-[#4A15D9]">Mark paid</Button>}
+                {w.paid_out ? <span className="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 inline-flex items-center gap-1"><Check className="w-3 h-3" /> PAID</span>
+                  : <Button size="sm" onClick={() => markPaid(w.winner_id)} className="bg-[#6C2BFF] hover:bg-[#4A15D9]">Mark PAID + credit wallet</Button>}
               </div>
             </div>
           ))}

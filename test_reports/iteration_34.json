@@ -48,7 +48,7 @@
     "backend": "100% for requested P0 API assertions",
     "frontend": "100% for requested P0 checkout/play/tickets route assertions"
   },
-  "seed_data_creation": "Created backend/API contest c_5c85d1c66ba2 and UI checkout contest c_02091d8c359f; seeded bachanta8@gmail.com wallet via POST /api/admin/wallets/adjust; UI checkout created ticket t_96fbec1258d0.",
+  "seed_data_creation": "Created backend/API contest c_5c85d1c66ba2 and UI checkout contest c_02091d8c359f; seeded <admin-email> wallet via POST /api/admin/wallets/adjust; UI checkout created ticket t_96fbec1258d0.",
   "retest_needed": false,
   "should_main_agent_self_test": true,
   "context_for_next_testing_agent": "Focused on the four P0 route/image items only, per request. Browser proof used seeded UI contest c_02091d8c359f and landed on /play/c_02091d8c359f/t_96fbec1258d0?just_bought=1; My Tickets Play now href was /play/c_02091d8c359f/t_96fbec1258d0 and rendered play-game-page. Earlier leaderboard/notification items were not retested in this pass.",

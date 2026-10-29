@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Package, ShoppingBag, Trophy, BarChart3, LogOut, Shield, CreditCard, Settings as SettingsIcon, ShieldCheck, Wallet as WalletIcon, Gamepad2, Menu, X, ClipboardList, FileText, Building2, Mailbox, Gift, Banknote, Bell, Medal, LifeBuoy, Handshake } from 'lucide-react';
+import { NavLink, Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
+import { LayoutDashboard, Users, Package, ShoppingBag, Trophy, BarChart3, LogOut, Shield, CreditCard, Settings as SettingsIcon, ShieldCheck, Wallet as WalletIcon, Gamepad2, Menu, X, ClipboardList, FileText, Building2, Mailbox, Gift, Banknote, Bell, Medal, LifeBuoy, Handshake, CalendarCog } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import PrizeLeagueLogo from '../layout/PrizeLeagueLogo';
 import MeeraChat from '../MeeraChat';
+import AdminErrorBoundary from './AdminErrorBoundary';
 
 const LINKS = [
  { group: 'Overview', items: [
@@ -28,6 +29,7 @@ const LINKS = [
  ] },
  { group: 'Free World', items: [
    { to: '/admin/free-world', label: 'Free World', icon: Trophy },
+   { to: '/admin/world-gc-settings', label: 'GC Competition Settings', icon: CalendarCog },
    { to: '/admin/leaderboards', label: 'Leaderboard', icon: Medal },
    { to: '/admin/special-challenge', label: 'Special Challenge', icon: Trophy },
  ] },
@@ -37,7 +39,6 @@ const LINKS = [
    { to: '/admin/referrals', label: 'Referrals & Bonuses', icon: Gift },
    { to: '/admin/roles', label: 'Roles & Permissions', icon: ShieldCheck },
    { to: '/admin/kyc', label: 'KYC', icon: Shield },
-   { to: '/admin/acquisition', label: 'Acquisition', icon: BarChart3 },
   { to: '/admin/influencers', label: 'Influencers', icon: Handshake, adminOnly: true },
   { to: '/admin/promotion', label: 'Legacy Promotion Draw', icon: Gift },
   { to: '/admin/promotion-campaigns', label: 'Promotion Campaigns', icon: Gift },
@@ -55,6 +56,7 @@ export default function AdminLayout() {
  const { user, loading, logout } = useAuth();
  const [open, setOpen] = useState(false);
  const nav = useNavigate();
+ const location = useLocation();
 
  useEffect(() => {
  if (loading) return;
@@ -138,7 +140,7 @@ export default function AdminLayout() {
  </div>
  </div>
  </header>
- <main className="p-4 md:p-6 flex-1"><Outlet /></main>
+ <main className="p-4 md:p-6 flex-1"><AdminErrorBoundary key={location.pathname}><Outlet /></AdminErrorBoundary></main>
  </div>
 
  <MeeraChat theme="light" />

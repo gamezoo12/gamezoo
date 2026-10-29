@@ -12,11 +12,10 @@ import {
   RefreshCw,
   Save,
   Plus,
-  Megaphone,
-  Power,
 } from 'lucide-react';
 
-import { api } from '../../lib/api';
+import { api, offersAPI } from '../../lib/api';
+import { refreshActiveOffer } from '../../lib/useActiveOffer';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 
@@ -105,6 +104,16 @@ export default function ReferralsBonusesAdmin() {
 
   const [rewardSettings, setRewardSettings] = useState(null);
   const [savingRewards, setSavingRewards] = useState(false);
+  const [offerMeta, setOfferMeta] = useState(null);
+  const [topupPricing, setTopupPricing] = useState(null);
+  const [topupPreview, setTopupPreview] = useState([]);
+  const [campaignPreview, setCampaignPreview] = useState(null);
+  const [campaignPromoId, setCampaignPromoId] = useState('');
+  const [offerHistory, setOfferHistory] = useState([]);
+  const [rewardHistory, setRewardHistory] = useState([]);
+  const [promotionRows, setPromotionRows] = useState([]);
+  const [promotionLoading, setPromotionLoading] = useState(false);
+  const [conflictsOnly, setConflictsOnly] = useState(false);
 
   const [promoForm, setPromoForm] = useState(emptyPromo);
   const [creatingPromo, setCreatingPromo] = useState(false);
@@ -119,7 +128,6 @@ export default function ReferralsBonusesAdmin() {
       const r = await api.get('/admin/referrals-bonuses');
 
       setData(r.data);
-      setRewardSettings(r.data?.reward_settings || null);
 
       setState('ok');
     } catch {
@@ -127,10 +135,44 @@ export default function ReferralsBonusesAdmin() {
     }
   };
 
+  const loadOfferDetails = async () => {
+    const [config, pricing, preview, campaign, history, grants] = await Promise.all([
+      offersAPI.config(), offersAPI.pricing(), offersAPI.preview([5, 10, 20, 50]),
+      offersAPI.promotionPreview('', [5, 10, 20, 50]),
+      offersAPI.history(), offersAPI.rewardHistory(),
+    ]);
+    setOfferMeta(config);
+    setRewardSettings(config.settings);
+    setTopupPricing(pricing);
+    setTopupPreview(preview.previews || []);
+    setCampaignPreview(campaign);
+    setOfferHistory(history.items || []);
+    setRewardHistory(grants.items || []);
+  };
+
 
   useEffect(() => {
     load();
+    loadOfferDetails().catch(() => {});
   }, []);
+
+  useEffect(() => {
+    offersAPI.promotionPreview(campaignPromoId, [5, 10, 20, 50])
+      .then(setCampaignPreview)
+      .catch(() => setCampaignPreview(null));
+  }, [campaignPromoId]);
+
+  useEffect(() => {
+    let alive = true;
+    setPromotionLoading(true);
+    const timer = setTimeout(() => {
+      offersAPI.promotionEligibility(query, conflictsOnly)
+        .then((result) => { if (alive) setPromotionRows(result.items || []); })
+        .catch(() => { if (alive) setPromotionRows([]); })
+        .finally(() => { if (alive) setPromotionLoading(false); });
+    }, 250);
+    return () => { alive = false; clearTimeout(timer); };
+  }, [query, conflictsOnly]);
 
 
   const filteredReferrals = useMemo(() => {
@@ -233,19 +275,17 @@ export default function ReferralsBonusesAdmin() {
     setMessage(null);
 
     try {
-      const saved = await api.put(
-        '/admin/reward-settings',
-        rewardSettings
-      );
-
-      setRewardSettings(saved.data);
+      const saved = await offersAPI.saveConfig(rewardSettings);
+      setOfferMeta(saved);
+      setRewardSettings(saved.settings);
+      refreshActiveOffer();
 
       setMessage({
         type: 'success',
         text: 'Reward settings saved successfully.',
       });
 
-      await load();
+      await Promise.all([load(), loadOfferDetails()]);
     } catch (e) {
       setMessage({
         type: 'error',
@@ -412,12 +452,11 @@ export default function ReferralsBonusesAdmin() {
           </div>
 
           <h1 className="font-display text-3xl font-extrabold text-slate-900 mt-1">
-            Referrals, Bonuses & Influencers
+            Referrals & Bonuses
           </h1>
 
           <p className="text-sm text-slate-500 mt-1 max-w-3xl">
-            Manage reward values and influencer campaigns while verified
-            production events remain responsible for granting tokens.
+            Configure signup and referral rewards. Verified production events grant tokens.
           </p>
         </div>
 
@@ -475,25 +514,6 @@ export default function ReferralsBonusesAdmin() {
         />
 
         <Metric
-          label="Influencer signups"
-          value={summary.influencer_signups ?? 0}
-          Icon={Megaphone}
-        />
-
-        <Metric
-          label="Influencer rewards"
-          value={summary.influencer_rewards_issued ?? 0}
-          Icon={Gift}
-          note={`${summary.influencer_tokens_granted ?? 0} tokens`}
-        />
-
-        <Metric
-          label="Pending influencer"
-          value={summary.influencer_pending ?? 0}
-          Icon={Clock}
-        />
-
-        <Metric
           label="All bonus tokens"
           value={summary.total_bonus_tokens_granted ?? 0}
           Icon={Coins}
@@ -515,13 +535,19 @@ export default function ReferralsBonusesAdmin() {
             </p>
           </div>
 
-          <div className="p-5 grid lg:grid-cols-3 gap-5">
+          <div className="p-5 grid lg:grid-cols-2 xl:grid-cols-3 gap-5">
 
             {/* SIGNUP */}
             <div className="rounded-2xl border border-violet-100 bg-violet-50/50 p-4">
               <div className="font-bold text-violet-900">
                 Signup Bonus
               </div>
+
+              <label className="flex items-center gap-2 mt-3 text-sm">
+                <input type="checkbox" checked={rewardSettings.signup_offer_enabled}
+                  onChange={(e) => setRewardSettings({ ...rewardSettings, signup_offer_enabled: e.target.checked })} />
+                Offer enabled
+              </label>
 
               <label className="block text-xs font-semibold mt-4 mb-1">
                 Reward tokens
@@ -539,6 +565,17 @@ export default function ReferralsBonusesAdmin() {
                   })
                 }
               />
+
+              <label className="flex items-center gap-2 mt-4 text-sm">
+                <input type="checkbox" checked={rewardSettings.signup_bonus_expiry_enabled}
+                  onChange={(e) => setRewardSettings({ ...rewardSettings, signup_bonus_expiry_enabled: e.target.checked })} />
+                Expire signup bonus
+              </label>
+              {rewardSettings.signup_bonus_expiry_enabled && <>
+                <label className="block text-xs font-semibold mt-3 mb-1">Expiry days</label>
+                <Input type="number" min="1" max="3650" step="1" value={rewardSettings.signup_bonus_expiry_days}
+                  onChange={(e) => setRewardSettings({ ...rewardSettings, signup_bonus_expiry_days: Number(e.target.value) })} />
+              </>}
 
               <label className="block text-xs font-semibold mt-3 mb-1">
                 Qualifying top-up (£)
@@ -566,6 +603,12 @@ export default function ReferralsBonusesAdmin() {
                 Referral Bonus
               </div>
 
+              <label className="flex items-center gap-2 mt-3 text-sm">
+                <input type="checkbox" checked={rewardSettings.referral_offer_enabled}
+                  onChange={(e) => setRewardSettings({ ...rewardSettings, referral_offer_enabled: e.target.checked })} />
+                Offer enabled
+              </label>
+
               <label className="block text-xs font-semibold mt-4 mb-1">
                 Reward tokens
               </label>
@@ -582,6 +625,12 @@ export default function ReferralsBonusesAdmin() {
                   })
                 }
               />
+
+              <label className="block text-xs font-semibold mt-3 mb-1">
+                Optional referred-user reward (tokens)
+              </label>
+              <Input type="number" min="0" step="0.01" value={rewardSettings.referral_referred_reward_tokens}
+                onChange={(e) => setRewardSettings({ ...rewardSettings, referral_referred_reward_tokens: Number(e.target.value) })} />
 
               <label className="block text-xs font-semibold mt-3 mb-1">
                 Qualifying top-up (£)
@@ -618,70 +667,59 @@ export default function ReferralsBonusesAdmin() {
 
                 Contest entry required
               </label>
-            </div>
-
-
-            {/* INFLUENCER */}
-            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4">
-              <div className="font-bold text-emerald-900">
-                Influencer Bonus
-              </div>
-
-              <label className="block text-xs font-semibold mt-4 mb-1">
-                Default reward tokens
-              </label>
-
-              <Input
-                type="number"
-                min="0"
-                step="1"
-                value={rewardSettings.influencer_reward_tokens}
-                onChange={(e) =>
-                  setRewardSettings({
-                    ...rewardSettings,
-                    influencer_reward_tokens: Number(e.target.value),
-                  })
-                }
-              />
-
-              <label className="block text-xs font-semibold mt-3 mb-1">
-                Qualifying top-up (£)
-              </label>
-
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                value={
-                  rewardSettings.influencer_qualifying_topup_gbp
-                }
-                onChange={(e) =>
-                  setRewardSettings({
-                    ...rewardSettings,
-                    influencer_qualifying_topup_gbp:
-                      Number(e.target.value),
-                  })
-                }
-              />
 
               <label className="flex items-center gap-2 mt-4 text-sm">
-                <input
-                  type="checkbox"
-                  checked={
-                    rewardSettings.influencer_contest_entry_required
-                  }
-                  onChange={(e) =>
-                    setRewardSettings({
-                      ...rewardSettings,
-                      influencer_contest_entry_required:
-                        e.target.checked,
-                    })
-                  }
-                />
-
-                Contest entry required
+                <input type="checkbox" checked={rewardSettings.referral_bonus_expiry_enabled}
+                  onChange={(e) => setRewardSettings({ ...rewardSettings, referral_bonus_expiry_enabled: e.target.checked })} />
+                Expire referral bonus
               </label>
+              {rewardSettings.referral_bonus_expiry_enabled && <>
+                <label className="block text-xs font-semibold mt-3 mb-1">Expiry days</label>
+                <Input type="number" min="1" max="3650" step="1" value={rewardSettings.referral_bonus_expiry_days}
+                  onChange={(e) => setRewardSettings({ ...rewardSettings, referral_bonus_expiry_days: Number(e.target.value) })} />
+              </>}
             </div>
+
+            <div className="rounded-2xl border border-teal-100 bg-teal-50/50 p-4">
+              <div className="font-bold text-teal-900">Normal Top-up Promotion</div>
+              <label className="flex items-center gap-2 mt-3 text-sm">
+                <input type="checkbox" checked={rewardSettings.normal_topup_bonus_enabled}
+                  onChange={(e) => setRewardSettings({ ...rewardSettings, normal_topup_bonus_enabled: e.target.checked })} />
+                Offer enabled
+              </label>
+              <label className="block text-xs font-semibold mt-3 mb-1">Reward type</label>
+              <select value={rewardSettings.normal_topup_bonus_mode} onChange={(e) => setRewardSettings({ ...rewardSettings, normal_topup_bonus_mode: e.target.value })}
+                className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm">
+                <option value="fixed">Fixed bonus tokens</option><option value="percentage">Percent of purchased tokens</option>
+              </select>
+              <label className="block text-xs font-semibold mt-3 mb-1">
+                {rewardSettings.normal_topup_bonus_mode === 'percentage' ? 'Bonus percentage' : 'Bonus tokens'}
+              </label>
+              <Input type="number" min="0" step="0.01"
+                value={rewardSettings.normal_topup_bonus_mode === 'percentage' ? rewardSettings.normal_topup_bonus_percent : rewardSettings.normal_topup_bonus_tokens}
+                onChange={(e) => setRewardSettings({ ...rewardSettings,
+                  [rewardSettings.normal_topup_bonus_mode === 'percentage' ? 'normal_topup_bonus_percent' : 'normal_topup_bonus_tokens']: Number(e.target.value) })} />
+              <label className="block text-xs font-semibold mt-3 mb-1">Minimum qualifying top-up (£)</label>
+              <Input type="number" min="0" step="0.01" value={rewardSettings.normal_topup_bonus_minimum_gbp}
+                onChange={(e) => setRewardSettings({ ...rewardSettings, normal_topup_bonus_minimum_gbp: Number(e.target.value) })} />
+              <label className="flex items-center gap-2 mt-3 text-sm">
+                <input type="checkbox" checked={rewardSettings.normal_topup_bonus_first_only}
+                  onChange={(e) => setRewardSettings({ ...rewardSettings, normal_topup_bonus_first_only: e.target.checked })} />
+                First qualifying top-up only
+              </label>
+              <label className="flex items-center gap-2 mt-3 text-sm">
+                <input type="checkbox" checked={rewardSettings.normal_topup_bonus_expiry_enabled}
+                  onChange={(e) => setRewardSettings({ ...rewardSettings, normal_topup_bonus_expiry_enabled: e.target.checked })} />
+                Expire promotional bonus
+              </label>
+              {rewardSettings.normal_topup_bonus_expiry_enabled && <>
+                <label className="block text-xs font-semibold mt-3 mb-1">Expiry days</label>
+                <Input type="number" min="1" max="3650" step="1" value={rewardSettings.normal_topup_bonus_expiry_days}
+                  onChange={(e) => setRewardSettings({ ...rewardSettings, normal_topup_bonus_expiry_days: Number(e.target.value) })} />
+              </>}
+            </div>
+
+
           </div>
 
           <div className="px-5 pb-5">
@@ -699,8 +737,82 @@ export default function ReferralsBonusesAdmin() {
         </section>
       )}
 
+      <section className="grid gap-4 xl:grid-cols-2" data-testid="offer-pricing-preview">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <h2 className="font-display text-lg font-bold text-slate-900">Top-up Pricing</h2>
+          <p className="mt-1 text-xs text-slate-500">Purchased tokens are credited separately from Signup Bonus Tokens.</p>
+          <div className="mt-3 text-sm">{topupPricing?.rule?.tokens_per_gbp ?? 1} purchased Top-up Token per £1</div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {(topupPricing?.packages || []).map((item) => (
+              <span key={item.amount_gbp} className="rounded-md border border-slate-200 px-3 py-2 text-xs">
+                £{item.amount_gbp} → {item.topup_tokens} Top-up Tokens
+              </span>
+            ))}
+          </div>
+          <h3 className="mt-5 text-sm font-bold text-slate-800">Live new-user preview</h3>
+          <div className="mt-2 overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="text-slate-500"><tr><th className="py-2">Top-up</th><th>Top-up Tokens</th><th>Signup Bonus</th><th>Normal top-up bonus</th><th>Total without influencer code</th><th>Campaign bonus if code applies</th></tr></thead>
+              <tbody>{topupPreview.map((item) => <tr key={item.amount_gbp} className="border-t border-slate-100">
+                <td className="py-2">£{item.amount_gbp}</td>
+                <td>{item.credited_now.topup_tokens}</td>
+                <td>{item.signup_bonus.tokens}</td>
+                <td>{item.normal_topup_bonus.tokens}</td>
+                <td className="font-semibold">{item.credited_now.total_tokens}</td>
+                <td>{item.campaign_bonus_if_campaign_code?.tokens ?? 0} Bonus Tokens</td>
+              </tr>)}</tbody>
+            </table>
+          </div>
+          <h3 className="mt-6 text-sm font-bold text-slate-800">Influencer Exclusive preview</h3>
+          <label className="mt-2 block max-w-md text-xs font-semibold text-slate-600">Campaign
+            <select value={campaignPromoId} onChange={(event) => setCampaignPromoId(event.target.value)} className="mt-1 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm">
+              <option value="">Select a campaign</option>
+              {(campaignPreview?.campaigns || []).map((campaign) => <option key={campaign.promo_id} value={campaign.promo_id}>{campaign.code} · {campaign.campaign_name || campaign.code}{campaign.active ? '' : ' (disabled)'}</option>)}
+            </select>
+          </label>
+          {campaignPromoId && campaignPreview?.campaign && <>
+            <p className="mt-2 text-xs text-slate-600">{campaignPreview.campaign.conditions_text}</p>
+            <div className="mt-2 overflow-x-auto"><table className="w-full text-left text-xs">
+              <thead className="text-slate-500"><tr><th className="py-2">Top-up</th><th>Purchased Top-up Tokens</th><th>Influencer Signup Bonus</th><th>Influencer Top-up Bonus</th><th>Total</th></tr></thead>
+              <tbody>{campaignPreview.rows.map((row) => <tr key={row.amount_gbp} className="border-t border-slate-100">
+                <td className="py-2">£{row.amount_gbp}</td><td>{row.influencer?.breakdown.topup_tokens ?? 0}</td>
+                <td>{row.influencer?.breakdown.influencer_signup_bonus_tokens ?? 0}</td>
+                <td>{row.influencer?.breakdown.influencer_topup_bonus_tokens ?? 0}</td>
+                <td className="font-semibold">{row.influencer?.total_tokens ?? 0}</td>
+              </tr>)}</tbody>
+            </table></div>
+          </>}
+          {campaignPromoId && !campaignPreview?.campaign && <p className="mt-2 text-xs text-rose-700">Campaign preview unavailable; reload or select an active campaign.</p>}
+        </div>
 
-      {/* CREATE INFLUENCER PROMO */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <h2 className="font-display text-lg font-bold text-slate-900">Offer Version & Terms Review</h2>
+          <p className="mt-2 text-sm">Version {offerMeta?.settings?.offer_version ?? '—'} · effective {fmtDate(offerMeta?.settings?.offer_effective_from)}</p>
+          {!offerMeta?.legal_flags?.length ? <p className="mt-3 text-xs text-emerald-700">No known wording discrepancy.</p> : (
+            <ul className="mt-3 space-y-2">{offerMeta.legal_flags.map((flag, index) => <li key={`${flag.area}-${index}`} className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs">
+              <b>{flag.severity.toUpperCase()}: {flag.area}</b><div className="mt-1">Published: {flag.published}</div><div>Configured: {flag.configured}</div><div className="mt-1 text-amber-900">{flag.action}</div>
+            </li>)}</ul>
+          )}
+        </div>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-2">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white" data-testid="offer-version-history">
+          <div className="border-b border-slate-200 p-4"><h2 className="font-display font-bold">Offer Settings History</h2></div>
+          <div className="max-h-80 overflow-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr><th className="p-3">Version</th><th>Changed</th><th>Changes</th></tr></thead>
+            <tbody>{offerHistory.map((row) => <tr key={row.offer_version} className="border-t border-slate-100"><td className="p-3">{row.offer_version}</td><td>{fmtDate(row.changed_at)}</td><td>{Object.entries(row.changes || {}).map(([key, value]) => `${key}: ${value.from ?? '—'} → ${value.to ?? '—'}`).join('; ')}</td></tr>)}
+              {!offerHistory.length && <tr><td colSpan="3" className="p-4 text-slate-400">No saved changes.</td></tr>}</tbody></table></div>
+        </div>
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white" data-testid="offer-reward-history">
+          <div className="border-b border-slate-200 p-4"><h2 className="font-display font-bold">Reward History</h2></div>
+          <div className="max-h-80 overflow-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr><th className="p-3">User</th><th>Source</th><th>Issued</th><th>Remaining</th><th>Status</th><th>Granted</th></tr></thead>
+            <tbody>{rewardHistory.map((row) => <tr key={row.grant_id} className="border-t border-slate-100"><td className="p-3">{row.user?.public_id || row.user?.email || row.user_id}</td><td>{row.source}</td><td>{row.tokens ?? '—'}</td><td>{row.remaining ?? '—'}</td><td>{row.status}</td><td>{fmtDate(row.granted_at)}</td></tr>)}
+              {!rewardHistory.length && <tr><td colSpan="6" className="p-4 text-slate-400">No signup or referral grants recorded.</td></tr>}</tbody></table></div>
+        </div>
+      </section>
+
+  {false && <>
+  {/* Legacy influencer promo management remains in the dedicated Influencers section. */}
       <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
         <div className="p-5 border-b border-slate-200">
           <h2 className="font-display text-xl font-bold">
@@ -1121,6 +1233,7 @@ export default function ReferralsBonusesAdmin() {
           </table>
         </div>
       </section>
+      </>}
 
 
       {/* CURRENT RULES */}
@@ -1139,12 +1252,7 @@ export default function ReferralsBonusesAdmin() {
             ? ' + contest entry'
             : ''}
           {' '}→ {rules.referral_reward_tokens ?? 0} tokens.
-          {' '}Influencer default: verified £
-          {rules.influencer_qualifying_topup_gbp ?? 0}+ top-up
-          {rules.influencer_contest_entry_required
-            ? ' + contest entry'
-            : ''}
-          {' '}→ {rules.influencer_reward_tokens ?? 0} tokens.
+          {' '}Signup/referral bonus expiry is configured above and applies to future grants only.
         </div>
       </div>
 
@@ -1163,6 +1271,46 @@ export default function ReferralsBonusesAdmin() {
           />
         </div>
       </div>
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white" data-testid="promotion-eligibility-report">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4">
+          <div>
+            <h2 className="font-display font-bold text-lg">Promotional Eligibility</h2>
+            <p className="text-xs text-slate-500">Promotion stacking rule: <b>Influencer Exclusive</b>. Read-only; conflicts require review.</p>
+          </div>
+          <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+            <input type="checkbox" checked={conflictsOnly} onChange={(event) => setConflictsOnly(event.target.checked)} />
+            Conflicts only
+          </label>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-50 text-slate-500"><tr>
+              <th className="p-3">User</th><th>Acquisition / campaign</th><th>Signup</th><th>Top-up</th>
+              <th>Normal bonus issued</th><th>Influencer bonus issued</th><th>Purchased top-ups</th><th>Conflicts / references</th>
+            </tr></thead>
+            <tbody>
+              {promotionRows.map((row) => <tr key={row.user_id} className="border-t border-slate-100 align-top">
+                <td className="p-3"><div className="font-semibold">{row.public_id || row.name || row.user_id}</div><div className="text-slate-500">{row.email}</div></td>
+                <td>{row.acquisition_type}{row.promo_code ? <div>{row.influencer_name || row.campaign_name} · {row.promo_code}</div> : null}</td>
+                <td>{row.signup_bonus_status}{row.signup_pending_condition ? <div className="text-amber-700">{row.signup_pending_condition}</div> : null}</td>
+                <td>{row.topup_bonus_status}{row.topup_pending_condition ? <div className="text-amber-700">{row.topup_pending_condition}</div> : null}</td>
+                <td>{row.normal_bonus_tokens_issued ?? 'Unclassified'}</td>
+                <td>{row.influencer_bonus_tokens_issued ?? 'Unclassified'}</td>
+                <td>{row.purchased_topup_tokens ?? 'Unclassified'}</td>
+                <td>
+                  {row.conflicts?.map((conflict) => <div key={conflict.code} className="font-semibold text-rose-700">{conflict.message}</div>)}
+                  {row.reward_transaction_ids?.length ? <div className="mt-1 font-mono text-[10px]">{row.reward_transaction_ids.join(', ')}</div> : null}
+                  {row.bonus_expiry?.map((grant) => <div key={`${grant.source}-${grant.expires_at}`} className="mt-1 text-slate-500">{grant.source}: {grant.remaining ?? '—'} remaining · {fmtDate(grant.expires_at)}</div>)}
+                  {!row.has_conflict && !row.reward_transaction_ids?.length && !row.bonus_expiry?.length ? '—' : null}
+                </td>
+              </tr>)}
+              {promotionLoading && <tr><td colSpan="8" className="p-4 text-slate-500">Loading eligibility…</td></tr>}
+              {!promotionLoading && !promotionRows.length && <tr><td colSpan="8" className="p-4 text-slate-400">No matching users.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
 
       {/* REFERRAL TABLE */}

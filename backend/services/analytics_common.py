@@ -16,7 +16,12 @@ REPORT_TZ = ZoneInfo(REPORT_TZ_NAME)
 # Server-verified roles whose activity is internal, never public traffic.
 STAFF_ROLES = ('admin', 'super_admin', 'operator', 'support', 'influencer')
 
-RANGE_KEYS = ('today', 'yesterday', '7d', '30d', 'month', 'last_month', 'custom')
+# Shared dashboard filter: 1h, 6h, 24h roll back from now; yesterday/7d/1m/1y use UK calendar days.
+PERIOD_KEYS = ('1h', '6h', '24h', 'yesterday', '7d', '1m', '1y', 'all_time')
+PERIOD_ALIASES = {'lifetime': 'all_time'}
+RANGE_KEYS = (*PERIOD_KEYS, 'today', '30d', '6m', 'month', 'last_month', 'custom', 'lifetime')
+ROLLING_HOURS = {'1h': 1, '6h': 6, '24h': 24}
+ALL_TIME_START = datetime(2000, 1, 1, tzinfo=timezone.utc)
 
 
 def utcnow() -> datetime:
@@ -32,7 +37,17 @@ def resolve_range(range_key: str = '7d', start: Optional[str] = None, end: Optio
     """Return {start, end (UTC, end exclusive), label, timezone}. Days are UK calendar days."""
     now = now or utcnow()
     today = now.astimezone(REPORT_TZ).date()
-    if range_key == 'today':
+    range_key = PERIOD_ALIASES.get(range_key, range_key)
+    if range_key in ROLLING_HOURS:
+        return {'start': now - timedelta(hours=ROLLING_HOURS[range_key]), 'end': now + timedelta(seconds=1),
+                'label': f'last {ROLLING_HOURS[range_key]} hour(s) to {now.isoformat(timespec="minutes")}',
+                'timezone': REPORT_TZ_NAME}
+    if range_key == 'all_time':
+        return {'start': ALL_TIME_START, 'end': now + timedelta(seconds=1), 'label': 'all time',
+                'timezone': REPORT_TZ_NAME}
+    if range_key in ('1m', '1y', '6m'):
+        s, e = today - timedelta(days={'1m': 29, '1y': 364, '6m': 181}[range_key]), today + timedelta(days=1)
+    elif range_key == 'today':
         s, e = today, today + timedelta(days=1)
     elif range_key == 'yesterday':
         s, e = today - timedelta(days=1), today

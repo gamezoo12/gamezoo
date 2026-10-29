@@ -51,7 +51,7 @@
     "frontend": "100% for the review-request scenarios I could exercise (wizard step1↔2, no-Skip, under-18 gate, session persistence via JWT round-trip, email-login-redirects-to-Home, bundle contains GoogleFinalizeModal & all required data-testids). Steps 3/4 of the wizard could not be exercised interactively because /api/auth/otp/send has no test bypass and Twilio rejects fake numbers — this is the intended behaviour per the code, not a bug."
   },
 
-  "test_credentials": "Admin: bachanta8@gmail.com / Herts@910022. Test users are created fresh per run via /api/auth/register with otp_code='000000' (bypass). Fresh emails and unique +1555XXXXXXX phones are minted per test.",
+  "test_credentials": "Admin: <admin-email> / <redacted>. Test users are created fresh per run via /api/auth/register with otp_code='000000' (bypass). Fresh emails and unique +1555XXXXXXX phones are minted per test.",
 
   "seed_data_creation": "Created ~15 fresh e2e test users via /api/auth/register during pytest + 2 in the browser context. Sample: username=balaram0211 (running index shows earlier iterations left ~10 'balaram02*' users behind). Consider a cleanup script if user count grows unbounded.",
 
