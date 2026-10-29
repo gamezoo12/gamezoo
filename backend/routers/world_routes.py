@@ -11953,8 +11953,10 @@ async def public_champion_winners():
         sort=[("global_contest_number", -1)],
     )
 
+    manual = await _manual_ticker_winners(db)
+
     if not latest:
-        return {"contest_number": None, "winners": []}
+        return {"contest_number": None, "winners": manual}
 
     contest_number = int(latest["global_contest_number"])
 
@@ -12002,8 +12004,64 @@ async def public_champion_winners():
 
     return {
         "contest_number": contest_number,
-        "winners": winners,
+        "winners": winners + manual,
     }
+
+
+async def _manual_ticker_winners(db) -> list:
+    rows = await db.world_ticker_winners.find(
+        {"active": True}, {"_id": 0}
+    ).sort("created_at", -1).to_list(length=50)
+    return [
+        {
+            "rank": 1000 + i,
+            "user_name": r["user_name"],
+            "prize_amount": float(r["prize_amount"]),
+            "currency": r.get("currency") or WORLD_DEFAULT_CURRENCY,
+            "manual": True,
+        }
+        for i, r in enumerate(rows)
+    ]
+
+
+class TickerWinnerIn(BaseModel):
+    user_name: str = Field(min_length=1, max_length=60)
+    prize_amount: float = Field(gt=0, le=10_000_000)
+    currency: str = Field(default="GBP", max_length=3)
+
+
+@admin_router.get("/ticker-winners")
+async def admin_list_ticker_winners(request: Request):
+    await require_admin(request)
+    rows = await get_db().world_ticker_winners.find(
+        {}, {"_id": 0}
+    ).sort("created_at", -1).to_list(length=200)
+    return {"winners": rows}
+
+
+@admin_router.post("/ticker-winners")
+async def admin_add_ticker_winner(body: TickerWinnerIn, request: Request):
+    admin = await require_admin(request)
+    doc = {
+        "winner_id": secrets.token_hex(8),
+        "user_name": body.user_name.strip(),
+        "prize_amount": body.prize_amount,
+        "currency": body.currency.upper(),
+        "active": True,
+        "created_by": admin.get("user_id") if isinstance(admin, dict) else None,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await get_db().world_ticker_winners.insert_one(dict(doc))
+    return doc
+
+
+@admin_router.delete("/ticker-winners/{winner_id}")
+async def admin_delete_ticker_winner(winner_id: str, request: Request):
+    await require_admin(request)
+    res = await get_db().world_ticker_winners.delete_one({"winner_id": winner_id})
+    if not res.deleted_count:
+        raise HTTPException(404, "Winner not found")
+    return {"ok": True}
 
 
 

@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FlaskConical, RotateCcw } from 'lucide-react';
 import { worldGcCompetitionAdminAPI as gcApi } from '../../lib/api';
 import { GAME_CATALOG } from '../../lib/gameCatalog';
+import { GAME_MAP } from '../games';
 
 const levelKeys = [...Array.from({ length: 10 }, (_, i) => `L${i + 1}`), 'champion'];
 const btn = 'rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-100 disabled:opacity-40';
@@ -30,6 +31,29 @@ function MemoryBoard({ memory, revealed, onClick }) {
   );
 }
 
+function Stopwatch({ startedAt, running }) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (!running) return undefined;
+    const t = setInterval(() => tick((n) => n + 1), 100);
+    return () => clearInterval(t);
+  }, [running]);
+  const secs = startedAt ? Math.max(0, (Date.now() - new Date(startedAt).getTime()) / 1000) : 0;
+  return <span data-testid="preview-stopwatch">{secs.toFixed(1)}s</span>;
+}
+
+function ClientGame({ play, gameId, onFinish }) {
+  const done = useRef(false);
+  useEffect(() => { done.current = false; }, [play.started_at]);
+  const render = GAME_MAP[gameId];
+  if (!render) return <p className="text-sm text-rose-700" data-testid="preview-game-missing">No component registered for {gameId}.</p>;
+  return (
+    <div className="mt-3 rounded-xl bg-white p-3 text-slate-900" key={play.started_at} data-testid={`preview-game-${gameId}`}>
+      {render({}, (result) => { if (done.current) return; done.current = true; onFinish(Boolean(result?.solved)); })}
+    </div>
+  );
+}
+
 export const GCPreviewPanel = ({ gcNumber }) => {
   const [preview, setPreview] = useState(null);
   const [level, setLevel] = useState('L1');
@@ -52,6 +76,7 @@ export const GCPreviewPanel = ({ gcNumber }) => {
     if (Object.keys(next).length >= 2) setTimeout(() => setRevealed({}), 600);
   };
   const row = preview && (level === 'champion' ? preview.champion : preview.levels[Number(level.slice(1)) - 1]);
+  const play = preview?.play;
   const ranked = [...(preview?.scores?.[level] || [])].sort((a, b) => a.duration_ms - b.duration_ms);
 
   return (
@@ -66,7 +91,7 @@ export const GCPreviewPanel = ({ gcNumber }) => {
         <div className="flex flex-wrap items-end gap-2">
           <label className="text-xs font-semibold">Model <select className="ml-1 rounded border px-2 py-1" value={preview.model} onChange={(e) => call(gcApi.previewAction({ action: 'update_config', config: { model: e.target.value } }))} data-testid="preview-model-select"><option value="champion_only">Champion-Only</option><option value="every_level">Every-Level + Champion</option></select></label>
           <label className="text-xs font-semibold">Level <select className="ml-1 rounded border px-2 py-1" value={level} onChange={(e) => setLevel(e.target.value)} data-testid="preview-level-select">{levelKeys.map((k) => <option key={k} value={k}>{k === 'champion' ? 'Champion' : `Level ${k.slice(1)}`} · {(k === 'champion' ? preview.champion : preview.levels[Number(k.slice(1)) - 1]).state}</option>)}</select></label>
-          <label className="text-xs font-semibold">Game <select className="ml-1 rounded border px-2 py-1" value={row?.game_id || ''} onChange={(e) => call(gcApi.previewAction({ action: 'update_config', config: level === 'champion' ? { champion: { game_id: e.target.value } } : { levels: [{ level: Number(level.slice(1)), game_id: e.target.value }] } }))} data-testid="preview-game-select"><option value="colour_match">Colour Match (Free World)</option>{GAME_CATALOG.map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}</select></label>
+          <label className="text-xs font-semibold">Game <select className="ml-1 rounded border px-2 py-1" value={row?.game_id || ''} onChange={(e) => call(gcApi.previewAction({ action: 'update_config', config: level === 'champion' ? { champion: { game_id: e.target.value } } : { levels: [{ level: Number(level.slice(1)), game_id: e.target.value }] } }))} data-testid="preview-game-select">{GAME_CATALOG.map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}</select></label>
           <label className="text-xs font-semibold">Simulated time <input type="datetime-local" className="ml-1 rounded border px-2 py-1" onChange={(e) => e.target.value && act('set_time', { sim_now: new Date(e.target.value).toISOString() })} data-testid="preview-sim-time" /></label>
         </div>
         {level !== 'champion' && preview.model === 'every_level' && <div className="flex flex-wrap gap-2" data-testid="preview-bonus-inputs">{[1, 2, 3, 4, 5].map((r) => <label key={r} className="text-xs">#{r} <input type="number" min="0" max="500" className="w-16 rounded border px-1" value={row.bonus_rewards?.[String(r)] ?? 0} onChange={(e) => call(gcApi.previewAction({ action: 'update_config', config: { levels: [{ level: Number(level.slice(1)), bonus_rewards: { ...row.bonus_rewards, [String(r)]: Number(e.target.value) } }] } }))} /></label>)}</div>}
@@ -76,9 +101,14 @@ export const GCPreviewPanel = ({ gcNumber }) => {
           <button type="button" className={btn} disabled={busy} onClick={() => act('close_level')} data-testid="preview-close-btn">Close</button>
           <button type="button" className={btn} disabled={busy} onClick={() => act('simulate_players', { count: 6 })} data-testid="preview-simulate-btn">Simulate 6 players</button>
           <button type="button" className={btn} disabled={busy || row?.game_id !== 'memory_match'} onClick={() => { setRevealed({}); act('memory_start'); }} data-testid="preview-play-btn">Play Memory Match (retry)</button>
+          <button type="button" className={btn} disabled={busy || !row?.game_id || row.game_id === 'memory_match'} onClick={() => act('game_start')} data-testid="preview-game-start-btn">{play?.level === level && play.status !== 'playing' ? 'Retry game' : 'Play game'}</button>
           <button type="button" className={btn} disabled={busy} onClick={() => act('finalize_level')} data-testid="preview-finalize-btn">{level === 'champion' ? 'Finalize Champion & payouts' : 'Finalize level'}</button>
         </div>
         <MemoryBoard memory={preview.memory?.level === level && row?.game_id === 'memory_match' ? preview.memory : null} revealed={revealed} onClick={click} />
+        {play && play.level === level && play.game_id === row?.game_id && row.game_id !== 'memory_match' && <div data-testid="preview-game-area">
+          <p className="mt-3 text-xs text-slate-600" data-testid="preview-game-status">{play.game_id} · attempt {play.attempts} · retries {play.retries} · <Stopwatch startedAt={play.started_at} running={play.status === 'playing'} /> · {play.status === 'playing' ? 'stopwatch running' : play.status === 'completed' ? `finished in ${(play.duration_ms / 1000).toFixed(2)}s` : `not solved after ${(play.duration_ms / 1000).toFixed(2)}s`}</p>
+          {play.status === 'playing' && <ClientGame play={play} gameId={play.game_id} onFinish={(solved) => act('game_complete', { solved })} />}
+        </div>}
         <div className="grid gap-3 md:grid-cols-2 text-xs">
           <div data-testid="preview-leaderboard"><b>Simulated leaderboard</b>{ranked.slice(0, 10).map((s, i) => <div key={`${s.player_id}-${i}`}>{i + 1}. {s.name} · {(s.duration_ms / 1000).toFixed(2)}s</div>)}</div>
           <div data-testid="preview-wallets"><b>Simulated wallets</b>{Object.entries(preview.wallet || {}).map(([pid, w]) => <div key={pid}>{pid}: pending {w.bonus_pending || 0} · credited {w.bonus_credited || 0} · forfeited {w.bonus_forfeited || 0} · champion {w.champion_tokens || 0}</div>)}</div>

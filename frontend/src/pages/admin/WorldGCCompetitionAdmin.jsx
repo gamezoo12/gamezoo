@@ -6,7 +6,7 @@ import { GAME_CATALOG } from '../../lib/gameCatalog';
 
 const gcOptions = Array.from({ length: 50 }, (_, index) => index + 4);
 const gameNames = { ...Object.fromEntries(GAME_CATALOG.map((g) => [g.id, g.label])), colour_match: 'Colour Match (Free World, server-checked)' };
-const allGameIds = ['colour_match', ...GAME_CATALOG.map((g) => g.id)];
+const allGameIds = GAME_CATALOG.map((g) => g.id);
 const defaultRewards = { '1': 5, '2': 4, '3': 3, '4': 2, '5': 1 };
 const fieldClass = 'h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm disabled:bg-slate-100 disabled:text-slate-400';
 const labelClass = 'mb-1 block text-xs font-semibold text-slate-600';
@@ -37,7 +37,7 @@ function GameFields({ row, onChange, disabled, options }) {
   const setCfg = (patch) => onChange({ game_config: { ...cfg, ...patch } });
   return <>
     <label><span className={labelClass}>Game</span><select className={fieldClass} disabled={disabled} value={row.game_id || ''} onChange={(e) => onChange({ game_id: e.target.value || null, game_config: {} })} data-testid={`gc-game-${row.level ?? 'champion'}`}>
-      <option value="">Choose game</option>{options.map((g) => <option key={g} value={g}>{gameNames[g]}</option>)}
+      <option value="">Choose game</option>{(row.game_id && !options.includes(row.game_id) ? [row.game_id, ...options] : options).map((g) => <option key={g} value={g}>{gameNames[g] || g}</option>)}
     </select></label>
     {row.game_id === 'memory_match' && <label><span className={labelClass}>Card pairs</span><input className={fieldClass} disabled={disabled} type="number" min="2" max="16" value={cfg.pair_count ?? 6} onChange={(e) => setCfg({ pair_count: Number(e.target.value) })} /></label>}
     {row.game_id === 'colour_match' && <>
@@ -82,8 +82,10 @@ export default function WorldGCCompetitionAdmin() {
   const status = data?.config?.activation_status || 'draft';
   const isActiveGc = Boolean(states?.is_active_gc);
   const notStarted = states && !states.has_started && !isActiveGc;
-  const fullEngine = data?.config?.engine === 'every_level_engine' || (status !== 'draft' && !data?.config?.engine && data?.config?.model === 'every_level');
-    const gameOptions = fullEngine ? ['memory_match'] : allGameIds;
+  const engineLocked = data?.config?.engine === 'every_level_engine' || (status !== 'draft' && !data?.config?.engine && data?.config?.model === 'every_level');
+  // Apply to Future GC re-derives the engine, so a GC that has not started is never limited to Memory Match.
+  const fullEngine = engineLocked && Boolean(states?.has_started || isActiveGc);
+  const gameOptions = fullEngine ? ['memory_match'] : allGameIds;
 
   const rowFor = (n) => draft.levels.find((r) => Number(r.level) === n) || { level: n, bonus_rewards: defaultRewards };
   const updateLevel = (n, patch) => setDraft((cur) => ({ ...cur, levels: [...cur.levels.filter((r) => Number(r.level) !== n), { ...rowFor(n), ...patch, level: n }].sort((a, b) => a.level - b.level) }));

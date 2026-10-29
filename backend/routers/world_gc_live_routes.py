@@ -599,6 +599,7 @@ class PreviewActionInput(BaseModel):
     count: int | None = Field(default=None, ge=1, le=20)
     config: dict | None = None
     position: int | None = Field(default=None, ge=0, le=31)
+    solved: bool | None = None
 
 
 @admin_router.get("/preview")
@@ -770,6 +771,35 @@ async def preview_action(payload: PreviewActionInput, request: Request):
         doc["memory"] = {"level": level_key, "board": board, "card_count": len(board), "matched_positions": [],
                          "pending_position": None, "click_count": 0, "started_at": now_iso,
                          "status": "playing", "retries": retries}
+    elif action == "game_start":
+        level_key = _key(payload.level)
+        row = _preview_level(doc, level_key)
+        if row.get("game_id") not in SUPPORTED_GAMES or row.get("game_id") == "memory_match":
+            raise HTTPException(status_code=409, detail="This preview level does not use a client-side game")
+        if row.get("state") != "open":
+            raise HTTPException(status_code=409, detail="Open this preview level first")
+        prior = doc.get("play") or {}
+        retries = prior.get("retries", -1) + 1 if prior.get("level") == level_key and prior.get("game_id") == row["game_id"] else 0
+        doc["play"] = {"level": level_key, "game_id": row["game_id"], "started_at": now_iso,
+                       "status": "playing", "retries": retries, "attempts": int(prior.get("attempts", 0)) + 1 if retries else 1}
+        doc["log"].append(f"Admin started {level_key} {row['game_id']} (attempt {doc['play']['attempts']})")
+    elif action == "game_complete":
+        play = doc.get("play") or {}
+        if play.get("status") != "playing" or play.get("level") != _key(payload.level):
+            raise HTTPException(status_code=409, detail="Start a preview game first")
+        row = _preview_level(doc, play["level"])
+        if row.get("state") != "open":
+            raise HTTPException(status_code=409, detail="This preview level is no longer open")
+        duration = int((datetime.now(timezone.utc) - _utc(play["started_at"])).total_seconds() * 1000)
+        play["duration_ms"] = duration
+        if payload.solved:
+            play["status"] = "completed"
+            doc["scores"].setdefault(play["level"], []).append(
+                {"player_id": "admin", "name": "You (Admin)", "duration_ms": duration, "at": now_iso})
+        else:
+            play["status"] = "failed"
+        doc["play"] = play
+        doc["log"].append(f"Admin {play['status']} {play['level']} {play['game_id']} in {duration / 1000:.2f}s")
     elif action == "memory_click":
         memory = doc.get("memory") or {}
         if memory.get("status") != "playing" or payload.position is None:
