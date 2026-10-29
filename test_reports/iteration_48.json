@@ -1,0 +1,45 @@
+{
+  "summary": "Tested the All-30-games enablement end to end on the public URL. Working: GC Settings L9, L10 and Champion selects each offer 31 options (Colour Match plus 30 games), with L1-8 locked. Saving and applying sudoku_mini/maze_solver/lights_out produced the notice 'Applied to Levels 9, 10 + Champion game' and the schedule cards updated. GC4 was then restored (L9 colour_match 5/10 with 50/40/30/20/10, L10 number_sequence with 9/8/7/6/5, Champion colour_match 6/20) and checked via the API. Preview game select lists 31 options and the Memory Match board works. The Paid World contest-game-select shows 30 games in 6 groups (4/3/6/6/7/4). Editing an existing contest saves game_type for Vol.2 games. All 30 games render with no JS errors and no horizontal overflow at 1920px and 390px (admin Test-game modal). number_sequence, tower_of_hanoi and maze_solver were played to completion on both viewports. PlayGame on mobile with a maze_solver contest ticket: captcha verify, submit, score 100 and attempts 2 to 1. API: /api/games/submit for a nonogram_mini ticket decrements attempts, the 3rd attempt returns 400, and the leaderboard shows the entry. Impossible Challenges is unchanged (only the Add Number Sequence and Add Colour Match buttons). Free World Pause/Resume works and was left RESUMED. Main problem found: POST /api/admin/contests ignores game_type and the other skill-engine fields, so a contest created in the Create dialog is saved with game_type=None.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/admin/contests", "issue": "create_contest_api builds Contest(...) from a fixed field list and never saves payload.game_type (also entry_mode, attempts_per_ticket, max_attempts, winner_selection_method, engine_type and the other extended fields). The Create Contest dialog sends game_type='maze_solver' etc., the toast says 'Contest created', but the DB has game_type=None. /api/games/submit then returns 400 'This contest is not tied to a game'. Reproduced: POST with game_type nonogram_mini gave db game_type None. PUT /api/admin/contests/{id} does save it correctly. Fix: after Contest(...).model_dump(), copy the same allowed keys used by update_contest_full (or call that update logic) into doc before insert_one.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "Free World client-game sessions (world_routes.py ~7437)", "issue": "For the 28 client games the server trusts body.solved=true from the browser; only duration is server-measured. A scripted client can claim 'solved' straight away with a time-based score for Every-Level Bonus Tokens or Champion prizes. Accepted by design for now; consider requiring a server-checkable answer for reward-bearing levels."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "MazeSolver (games_v2.jsx:638)", "issue": "Accuracy uses a hardcoded optimal=(n-2)*2=10 steps, but the randomized DFS maze often has a longer shortest path (BFS found 16 steps, giving 63% accuracy for a perfect run). Accuracy is 60% of Paid World points, so players are unfairly penalised depending on the random maze, which matters now that maze_solver can be picked for paid contests. Compute optimal with BFS on the generated maze.", "selector": "[data-testid='maze-solver']", "priority": "MEDIUM"},
+      {"component": "WorldGCCompetitionAdmin GameFields", "issue": "Switching a level from colour_match to another game keeps the stale game_config {colours, rounds} in the saved draft. Harmless today because the backend ignores it for client games, but it is untidy. Reset game_config when game_id changes.", "selector": "[data-testid='gc-game-9']", "priority": "LOW"},
+      {"component": "GCPreviewPanel", "issue": "The Memory board stays on screen after the preview game is switched to another game (e.g. nonogram_mini). Only Memory Match can be played in Preview; other games just set the config.", "selector": "[data-testid='preview-memory-board']", "priority": "LOW"}
+    ],
+    "integration_issues": [
+      {"flow": "Paid World Create Contest with a skill game", "issue": "The dialog validates that a game is required and sends game_type, but the backend create drops it (see backend critical). The contest is unplayable until it is edited and saved again.", "affected_selectors": ["[data-testid='contest-game-select']", "[data-testid='contest-save-btn']"]}
+    ],
+    "design_issues": [
+      {"screen": "EditContestDialog", "issues": ["Open/End date fields use the native datetime-local picker rather than a shadcn calendar (pre-existing)"]}
+    ]
+  },
+  "test_report_links": ["/app/tests/e2e_public/test_all_30_games_e2e.py", "/app/test_reports/pytest/all30_results.xml", "/app/tests/e2e_public/test_gc_live_apply_pause_e2e.py"],
+  "action_items": [
+    "HIGH: make POST /api/admin/contests save game_type and the other skill-engine fields (entry_mode, attempts_per_ticket, max_attempts, winner_selection_method, engine_type, extended fields), matching PUT update_contest_full",
+    "MEDIUM: fix MazeSolver accuracy to use the BFS shortest path of the generated maze",
+    "LOW: reset game_config when the GC level game changes; hide the preview memory board when the game is not memory_match",
+    "The previous agent's regression test test_gc_live_apply_pause_e2e.py leaves GC4 L9 bonus_rewards mutated (1st place 336, then 41/31/21/11). Add a restore step to its teardown"
+  ],
+  "critical_code_review_comments": [
+    "admin_routes.create_contest_api silently ignores most of the payload the dialog sends; the PUT route has an allowed-list. Use the same list for create so the two cannot drift apart",
+    "WorldGCCompetitionAdmin: gameOptions falls back to ['memory_match'] only for engine every_level_engine. GC4 is legacy_hybrid, so it shows all 30, but any every_level_engine GC will still offer only Memory Match. Confirm this is intended",
+    "world_routes.py is 13k+ lines; _world_client_games() is rebuilt on every call (in loops and hot paths). Cache it at module level",
+    "Client-game Free World completion is trust-the-client for 'solved' (see minor backend issue)"
+  ],
+  "updated_files": ["/app/tests/e2e_public/test_all_30_games_e2e.py"],
+  "success_rate": {"backend": "83% (5/6 new e2e tests pass; failure = create drops game_type) + 12/12 previous GC e2e regression", "frontend": "~95% (all requested UI flows pass; issues are create-contest persistence and maze accuracy)"},
+  "seed_data_creation": "Temporary TEST_ contests, tickets and game_scores were created and then deleted. Contest c_4761f2004b72 ('TEST V2 Cryptogram Contest') was edited to sudoku_mini and reverted to cryptogram. GC4 was restored to L9 colour_match(5 colours, 10 rounds, bonus 50/40/30/20/10), L10 number_sequence(9/8/7/6/5), Champion colour_match(6, 20), has_unapplied_draft=False. Free World left RESUMED.",
+  "test_credentials": "Super admin bachanta8@gmail.com / Herts@910022; player1@example.com / Player@12345 (from /app/memory/test_credentials.md)",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run public e2e with: pytest tests/e2e_public/<file> -c /dev/null -p no:xdist. Turnstile is enabled. The tests get a challenge_token via POST /api/games/captcha/verify (works with the dummy token), with a local HMAC signing fallback using JWT_SECRET. Game Preview (/games/:id) is disabled in settings, so use the /admin/games test-game-{id} modal to render games. backend/tests/test_world_all_games.py SKIPS here (isolated local API+Mongo harness unavailable), so the Free World client-game session flow (L1 sudoku_mini etc.) was NOT re-verified by me. GC4 L9 opens 30 Oct 00:00 UK, so client-game session start/submit could not be tested on live GC4. After running test_gc_live_apply_pause_e2e.py, restore GC4 L9 bonus to 50/40/30/20/10.",
+  "rca of the issue": "Create-contest game_type loss: backend/routers/admin_routes.py create_contest_api (lines ~1421-1459) builds the doc only from Contest(...) with explicit fields plus skill_question_type/difficulty, and never reads payload['game_type']. Repro: POST /api/admin/contests {title, prize_amount:10, game_type:'nonogram_mini'} gives db.contests.game_type None. Mitigation: merge the allowed payload keys (same set as update_contest_full) into doc before insert, and validate game_type against GAME_TYPES."
+}

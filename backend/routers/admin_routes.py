@@ -1456,6 +1456,18 @@ async def create_contest_api(payload: dict, request: Request):
     if sqt:
         doc['skill_question_type'] = sqt
         doc['skill_question_difficulty'] = sqd or 'easy'
+    # Skill-engine fields from the Create dialog (validated like the edit endpoint).
+    for key in ('game_type', 'game_config', 'entry_mode', 'max_attempts', 'attempts_per_ticket',
+                'leaderboard_visibility', 'winner_selection_method', 'engine_type'):
+        if payload.get(key) is not None:
+            doc[key] = payload[key]
+    if doc.get('game_type'):
+        from routers.game_routes import GAME_TYPES
+        if doc['game_type'] not in {g['id'] for g in GAME_TYPES}:
+            raise HTTPException(status_code=400, detail='Unknown game type')
+        for key in ('max_attempts', 'attempts_per_ticket'):
+            if key in doc and doc[key] is not None:
+                doc[key] = max(1, min(int(doc[key]), 10))
     await db.contests.insert_one(doc)
     if doc.get('status') == 'live':
         try:

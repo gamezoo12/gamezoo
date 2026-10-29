@@ -78,7 +78,7 @@ export const GCPreviewPanel = ({ gcNumber }) => {
           <button type="button" className={btn} disabled={busy || row?.game_id !== 'memory_match'} onClick={() => { setRevealed({}); act('memory_start'); }} data-testid="preview-play-btn">Play Memory Match (retry)</button>
           <button type="button" className={btn} disabled={busy} onClick={() => act('finalize_level')} data-testid="preview-finalize-btn">{level === 'champion' ? 'Finalize Champion & payouts' : 'Finalize level'}</button>
         </div>
-        <MemoryBoard memory={preview.memory?.level === level ? preview.memory : null} revealed={revealed} onClick={click} />
+        <MemoryBoard memory={preview.memory?.level === level && row?.game_id === 'memory_match' ? preview.memory : null} revealed={revealed} onClick={click} />
         <div className="grid gap-3 md:grid-cols-2 text-xs">
           <div data-testid="preview-leaderboard"><b>Simulated leaderboard</b>{ranked.slice(0, 10).map((s, i) => <div key={`${s.player_id}-${i}`}>{i + 1}. {s.name} · {(s.duration_ms / 1000).toFixed(2)}s</div>)}</div>
           <div data-testid="preview-wallets"><b>Simulated wallets</b>{Object.entries(preview.wallet || {}).map(([pid, w]) => <div key={pid}>{pid}: pending {w.bonus_pending || 0} · credited {w.bonus_credited || 0} · forfeited {w.bonus_forfeited || 0} · champion {w.champion_tokens || 0}</div>)}</div>

@@ -635,7 +635,20 @@ export function MazeSolver({ onComplete }) {
   };
   useEffect(() => {
     if (pos[0]===goal[0] && pos[1]===goal[1]) {
-      const optimal = (maze.length-2)*2; // rough diagonal-ish
+      const n = maze.length;
+      const dist = { '1,1': 0 };
+      const queue = [[1, 1]];
+      while (queue.length) {
+        const [x, y] = queue.shift();
+        [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy]) => {
+          const key = `${x + dx},${y + dy}`;
+          if (x + dx >= 0 && y + dy >= 0 && x + dx < n && y + dy < n && maze[x + dx][y + dy] !== 1 && dist[key] === undefined) {
+            dist[key] = dist[`${x},${y}`] + 1;
+            queue.push([x + dx, y + dy]);
+          }
+        });
+      }
+      const optimal = dist[`${goal[0]},${goal[1]}`] || (n - 2) * 2;
       onComplete({ solved:true, accuracy: Math.min(1, optimal/Math.max(steps, optimal)), duration_ms: now()-t0 });
     }
   }, [pos]);

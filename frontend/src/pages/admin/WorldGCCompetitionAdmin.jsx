@@ -36,7 +36,7 @@ function GameFields({ row, onChange, disabled, options }) {
   const cfg = row.game_config || {};
   const setCfg = (patch) => onChange({ game_config: { ...cfg, ...patch } });
   return <>
-    <label><span className={labelClass}>Game</span><select className={fieldClass} disabled={disabled} value={row.game_id || ''} onChange={(e) => onChange({ game_id: e.target.value || null })} data-testid={`gc-game-${row.level ?? 'champion'}`}>
+    <label><span className={labelClass}>Game</span><select className={fieldClass} disabled={disabled} value={row.game_id || ''} onChange={(e) => onChange({ game_id: e.target.value || null, game_config: {} })} data-testid={`gc-game-${row.level ?? 'champion'}`}>
       <option value="">Choose game</option>{options.map((g) => <option key={g} value={g}>{gameNames[g]}</option>)}
     </select></label>
     {row.game_id === 'memory_match' && <label><span className={labelClass}>Card pairs</span><input className={fieldClass} disabled={disabled} type="number" min="2" max="16" value={cfg.pair_count ?? 6} onChange={(e) => setCfg({ pair_count: Number(e.target.value) })} /></label>}
