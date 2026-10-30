@@ -9,7 +9,7 @@ import logging
 
 from auth import (
     create_jwt, hash_password, verify_password,
-    exchange_emergent_session, get_current_user, phone_gate_blocks,
+    exchange_emergent_session, get_current_user, phone_gate_blocks, phone_is_verified,
 )
 from models import RegisterInput, LoginInput, User, UserPublic
 from counters import allocate_user_public_id
@@ -621,7 +621,8 @@ async def google_session(request: Request):
         )
         doc = user_obj.model_dump()
         doc.update({'acquisition_type': 'unresolved', 'promotion_eligibility_status': 'pending',
-                'signup_bonus_offer_eligible': False})
+                'signup_bonus_offer_eligible': False, 'email_verified_source': 'google',
+                'login_methods': ['google'], 'last_google_auth_at': datetime.now(timezone.utc)})
         await db.users.insert_one(doc)
         user = doc
     else:
@@ -630,7 +631,9 @@ async def google_session(request: Request):
             'picture': data.get('picture') or user.get('picture'),
             'email_verified': True,
             'email_verified_at': user.get('email_verified_at') or datetime.now(timezone.utc),
-        }})
+            'email_verified_source': user.get('email_verified_source') or 'google',
+            'last_google_auth_at': datetime.now(timezone.utc),
+        }, '$addToSet': {'login_methods': 'google'}})
         user = await db.users.find_one({'user_id': user['user_id']}, {'_id': 0})
 
     session_token = data['session_token']
@@ -699,8 +702,8 @@ async def finalize_google_signup(inp: GoogleFinalizeInput, request: Request):
             created_at = None
     if isinstance(created_at, datetime) and created_at.tzinfo is None:
         created_at = created_at.replace(tzinfo=timezone.utc)
-    is_new_google_signup = not user.get('terms_accepted_at') and created_at is not None and \
-        datetime.now(timezone.utc) - created_at <= timedelta(hours=24)
+    # Incomplete Google signups can resume at any time and keep first-touch attribution.
+    is_new_google_signup = not user.get('terms_accepted_at')
     influencer_promo = None
     personal_referrer = None
     if referral_code and is_new_google_signup:
@@ -841,184 +844,102 @@ async def _apply_google_personal_referral(db, user_id: str, referral_code: str) 
 
 
 class PasswordResetSendInput(BaseModel):
-    phone: str = Field(..., min_length=6, max_length=32)
+    phone: Optional[str] = Field(None, max_length=32)
+    email: Optional[str] = Field(None, max_length=320)
 
 
 class PasswordResetConfirmInput(BaseModel):
-    phone: str = Field(..., min_length=6, max_length=32)
+    phone: Optional[str] = Field(None, max_length=32)
+    email: Optional[str] = Field(None, max_length=320)
     code: str = Field(..., min_length=4, max_length=10)
     new_password: str = Field(..., min_length=8, max_length=128)
 
 
+def _phone_variants(phone: str) -> list:
+    return [phone, '0' + phone[3:]] if phone.startswith('+44') else [phone]
+
+
+async def _reset_target(db, inp) -> tuple:
+    """Return (destination, channel, user query) for a reset request."""
+    from otp_verify import normalize_email, normalize_phone
+    if inp.email:
+        email = normalize_email(inp.email)
+        return email, 'email', {'email': email, 'password_hash': {'$type': 'string'}}
+    if not inp.phone:
+        raise HTTPException(status_code=422, detail='Enter your email address or mobile number.')
+    phone = normalize_phone(inp.phone)
+    return phone, 'sms', {'phone': {'$in': _phone_variants(phone)}, 'password_hash': {'$type': 'string'}}
+
+
 @router.post('/password-reset/send')
 async def password_reset_send(inp: PasswordResetSendInput):
-    """Send a password-reset OTP to a verified Prize League phone number.
+    """Send a password-reset code by email or SMS.
 
-    A generic response is returned even when no matching account exists, so
-    callers cannot use this endpoint to discover registered phone numbers.
+    The response is identical whether or not an account exists, so this
+    endpoint can't be used to discover registered emails or numbers.
     """
     from deps import get_db
-    from routers.twilio_routes import _normalize_phone, _twilio_client
-    from twilio.base.exceptions import TwilioRestException
+    from otp_verify import send_verification
+    from routers.twilio_routes import enforce_otp_rate_limit
+    from services.otp_events import log_otp_event
 
     db = get_db()
-    normalized_phone = _normalize_phone(inp.phone)
-
-    user = await db.users.find_one(
-        {
-            'phone': normalized_phone,
-            'phone_verified': True,
-            'password_hash': {'$type': 'string'},
-        },
-        {'_id': 0, 'user_id': 1},
-    )
-
-    # Generic success response prevents account enumeration.
+    destination, channel, query = await _reset_target(db, inp)
+    where = 'email address' if channel == 'email' else 'number'
     generic_response = {
         'ok': True,
-        'message': (
-            'If a verified account exists for this number, '
-            'a password reset code has been sent.'
-        ),
-        'phone': normalized_phone,
+        'message': f'If an account with a password exists for this {where}, a reset code has been sent.',
+        'channel': channel,
+        'resend_after_seconds': 30,
     }
+    await enforce_otp_rate_limit(db, {'reset_destination': destination, 'purpose': 'password_reset'}, 'reset codes')
+    await db.otp_attempts.insert_one({'reset_destination': destination, 'purpose': 'password_reset', 'sent_at': datetime.now(timezone.utc)})
 
+    user = await db.users.find_one(query, {'_id': 0, 'user_id': 1, 'phone_verified': 1, 'phone_verified_at': 1})
+    if channel == 'sms' and user and not phone_is_verified(user):
+        user = None
     if not user:
+        await log_otp_event(channel, 'password_reset', destination, 'no_eligible_account')
         return generic_response
-
-    # Reuse the existing OTP send endpoint's rate-limiting collection.
-    now = datetime.now(timezone.utc)
-    recent = await db.otp_attempts.find(
-        {
-            'phone': normalized_phone,
-            'purpose': 'password_reset',
-            'sent_at': {'$gte': now - timedelta(minutes=15)},
-        },
-        {'_id': 0, 'sent_at': 1},
-    ).sort('sent_at', -1).to_list(20)
-
-    if recent:
-        newest = recent[0].get('sent_at')
-
-        if isinstance(newest, str):
-            try:
-                newest = datetime.fromisoformat(newest)
-            except Exception:
-                newest = now
-
-        if isinstance(newest, datetime) and newest.tzinfo is None:
-            newest = newest.replace(tzinfo=timezone.utc)
-
-        seconds_since = (now - newest).total_seconds()
-
-        if seconds_since < 30:
-            raise HTTPException(
-                status_code=429,
-                detail=(
-                    f'Please wait {max(1, int(30 - seconds_since))}s '
-                    'before requesting another code.'
-                ),
-            )
-
-        if len(recent) >= 5:
-            raise HTTPException(
-                status_code=429,
-                detail='Too many password reset requests. Please try again in 15 minutes.',
-            )
-
-    client, service_sid = _twilio_client()
-
     try:
-        verification = (
-            client.verify.v2
-            .services(service_sid)
-            .verifications
-            .create(to=normalized_phone, channel='sms')
-        )
-    except TwilioRestException as exc:
-        logger.warning('password reset OTP send failed: %s', exc)
-        raise HTTPException(
-            status_code=400,
-            detail='Could not send the password reset code. Please try again.',
-        )
-    except Exception:
-        logger.exception('password reset OTP send unexpected error')
-        raise HTTPException(
-            status_code=500,
-            detail='Password reset service is temporarily unavailable.',
-        )
-
-    await db.otp_attempts.insert_one({
-        'phone': normalized_phone,
-        'purpose': 'password_reset',
-        'sent_at': now,
-        'twilio_status': verification.status,
-    })
-
+        await send_verification(destination, channel, 'password_reset')
+    except HTTPException as exc:
+        if exc.status_code == 429:
+            raise
+        # Real provider failure: tell the user honestly without revealing whether the account exists.
+        raise HTTPException(status_code=503, detail='We couldn\'t send a reset code right now. Please try again in a minute or contact Support.')
     return generic_response
 
 
 @router.post('/password-reset/confirm')
 async def password_reset_confirm(inp: PasswordResetConfirmInput):
-    """Verify Twilio OTP, set a new password, and revoke existing sessions."""
+    """Verify the reset code, set a new password, and revoke existing sessions."""
     from deps import get_db
+    from otp_verify import _verify_destination
 
     db = get_db()
-
-    if len(inp.new_password) < 8:
-        raise HTTPException(
-            status_code=400,
-            detail='Password must be at least 8 characters.',
-        )
-
-    normalized_phone = await _verify_twilio_otp(inp.phone, inp.code)
-
-    user = await db.users.find_one(
-        {
-            'phone': normalized_phone,
-            'phone_verified': True,
-            'password_hash': {'$type': 'string'},
-        },
-        {'_id': 0, 'user_id': 1},
-    )
-
-    if not user:
-        raise HTTPException(
-            status_code=400,
-            detail='Unable to reset password for this account.',
-        )
-
-    changed_at = datetime.now(timezone.utc)
+    destination, channel, query = await _reset_target(db, inp)
+    user = await db.users.find_one(query, {'_id': 0, 'user_id': 1, 'phone_verified': 1, 'phone_verified_at': 1})
+    if not user or (channel == 'sms' and not phone_is_verified(user)):
+        raise HTTPException(status_code=400, detail='This code has expired or is incorrect. Please request a new code.')
+    await _verify_destination(destination, inp.code)
 
     await db.users.update_one(
         {'user_id': user['user_id']},
-        {
-            '$set': {
-                'password_hash': hash_password(inp.new_password),
-                'password_changed_at': changed_at,
-            }
-        },
+        {'$set': {'password_hash': hash_password(inp.new_password), 'password_changed_at': datetime.now(timezone.utc)},
+         '$addToSet': {'login_methods': 'password'}},
     )
-
-    # Revoke all active Google/custom sessions for this user.
     await db.user_sessions.delete_many({'user_id': user['user_id']})
-
-    # Remove password reset OTP request history after success.
-    await db.otp_attempts.delete_many({
-        'phone': normalized_phone,
-        'purpose': 'password_reset',
-    })
-
-    return {
-        'ok': True,
-        'message': 'Password reset successfully. You can now log in.',
-    }
+    await db.otp_attempts.delete_many({'reset_destination': destination, 'purpose': 'password_reset'})
+    return {'ok': True, 'message': 'Password reset successfully. You can now log in.'}
 
 
 @router.get('/me')
 async def me(request: Request):
     user = await get_current_user(request)
-    return _to_public(user)
+    from deps import get_db
+    full = await get_db().users.find_one({'user_id': user['user_id']}, {'_id': 0, 'password_hash': 1})
+    return {**_to_public(user), 'has_password': bool((full or {}).get('password_hash'))}
 
 
 @router.post('/logout')

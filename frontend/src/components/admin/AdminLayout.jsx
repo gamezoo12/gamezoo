@@ -10,6 +10,7 @@ const LINKS = [
  { group: 'Overview', items: [
    { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
    { to: '/admin/users', label: 'Users', icon: Users },
+   { to: '/admin/otp-diagnostics', label: 'OTP Diagnostics', icon: Shield },
    { to: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
    { to: '/admin/audit-logs', label: 'Audit logs', icon: ClipboardList },
    { to: '/admin/settings', label: 'Settings', icon: SettingsIcon },

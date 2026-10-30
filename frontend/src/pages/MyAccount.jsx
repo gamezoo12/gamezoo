@@ -1,3 +1,4 @@
+import SetPasswordCard from '../components/account/SetPasswordCard';
 import { useEffect, useState } from 'react';
 import { ordersAPI, userAPI, walletAPI, referralAPI, paymentsAPI, pushAPI } from '../lib/api';
 import PhoneOtpModal from '../components/auth/PhoneOtpModal';
@@ -720,10 +721,10 @@ export default function MyAccount() {
         {active === 'security' && (
           <div className="bg-white rounded-2xl border border-slate-100 p-6" data-testid="panel-security">
             <h3 className="font-display font-bold text-lg mb-1 flex items-center gap-2">
-              <Lock className="w-5 h-5 text-slate-700" /> Change password
+              <Lock className="w-5 h-5 text-slate-700" /> {user.has_password === false ? 'Set password' : 'Change password'}
             </h3>
             <p className="text-sm text-slate-500 mb-5">Choose a strong password of 8+ characters.</p>
-            {isPasswordAccount ? (
+            {user.has_password !== false && isPasswordAccount || user.has_password ? (
               <form onSubmit={changePassword} className="grid md:grid-cols-2 gap-4 max-w-2xl">
                 <div className="md:col-span-2">
                   <Label>Current password</Label>
@@ -744,12 +745,7 @@ export default function MyAccount() {
                 </div>
               </form>
             ) : (
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm text-slate-600">
-                You signed in with Google — password is managed by Google. Manage it at
-                <a className="text-teal-600 hover:underline ml-1" href="https://myaccount.google.com/security" target="_blank" rel="noreferrer">
-                  Google Account Security
-                </a>.
-              </div>
+              <SetPasswordCard onDone={refresh} />
             )}
           </div>
         )}

@@ -33,13 +33,15 @@ export const authAPI = {
   emailOtpSend: (email) =>
     api.post('/auth/otp/email/send', { email }).then(r => r.data),
   otpSend: (phone) => api.post('/auth/otp/send', { phone }).then(r => r.data),
+  emailOtpCheck: (email, code) => api.post('/auth/otp/email/check', { email, code }).then(r => r.data),
+  otpCheck: (phone, code) => api.post('/auth/otp/check', { phone, code }).then(r => r.data),
   otpVerifyBind: (phone, code) => api.post('/auth/otp/verify-bind', { phone, code }).then(r => r.data),
   otpLoginVerify: (phone, code) => api.post('/auth/otp/login-verify', { phone, code }).then(r => r.data),
-  passwordResetSend: (phone) =>
-    api.post('/auth/password-reset/send', { phone }).then(r => r.data),
-  passwordResetConfirm: (phone, code, newPassword) =>
+  passwordResetSend: (identifier) =>
+    api.post('/auth/password-reset/send', identifier.includes('@') ? { email: identifier } : { phone: identifier }).then(r => r.data),
+  passwordResetConfirm: (identifier, code, newPassword) =>
     api.post('/auth/password-reset/confirm', {
-      phone,
+      ...(identifier.includes('@') ? { email: identifier } : { phone: identifier }),
       code,
       new_password: newPassword,
     }).then(r => r.data),
@@ -87,6 +89,7 @@ export const userAPI = {
   me: () => api.get('/users/me').then(r => r.data),
   updateMe: (data) => api.patch('/users/me', data).then(r => r.data),
   changePassword: (data) => api.post('/users/me/password', data).then(r => r.data),
+  setFirstPassword: (new_password) => api.post('/users/me/password/set', { new_password }).then(r => r.data),
   kycSubmit: (data) => api.post('/users/kyc/submit', data).then(r => r.data),
   kycStatus: () => api.get('/users/kyc/status').then(r => r.data),
   kycUpload: (kind, file) => {

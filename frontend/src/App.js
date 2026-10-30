@@ -72,6 +72,7 @@ const AnnouncementsAdmin = lazy(() => import('./pages/admin/AnnouncementsAdmin')
 const SpecialChallengeAdmin = lazy(() => import('./pages/admin/SpecialChallengeAdmin'));
 const WinningsPayoutsAdmin = lazy(() => import('./pages/admin/WinningsPayoutsAdmin'));
 const CashOutAdmin = lazy(() => import('./pages/admin/CashOutAdmin'));
+const OtpDiagnosticsAdmin = lazy(() => import('./pages/admin/OtpDiagnosticsAdmin'));
 const SupportTicketsAdmin = lazy(() => import('./pages/admin/SupportTicketsAdmin'));
 const PromotionAdminShell = lazy(() => import('./pages/admin/PromotionAdminShell'));
 const PromotionCampaignsAdmin = lazy(() => import('./pages/admin/PromotionCampaignsAdmin'));
@@ -576,6 +577,7 @@ function AppRouter() {
           path="cash-out"
           element={<CashOutAdmin />}
         />
+        <Route path="otp-diagnostics" element={<OtpDiagnosticsAdmin />} />
 
         <Route
           path="orders"

@@ -387,6 +387,10 @@ async def user_360(user_id: str, request: Request):
     )
     identity = await _sanitise(u)
     identity['phone_verified'] = phone_is_verified(u)
+    from auth import email_is_verified
+    identity['email_verified'] = email_is_verified(u)
+    identity['email_verified_source'] = u.get('email_verified_source') or ('google' if u.get('method') == 'google' else 'email_code' if u.get('email_verified') else None)
+    identity['login_methods'] = sorted(set((u.get('login_methods') or []) + [u.get('method') or 'email'] + (['password'] if u.get('password_hash') else [])) - {'email'})
     identity['web_push_device_count'] = web_push_device_count
     identity['web_push_status'] = web_push_status(u, web_push_device_count)
     identity['web_push_admin_pending'] = u.get('web_push_admin_pending') is True

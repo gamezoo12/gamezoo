@@ -88,10 +88,16 @@ export default function GoogleFinalizeModal({ open, onComplete, onSignOut }) {
     } finally { setBusy(false); }
   };
 
-  const advanceCode = (e) => {
+  const advanceCode = async (e) => {
     e.preventDefault();
     if (data.code.length !== 6) return toast({ title: 'Enter the 6-digit code' });
-    setStep(4);
+    setBusy(true);
+    try {
+      await authAPI.otpCheck(data.normalizedPhone || data.phone, data.code);
+      setStep(4);
+    } catch (err) {
+      toast({ title: 'Code not accepted', description: err?.response?.data?.detail || 'Please try again.' });
+    } finally { setBusy(false); }
   };
 
   const finish = async () => {

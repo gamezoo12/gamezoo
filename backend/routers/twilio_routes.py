@@ -14,7 +14,6 @@ from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
-from twilio.base.exceptions import TwilioRestException
 
 from auth import create_jwt, get_current_user
 from models import UserPublic
@@ -52,199 +51,82 @@ class SendEmailOtpInput(BaseModel):
     email: str = Field(..., min_length=3, max_length=320)
 
 
+async def enforce_otp_rate_limit(db, query: dict, label: str = 'codes') -> None:
+    """30s cooldown and max 5 sends per 15 minutes for the given destination query."""
+    now = datetime.now(timezone.utc)
+    recent = await db.otp_attempts.find(
+        {**query, 'sent_at': {'$gte': now - timedelta(minutes=15)}}, {'_id': 0, 'sent_at': 1},
+    ).sort('sent_at', -1).to_list(20)
+    if not recent:
+        return
+    newest = recent[0]['sent_at']
+    if isinstance(newest, str):
+        try:
+            newest = datetime.fromisoformat(newest)
+        except ValueError:
+            newest = now
+    if newest.tzinfo is None:
+        newest = newest.replace(tzinfo=timezone.utc)
+    secs_since = (now - newest).total_seconds()
+    if secs_since < 30:
+        raise HTTPException(status_code=429, detail=f'Please wait {max(1, int(30 - secs_since))}s before requesting another code.')
+    if len(recent) >= 5:
+        raise HTTPException(status_code=429, detail=f'Too many {label} requested. Please try again in 15 minutes.')
+
+
 @router.post('/email/send')
 async def send_email_otp(inp: SendEmailOtpInput):
-    """Send a Twilio Verify email code.
-
-    Public signup endpoint with per-email cooldown and rate limiting.
-    The SendGrid API key remains configured inside Twilio and is never
-    exposed to the browser.
-    """
+    """Send a Twilio Verify email code for signup (rate limited per email)."""
     from deps import get_db
+    from otp_verify import normalize_email, send_verification
 
     db = get_db()
+    email = normalize_email(inp.email)
+    if await db.users.find_one({'email': email}, {'_id': 1}):
+        raise HTTPException(status_code=400, detail='This email is already registered. Please log in or reset your password.')
+    await enforce_otp_rate_limit(db, {'channel': 'email', 'email': email}, 'email codes')
+    verification = await send_verification(email, 'email', 'signup')
+    await db.otp_attempts.insert_one({'channel': 'email', 'email': email, 'purpose': 'signup', 'sent_at': datetime.now(timezone.utc)})
+    return {'ok': True, 'status': verification.status, 'email': email, 'resend_after_seconds': 30}
 
-    email = (inp.email or '').strip().lower()
 
-    if not email or '@' not in email:
-        raise HTTPException(
-            status_code=400,
-            detail='Valid email address required',
-        )
+class CheckEmailOtpInput(BaseModel):
+    email: str = Field(..., min_length=3, max_length=320)
+    code: str = Field(..., min_length=4, max_length=10)
 
-    # Do not send verification codes for existing accounts.
-    existing = await db.users.find_one(
-        {'email': email},
-        {'_id': 1},
-    )
 
-    if existing:
-        raise HTTPException(
-            status_code=400,
-            detail='Email already registered',
-        )
-
-    now = datetime.now(timezone.utc)
-
-    recent = await db.otp_attempts.find(
-        {
-            'channel': 'email',
-            'email': email,
-            'sent_at': {
-                '$gte': now - timedelta(minutes=15)
-            },
-        },
-        {
-            '_id': 0,
-            'sent_at': 1,
-        },
-    ).sort(
-        'sent_at',
-        -1,
-    ).to_list(20)
-
-    if recent:
-        newest = recent[0]['sent_at']
-
-        if isinstance(newest, str):
-            try:
-                newest = datetime.fromisoformat(
-                    newest
-                )
-            except Exception:
-                newest = now
-
-        seconds_since = (
-            now - newest
-        ).total_seconds()
-
-        if seconds_since < 30:
-            raise HTTPException(
-                status_code=429,
-                detail=(
-                    f'Please wait '
-                    f'{int(30 - seconds_since)}s '
-                    f'before requesting another code.'
-                ),
-            )
-
-        if len(recent) >= 5:
-            raise HTTPException(
-                status_code=429,
-                detail=(
-                    'Too many verification requests. '
-                    'Please try again in 15 minutes.'
-                ),
-            )
-
-    client, service_sid = _twilio_client()
-
-    try:
-        verification = (
-            client.verify.v2
-            .services(service_sid)
-            .verifications
-            .create(
-                to=email,
-                channel='email',
-            )
-        )
-
-    except TwilioRestException as exc:
-        logger.warning(
-            'Twilio email send failed: %s',
-            exc,
-        )
-
-        detail = (
-            'Could not send verification email. '
-            'Check the address and try again.'
-        )
-
-        if exc.code in (60203, 60212):
-            detail = (
-                'Too many attempts. '
-                'Please wait and try again.'
-            )
-
-        raise HTTPException(
-            status_code=400,
-            detail=detail,
-        )
-
-    except Exception:
-        logger.exception(
-            'Twilio email send unexpected error'
-        )
-        raise HTTPException(
-            status_code=503,
-            detail=(
-                'Email verification service '
-                'temporarily unavailable'
-            ),
-        )
-
-    await db.otp_attempts.insert_one({
-        'channel': 'email',
-        'email': email,
-        'sent_at': now,
-    })
-
-    return {
-        'ok': True,
-        'status': verification.status,
-        'email': email,
-    }
+@router.post('/email/check')
+async def check_email_otp(inp: CheckEmailOtpInput):
+    """Verify a signup email code now so the user gets instant feedback (approval is remembered for registration)."""
+    from otp_verify import verify_twilio_email_otp
+    email = await verify_twilio_email_otp(inp.email, inp.code)
+    return {'ok': True, 'email': email}
 
 
 @router.post('/send')
 async def send_otp(inp: SendOtpInput):
-    """Send an SMS OTP via Twilio Verify. Public endpoint. Rate limited per-phone
-    to 5 attempts in 15 minutes with a 30-second cooldown between sends.
-    """
+    """Send an SMS OTP via Twilio Verify to a UK mobile. Rate limited per phone."""
     from deps import get_db
+    from otp_verify import send_verification
     db = get_db()
-    phone = _normalize_phone(inp.phone)
-    now = datetime.now(timezone.utc)
-
-    recent = await db.otp_attempts.find(
-        {'phone': phone, 'sent_at': {'$gte': now - timedelta(minutes=15)}},
-        {'_id': 0, 'sent_at': 1},
-    ).sort('sent_at', -1).to_list(20)
-
-    if recent:
-        newest = recent[0]['sent_at']
-        if isinstance(newest, str):
-            try: newest = datetime.fromisoformat(newest)
-            except Exception: newest = now
-        if newest.tzinfo is None:
-            newest = newest.replace(tzinfo=timezone.utc)
-        secs_since = (now - newest).total_seconds()
-        if secs_since < 30:
-            raise HTTPException(status_code=429, detail=f'Please wait {int(30 - secs_since)}s before requesting another code.')
-        if len(recent) >= 5:
-            raise HTTPException(status_code=429, detail='Too many OTP requests. Please try again in 15 minutes.')
+    phone = normalize_phone(inp.phone, uk_only=True)
+    await enforce_otp_rate_limit(db, {'phone': phone}, 'SMS codes')
 
     if os.environ.get('TEST_MODE') == '1' and not _is_prod():
-        await db.otp_attempts.insert_one({'phone': phone, 'sent_at': now})
+        await db.otp_attempts.insert_one({'phone': phone, 'sent_at': datetime.now(timezone.utc)})
         return {'ok': True, 'status': 'pending', 'phone': phone}
 
-    client, service_sid = _twilio_client()
-    try:
-        v = client.verify.v2.services(service_sid).verifications.create(to=phone, channel='sms')
-    except TwilioRestException as e:
-        logger.warning('twilio send failed: %s', e)
-        detail = 'Could not send SMS. Check the number and try again.'
-        if e.code in (60203, 60212):
-            detail = 'Too many attempts. Please wait and try again.'
-        raise HTTPException(status_code=400, detail=detail)
-    except Exception:
-        logger.exception('twilio send unexpected error')
-        raise HTTPException(status_code=500, detail='SMS service temporarily unavailable')
+    v = await send_verification(phone, 'sms', 'phone_verification')
+    await db.otp_attempts.insert_one({'phone': phone, 'sent_at': datetime.now(timezone.utc)})
+    return {'ok': True, 'status': v.status, 'phone': phone, 'resend_after_seconds': 30}
 
-    # Record a successful send attempt for rate-limiting.
-    await db.otp_attempts.insert_one({'phone': phone, 'sent_at': now})
-    return {'ok': True, 'status': v.status, 'phone': phone}
+
+@router.post('/check')
+async def check_otp(inp: VerifyOtpInput):
+    """Verify an SMS code now for instant feedback (approval is remembered for the next step)."""
+    from otp_verify import verify_twilio_otp
+    phone = await verify_twilio_otp(inp.phone, inp.code)
+    return {'ok': True, 'phone': phone}
 
 
 @router.post('/verify-bind')

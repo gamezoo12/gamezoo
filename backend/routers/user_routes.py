@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Query
 from fastapi.responses import Response
 from starlette.concurrency import run_in_threadpool
-from datetime import datetime, timezone
-from pydantic import BaseModel, EmailStr
+from datetime import datetime, timedelta, timezone
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 import uuid
 
@@ -39,6 +39,10 @@ class ProfileUpdate(BaseModel):
 class PasswordChange(BaseModel):
     current_password: str
     new_password: str
+
+
+class PasswordSetFirst(BaseModel):
+    new_password: str = Field(..., min_length=8, max_length=128)
 
 
 @router.get('/me')
@@ -106,6 +110,29 @@ async def change_password(inp: PasswordChange, request: Request):
         {'user_id': user['user_id']},
         {'$set': {'password_hash': hash_password(inp.new_password), 'password_changed_at': datetime.now(timezone.utc)}},
     )
+    return {'ok': True}
+
+
+@router.post('/me/password/set')
+async def set_first_password(inp: PasswordSetFirst, request: Request):
+    """Google-only users create their first password right after re-authenticating with Google."""
+    user = await get_current_user(request)
+    from deps import get_db
+    from auth import _as_utc
+    db = get_db()
+    full = await db.users.find_one({'user_id': user['user_id']}, {'_id': 0, 'password_hash': 1, 'last_google_auth_at': 1})
+    if full.get('password_hash'):
+        raise HTTPException(status_code=400, detail='You already have a password. Use Change Password instead.')
+    last = _as_utc(full.get('last_google_auth_at'))
+    if not last or datetime.now(timezone.utc) - last > timedelta(minutes=10):
+        raise HTTPException(status_code=403, detail='For your security, please sign in with Google again before setting a password.')
+    res = await db.users.update_one(
+        {'user_id': user['user_id'], 'password_hash': {'$in': [None, '']}},
+        {'$set': {'password_hash': hash_password(inp.new_password), 'password_changed_at': datetime.now(timezone.utc)},
+         '$addToSet': {'login_methods': 'password'}, '$unset': {'last_google_auth_at': ''}},
+    )
+    if not res.modified_count:
+        raise HTTPException(status_code=400, detail='You already have a password. Use Change Password instead.')
     return {'ok': True}
 
 

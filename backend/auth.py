@@ -129,6 +129,12 @@ def _as_utc(value) -> Optional[datetime]:
     return None
 
 
+def email_is_verified(user: dict) -> bool:
+    """Email is verified by an email code, or because the user signed in with Google for that address."""
+    return (user.get('email_verified') is True or _as_utc(user.get('email_verified_at')) is not None
+            or user.get('method') == 'google' or 'google' in (user.get('login_methods') or []))
+
+
 def phone_is_verified(user: dict) -> bool:
     return user.get('phone_verified') is True or _as_utc(user.get('phone_verified_at')) is not None
 

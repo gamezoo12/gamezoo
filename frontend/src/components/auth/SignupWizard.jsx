@@ -306,9 +306,8 @@ export default function SignupWizard() {
   };
 
 
-  // We retain the code for the authoritative backend verification at
-  // registration time. Do not consume the Twilio code here.
-  const advanceAfterEmailCode = (event) => {
+  // Check the code now so mistakes show immediately; the backend remembers the approval for registration.
+  const advanceAfterEmailCode = async (event) => {
     event.preventDefault();
 
     if (data.emailCode.length !== 6) {
@@ -317,7 +316,15 @@ export default function SignupWizard() {
       });
     }
 
-    setStep(3);
+    setBusy(true);
+    try {
+      await authAPI.emailOtpCheck(data.normalizedEmail || data.email, data.emailCode);
+      setStep(3);
+    } catch (error) {
+      toast({ title: 'Email code not accepted', description: error?.response?.data?.detail || 'Please try again.' });
+    } finally {
+      setBusy(false);
+    }
   };
 
 
@@ -370,8 +377,7 @@ export default function SignupWizard() {
   };
 
 
-  // Same security model as email: retain the code for the backend.
-  const advanceAfterPhoneCode = (event) => {
+  const advanceAfterPhoneCode = async (event) => {
     event.preventDefault();
 
     if (data.phoneCode.length !== 6) {
@@ -380,7 +386,15 @@ export default function SignupWizard() {
       });
     }
 
-    setStep(5);
+    setBusy(true);
+    try {
+      await authAPI.otpCheck(data.normalizedPhone || data.phone, data.phoneCode);
+      setStep(5);
+    } catch (error) {
+      toast({ title: 'SMS code not accepted', description: error?.response?.data?.detail || 'Please try again.' });
+    } finally {
+      setBusy(false);
+    }
   };
 
 

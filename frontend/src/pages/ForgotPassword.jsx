@@ -44,8 +44,8 @@ export default function ForgotPassword() {
   const sendCode = async (event) => {
     event?.preventDefault();
 
-    if (phone.trim().length < 8) {
-      toast({ title: 'Enter a valid mobile number' });
+    if (phone.trim().length < 5) {
+      toast({ title: 'Enter your email address or mobile number' });
       return;
     }
 
@@ -54,12 +54,12 @@ export default function ForgotPassword() {
     try {
       const response = await authAPI.passwordResetSend(phone.trim());
 
-      setNormalizedPhone(response?.phone || phone.trim());
+      setNormalizedPhone(phone.trim());
       setStep('code');
       setCooldown(30);
 
       toast({
-        title: 'Check your phone',
+        title: phone.includes('@') ? 'Check your email' : 'Check your phone',
         description:
           response?.message ||
           'If the account exists, a password reset code has been sent.',
@@ -176,30 +176,30 @@ export default function ForgotPassword() {
                   Forgot password?
                 </h1>
                 <p className="text-sm text-slate-500 mt-2">
-                  Enter the verified mobile number linked to your Prize League
-                  account.
+                  Enter the email address or verified UK mobile number on your
+                  Prize League account. We'll send you a reset code.
                 </p>
               </div>
 
               <div>
-                <Label className="mb-1 block">Registered mobile number</Label>
+                <Label className="mb-1 block">Email or mobile number</Label>
                 <Input
-                  type="tel"
+                  type="text"
                   required
                   autoFocus
                   value={phone}
                   onChange={(event) => setPhone(event.target.value)}
-                  placeholder="+44 7700 900123"
+                  placeholder="you@yahoo.com or 07700 900123"
                   data-testid="forgot-password-phone"
                 />
                 <p className="text-[11px] text-slate-500 mt-1">
-                  Use international format, for example +447700900123.
+                  Signed up with Google and never set a password? Sign in with Google, then set one in My Account → Security.
                 </p>
               </div>
 
               <Button
                 type="submit"
-                disabled={busy || phone.trim().length < 8}
+                disabled={busy || phone.trim().length < 5}
                 className="w-full h-11 pl-btn-purple text-white font-bold"
                 data-testid="forgot-password-send"
               >

@@ -869,11 +869,12 @@ async def all_users(request: Request):
         for w in winnings_agg
     }
 
-    from auth import phone_is_verified
+    from auth import email_is_verified, phone_is_verified
     for u in users:
         uid = u['user_id']
 
         u['phone_verified'] = phone_is_verified(u)
+        u['email_verified'] = email_is_verified(u)
 
         u['web_push_device_count'] = push_device_counts.get(uid, 0)
         u['web_push_status'] = web_push_status(u, u['web_push_device_count'])

@@ -645,3 +645,14 @@ See `/app/memory/test_credentials.md`.
 - Review thank-you bonus: settings review_bonus_enabled (default off) + review_bonus_tokens (default 5); on first approved screenshot per player a bonus grant (ref review_thanks:{user_id}) + notification. Verified via curl (2nd approval pays nothing).
 - Verified Reviewer badge: users.verified_reviewer set on review decision (true if any approved proof); contest_leaderboard returns verified_reviewer; badge (components/VerifiedReviewerBadge.jsx) on ContestLeaderboard page (podium + rows) and ContestLeaderboardCard. Screenshot-verified with temp data (removed).
 - Free World Verified Reviewer badge: services/verified_reviewer.py mark_verified_reviewers used by world public leaderboard, champion leaderboard, GC level leaderboards (future_gc_leaderboard_rows) and level-board; badge in FreeWorldLeaderboard.jsx, HybridLevelBoards.jsx, EveryLevelWorld.jsx. APIs curl-verified; UI not browser-verified (needs in-game login).
+
+## 2026-10 · Auth/OTP reliability fixes (preview only, not deployed)
+Root causes fixed:
+- Codes were only verified at final submit; Twilio Verify approves a code once, so any later failure (phone code wrong, phone already linked, referral error) burned the email/phone code -> "invalid or expired" on retry. Fix: otp_verify._verify_destination remembers hashed approvals 30 min (otp_approvals); new instant check endpoints POST /api/auth/otp/email/check and /api/auth/otp/check used by SignupWizard (steps 2 & 4) and GoogleFinalizeModal (step 3).
+- Email resend crashed (500): naive Mongo datetime minus aware now. Shared enforce_otp_rate_limit (twilio_routes) handles tz.
+- Forgot password was SMS-only to exactly-matching verified phone. Now accepts email (Twilio Verify email) or phone (+ 07… stored variants); generic non-enumerating response; honest 503 on provider failure.
+- Google: finalize no longer limited to 24h (incomplete accounts resume, keep attribution); google_session records login_methods, email_verified_source='google', last_google_auth_at.
+- Set first password for Google-only users: POST /api/users/me/password/set requires Google re-auth within 10 min; /api/auth/me returns has_password; MyAccount Security shows Set password (SetPasswordCard.jsx) vs Change password.
+- Admin email verified status uses auth.email_is_verified (email code OR Google sign-in); 360 identity adds email_verified_source, login_methods.
+- UK-only SMS (+447…), better phone normalisation, strict-but-standard email syntax (Yahoo/Outlook/iCloud/Proton/custom ok), Twilio error-code mapping to clear messages.
+- Diagnostics: services/otp_events.py (masked destination, no codes) + GET /api/admin/otp-diagnostics + admin page /admin/otp-diagnostics.
