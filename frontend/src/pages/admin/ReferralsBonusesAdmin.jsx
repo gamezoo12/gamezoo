@@ -12,7 +12,7 @@ import {
   RefreshCw,
   Save,
   Plus,
-  Power,
+  Zap as Power,
 } from 'lucide-react';
 
 import { api, offersAPI } from '../../lib/api';
