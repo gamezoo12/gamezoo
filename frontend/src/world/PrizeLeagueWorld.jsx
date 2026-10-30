@@ -52,6 +52,7 @@ import FreeWorldNumberSequence
   from './components/FreeWorldNumberSequenceV3';
 
 import './styles/world.css';
+import { ChampionStage } from './components/ChampionStage';
 
 
 function dispatchWorldEvent(name) {
@@ -91,6 +92,7 @@ export default function PrizeLeagueWorld() {
 
   const [championMode, setChampionMode] =
     useState(false);
+  const [flowStage, setFlowStage] = useState('instructions');
 
   const [futureGcModel, setFutureGcModel] = useState(null);
   const [worldPaused, setWorldPaused] = useState(null);
@@ -833,6 +835,7 @@ export default function PrizeLeagueWorld() {
         )}
       </AnimatePresence>
 
+      {gameFlowOpen && selectedLevel && levelData && <ChampionStage active={championMode} meta={selectedLevel} stage={flowStage} />}
       {gameFlowOpen &&
         selectedLevel &&
         levelData && (
@@ -841,6 +844,7 @@ export default function PrizeLeagueWorld() {
             levelData={levelData}
             championMode={championMode}
             championMeta={selectedLevel}
+            onStageChange={setFlowStage}
             guestMode={
               !user &&
               Number(selectedLevel?.level) === 1

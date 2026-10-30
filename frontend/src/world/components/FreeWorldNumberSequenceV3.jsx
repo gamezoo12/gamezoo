@@ -191,6 +191,7 @@ export default function FreeWorldNumberSequenceV3({
   guestMode = false,
   championMode = false,
   championMeta = null,
+  onStageChange,
   onClose,
   onFinished,
 }) {
@@ -250,6 +251,7 @@ export default function FreeWorldNumberSequenceV3({
 
   const [stage, setStage] =
     useState('instructions');
+  useEffect(() => { onStageChange?.(stage); }, [stage, onStageChange]);
 
   const [demoNumbers, setDemoNumbers] =
     useState(() =>

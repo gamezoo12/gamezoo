@@ -1,3 +1,5 @@
+import { PremiumChess, PremiumCountdownNumbers, PremiumHanoi, PremiumLightsOut, PremiumMinesweeper, PremiumSequencePredict, PremiumSudoku, PremiumWordLadder } from './premium/batch4';
+import { Premium2048, PremiumAnagram, PremiumCryptogram, PremiumMaze, PremiumNonogram, PremiumSpotPattern } from './premium/batch5';
 /* eslint-disable react-hooks/exhaustive-deps */
 /*
   Prize League — Skill Games Vol.2 (14 new games)
@@ -731,18 +733,18 @@ export function SpotPattern({ onComplete }) {
 
 // -------------- Registry --------------
 export const GAMES_V2 = {
-  sudoku_mini: (config, onComplete) => <SudokuMini config={config} onComplete={onComplete} />,
-  sequence_predict: (config, onComplete) => <SequencePredict config={config} onComplete={onComplete} />,
-  countdown_numbers: (config, onComplete) => <CountdownNumbers config={config} onComplete={onComplete} />,
-  word_ladder: (config, onComplete) => <WordLadder config={config} onComplete={onComplete} />,
-  chess_mate_in_one: (config, onComplete) => <ChessMate config={config} onComplete={onComplete} />,
-  tower_of_hanoi: (config, onComplete) => <TowerOfHanoi config={config} onComplete={onComplete} />,
-  lights_out: (config, onComplete) => <LightsOut config={config} onComplete={onComplete} />,
-  minesweeper_mini: (config, onComplete) => <MinesweeperMini config={config} onComplete={onComplete} />,
-  nonogram_mini: (config, onComplete) => <NonogramMini config={config} onComplete={onComplete} />,
-  tf2048_mini: (config, onComplete) => <TwentyFortyEightMini config={config} onComplete={onComplete} />,
-  cryptogram: (config, onComplete) => <Cryptogram config={config} onComplete={onComplete} />,
-  anagram_finder: (config, onComplete) => <AnagramFinder config={config} onComplete={onComplete} />,
-  maze_solver: (config, onComplete) => <MazeSolver config={config} onComplete={onComplete} />,
-  spot_pattern: (config, onComplete) => <SpotPattern config={config} onComplete={onComplete} />,
+  sudoku_mini: (config, onComplete) => <PremiumSudoku config={config} onComplete={onComplete} />,
+  sequence_predict: (config, onComplete) => <PremiumSequencePredict config={config} onComplete={onComplete} />,
+  countdown_numbers: (config, onComplete) => <PremiumCountdownNumbers config={config} onComplete={onComplete} />,
+  word_ladder: (config, onComplete) => <PremiumWordLadder config={config} onComplete={onComplete} />,
+  chess_mate_in_one: (config, onComplete) => <PremiumChess config={config} onComplete={onComplete} />,
+  tower_of_hanoi: (config, onComplete) => <PremiumHanoi config={config} onComplete={onComplete} />,
+  lights_out: (config, onComplete) => <PremiumLightsOut config={config} onComplete={onComplete} />,
+  minesweeper_mini: (config, onComplete) => <PremiumMinesweeper config={config} onComplete={onComplete} />,
+  nonogram_mini: (config, onComplete) => <PremiumNonogram config={config} onComplete={onComplete} />,
+  tf2048_mini: (config, onComplete) => <Premium2048 config={config} onComplete={onComplete} />,
+  cryptogram: (config, onComplete) => <PremiumCryptogram config={config} onComplete={onComplete} />,
+  anagram_finder: (config, onComplete) => <PremiumAnagram config={config} onComplete={onComplete} />,
+  maze_solver: (config, onComplete) => <PremiumMaze config={config} onComplete={onComplete} />,
+  spot_pattern: (config, onComplete) => <PremiumSpotPattern config={config} onComplete={onComplete} />,
 };

@@ -47,7 +47,7 @@ function GameFields({ row, onChange, disabled, options, onPreview }) {
       <label><span className={labelClass}>Colours</span><input className={fieldClass} disabled={disabled} type="number" min="2" max="11" value={cfg.colours ?? 6} onChange={(e) => setCfg({ colours: Number(e.target.value) })} /></label>
       <label><span className={labelClass}>Rounds</span><input className={fieldClass} disabled={disabled} type="number" min="1" max="100" value={cfg.rounds ?? 10} onChange={(e) => setCfg({ rounds: Number(e.target.value) })} /></label>
     </>}
-    {row.game_id && row.game_id !== 'memory_match' && row.game_id !== 'colour_match' && <label><span className={labelClass}>Difficulty</span><select className={fieldClass} disabled={disabled} value={cfg.difficulty ?? 3} onChange={(e) => setCfg({ difficulty: Number(e.target.value) })} data-testid={`gc-difficulty-${row.level ?? 'champion'}`}>
+    {row.game_id && !['memory_match', 'colour_match', 'number_sequence'].includes(row.game_id) && <label><span className={labelClass}>Difficulty</span><select className={fieldClass} disabled={disabled} value={cfg.difficulty ?? 3} onChange={(e) => setCfg({ difficulty: Number(e.target.value) })} data-testid={`gc-difficulty-${row.level ?? 'champion'}`}>
       {DIFFICULTY_LEVELS.map((d) => <option key={d.level} value={d.level}>Level {d.level} · {d.name}</option>)}
     </select></label>}
     {row.game_id && GAME_MAP[row.game_id] && <button type="button" className="self-end rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white" onClick={() => onPreview(row)} data-testid={`gc-preview-game-${row.level ?? 'champion'}`}>Preview game</button>}

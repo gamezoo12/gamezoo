@@ -10,7 +10,7 @@ const done = (onComplete, start, accuracy) => onComplete({ solved: true, accurac
 // ---------- Memory Match: more pairs and faster flip-back as difficulty rises ----------
 export function PremiumMemory({ config, onComplete }) {
   const level = difficultyOf(config);
-  const pairs = lerpLevel(level, 4, 18);
+  const pairs = Number(config?.pair_count) || lerpLevel(level, 4, 18);
   const [cards, setCards] = useState(() => seededShuffle([...Array(pairs).keys(), ...Array(pairs).keys()], 100 + level).map((s, id) => ({ id, s, open: false, done: false })));
   const [open, setOpen] = useState([]);
   const [moves, setMoves] = useState(0);
