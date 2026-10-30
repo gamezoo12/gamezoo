@@ -119,13 +119,14 @@ export function paint(ctx, W, H, state) {
     text(ctx, round.name.toUpperCase(), cx, hs * 3.6, hs * 1.9, GOLD, { weight: 900, glow: 18 });
     text(ctx, `${money(round.prize_amount)} · ${round.winners.length} winner${round.winners.length > 1 ? 's' : ''}`, cx, hs * 5.6, hs, '#fff', { weight: 700 });
   }
-  text(ctx, `${show.poolCount.toLocaleString('en-GB')} ELIGIBLE TICKETS IN THE POOL`, cx, cy + R + hs * 1.3, Math.max(12, W * 0.011), '#c4b5fd', { weight: 700 });
+  if (phase.name !== 'reveal' && seg.kind !== 'outro') text(ctx, `${show.poolCount.toLocaleString('en-GB')} ELIGIBLE TICKETS IN THE POOL`, cx, cy + R + hs * 1.3, Math.max(12, W * 0.011), '#c4b5fd', { weight: 700 });
   if (show.mode === 'preview') {
+    const narrow = W < 700;
     ctx.save();
-    ctx.translate(W - 120, 60);
-    ctx.rotate(0.12);
-    text(ctx, 'PREVIEW', 0, 0, 34, 'rgba(244,63,94,0.85)', { weight: 900 });
-    text(ctx, 'SIMULATED RESULT', 0, 30, 13, 'rgba(244,63,94,0.85)', { weight: 800 });
+    ctx.translate(narrow ? W / 2 : W - 120, narrow ? H - 26 : 60);
+    ctx.rotate(narrow ? 0 : 0.12);
+    text(ctx, narrow ? 'PREVIEW · SIMULATED RESULT' : 'PREVIEW', 0, 0, narrow ? 14 : 34, 'rgba(244,63,94,0.9)', { weight: 900 });
+    if (!narrow) text(ctx, 'SIMULATED RESULT', 0, 30, 13, 'rgba(244,63,94,0.85)', { weight: 800 });
     ctx.restore();
   } else {
     text(ctx, '● OFFICIAL DRAW', 120, 50, 16, '#34d399', { weight: 900 });
@@ -162,6 +163,7 @@ export function paint(ctx, W, H, state) {
       if (round.announcement_text) text(ctx, round.announcement_text.replace('{winners}', winner.display_name).slice(0, 90), cx, H * 0.935, Math.max(12, W * 0.012), '#e9d5ff', { weight: 600 });
     }
   } else if (seg.kind === 'outro') {
+    roundedPlate(ctx, cx, cy + 10, Math.min(W * 0.92, Math.max(420, W * 0.6)), Math.max(110, H * 0.2), true);
     text(ctx, 'CONGRATULATIONS TO ALL OUR WINNERS', cx, cy - 10, Math.max(20, W * 0.028), GOLD, { weight: 900, glow: 30 });
     text(ctx, show.mode === 'preview' ? 'Preview complete — no results were recorded' : 'Results recorded and verifiable in the audit report', cx, cy + 34, Math.max(13, W * 0.013), '#e9d5ff', { weight: 600 });
   }

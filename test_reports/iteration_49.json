@@ -1,0 +1,50 @@
+{
+  "summary": "End-to-end test of the Visual Draw Studio (/production/live-draw). Backend: new public-URL pytest suite (13/13 pass) on a temporary TEST_ contest covering 403 for admin role, 401 unauth, refunded-ticket exclusion, budget/winner-count/duration 422, create/update/lock (400 wrong phrase, 409 edit after lock), second-plan lock 409, flag-off 423, out-of-order 409, wrong confirmation 400, resumed:true with identical winners, round-2 excludes earlier winners, pending winners (source draw_studio, paid_out false), report verified true + seed revealed only after completion, announce idempotent, audio upload 415/404/200 + file fetch. Frontend (1920 + 390): nav 'Draw Studio', contest select c_drawstudio_test, pool 1,000 / hash / budget / status, rounds editor all fields, budget £475 shows error + disables Save, £450 OK; Preview + Full Rehearsal render canvas with PREVIEW watermark, pause/play/reset/replay/close, status reaches Finished; recording produced MP4 (3.1MB, Chromium) with download link + video preview; no plans created by preview/rehearsal; 6 sound test buttons no console errors; WAV upload via UI shows filename and /audio/countdown/file returns audio/wav. Official: Save -> draft, re-save (update), Approve & lock -> locked, inputs disabled, official button disabled + legal notice while flag off; with flag on ran Draw 1, Draw 2 (refreshed mid-animation: result persisted, next = Draw 3, no redraw), Draw 3 -> completed; official stage shows 'OFFICIAL DRAW' and no watermark; 5 pending winners in db.winners and in GET /api/admin/winners, no wallet credit; audit report download verified true; announce round 1 -> 'Announced' disabled, API replay idempotent. Cleanup done: test announcement unpublished+deleted, random_draw_engine_enabled restored to false. All core flows work; only minor UX issues found.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/admin/draw-studio/contests + POST /plans/{id}/lock", "issue": "Lists and allows locking ANY contest regardless of status/world (11 'live' contests are selectable). Locking a live contest snapshots the pool while tickets are still on sale, so later buyers are silently excluded. Suggest restricting to Paid World contests whose sales are closed (or block lock/draw while status == live)."},
+      {"endpoint": "POST /plans/{id}/rounds/{i}/announce", "issue": "Announcement is created before the atomic claim on the result; two concurrent clicks can publish two announcements (second one becomes orphaned). Claim first (set a pending marker) then create, or delete the extra announcement when claim fails."},
+      {"endpoint": "POST /plans/{id}/rounds/{i}/draw", "issue": "Winners are upserted after the result insert; if the process dies between them, a 'resumed' call returns the result but never creates db.winners rows. Consider re-running the idempotent winners upsert on the resumed path."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "DrawStage full screen", "issue": "Full screen calls requestFullscreen on the canvas wrapper only, so the control bar (Pause/Replay/Stop Recording/Close/Full screen toggle) is hidden in full screen; the operator can only exit with Esc. Playwright confirmed the canvas intercepts the toggle click while fullscreen.", "selector": "[data-testid='draw-stage-fullscreen']", "priority": "MEDIUM"},
+      {"component": "DrawStudio Draw plans panel", "issue": "History says 'No plans yet for this contest.' after Save and after Lock; it only refreshes on contest reload. Call setHistory / reload plans after save/lock/draw.", "selector": "[data-testid='draw-history']", "priority": "LOW"},
+      {"component": "DrawStudio announce", "issue": "announce() sets the success notice and then loadContest() immediately clears it (setNotice('')), and also resets pool to null, which makes the whole page flash. No 'Winner announcement published.' confirmation is visible.", "selector": "[data-testid='draw-result-announce-0']", "priority": "LOW"}
+    ],
+    "integration_issues": [
+      {"flow": "Official stage round 2/3", "issue": "The stage always shows '1,000 ELIGIBLE TICKETS IN THE POOL' even when the round's candidate_count is 999/997 (earlier winners excluded). Pass result.candidate_count to the show for official rounds.", "affected_selectors": ["[data-testid='draw-stage-canvas']"]}
+    ],
+    "design_issues": [
+      {"screen": "DrawStage reveal (desktop)", "issues": ["Line '1,000 ELIGIBLE TICKETS IN THE POOL' sits directly on top of the winner name (e.g. 'Grace L.'), crowding the reveal", "Outro 'CONGRATULATIONS TO ALL OUR WINNERS' + 'Preview complete — no results were recorded' are drawn over the swirling ticket sphere, so the subtitle is hard to read"]},
+      {"screen": "DrawStage mobile 390px", "issues": ["PREVIEW / SIMULATED RESULT watermark overlaps the round title 'GRAND DRAW'"]},
+      {"screen": "Sounds panel", "issues": ["Slot cards are cramped in the 380px aside: labels wrap to 3 lines and filenames are cut off ('test_coun...')"]},
+      {"screen": "Draw Studio mobile", "issues": ["Global floating 'Ask Meera' and 'Back' buttons cover result-row buttons (Replay show / Publish announcement) near the bottom of the screen"]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_draw_studio_public.py", "/app/test_reports/pytest/draw_studio_public.xml"],
+  "action_items": [
+    "Keep DrawStage controls visible in full screen (requestFullscreen on the outer stage div, or put the control bar inside the fullscreened element)",
+    "Restrict Draw Studio contests to Paid World contests with closed sales, or block lock while a contest is live",
+    "Refresh the Draw plans history after save/lock/draw; keep the announce success notice and avoid resetting pool in announce",
+    "Show the round's candidate_count on the official stage instead of the full pool count",
+    "Fix overlap of the pool-count line with the winner name, and of the mobile PREVIEW watermark with the round title",
+    "Optional hardening: claim before creating the announcement; re-run the winners upsert on the resumed draw path"
+  ],
+  "critical_code_review_comments": [
+    "Commit-reveal, pool hash, unique indexes (plan_id+round_index, sparse official_contest_lock), ordered rounds, and the 423 flag gate are implemented correctly; the seed is hidden until the plan is completed.",
+    "Contest pool (/contests/{id}/pool) returns every ticket with its display_name to the browser (up to 200k). This is OK for a super admin, but the payload is heavy for big contests.",
+    "draw_round checks the existing result before checking the confirmation phrase, so any body returns resumed:true. This is acceptable because it is idempotent.",
+    "Ticket-based exclusion means one user can win several rounds with different tickets (seen: Noah P. won Draw 1 and Draw 2). Confirm this is the intended product rule.",
+    "The <span> inside <option> console error comes from the visual-edit instrumentation, not app code."
+  ],
+  "updated_files": ["/app/backend/tests/test_draw_studio_public.py"],
+  "success_rate": {"backend": "100% (13/13)", "frontend": "~92% (all requested flows pass; full-screen controls hidden + minor UI issues)"},
+  "test_credentials": "Super admin bachanta8@gmail.com / Herts@910022 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Official plan dsp_a4248a41b332 on c_drawstudio_test is now COMPLETED, with 3 results and 5 pending db.winners rows (w_ds_dsp_a4248a41b332_*, total £450), left on purpose for inspection. The round-1 announcement was unpublished and deleted. The countdown sound slot now has an uploaded test_countdown.wav. The pytest suite creates and removes its own TEST_c_ds_* contest, plan, winners and announcement. random_draw_engine_enabled has been restored to false.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run the backend suite with: cd /app/backend && export MONGO_URL/DB_NAME from .env && python -m pytest tests/test_draw_studio_public.py --noconftest -p no:xdist -o addopts=\"\". The repo conftest otherwise skips it as 'isolated services unavailable', and tests/test_draw_studio.py is always skipped in this pod. c_drawstudio_test already has a completed plan, so re-testing the official UI flow needs those docs deleted first (draw_studio_plans/results/audit with contest_id c_drawstudio_test, plus winners with draw_plan_id dsp_a4248a41b332). Announcements are stored in the site_announcements collection."
+}

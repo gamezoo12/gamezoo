@@ -17,7 +17,7 @@ export function SoundPanel({ uploaded, onUploaded, audio, onError }) {
     <section className="rounded-2xl border border-white/10 bg-white/5 p-5" data-testid="draw-sound-panel">
       <h2 className="flex items-center gap-2 text-lg font-black text-amber-300"><Music className="h-5 w-5" /> Sounds</h2>
       <p className="mt-1 text-xs text-indigo-200/70">Upload audio you hold the rights to. Slots without a file use a built-in tone.</p>
-      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
         {SOUND_SLOTS.map((slot) => {
           const file = uploaded.find((a) => a.slot === slot);
           return (

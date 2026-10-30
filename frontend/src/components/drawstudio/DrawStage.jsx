@@ -14,6 +14,7 @@ const btn = 'inline-flex h-9 items-center gap-1.5 rounded-full border border-whi
 /* Renders a supplied draw result. `show` = { mode, title, poolCount, poolNumbers, rounds:[{..., winners}] } */
 export function DrawStage({ show, audio, onClose, onFinished }) {
   const wrapRef = useRef(null);
+  const stageRef = useRef(null);
   const canvasRef = useRef(null);
   const stateRef = useRef({ t: 0, last: 0, paused: false, fired: new Set(), confetti: [], spin: 0, cycle: 1, nextCycle: 0 });
   const [paused, setPaused] = useState(false);
@@ -127,10 +128,10 @@ export function DrawStage({ show, audio, onClose, onFinished }) {
     setRecording(true);
   };
   const stopRecording = () => { recorderRef.current?.stop(); setRecording(false); };
-  const fullscreen = () => (document.fullscreenElement ? document.exitFullscreen() : wrapRef.current?.requestFullscreen?.());
+  const fullscreen = () => (document.fullscreenElement ? document.exitFullscreen() : stageRef.current?.requestFullscreen?.());
 
   return (
-    <div className="fixed inset-0 z-[2147483000] flex flex-col bg-[#04061a]" data-testid="draw-stage">
+    <div ref={stageRef} className="fixed inset-0 z-[2147483000] flex flex-col bg-[#04061a]" data-testid="draw-stage">
       <div ref={wrapRef} className="relative flex-1">
         <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" data-testid="draw-stage-canvas" />
         {recording && <span className="absolute left-4 top-16 flex items-center gap-2 rounded-full bg-rose-600 px-3 py-1 text-xs font-black text-white" data-testid="draw-recording-indicator"><Circle className="h-3 w-3 animate-pulse fill-white" /> REC</span>}

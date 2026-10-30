@@ -71,13 +71,17 @@ export default function DrawStudio() {
   const nextRound = results.length;
   const run = async (fn, ok) => { setBusy(true); setError(''); setNotice(''); try { const r = await fn(); if (ok) setNotice(ok(r)); return r; } catch (e) { setError(errText(e)); return null; } finally { setBusy(false); } };
 
+  const refreshPlan = async (planId) => {
+    const [full, plans] = await Promise.all([drawStudioAPI.plan(planId), drawStudioAPI.plans(contestId)]);
+    setPlan(full.plan); setResults(full.results); setHistory(plans.plans);
+  };
   const save = () => run(async () => {
     const body = { contest_id: contestId, rounds };
     const r = plan ? await drawStudioAPI.updatePlan(plan.plan_id, body) : await drawStudioAPI.createPlan(body);
-    setPlan(r.plan); return r;
+    await refreshPlan(r.plan.plan_id); return r;
   }, () => 'Draw settings saved (draft).');
   const lock = () => window.confirm('Approve and lock these draw settings? The eligible ticket pool is snapshotted and nothing can be edited afterwards.')
-    && run(async () => { const r = await drawStudioAPI.lock(plan.plan_id); setPlan(r.plan); return r; }, (r) => `Locked. ${r.plan.pool_size} tickets snapshotted · pool hash ${r.plan.pool_hash_sha256.slice(0, 12)}…`);
+    && run(async () => { const r = await drawStudioAPI.lock(plan.plan_id); await refreshPlan(plan.plan_id); return r; }, (r) => `Locked. ${r.plan.pool_size} tickets snapshotted · pool hash ${r.plan.pool_hash_sha256.slice(0, 12)}…`);
 
   const tickets = pool?.tickets || [];
   const baseShow = (mode, rs) => ({ mode, title: pool?.contest?.title, poolCount: pool?.count || 0, poolNumbers: tickets.map((t) => t.ticket_number), rounds: rs });
@@ -86,12 +90,12 @@ export default function DrawStudio() {
     if (!window.confirm(`Start the OFFICIAL ${rounds[nextRound].name}? The server draws the winners now; results are final and cannot be changed.`)) return;
     const r = await run(() => drawStudioAPI.drawRound(plan.plan_id, nextRound));
     if (!r) return;
-    const full = await drawStudioAPI.plan(plan.plan_id);
-    setPlan(full.plan); setResults(full.results);
-    setShow(baseShow('official', [{ ...rounds[nextRound], winners: r.result.winners }]));
+    await refreshPlan(plan.plan_id);
+    setShow({ ...baseShow('official', [{ ...rounds[nextRound], winners: r.result.winners }]), poolCount: r.result.candidate_count });
   };
-  const replayOfficial = (i) => setShow(baseShow('official', [{ ...rounds[i], winners: results[i].winners }]));
-  const announce = (i) => run(() => drawStudioAPI.announce(plan.plan_id, i), (r) => (r.idempotent_replay ? 'Already announced.' : 'Winner announcement published.')).then(() => loadContest(contestId));
+  const replayOfficial = (i) => setShow({ ...baseShow('official', [{ ...rounds[i], winners: results[i].winners }]), poolCount: results[i].candidate_count });
+  const announce = (i) => run(async () => { const r = await drawStudioAPI.announce(plan.plan_id, i); await refreshPlan(plan.plan_id); return r; },
+    (r) => (r.idempotent_replay ? 'Already announced.' : 'Winner announcement published.'));
   const downloadReport = () => run(async () => {
     const data = await drawStudioAPI.report(plan.plan_id);
     const a = document.createElement('a');
@@ -101,7 +105,7 @@ export default function DrawStudio() {
   }, (d) => (d.verification?.verified ? 'Audit report downloaded — independent verification PASSED.' : 'Audit report downloaded.'));
 
   return (
-    <div className="-m-4 min-h-screen bg-[#060927] p-4 text-white sm:-m-6 sm:p-8" data-testid="draw-studio">
+    <div className="-m-4 min-h-screen bg-[#060927] p-4 pb-32 text-white sm:-m-6 sm:p-8 sm:pb-32" data-testid="draw-studio">
       <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.3em] text-amber-300"><Clapperboard className="h-4 w-4" /> Production</p>
@@ -130,6 +134,7 @@ export default function DrawStudio() {
               </div>))}
           </section>
           {budget > published && <p className="text-sm font-bold text-rose-300" data-testid="draw-budget-error">Total prizes exceed the contest's published prize of {money(published)}.</p>}
+          {pool.contest?.status === 'live' && !locked && <p className="rounded-xl border border-sky-400/40 bg-sky-400/10 p-3 text-sm text-sky-100" data-testid="draw-sales-open-notice">Ticket sales are still open for this contest. Close it before locking the official draw so every ticket is included.</p>}
           {!pool.official_draws_enabled && <p className="rounded-xl border border-amber-400/40 bg-amber-400/10 p-3 text-sm text-amber-100" data-testid="draw-legal-notice">Official draws are switched off until the Random Draw engine is enabled in Company Settings after UK legal review (e.g. Gambling Act 2005 free-draw / prize-competition rules). Preview and rehearsal work now.</p>}
 
           <RoundsEditor rounds={rounds} setRounds={setRounds} locked={locked} results={results} />

@@ -91,6 +91,19 @@ def select_winners(seed: str, plan_id: str, round_index: int, candidates: list[i
     return chosen
 
 
+async def _upsert_winners(db, plan: dict, result: dict):
+    """Idempotently create pending winner records (paid only via the existing Super Admin mark-paid flow)."""
+    cfg = plan["rounds"][result["round_index"]]
+    for w in result["winners"]:
+        await db.winners.update_one({"winner_id": w["winner_id"]}, {"$setOnInsert": {
+            "winner_id": w["winner_id"], "contest_id": plan["contest_id"], "user_id": w["user_id"],
+            "user_name": w["display_name"], "ticket_number": w["ticket_number"], "prize_amount": w["prize_amount"],
+            "prize_cash_amount": w["prize_amount"], "prize_bonus_tokens": 0.0,
+            "prize_title": f"{plan.get('contest_title') or 'Prize draw'} — {cfg['name']}", "drawn_at": result["drawn_at"],
+            "paid_out": False, "payment_status": "pending", "source": "draw_studio", "draw_plan_id": plan["plan_id"],
+            "draw_round_index": result["round_index"]}}, upsert=True)
+
+
 class RoundIn(BaseModel):
     name: str = Field(..., min_length=1, max_length=80)
     prize_amount: float = Field(..., gt=0, le=1_000_000)
@@ -153,7 +166,7 @@ async def list_contests(request: Request):
 async def contest_pool(contest_id: str, request: Request):
     await require_super_admin(request)
     db = get_db()
-    contest = await db.contests.find_one({"contest_id": contest_id}, {"_id": 0, "contest_id": 1, "title": 1, "prize_amount": 1})
+    contest = await db.contests.find_one({"contest_id": contest_id}, {"_id": 0, "contest_id": 1, "title": 1, "prize_amount": 1, "status": 1})
     if not contest:
         raise HTTPException(status_code=404, detail="Contest not found")
     pool = await _pool(db, contest_id)
@@ -224,6 +237,8 @@ async def lock_plan(plan_id: str, body: ConfirmIn, request: Request):
     if await db[PLANS].find_one({"contest_id": plan["contest_id"], "status": {"$in": ["locked", "in_progress", "completed"]}}):
         raise HTTPException(status_code=409, detail="This contest already has a locked or completed official draw")
     contest = await db.contests.find_one({"contest_id": plan["contest_id"]}, {"_id": 0})
+    if contest.get("status") == "live":
+        raise HTTPException(status_code=409, detail="Ticket sales are still open. Close the contest before locking the draw so every ticket is included.")
     pool = await _pool(db, plan["contest_id"])
     await _validate(db, contest, plan["rounds"], len(pool))
     seed = secrets.token_hex(32)
@@ -251,6 +266,7 @@ async def draw_round(plan_id: str, round_index: int, body: ConfirmIn, request: R
         raise HTTPException(status_code=404, detail="Plan not found")
     existing = await db[RESULTS].find_one({"plan_id": plan_id, "round_index": round_index}, {"_id": 0})
     if existing:
+        await _upsert_winners(db, plan, existing)
         return {"result": existing, "resumed": True}
     if body.confirmation != f"DRAW ROUND {round_index + 1}":
         raise HTTPException(status_code=400, detail=f"Type DRAW ROUND {round_index + 1} to confirm")
@@ -281,15 +297,10 @@ async def draw_round(plan_id: str, round_index: int, body: ConfirmIn, request: R
     try:
         await db[RESULTS].insert_one(dict(result))
     except DuplicateKeyError:
-        return {"result": await db[RESULTS].find_one({"plan_id": plan_id, "round_index": round_index}, {"_id": 0}), "resumed": True}
-    for w in winners:
-        await db.winners.update_one({"winner_id": w["winner_id"]}, {"$setOnInsert": {
-            "winner_id": w["winner_id"], "contest_id": plan["contest_id"], "user_id": w["user_id"],
-            "user_name": w["display_name"], "ticket_number": w["ticket_number"], "prize_amount": w["prize_amount"],
-            "prize_cash_amount": w["prize_amount"], "prize_bonus_tokens": 0.0,
-            "prize_title": f"{plan.get('contest_title') or 'Prize draw'} — {cfg['name']}", "drawn_at": now,
-            "paid_out": False, "payment_status": "pending", "source": "draw_studio", "draw_plan_id": plan_id,
-            "draw_round_index": round_index}}, upsert=True)
+        existing = await db[RESULTS].find_one({"plan_id": plan_id, "round_index": round_index}, {"_id": 0})
+        await _upsert_winners(db, plan, existing)
+        return {"result": existing, "resumed": True}
+    await _upsert_winners(db, plan, result)
     final = round_index == len(plan["rounds"]) - 1
     await db[PLANS].update_one({"plan_id": plan_id}, {"$set": {"status": "completed" if final else "in_progress",
                                                                **({"completed_at": now} if final else {})}})
@@ -357,6 +368,11 @@ async def announce_round(plan_id: str, round_index: int, request: Request):
         raise HTTPException(status_code=404, detail="Round has not been drawn")
     if result.get("announcement_id"):
         return {"announcement_id": result["announcement_id"], "idempotent_replay": True}
+    claim = await db[RESULTS].update_one(
+        {"plan_id": plan_id, "round_index": round_index, "announcement_id": {"$exists": False},
+         "announcement_claimed": {"$ne": True}}, {"$set": {"announcement_claimed": True}})
+    if claim.modified_count != 1:
+        raise HTTPException(status_code=409, detail="This announcement is already being published")
     plan = await db[PLANS].find_one({"plan_id": plan_id}, {"_id": 0, "rounds": 1, "contest_title": 1})
     cfg = plan["rounds"][round_index]
     names = ", ".join(f"#{w['ticket_number']} {w['display_name']}" for w in result["winners"])
@@ -364,13 +380,17 @@ async def announce_round(plan_id: str, round_index: int, request: Request):
     text = text.replace("{winners}", names)[:300]
     from routers.announcement_routes import AnnouncementIn, create_announcement
 
-    created = await create_announcement(AnnouncementIn(title=f"{plan.get('contest_title') or 'Prize draw'} — {cfg['name']}"[:120],
-                                                       text=text, publish=True), request)
+    try:
+        created = await create_announcement(AnnouncementIn(title=f"{plan.get('contest_title') or 'Prize draw'} — {cfg['name']}"[:120],
+                                                           text=text, publish=True), request)
+    except Exception:
+        await db[RESULTS].update_one({"plan_id": plan_id, "round_index": round_index}, {"$unset": {"announcement_claimed": ""}})
+        raise
     ann_id = created.get("announcement_id")
-    claimed = await db[RESULTS].update_one({"plan_id": plan_id, "round_index": round_index, "announcement_id": {"$exists": False}},
-                                           {"$set": {"announcement_id": ann_id, "announced_at": _now()}})
+    await db[RESULTS].update_one({"plan_id": plan_id, "round_index": round_index},
+                                 {"$set": {"announcement_id": ann_id, "announced_at": _now()}})
     await _audit(db, "round_announced", admin, plan_id=plan_id, round_index=round_index, announcement_id=ann_id)
-    return {"announcement_id": ann_id, "idempotent_replay": claimed.modified_count == 0}
+    return {"announcement_id": ann_id, "idempotent_replay": False}
 
 
 @router.get("/audio")
