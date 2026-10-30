@@ -23,7 +23,6 @@ const Home = lazy(() => import('./pages/Home'));
 const Competitions = lazy(() => import('./pages/Competitions'));
 const CompetitionDetail = lazy(() => import('./pages/CompetitionDetail'));
 const WinnersReveal = lazy(() => import('./pages/WinnersReveal'));
-const Winners = lazy(() => import('./pages/Winners'));
 const DrawCentre = lazy(() => import('./pages/DrawCentre'));
 const Stories = lazy(() => import('./pages/Stories'));
 const FAQ = lazy(() => import('./pages/FAQ'));
@@ -251,7 +250,7 @@ function AppRouter() {
 
         <Route
           path="/winners"
-          element={<Winners />}
+          element={<Navigate to="/my-account/contest-winners" replace />}
         />
 
         <Route

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Film, ListOrdered, Sparkles, Trophy } from 'lucide-react';
-import { paidWinnersAPI } from '../lib/api';
-import { ContestCard, coverSrc } from '../components/winners/ContestCard';
-import { GalleryDetail, LeaderboardDetail, WinnersDetail } from '../components/winners/Details';
-import '../components/winners/winners.css';
+import { paidWinnersAPI } from '../../lib/api';
+import { ContestCard, coverSrc } from './ContestCard';
+import { GalleryDetail, LeaderboardDetail, WinnersDetail } from './Details';
+import './winners.css';
 
 const TABS = [
   { key: 'winners', label: 'Winners', icon: Trophy, blurb: 'Officially published winners from completed Paid World contests.' },
@@ -15,12 +15,12 @@ const DETAIL = { winners: WinnersDetail, leaderboards: LeaderboardDetail, galler
 
 function Hero() {
   return (
-    <section className="relative overflow-hidden px-4 pb-10 pt-14 lg:px-8">
+    <section className="relative overflow-hidden px-4 pb-8 pt-8 sm:px-6">
       <div className="pointer-events-none absolute -left-24 -top-24 h-80 w-80 rounded-full bg-violet-600/30 blur-3xl" />
       <div className="pointer-events-none absolute right-0 top-10 h-64 w-64 rounded-full bg-amber-400/10 blur-3xl" />
-      <div className="relative mx-auto max-w-7xl">
+      <div className="relative">
         <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-amber-200"><Sparkles className="h-3 w-3" />Paid World</span>
-        <h1 className="mt-4 font-display text-4xl font-extrabold text-white sm:text-5xl lg:text-6xl">Hall of <span className="bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 bg-clip-text text-transparent">Winners</span></h1>
+        <h1 className="mt-4 font-display text-4xl font-extrabold text-white sm:text-5xl">Hall of <span className="bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 bg-clip-text text-transparent">Winners</span></h1>
         <p className="mt-3 max-w-xl text-base text-indigo-100/70">Real players, real prizes. Every result here is official and published only after it has been verified.</p>
       </div>
     </section>
@@ -29,8 +29,8 @@ function Hero() {
 
 function TabBar({ tab, setTab }) {
   return (
-    <div className="sticky top-0 z-20 border-y border-white/10 bg-[#0a0628]/85 backdrop-blur-xl">
-      <div className="no-scrollbar mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4 py-2 lg:px-8" role="tablist">
+    <div className="border-y border-white/10 bg-[#0a0628]/85 backdrop-blur-xl">
+      <div className="no-scrollbar flex gap-1 overflow-x-auto px-4 py-2 sm:px-6" role="tablist">
         {TABS.map(({ key, label, icon: Icon }) => (
           <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => setTab(key)}
             className={`flex shrink-0 items-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold transition-colors ${tab === key ? 'bg-gradient-to-r from-amber-300 to-amber-500 text-[#1a1033]' : 'text-indigo-100/70 hover:bg-white/5 hover:text-white'}`}
@@ -55,7 +55,7 @@ function DetailView({ tab, contest, onBack }) {
   );
 }
 
-export default function Winners() {
+export default function WinnersHall() {
   const [tab, setTabState] = useState('winners');
   const [list, setList] = useState(null);
   const [open, setOpen] = useState(null);
@@ -64,10 +64,10 @@ export default function Winners() {
   const meta = TABS.find((t) => t.key === tab);
 
   return (
-    <div className="pw-page min-h-screen bg-[#0a0628] text-white" data-testid="paid-winners-page">
+    <div className="pw-page overflow-hidden rounded-3xl bg-[#0a0628] text-white" data-testid="paid-winners-page">
       <Hero />
       <TabBar tab={tab} setTab={setTab} />
-      <main className="mx-auto max-w-7xl px-4 py-10 lg:px-8">
+      <main className="px-4 py-8 sm:px-6">
         {open ? <DetailView tab={tab} contest={open} onBack={() => setOpen(null)} /> : (
           <>
             <p className="mb-6 text-sm text-indigo-200/70">{meta.blurb}</p>
