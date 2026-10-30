@@ -1,61 +1,70 @@
 import { useEffect, useState } from 'react';
-import { Crown, X } from 'lucide-react';
+import { Clock, Crown, Lock } from 'lucide-react';
 import { worldGcCompetitionAPI } from '../../lib/api';
 import { GAME_CATALOG } from '../../lib/gameCatalog';
 
 const fmt = (ms) => {
   if (ms == null) return '—';
-  const cs = Math.floor(Math.max(0, Number(ms)) / 10);
-  const s = Math.floor(cs / 100);
-  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}.${String(cs % 100).padStart(2, '0')}`;
+  const v = Math.max(0, Math.floor(Number(ms)));
+  return `${String(Math.floor(v / 60000)).padStart(2, '0')}:${String(Math.floor((v % 60000) / 1000)).padStart(2, '0')}.${String(v % 1000).padStart(3, '0')}`;
 };
-const gameName = (id) => (id === 'colour_match' ? 'Colour Match' : id === 'number_sequence' ? 'Number Sequence' : GAME_CATALOG.find((g) => g.id === id)?.label || id);
+const gameName = (id) => (id === 'colour_match' ? 'Colour Match' : id === 'number_sequence' ? 'Number Sequence' : GAME_CATALOG.find((g) => g.id === id)?.label || id || '—');
+const initials = (n) => (String(n || 'P').trim().split(/\s+/).slice(0, 2).map((x) => x[0]).join('') || 'P').toUpperCase();
 
-export function useHybridLevelBoards(gcNumber) {
+// Loads all 10 level boards for a GC (read-only); levels without Every-Level results come back disabled.
+export function useHybridLevelBoards(gcNumber, refreshKey = 0) {
   const [boards, setBoards] = useState(null);
   useEffect(() => {
-    if (!gcNumber || gcNumber < 4) return undefined;
+    setBoards(null);
+    if (!gcNumber || gcNumber < 4) { setBoards([]); return undefined; }
     let active = true;
     Promise.all(Array.from({ length: 10 }, (_, i) => worldGcCompetitionAPI.levelBoard(gcNumber, i + 1).catch(() => null)))
       .then((rows) => { if (active) setBoards(rows); });
     return () => { active = false; };
-  }, [gcNumber]);
+  }, [gcNumber, refreshKey]);
   return boards;
 }
 
-export default function HybridLevelBoards({ gcNumber, boards, onClose }) {
-  const enabled = (boards || []).filter((b) => b?.enabled);
-  const [level, setLevel] = useState(enabled[0]?.level || 1);
-  const board = enabled.find((b) => b.level === level) || enabled[0];
-  if (!board) return null;
+export function LevelLeaderboardPanel({ gcNumber, boards, isMine }) {
+  const enabled = (boards || []).filter((b) => b?.enabled && b.status !== 'Upcoming');
+  const upcoming = (boards || []).filter((b) => b?.enabled && b.status === 'Upcoming').length;
+  const [level, setLevel] = useState(null);
+  useEffect(() => { setLevel(enabled[0]?.level || null); }, [boards]); // eslint-disable-line react-hooks/exhaustive-deps
+  const board = enabled.find((b) => b.level === level);
+  if (!boards) return <div className="pl-global-lb-card pl-global-lb-state" data-testid="lb-level-loading"><span className="pl-global-lb-spin" /><p>Loading level rankings…</p></div>;
   return (
-    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-3 sm:items-center" onClick={onClose} data-testid="hybrid-level-boards">
-      <section className="max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-4 text-slate-900 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <header className="flex items-center justify-between">
-          <h2 className="text-lg font-black">GC{gcNumber} · Level leaderboards</h2>
-          <button type="button" onClick={onClose} aria-label="Close" className="rounded-full p-1 hover:bg-slate-100"><X className="h-5 w-5" /></button>
-        </header>
-        <div className="mt-3 flex flex-wrap gap-1.5" role="tablist">
-          {enabled.map((b) => <button key={b.level} type="button" role="tab" aria-selected={b.level === board.level} onClick={() => setLevel(b.level)}
-            className={`rounded-full px-3 py-1 text-xs font-bold ${b.level === board.level ? 'bg-[#6C2BFF] text-white' : 'bg-slate-100 text-slate-700'}`} data-testid={`hybrid-level-tab-${b.level}`}>L{b.level}</button>)}
+    <>
+      <div className="pl-global-lb-card" data-testid="lb-level-picker">
+        <div className="pl-global-lb-sectlbl">CHOOSE LEVEL · GC{gcNumber || '—'}</div>
+        <div className="mt-2 grid grid-cols-5 gap-2 sm:grid-cols-10">
+          {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => {
+            const on = enabled.some((b) => b.level === n);
+            return <button key={n} type="button" disabled={!on} onClick={() => setLevel(n)} data-testid={`lb-level-btn-${n}`} title={on ? `Level ${n}` : 'No level leaderboard for this level'}
+              className={`flex h-11 items-center justify-center gap-1 rounded-xl text-sm font-black transition-colors ${n === level ? 'bg-[#6C2BFF] text-white shadow-lg' : on ? 'bg-[#f1edff] text-[#3b2a85] hover:bg-[#e4dcff]' : 'cursor-not-allowed bg-slate-100 text-slate-400'}`}>
+              {!on && <Lock size={11} />}L{n}</button>;
+          })}
         </div>
-        <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
-          <div className="rounded-lg bg-slate-50 p-2"><dt className="text-slate-500">Game</dt><dd className="font-bold" data-testid="hybrid-level-game">{gameName(board.game_id)}</dd></div>
-          <div className="rounded-lg bg-slate-50 p-2"><dt className="text-slate-500">Status</dt><dd className="font-bold" data-testid="hybrid-level-status">{board.status}</dd></div>
-          <div className="rounded-lg bg-slate-50 p-2"><dt className="text-slate-500">Your best</dt><dd className="font-mono font-bold">{fmt(board.mine?.personal_best_ms)}</dd></div>
-          <div className="rounded-lg bg-slate-50 p-2"><dt className="text-slate-500">Your rank</dt><dd className="font-bold" data-testid="hybrid-level-rank">{board.mine?.rank ? `#${board.mine.rank}` : '—'}</dd></div>
-        </dl>
-        <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]" data-testid="hybrid-level-rewards">
-          {[1, 2, 3, 4, 5].map((r) => <span key={r} className="rounded border border-amber-200 bg-amber-50 px-2 py-1">#{r}: {board.rewards?.[String(r)] ?? 0} Bonus Tokens</span>)}
+        {!enabled.length && <p className="mt-3 text-sm text-slate-500" data-testid="lb-level-none">No level leaderboards for this GC. {upcoming ? `${upcoming} Every-Level levels are scheduled; rankings appear when each level opens.` : 'Level rankings appear only for Every-Level competitions that have opened.'}</p>}
+      </div>
+      {board && <div className="pl-global-lb-card pl-global-lb-rankings" data-testid="lb-level-board">
+        <div className="pl-global-lb-rankhead"><h2>LEVEL {board.level} RANKINGS</h2><span className="pl-global-lb-updates" data-testid="lb-level-status">{board.status}</span></div>
+        <div className="mb-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+          <div className="rounded-xl bg-[#f7f5ff] p-2"><div className="text-slate-500">Game</div><b data-testid="lb-level-game">{gameName(board.game_id)}</b></div>
+          <div className="rounded-xl bg-[#f7f5ff] p-2"><div className="text-slate-500">Your best</div><b className="font-mono" data-testid="lb-level-my-best">{fmt(board.mine?.personal_best_ms)}</b></div>
+          <div className="rounded-xl bg-[#f7f5ff] p-2"><div className="text-slate-500">Your rank</div><b data-testid="lb-level-my-rank">{board.mine?.rank ? `#${board.mine.rank}` : '—'}</b></div>
+          <div className="rounded-xl bg-[#f7f5ff] p-2"><div className="text-slate-500">Rewards</div><b>{board.reward_status === 'finalized' ? 'Finalized' : 'Provisional'}</b></div>
         </div>
-        <p className="mt-1 text-[11px] text-slate-500">{board.reward_status === 'finalized' ? 'Finalized rewards.' : 'Provisional rewards; credited only after finalization.'}</p>
-        <ol className="mt-3 divide-y divide-slate-100" data-testid="hybrid-level-leaderboard">
-          {board.leaderboard.map((row) => <li key={row.rank} className="flex items-center justify-between py-1.5 text-sm">
-            <span className="flex items-center gap-2"><b className="w-7 text-slate-500">#{row.rank}</b>{row.rank === 1 && <Crown className="h-4 w-4 text-amber-600" />}{row.user_name}</span>
-            <span className="font-mono font-semibold tabular-nums">{fmt(row.duration_ms)}</span></li>)}
-          {!board.leaderboard.length && <li className="py-5 text-center text-sm text-slate-500">No successful times yet.</li>}
-        </ol>
-      </section>
-    </div>
+        <div className="mb-3 flex flex-wrap gap-1.5 text-[11px]" data-testid="lb-level-rewards">
+          {[1, 2, 3, 4, 5].map((r) => <span key={r} className="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 font-semibold text-amber-900">#{r}: {board.rewards?.[String(r)] ?? 0} Bonus Tokens</span>)}
+        </div>
+        {board.leaderboard.length ? <div className="pl-global-lb-tablewrap" data-testid="lb-level-list">
+          {board.leaderboard.map((r) => <div key={r.rank} style={{ gridTemplateColumns: "48px 1fr 110px" }} className={`pl-global-lb-tr ${r.rank <= 3 ? `top top-${r.rank}` : ''} ${isMine?.(r) ? 'is-me' : ''}`} data-testid="lb-level-row">
+            <span className="pl-global-lb-rankcell"><b>{r.rank}</b>{r.rank === 1 && <span className="pl-global-lb-rk gold"><Crown size={12} /></span>}</span>
+            <span className="pl-global-lb-player"><span className={`pl-global-lb-av r${r.rank <= 3 ? r.rank : ''}`}>{initials(r.user_name)}</span><span className="pl-global-lb-pn">{r.user_name || 'Player'}</span></span>
+            <span className="pl-global-lb-time"><Clock size={12} /> {fmt(r.duration_ms)}</span>
+          </div>)}
+        </div> : <div className="pl-global-lb-state" data-testid="lb-level-empty"><p>No successful times yet for Level {board.level}.</p></div>}
+      </div>}
+    </>
   );
 }

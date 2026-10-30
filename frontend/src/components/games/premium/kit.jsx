@@ -18,7 +18,7 @@ export function Board3D({ theme, title, level, stats = [], children, flash }) {
     <div className="mx-auto w-full max-w-xl select-none" style={{ perspective: '1400px' }} data-testid={`premium-${theme}-board`}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="text-xs font-black uppercase tracking-[0.25em]" style={{ color: t.accent }}>{title}</div>
-        <span className="rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-widest" style={{ borderColor: t.accent, color: t.accent }} data-testid="game-difficulty-badge">Level {level} · {difficultyName(level)}</span>
+        {level != null && <span className="rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-widest" style={{ borderColor: t.accent, color: t.accent }} data-testid="game-difficulty-badge">Level {level} · {difficultyName(level)}</span>}
       </div>
       <div className="relative rounded-[28px] p-4 transition-[transform,box-shadow] duration-300 sm:p-6"
         style={{ background: `radial-gradient(120% 90% at 30% 0%, ${t.from}, ${t.to})`, transform: `rotateX(10deg) ${flash === 'bad' ? 'translateX(-4px)' : ''}`, transformStyle: 'preserve-3d', boxShadow: ring }}>

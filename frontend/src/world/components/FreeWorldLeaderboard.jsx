@@ -3,6 +3,7 @@ import {
   Trophy, X, Clock, RefreshCw, Radio, Crown, User, ChevronDown, Coins, ChevronRight,
 } from 'lucide-react';
 import { worldAPI } from '../../lib/api';
+import { LevelLeaderboardPanel, useHybridLevelBoards } from './HybridLevelBoards';
 import { useAuth } from '../../context/AuthContext';
 import '../styles/pl-global-lb.css';
 
@@ -59,12 +60,16 @@ function parseUtcMs(s) {
   return Number.isNaN(t) ? null : t;
 }
 
-export default function FreeWorldLeaderboard({ open, onClose }) {
+export default function FreeWorldLeaderboard({ open, onClose, activeGc }) {
   const auth = useAuth();
   const myId = auth?.user?.user_id || auth?.user?.id || null;
   const myName = auth?.user?.name || auth?.user?.user_name || null;
 
   const [champN, setChampN] = useState('all');
+  const [view, setView] = useState('championship');
+  const [levelRefresh, setLevelRefresh] = useState(0);
+  const levelGc = champN === 'all' ? Number(activeGc) || null : Number(champN);
+  const levelBoards = useHybridLevelBoards(open && view === 'level' ? levelGc : null, levelRefresh);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [data, setData] = useState(null);
@@ -218,6 +223,14 @@ export default function FreeWorldLeaderboard({ open, onClose }) {
       </header>
 
       <div className="pl-global-lb-inner">
+        <div className="pl-global-lb-card flex gap-2 p-2" role="tablist" data-testid="lb-view-tabs">
+          {[['championship', 'Championship Leaderboard'], ['level', 'Level Leaderboard']].map(([k, label]) => (
+            <button key={k} type="button" role="tab" aria-selected={view === k} onClick={() => setView(k)} data-testid={`lb-tab-${k}`}
+              className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-black transition-colors ${view === k ? 'bg-[#6C2BFF] text-white shadow' : 'text-[#3b2a85] hover:bg-[#f1edff]'}`}>{label}</button>
+          ))}
+        </div>
+
+        {view === 'championship' && <>
         {/* PRIZE POOL + TIMER (side by side) */}
         <div className="pl-global-lb-stats">
           <div className="pl-global-lb-card pl-global-lb-pool">
@@ -258,6 +271,8 @@ export default function FreeWorldLeaderboard({ open, onClose }) {
           </button>
         </div>
 
+        </>}
+
         {/* VIEW CHAMPIONSHIP */}
         <div className="pl-global-lb-card pl-global-lb-viewcard">
           <div className="pl-global-lb-sectlbl">VIEW CHAMPIONSHIP</div>
@@ -272,11 +287,14 @@ export default function FreeWorldLeaderboard({ open, onClose }) {
               </select>
               <ChevronDown size={15} className="pl-global-lb-selchev" />
             </div>
-            {isLive && <span className="pl-global-lb-livepill green" data-testid="lb-live"><Radio size={12} /> LIVE</span>}
-            <button className="pl-global-lb-refresh" onClick={() => load(champN)} data-testid="lb-refresh"><RefreshCw size={14} /> Refresh</button>
+            {view === 'championship' && isLive && <span className="pl-global-lb-livepill green" data-testid="lb-live"><Radio size={12} /> LIVE</span>}
+            <button className="pl-global-lb-refresh" onClick={() => (view === 'level' ? setLevelRefresh((n) => n + 1) : load(champN))} data-testid="lb-refresh"><RefreshCw size={14} /> Refresh</button>
           </div>
         </div>
 
+        {view === 'level' && <LevelLeaderboardPanel gcNumber={levelGc} boards={levelBoards} isMine={(row) => Boolean(myName) && row.user_name === myName} />}
+
+        {view === 'championship' && <>
         {/* YOUR POSITION */}
         {myRow ? (
           <div className="pl-global-lb-card pl-global-lb-you" data-testid="lb-your-rank">
@@ -311,6 +329,7 @@ export default function FreeWorldLeaderboard({ open, onClose }) {
           )}
           <RankingsBody />
         </div>
+        </>}
       </div>
 
       {/* MULTIPLIERS MODAL */}

@@ -30,6 +30,7 @@ import { useNavigate } from 'react-router-dom';
 
 import '../styles/freeWorldGameV3.css';
 import { WorldClientGame, isWorldClientGame } from './WorldClientGame';
+import { ChromaBoard, SequenceBoard } from '../../components/games/premium/boards';
 import GameSoundToggle from '../../components/games/GameSoundToggle';
 import { GAME_CATALOG } from '../../lib/gameCatalog';
 import { gameExperienceFor, pickResultQuote, playGameSound, gameSoundEnabled } from '../../lib/gameExperience';
@@ -143,12 +144,6 @@ const makeDemoColourQuestions = (colours, count = 5) => {
   });
 };
 
-const isLightHex = (hex = '') => {
-  const value = hex.replace('#', '');
-  if (value.length !== 6) return true;
-  const [r, g, b] = [0, 2, 4].map((i) => parseInt(value.slice(i, i + 2), 16));
-  return (r * 299 + g * 587 + b * 114) / 1000 > 145;
-};
 
 let colourAudioContext;
 
@@ -293,6 +288,7 @@ export default function FreeWorldNumberSequenceV3({
   const gameId = session?.game_id || level?.game_id || 'number_sequence';
   const gameName = GAME_CATALOG.find((game) => game.id === gameId)?.label || (isColour ? 'Colour Match' : gameId === 'number_sequence' ? 'Number Sequence' : gameId);
   const gameGuide = gameExperienceFor(gameId);
+  const boardLevel = level?.game_config?.difficulty ? Number(level.game_config.difficulty) : null;
 
   const [officialNext, setOfficialNext] =
     useState(1);
@@ -1843,24 +1839,13 @@ if (
           </div>
           <GameSoundToggle className="mb-3" />
 
-          <div className="fwv3-colour-progress" aria-hidden="true">
-            <span style={{ width: `${(demoColourIdx / demoColourQs.length) * 100}%` }} />
-          </div>
-
           <div className="fwv3-colour-count">
             PRACTICE {demoColourIdx + 1} / {demoColourQs.length} - {demoColourScore} correct
           </div>
 
-          <p className="fwv3-colour-hint">
-            Tap the colour of the INK, not the word
-          </p>
-
-          <div
-            className={`fwv3-colour-word ${isLightHex(question.ink) ? 'is-dark-bg' : ''}`}
-            style={{ color: question.ink }}
-          >
-            {question.word}
-          </div>
+          <ChromaBoard word={question.word} inkHex={question.ink} round={demoColourIdx + 1} total={demoColourQs.length} extra={['Correct', demoColourScore]}
+            disabled={Boolean(demoColourFeedback)} level={boardLevel} flash={demoColourFeedback ? (demoColourFeedback.ok ? 'good' : 'bad') : null}
+            options={question.options.map((name) => ({ key: name, label: name, ...COLOUR_SWATCHES[name] }))} onPick={answerDemoColour} />
 
           <div
             className={`fwv3-colour-feedback ${demoColourFeedback ? (demoColourFeedback.ok ? 'is-ok' : 'is-bad') : ''}`}
@@ -1871,28 +1856,6 @@ if (
                   ? 'Correct!'
                   : `Not quite - the ink was ${demoColourFeedback.answer}`)
               : '\u00a0'}
-          </div>
-
-          <div
-            className="fwv3-colour-options"
-            style={{
-              gridTemplateColumns: `repeat(${question.options.length <= 4 ? 2 : 3}, minmax(0, 1fr))`,
-            }}
-          >
-            {question.options.map((name) => {
-              const swatch = COLOUR_SWATCHES[name];
-              return (
-                <button
-                  key={name}
-                  type="button"
-                  disabled={Boolean(demoColourFeedback)}
-                  onClick={() => answerDemoColour(name)}
-                  style={{ backgroundColor: swatch.hex, color: swatch.text, borderColor: swatch.border }}
-                >
-                  {name}
-                </button>
-              );
-            })}
           </div>
 
           <button
@@ -1947,86 +1910,7 @@ if (
           </div>
 
 
-          <section className="fwv3-progress">
-
-            <div>
-
-              <span>
-                NEXT NUMBER
-              </span>
-
-              <strong>
-                {
-                  Math.min(
-                    demoNext,
-                    target,
-                  )
-                }
-              </strong>
-
-            </div>
-
-
-            <div>
-
-              <span>
-                PROGRESS
-              </span>
-
-              <strong>
-                {
-                  Math.min(
-                    demoNext - 1,
-                    target,
-                  )
-                } / {target}
-              </strong>
-
-            </div>
-
-          </section>
-
-
-          <div
-            className="fwv3-grid"
-            style={{
-              gridTemplateColumns:
-                `repeat(${columns}, minmax(0, 1fr))`,
-            }}
-          >
-            {
-              demoNumbers.map(
-                (number) => {
-                  const done =
-                    number <
-                    demoNext;
-
-                  return (
-                    <button
-                      key={number}
-                      type="button"
-                      style={{
-                        fontSize: 'clamp(1rem, 2.4vw, 1.35rem)',
-                      }}
-                      disabled={done}
-                      className={
-                        done
-                          ? 'is-done'
-                          : ''
-                      }
-                      onClick={() =>
-                        tapDemo(
-                          number,
-                        )
-                      }
-                    >
-                      {number}
-                    </button>
-                  );
-                },
-              )
-            }
-          </div>
+          <SequenceBoard numbers={demoNumbers} next={demoNext} target={target} columns={columns} onTap={tapDemo} level={boardLevel} />
 
 
           <section className="fwv3-play-actions">
@@ -2385,47 +2269,13 @@ if (
             <strong>{formatElapsed(officialDisplayMs)}</strong>
           </div>
 
-          <div className="fwv3-colour-progress" aria-hidden="true">
-            <span style={{ width: `${(colourIndex / total) * 100}%` }} />
-          </div>
-
           <div className="fwv3-colour-count">
             QUESTION {colourIndex + 1} / {total}
           </div>
 
-          <p className="fwv3-colour-hint">
-            Tap the colour of the INK, not the word
-          </p>
-
-          <div
-            className={`fwv3-colour-word ${isLightHex(colourQuestion.ink) ? 'is-dark-bg' : ''}`}
-            style={{ color: colourQuestion.ink }}
-            data-testid="fw-colour-word"
-          >
-            {colourQuestion.word}
-          </div>
-
-          <div
-            className="fwv3-colour-options"
-            style={{
-              gridTemplateColumns: `repeat(${colourQuestion.options.length <= 4 ? 2 : 3}, minmax(0, 1fr))`,
-            }}
-          >
-            {colourQuestion.options.map((name, optionIndex) => {
-              const swatch = COLOUR_SWATCHES[name] || { hex: '#64748b', text: '#ffffff', border: '#334155' };
-              return (
-                <button
-                  key={name}
-                  type="button"
-                  disabled={busy}
-                  onClick={() => answerColour(optionIndex)}
-                  style={{ backgroundColor: swatch.hex, color: swatch.text, borderColor: swatch.border }}
-                >
-                  {name}
-                </button>
-              );
-            })}
-          </div>
+          <ChromaBoard word={colourQuestion.word} inkHex={colourQuestion.ink} round={colourIndex + 1} total={total} disabled={busy} level={boardLevel}
+            options={colourQuestion.options.map((name, optionIndex) => ({ key: optionIndex, label: name, ...(COLOUR_SWATCHES[name] || { hex: '#64748b', text: '#ffffff' }) }))}
+            onPick={answerColour} />
 
           <button
             type="button"
@@ -2485,89 +2335,7 @@ if (
           </div>
 
 
-          <section className="fwv3-progress">
-
-            <div>
-
-              <span>
-                NEXT NUMBER
-              </span>
-
-              <strong>
-                {
-                  Math.min(
-                    officialNext,
-                    target,
-                  )
-                }
-              </strong>
-
-            </div>
-
-
-            <div>
-
-              <span>
-                PROGRESS
-              </span>
-
-              <strong>
-                {
-                  Math.min(
-                    officialNext - 1,
-                    target,
-                  )
-                } / {target}
-              </strong>
-
-            </div>
-
-          </section>
-
-
-          <div
-            className="fwv3-grid"
-            style={{
-              gridTemplateColumns:
-                `repeat(${columns}, minmax(0, 1fr))`,
-            }}
-          >
-            {
-              officialNumbers.map(
-                (number) => {
-                  const done =
-                    number <
-                    officialNext;
-
-                  return (
-                    <button
-                      key={number}
-                      type="button"
-                      style={{
-                        fontSize: 'clamp(1rem, 2.4vw, 1.35rem)',
-                      }}
-                      disabled={
-                        done ||
-                        busy
-                      }
-                      className={
-                        done
-                          ? 'is-done'
-                          : ''
-                      }
-                      onClick={() =>
-                        tapOfficial(
-                          number,
-                        )
-                      }
-                    >
-                      {number}
-                    </button>
-                  );
-                },
-              )
-            }
-          </div>
+          <SequenceBoard numbers={officialNumbers} next={officialNext} target={target} columns={columns} disabled={busy} onTap={tapOfficial} level={boardLevel} />
 
 
           <button

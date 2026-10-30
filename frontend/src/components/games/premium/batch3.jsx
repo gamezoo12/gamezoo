@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Eye, EyeOff, Shuffle } from 'lucide-react';
 import { difficultyOf, lerpLevel, seeded, seededShuffle } from '../../../lib/difficulty';
 import { Board3D, useFeedback } from './kit';
+import { SequenceBoard } from './boards';
+import { playGameSound } from '../../../lib/gameExperience';
 
 const done = (onComplete, start, accuracy) => onComplete({ solved: true, accuracy: Math.max(0.05, Math.min(1, accuracy)), duration_ms: Date.now() - start });
 const tile3d = 'rounded-xl border-b-[6px] shadow-lg transition-transform hover:-translate-y-0.5 active:translate-y-0.5';
@@ -13,21 +15,13 @@ export function PremiumNumberSequence({ config, onComplete }) {
   const [next, setNext] = useState(1);
   const [misses, setMisses] = useState(0);
   const [start] = useState(Date.now);
-  const [flash, fire] = useFeedback();
   const tap = (n) => {
-    if (n !== next) { fire('bad'); setMisses((m) => m + 1); return; }
-    fire(n === 20 ? 'good' : 'tap');
+    if (n !== next) { playGameSound('failure'); setMisses((m) => m + 1); return; }
+    playGameSound(n === 20 ? 'success' : 'tap');
     if (n === 20) onComplete({ solved: true, accuracy: Math.max(0.1, 1 - misses * 0.05), duration_ms: Date.now() - start });
     setNext(n + 1);
   };
-  return (
-    <Board3D theme="math" title="Sequence Grid" level={level} flash={flash} stats={[['Next', next > 20 ? '✓' : next], ['Misses', misses]]}>
-      <div className="grid grid-cols-5 gap-2">
-        {nums.map((n) => <button key={n} type="button" disabled={n < next} onClick={() => tap(n)} data-testid={`seq-num-${n}`}
-          className={`${tile3d} aspect-square text-xl font-black ${n < next ? 'border-emerald-800 bg-emerald-500/40 text-white/40' : 'border-sky-800 bg-gradient-to-b from-sky-200 to-sky-400 text-sky-950'}`}>{n}</button>)}
-      </div>
-    </Board3D>
-  );
+  return <SequenceBoard numbers={nums} next={next} target={20} onTap={tap} level={level} misses={misses} />;
 }
 
 // ---------- Emoji Riddle: more riddles, harder answers, hints vanish ----------

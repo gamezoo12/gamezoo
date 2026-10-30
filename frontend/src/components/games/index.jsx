@@ -683,6 +683,7 @@ export const GAME_MAP = {
   whack_a_mole: (config, onComplete) => <PremiumWhack config={config} onComplete={onComplete} />,
   odd_one_out: (config, onComplete) => <PremiumOddOne config={config} onComplete={onComplete} />,
   color_match: (config, onComplete) => <PremiumColorMatch config={config} onComplete={onComplete} />,
+  colour_match: (config, onComplete) => <PremiumColorMatch config={config} onComplete={onComplete} />,
   pattern_repeat: (config, onComplete) => <PremiumPatternRepeat config={config} onComplete={onComplete} />,
   ...GAMES_V2,
 };

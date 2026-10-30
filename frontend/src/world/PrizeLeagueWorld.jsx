@@ -44,8 +44,6 @@ import FreeWorldLeaderboard
 
 import EveryLevelWorld
   from './components/EveryLevelWorld';
-import HybridLevelBoards, { useHybridLevelBoards }
-  from './components/HybridLevelBoards';
 import { GAME_CATALOG } from '../lib/gameCatalog';
 
 import FreeWorldNumberSequence
@@ -74,9 +72,6 @@ export default function PrizeLeagueWorld() {
     useState(null);
 
   const [activeGc, setActiveGc] = useState(null);
-  const [showLevelBoards, setShowLevelBoards] = useState(false);
-  const levelBoards = useHybridLevelBoards(activeGc);
-  const hasLevelBoards = Boolean(levelBoards?.some((b) => b?.enabled));
 
   const [levelData, setLevelData] =
     useState(null);
@@ -658,13 +653,6 @@ export default function PrizeLeagueWorld() {
           </span>
         </button>
 
-        {hasLevelBoards && (
-          <button type="button" data-testid="plworld-nav-level-boards" onClick={() => setShowLevelBoards(true)}>
-            <Trophy size={19} />
-            <span>LEVEL BOARDS</span>
-          </button>
-        )}
-
       </nav>
 <div className="pl-world-touch-hint">
         Drag to explore • Pinch to zoom
@@ -877,10 +865,9 @@ export default function PrizeLeagueWorld() {
         )}
 
 
-      {showLevelBoards && <HybridLevelBoards gcNumber={activeGc} boards={levelBoards} onClose={() => setShowLevelBoards(false)} />}
-
       <FreeWorldLeaderboard
         open={showWorldLeaderboard}
+        activeGc={activeGc}
         onClose={() =>
           setShowWorldLeaderboard(false)
         }

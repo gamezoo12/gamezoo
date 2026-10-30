@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bomb } from 'lucide-react';
 import { difficultyOf, lerpLevel, seeded, seededShuffle } from '../../../lib/difficulty';
 import { Board3D, useFeedback } from './kit';
+import { ChromaBoard } from './boards';
 
 const done = (onComplete, start, accuracy) => onComplete({ solved: true, accuracy: Math.max(0.05, Math.min(1, accuracy)), duration_ms: Date.now() - start });
 
@@ -151,13 +152,8 @@ export function PremiumColorMatch({ config, onComplete }) {
     fire('good');
     if (i + 1 >= total) done(onComplete, start, total / (total + wrong)); else setI(i + 1);
   };
-  return (
-    <Board3D theme="reaction" title="Chroma Clash" level={level} flash={flash} stats={[['Round', `${i + 1}/${total}`], ['Wrong', wrong]]}>
-      <p className="text-center text-xs font-black uppercase tracking-widest text-amber-200" data-testid="color-rule">Tap the {cur.rule === 'ink' ? 'INK COLOUR' : 'WORD MEANING'}</p>
-      <div className="my-5 text-center text-6xl font-black drop-shadow-[0_6px_0_rgba(0,0,0,0.4)]" style={{ color: INKS[cur.ink][1] }} data-testid="color-word">{INKS[cur.w][0]}</div>
-      <div className="grid grid-cols-3 gap-2">{INKS.slice(0, n).map(([name, hex], k) => <button key={name} type="button" onClick={() => pick(k)} data-testid={`color-option-${name.toLowerCase()}`} className="h-14 rounded-2xl border-b-[6px] border-black/30 text-xs font-black text-white shadow-lg transition-transform hover:-translate-y-1" style={{ background: hex }}>{name}</button>)}</div>
-    </Board3D>
-  );
+  return <ChromaBoard word={INKS[cur.w][0]} inkHex={INKS[cur.ink][1]} rule={cur.rule} options={INKS.slice(0, n).map(([label, hex], k) => ({ key: k, label, hex }))}
+    onPick={pick} round={i + 1} total={total} extra={['Wrong', wrong]} flash={flash} level={level} />;
 }
 
 // ---------- Odd One Out: bigger grids, subtler differences ----------

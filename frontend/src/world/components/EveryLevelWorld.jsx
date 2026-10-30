@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Crown, RotateCcw, Trophy } from 'lucide-react';
 import { worldGcCompetitionAPI } from '../../lib/api';
-import { MemoryCard } from '../../components/games/MemoryCard';
+import { MemoryBoard3D, MemoryTile } from '../../components/games/premium/boards';
 
 const defaultRewards = { '1': 5, '2': 4, '3': 3, '4': 2, '5': 1 };
 
@@ -25,7 +25,7 @@ function encourage(rank, gapMs, slowerThanBest) {
 }
 
 const Card = ({ position, symbol, revealed, matched, disabled, onClick }) =>
-  <MemoryCard position={position} symbol={symbol} flipped={revealed} matched={matched} disabled={disabled} onClick={onClick} />;
+  <MemoryTile symbol={symbol} faceUp={revealed} matched={matched} disabled={disabled} onClick={() => onClick(position)} testId={`memory-card-${position}`} />;
 
 export default function EveryLevelWorld({ gcNumber, onExit }) {
   const [progress, setProgress] = useState(null);
@@ -170,9 +170,9 @@ export default function EveryLevelWorld({ gcNumber, onExit }) {
 
           {!session && !result && <div className="rounded-md bg-slate-50 p-4 text-sm text-slate-600">Match every pair. The timer counts up with no time limit; completion time is measured by the server. Retries are free while the level remains open.</div>}
 
-          {session && <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 sm:gap-3" data-testid="memory-board">
+          {session && <MemoryBoard3D count={session.cards.length} level={null} stats={[['Pairs', `${matched.length / 2}/${session.cards.length / 2}`]]}>
             {session.cards.map((position) => <Card key={position} position={position} symbol={revealed[position]} revealed={revealed[position] != null} matched={matched.includes(position)} disabled={busy || Boolean(mismatch.length)} onClick={clickCard} />)}
-          </div>}
+          </MemoryBoard3D>}
 
           {result && <div className="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4" data-testid="memory-result">
             <div className="flex items-center gap-2 text-lg font-black text-emerald-950"><Trophy className="h-5 w-5" /> Level Passed</div>

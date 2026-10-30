@@ -56,7 +56,7 @@ export const GAME_EXPERIENCE = {
 };
 
 export function gameExperienceFor(gameId) {
-  return GAME_EXPERIENCE[gameId] || null;
+  return GAME_EXPERIENCE[gameId === 'colour_match' ? 'color_match' : gameId] || null;
 }
 
 const SOUND_KEY = 'pl-game-sound-enabled';

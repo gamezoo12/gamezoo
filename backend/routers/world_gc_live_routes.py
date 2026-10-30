@@ -586,10 +586,13 @@ async def hybrid_level_board(gc_number: int, level: int, request: Request):
         raise HTTPException(status_code=404, detail="Level not found")
     db = get_db()
     config = await db.world_gc_competition_configs.find_one(
-        {"season_id": SEASON_ID, "gc_number": gc_number, "activation_status": {"$in": ["active", "completed"]},
-         "engine": "legacy_hybrid"}, {"_id": 0})
+        {"season_id": SEASON_ID, "gc_number": gc_number, "activation_status": {"$in": ["active", "completed"]}},
+        {"_id": 0})
     row = _level_row((config or {}).get("levels"), level)
-    if not config or row.get("applied_model") != "every_level":
+    every_level = bool(config) and (
+        row.get("applied_model") == "every_level" if config_engine(config) == "legacy_hybrid"
+        else config.get("model") == "every_level")
+    if not every_level:
         return {"enabled": False, "gc_number": gc_number, "level": level}
     try:
         user = await get_current_user(request)
