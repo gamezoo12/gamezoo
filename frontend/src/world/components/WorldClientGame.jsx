@@ -1,3 +1,4 @@
+import { Clock3 } from 'lucide-react';
 import { GAME_MAP } from '../../components/games';
 import { GAME_CATALOG } from '../../lib/gameCatalog';
 import { gameExperienceFor, playGameSound } from '../../lib/gameExperience';
@@ -5,12 +6,7 @@ import GameSoundToggle from '../../components/games/GameSoundToggle';
 
 export const isWorldClientGame = (gameId) => Boolean(gameId && gameId !== 'number_sequence' && GAME_MAP[gameId]);
 
-const formatTime = (ms = 0) => {
-  const safe = Math.max(0, Math.floor(ms));
-  return `${String(Math.floor(safe / 60000)).padStart(2, '0')}:${String(Math.floor((safe % 60000) / 1000)).padStart(2, '0')}.${String(safe % 1000).padStart(3, '0')}`;
-};
-
-export function WorldClientGame({ gameId, config = {}, label, onComplete, onSkip, busy, elapsedMs = 0, practice = false }) {
+export function WorldClientGame({ gameId, config = {}, label, onComplete, onSkip, busy, timerText, timerCaption, practice = false }) {
   const name = GAME_CATALOG.find((g) => g.id === gameId)?.label || gameId;
   const guide = gameExperienceFor(gameId);
   const finish = (result) => {
@@ -24,13 +20,13 @@ export function WorldClientGame({ gameId, config = {}, label, onComplete, onSkip
           <div className="fwv3-mode-label">{label}</div>
           <GameSoundToggle className="py-1 text-xs" />
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div><h2 style={{ fontWeight: 900, fontSize: 20, margin: '6px 0' }}>{name}</h2>{guide && <p className="mb-2 text-sm text-slate-600">{guide.objective}</p>}</div>
-          <div className={`rounded-lg px-3 py-2 text-right ${practice ? 'bg-sky-100 text-sky-900' : 'bg-slate-950 text-white'}`} data-testid={practice ? 'world-client-practice-stopwatch' : 'world-client-stopwatch'}>
-            <span className={`block text-[9px] uppercase ${practice ? 'text-sky-700' : 'text-white/60'}`}>{practice ? 'Practice timer · no attempt' : 'Official timer'}</span>
-            <strong className="font-mono tabular-nums">{formatTime(elapsedMs)}</strong>
-          </div>
+        <h2 style={{ fontWeight: 900, fontSize: 20, margin: '6px 0' }}>{name}</h2>
+        {guide && <p className="mb-2 text-sm text-slate-600">{guide.objective}</p>}
+        <div className="fwv3-timer" data-testid={practice ? 'world-client-practice-stopwatch' : 'world-client-stopwatch'}>
+          <Clock3 />
+          <strong>{timerText}</strong>
         </div>
+        <div className="fwv3-timer-caption">{timerCaption}</div>
         <div onPointerDownCapture={() => playGameSound('tap')} style={{ background: '#fff', color: '#0f172a', borderRadius: 16, padding: 12, opacity: busy ? 0.6 : 1 }}>
           {GAME_MAP[gameId](config, (result) => !busy && finish(result))}
         </div>

@@ -200,10 +200,6 @@ export default function FreeWorldNumberSequenceV3({
 
   const isColour =
     level?.game_id === 'colour_match';
-  const gameId = session?.game_id || level?.game_id || 'number_sequence';
-  const gameName = GAME_CATALOG.find((game) => game.id === gameId)?.label || gameId;
-  const gameGuide = gameExperienceFor(gameId);
-
   const colourCount =
     Number(
       level
@@ -294,6 +290,9 @@ export default function FreeWorldNumberSequenceV3({
 
   const [session, setSession] =
     useState(null);
+  const gameId = session?.game_id || level?.game_id || 'number_sequence';
+  const gameName = GAME_CATALOG.find((game) => game.id === gameId)?.label || gameId;
+  const gameGuide = gameExperienceFor(gameId);
 
   const [officialNext, setOfficialNext] =
     useState(1);
@@ -1810,12 +1809,13 @@ if (
 
 
   if (stage === 'demo' && isWorldClientGame(level?.game_id)) {
-    return <WorldClientGame gameId={level.game_id} config={level.game_config} practice elapsedMs={demoDisplayMs} label="DEMO MODE · no attempt used"
+    return <WorldClientGame gameId={level.game_id} config={level.game_config} practice timerText={formatElapsed(demoDisplayMs)} timerCaption="PRACTICE MODE - NO ATTEMPT USED" label="DEMO MODE · no attempt used"
       onComplete={() => setStage('demo-complete')} onSkip={() => setStage('demo-complete')} />;
   }
 
   if (stage === 'official' && isWorldClientGame(session?.game_id)) {
-    return <WorldClientGame gameId={session.game_id} config={session.game_config} busy={busy} elapsedMs={officialDisplayMs}
+    return <WorldClientGame gameId={session.game_id} config={session.game_config} busy={busy} timerText={formatElapsed(officialDisplayMs)}
+      timerCaption={championMode ? 'CHAMPION STOPWATCH - FASTEST VERIFIED TIME WINS' : 'OFFICIAL ATTEMPT - COUNTS AS ATTEMPT'}
       label={championMode ? 'CHAMPION RUN' : 'OFFICIAL ATTEMPT'}
       onComplete={(result) => submitOfficial({ solved: Boolean(result.solved), taps: [] })} />;
   }
