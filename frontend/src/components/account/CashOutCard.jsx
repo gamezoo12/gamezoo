@@ -239,7 +239,7 @@ export default function CashOutCard() {
           )}
 
           {step === 'review' && (
-            <CashoutReviewStep mode={config?.review_mode} onBack={() => setStep('confirm')} onDone={(id) => submit(id)} onSkip={() => submit(null)} onSupport={openSupport} />
+            <CashoutReviewStep config={config || {}} onBack={() => setStep('confirm')} onDone={(id) => submit(id)} onSkip={() => submit(null)} onSupport={openSupport} />
           )}
 
           {step === 'success' && success && (

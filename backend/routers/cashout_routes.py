@@ -11,7 +11,8 @@ import uuid
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import Response
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -96,24 +97,33 @@ async def cashout_config(request: Request):
         "trustpilot_review_url": s["trustpilot_review_url"],
         "review_mode": s["review_mode"],
         "has_review_bypass": bool((await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "cashout_review_bypass": 1}) or {}).get("cashout_review_bypass")),
+        "has_approved_review": bool(await db.cashout_reviews.find_one({"user_id": user["user_id"], "status": "approved"}, {"_id": 1})),
+        "latest_review_status": ((await db.cashout_reviews.find_one({"user_id": user["user_id"]}, {"_id": 0, "status": 1}, sort=[("created_at", -1)])) or {}).get("status"),
     }
 
 
-class ReviewBody(BaseModel):
-    rating: int = Field(..., ge=1, le=5)
-    feedback: str = Field("", max_length=2000)
+MAX_PROOF = 10 * 1024 * 1024
 
 
-@router.post("/review")
-async def submit_review(body: ReviewBody, request: Request):
+@router.post("/review-proof")
+async def upload_review_proof(request: Request, platform: Literal["google", "trustpilot"] = Form(...), file: UploadFile = File(...)):
     user = await get_current_user(request)
-    db = get_db()
+    ctype = (file.content_type or "").split(";")[0]
+    if not ctype.startswith("image/"):
+        raise HTTPException(415, "Please upload a screenshot image")
+    data = await file.read()
+    if not data or len(data) > MAX_PROOF:
+        raise HTTPException(413, "Screenshot must be under 10 MB")
+    from object_storage import APP_NAME, put_object
     rid = "RV-" + uuid.uuid4().hex[:12].upper()
+    ext = (file.filename or "").rsplit(".", 1)[-1][:5].lower() or "png"
+    stored = put_object(f"{APP_NAME}/review-proofs/{user['user_id']}/{rid}.{ext}", data, ctype)
+    db = get_db()
     await db.cashout_reviews.insert_one({
-        "review_id": rid, "user_id": user["user_id"], "rating": body.rating,
-        "feedback": body.feedback.strip(), "context": "cashout", "withdrawal_id": None, "created_at": _now(),
+        "review_id": rid, "user_id": user["user_id"], "platform": platform, "path": stored["path"], "content_type": ctype,
+        "status": "pending", "withdrawal_id": None, "created_at": _now(),
     })
-    return {"review_id": rid}
+    return {"review_id": rid, "status": "pending"}
 
 
 @router.get("/summary")
@@ -245,11 +255,12 @@ async def create_cashout(body: CashOutBody, request: Request):
             raise HTTPException(400, "Review not found or already used")
     bypass = False
     if settings["review_mode"] == "mandatory" and not review:
-        bypass = bool(await db.users.find_one_and_update(
+        approved = await db.cashout_reviews.find_one({"user_id": user["user_id"], "status": "approved"}, {"_id": 1})
+        bypass = bool(approved) or bool(await db.users.find_one_and_update(
             {"user_id": user["user_id"], "cashout_review_bypass": True},
             {"$set": {"cashout_review_bypass": False, "cashout_review_bypass_used_at": _now()}}))
         if not bypass:
-            raise HTTPException(409, {"code": "REVIEW_REQUIRED", "message": "Please leave a quick review, or contact Support to withdraw without one."})
+            raise HTTPException(409, {"code": "REVIEW_REQUIRED", "message": "Please upload a screenshot of your Google or Trustpilot review, or contact Support to withdraw without one."})
 
     # Atomic reserve of withdrawable tokens (prevents double-withdrawal).
     ok = await reserve_withdrawable(db, user["user_id"], float(amount))
@@ -366,14 +377,44 @@ async def admin_update_config(body: ConfigBody, request: Request):
 async def admin_reviews(request: Request):
     await require_admin(request)
     db = get_db()
-    rows = await db.cashout_reviews.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    rows = await db.cashout_reviews.find({"path": {"$exists": True}}, {"_id": 0, "path": 0}).sort("created_at", -1).to_list(200)
     ids = list({r["user_id"] for r in rows})
     users = {u["user_id"]: u async for u in db.users.find({"user_id": {"$in": ids}}, {"_id": 0, "user_id": 1, "name": 1, "email": 1})}
     for r in rows:
         r["created_at"] = _iso(r.get("created_at"))
+        r["decided_at"] = _iso(r.get("decided_at"))
         r["name"] = users.get(r["user_id"], {}).get("name")
         r["email"] = users.get(r["user_id"], {}).get("email")
     return {"items": rows}
+
+
+@admin_router.get("/reviews/{rid}/image")
+async def admin_review_image(rid: str, request: Request):
+    await require_admin(request)
+    doc = await get_db().cashout_reviews.find_one({"review_id": rid, "path": {"$exists": True}}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Screenshot not found")
+    from object_storage import get_object
+    data, _ = get_object(doc["path"])
+    return Response(content=data, media_type=doc["content_type"], headers={"Cache-Control": "private, max-age=300"})
+
+
+class DecisionBody(BaseModel):
+    decision: Literal["approved", "rejected"]
+    note: str = Field("", max_length=300)
+
+
+@admin_router.post("/reviews/{rid}/decision")
+async def decide_review(rid: str, body: DecisionBody, request: Request):
+    admin = await require_admin(request)
+    _require_payout_admin(admin)
+    db = get_db()
+    r = await db.cashout_reviews.update_one({"review_id": rid, "path": {"$exists": True}}, {"$set": {
+        "status": body.decision, "decision_note": body.note.strip(), "decided_by": admin.get("email"), "decided_at": _now()}})
+    if not r.matched_count:
+        raise HTTPException(404, "Screenshot not found")
+    await _audit(db, f"cashout_review_{body.decision}", admin["user_id"], rid, {"note": body.note.strip()})
+    return {"ok": True, "status": body.decision}
 
 
 class BypassBody(BaseModel):

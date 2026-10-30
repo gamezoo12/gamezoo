@@ -273,8 +273,10 @@ export const cashoutAPI = {
   addBank: (data) => api.post('/cashout/bank-accounts', data).then(r => r.data),
   request: (data) => api.post('/cashout/request', data).then(r => r.data),
   myRequests: () => api.get('/cashout/requests').then(r => r.data),
-  submitReview: (data) => api.post('/cashout/review', data).then(r => r.data),
+  uploadReviewProof: (platform, file) => { const fd = new FormData(); fd.append('platform', platform); fd.append('file', file); return api.post('/cashout/review-proof', fd).then(r => r.data); },
   adminReviews: () => api.get('/admin/cashout/reviews').then(r => r.data),
+  adminReviewImage: (id) => api.get(`/admin/cashout/reviews/${id}/image`, { responseType: 'blob' }).then(r => r.data),
+  adminReviewDecision: (id, decision, note = '') => api.post(`/admin/cashout/reviews/${id}/decision`, { decision, note }).then(r => r.data),
   adminGrantBypass: (data) => api.post('/admin/cashout/review-bypass', data).then(r => r.data),
   // admin
   adminConfig: () => api.get('/admin/cashout/config').then(r => r.data),
