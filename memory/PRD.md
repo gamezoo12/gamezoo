@@ -635,3 +635,9 @@ See `/app/memory/test_credentials.md`.
 - Admin contests list: `phase` from GET /api/admin/contests (live / awaiting_draw / completed); Draw button hidden after end and for skill contests; Awaiting draw + Completed tabs.
 - Known gaps: deleting gallery media leaves the stored file orphaned (no storage delete API); old auto-listing of draw winners in account panel replaced by publish-controlled Hall.
 - Tests: iteration_54 (backend 17/17; frontend lightbox bug fixed after).
+
+## 2026-10 · Influencer tools, cashout review, all-worlds winners, shout-outs (preview only, not deployed)
+- Influencer QR & Poster: components/admin/InfluencerPosterDialog.jsx (button per campaign in InfluencersAdmin). Uses existing /login?tab=signup&ref=CODE (Login.jsx already stores ref 30 days). Fixed drawImage crash: waits for a real QR <canvas> (copied to offscreen canvas), logo load with timeout/fallback, roundRect fallback, safe errors. Poster PNG decoded with OpenCV -> correct signup URL.
+- Cashout review: cashout_routes.py review_mode (mandatory/optional/disabled, default disabled), POST /api/cashout/review (cashout_reviews), one-time Support bypass POST /api/admin/cashout/review-bypass; UI CashoutReviewStep.jsx + admin CashoutReviewSettings.jsx. NOT yet tested end-to-end.
+- Winners Management (all 4 worlds): routers/admin_winners_all_routes.py + components/admin/WinnersAllWorlds.jsx & WinnerWalletDialog.jsx in admin Winners page; credit/debit via adjust_single_wallet with idempotent operation id, history in winner_wallet_adjustments. Backend curl-verified; UI NOT yet tested.
+- Winner Shout-Outs: first publish of Winners tab notifies each official winner once (paid_winner_publication.shoutout_sent_at), notification has "View my result" link; Hall opens ?contest=. NOT yet tested.
