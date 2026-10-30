@@ -2185,3 +2185,11 @@ body:has(.fwv3-overlay) {
 .fwv3-colour-feedback.is-bad {
   color: #c62828;
 }
+
+/* Keep floating helpers off the game board while a game is open */
+body:has(.fwv3-overlay) [data-testid="support-assistant-launcher"],
+body:has(.fwv3-overlay) [data-testid="global-back-button"],
+body:has([data-testid="full-gameplay-preview"]) [data-testid="support-assistant-launcher"],
+body:has([data-testid="full-gameplay-preview"]) [data-testid="global-back-button"] {
+  display: none !important;
+}

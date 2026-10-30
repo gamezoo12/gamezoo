@@ -1,0 +1,39 @@
+{
+  "summary": "Tested the Every-Level preview, the Level Leaderboard tabs, the premium game boards in real Free World, and Super Admin Preview. Desktop at 1920 and mobile at 390. Backend: the level-board API passed 15/15. Free World: the LEVEL BOARDS nav button is gone. Leaderboard: the Championship and Level tabs both work. With GC4 only L9 is enabled (Colour Match, Open, GameZoo Admin 00:17.123, rewards 50/40/30/20/10). GC5 has all levels disabled and shows lb-level-none ('10 Every-Level levels are scheduled'). Refresh works on both tabs. Real player1 GC4 L2 number_sequence: the PLAY DEMO premium Sequence Grid and START DEMO run completed. In the official run (START ATTEMPT, countdown, premium sequence-board), tapping 1-20 was accepted by the server (verification.sequence_valid=true, passed=true, 6.127s). The result showed SUCCESS with a quote and CONTINUE. Colour Match demo (route rewrite): the Chroma Clash board renders and answering advances. math_sprint demo (route rewrite) renders world-client-game-math_sprint with the stopwatch. Super Admin Preview GC5 (reset, then L1-L4) reached SUCCESS on all four levels: L1 number_sequence, L2 colour_match, L3 memory_match with the server Memory Vault board (preview-card-N), and L4 math_sprint in the mobile viewport. Instructions, demo, ready, countdown, official, result, quote and RETRY all work. The GamePreviewDialog (gc-preview-game-N) shows the world-client-game-* card, and the GC5 Champion colour_match row has a Preview button. 2 real bugs found in Super Admin Preview, plus minor design issues.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "PreviewPlaySurface (memory_match official + result)", "issue": "The stopwatch and the result time use the stale preview.play.duration_ms from the previous sandbox game. Repro: in GC5 preview, play L2 colour_match (10.825s), then L3 memory_match. During the memory run the stopwatch stays frozen at 00:10.825, and the result shows 00:10.825, but the real memory time was 15.09s (the simulated leaderboard is correct). passed can also come from the stale play.status. Fix: for memory_match use memory.started_at/memory.duration_ms/memory.status (ignore play), or clear play on memory_start.", "selector": "[data-testid=world-client-stopwatch], [data-testid=preview-result-time]", "priority": "HIGH"},
+      {"component": "GCPreviewPanel Game select", "issue": "For a colour_match level, preview-game-select shows 'Image Jigsaw (3x3)' because GAME_CATALOG has no colour_match option, so the select falls back to the first option. The game actually played is Colour Match. Add the same colour_match fallback option that GamePreviewDialog uses.", "selector": "[data-testid=preview-game-select] (in gc-preview-panel)", "priority": "MEDIUM"},
+      {"component": "PreviewPlaySurface demo skip", "issue": "Clicking 'Skip practice' inside the demo goes to stage 'demo-result', which is labelled 'DEMO COMPLETE' although the demo was skipped.", "selector": "[data-testid=world-client-game-skip]", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Free World demo/official (FreeWorldNumberSequenceV3)", "issues": ["The Board3D title ('SEQUENCE GRID' light-blue, 'CHROMA CLASH' amber) sits on the white fwv3 card with low contrast. It is also left-aligned and slightly outside the card padding, and the board is a few px wider than the card on desktop.", "The Colour Match demo in real Free World has no big timer or caption. The number demo has both, and so does the admin preview colour demo (inconsistent)."]},
+      {"screen": "Mobile 390px Free World gameplay", "issues": ["The floating chatbot button (bottom-right) overlaps game tiles, e.g. sequence tile 7 and the math answer '9'.", "The floating 'Back' pill overlaps the 'Skip practice' button in the WorldClientGame demo.", "The Analytics consent banner (z 12000) covers bottom actions in game overlays and the admin preview until it is dismissed."]},
+      {"screen": "Memory Match texts", "issues": ["The description says 'Match all 8 image pairs', but the admin preview official board has 6 pairs and the demo has 7."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_world_level_board_tabs.py"],
+  "action_items": [
+    "Fix PreviewPlaySurface memory_match timer/result: do not use stale preview.play when the game is memory_match.",
+    "Add the colour_match option fallback to the GCPreviewPanel preview-game-select.",
+    "Improve Board3D title contrast when it renders inside the white fwv3 card, or move the title inside the dark board.",
+    "Keep the floating chatbot and Back pill from overlapping game boards and buttons on mobile, e.g. hide them while a game overlay is open."
+  ],
+  "critical_code_review_comments": [
+    "FreeWorldNumberSequenceV3.jsx is ~2800 lines; split the demo, official, colour and result screens into modules.",
+    "PreviewPlaySurface: the resultMs/passed/officialMs derivation mixes play and memory state; derive it per game type.",
+    "HybridLevelBoards useHybridLevelBoards fires 10 parallel requests per GC and per refresh; consider a batch endpoint.",
+    "The admin preview game_complete trusts the client-sent 'solved'. This is acceptable for the sandbox only."
+  ],
+  "updated_files": ["/app/backend/tests/test_world_level_board_tabs.py"],
+  "success_rate": {"backend": "100% (15/15)", "frontend": "~90% (core flows pass; 2 preview bugs)"},
+  "seed_data_creation": "None. Side effects: player1 used 1 real free attempt on GC4 L2 (SUCCESS 6.127s, now at GC4 L3) in the local preview DB. Admin preview sandbox was reset from GC5 and sandbox scores were created.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run the backend test outside the repo conftest, which forces a loopback backend: cd /tmp && REACT_APP_BACKEND_URL=... python -m pytest /app/backend/tests/test_world_level_board_tabs.py --noconftest -p no:xdist -c /dev/null. Admin login is at /admin/login (input[type=email]/[type=password]); the page is /admin/world-gc-settings (gc-select, gc-open-preview, preview-level-select, preview-jump-btn opens a locked sandbox level). Dismiss the analytics consent first: [data-testid=analytics-consent] button 'Decline'. GC5 preview games: L1 number_sequence, L2 colour_match, L3 memory_match, L4 math_sprint, L5 simon_says ... L10 maze_solver, Champion colour_match. player1 is now on free-world-level-33 (GC4 L3). For Free World colour, route /api/world/level/\\d+ with game_config {colours:4, rounds:5} and stub the service worker. Memory solver: track aria-label 'Card N' after each click (wait ~450ms)."
+}

@@ -42,16 +42,18 @@ const Card = ({ children, testId }) => <section className="fwv3-card fwv3-play-c
 export function PreviewPlaySurface({ gcNumber, levelKey, row, stage, setStage, play, memory, revealed, known, onMemoryClick, onComplete, countdown, quote, demoKey, setDemoKey }) {
   const guide = gameExperienceFor(row.game_id);
   const name = gameLabel(row.game_id);
+  const isMemory = row.game_id === 'memory_match';
   const where = `GC${gcNumber} · ${levelKey === 'champion' ? 'Champion' : `Level ${levelKey.slice(1)}`} · Sandbox`;
   const [demoStart, setDemoStart] = useState(0);
   useEffect(() => { if (stage === 'demo') setDemoStart(Date.now()); }, [stage, demoKey]);
   const demoMs = useElapsed(demoStart, stage === 'demo');
-  const startedMs = play?.started_at ? new Date(play.started_at).getTime() : 0;
-  const liveMs = useElapsed(startedMs, stage === 'playing' && play?.duration_ms == null);
-  const officialMs = play?.duration_ms != null ? play.duration_ms : liveMs;
+  const startedMs = isMemory ? (memory?.started_at ? new Date(memory.started_at).getTime() : 0) : (play?.started_at ? new Date(play.started_at).getTime() : 0);
+  const finishedMs = isMemory ? (memory?.status === 'completed' ? memory.duration_ms : null) : play?.duration_ms;
+  const liveMs = useElapsed(startedMs, stage === 'playing' && finishedMs == null);
+  const officialMs = finishedMs != null ? finishedMs : liveMs;
   const champion = levelKey === 'champion';
-  const resultMs = play?.duration_ms != null ? play.duration_ms : memory?.duration_ms || 0;
-  const passed = play?.status === 'completed' || memory?.status === 'completed';
+  const resultMs = finishedMs || 0;
+  const passed = isMemory ? memory?.status === 'completed' : play?.status === 'completed';
 
   if (stage === 'instructions') return (
     <Card testId="preview-instructions">
@@ -68,7 +70,7 @@ export function PreviewPlaySurface({ gcNumber, levelKey, row, stage, setStage, p
   if (stage === 'demo') return (
     <div key={`demo-${demoKey}`} data-testid="preview-demo">
       <WorldClientGame inline practice gameId={row.game_id} config={row.game_config || {}} label="DEMO MODE · no attempt used" timerText={fmt(demoMs)} timerCaption="PRACTICE MODE - NO ATTEMPT USED"
-        onComplete={() => setStage('demo-result')} onSkip={() => setStage('demo-result')} />
+        onComplete={() => setStage('demo-result')} onSkip={() => setStage('ready')} />
     </div>
   );
   if (stage === 'demo-result' || stage === 'ready') return (

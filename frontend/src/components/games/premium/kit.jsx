@@ -16,13 +16,13 @@ export function Board3D({ theme, title, level, stats = [], children, flash }) {
   const ring = flash === 'good' ? '0 0 0 3px #34d399, 0 0 50px rgba(52,211,153,0.6)' : flash === 'bad' ? '0 0 0 3px #f43f5e, 0 0 50px rgba(244,63,94,0.6)' : `0 30px 80px ${t.glow}`;
   return (
     <div className="mx-auto w-full max-w-xl select-none" style={{ perspective: '1400px' }} data-testid={`premium-${theme}-board`}>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="text-xs font-black uppercase tracking-[0.25em]" style={{ color: t.accent }}>{title}</div>
-        {level != null && <span className="rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-widest" style={{ borderColor: t.accent, color: t.accent }} data-testid="game-difficulty-badge">Level {level} · {difficultyName(level)}</span>}
-      </div>
       <div className="relative rounded-[28px] p-4 transition-[transform,box-shadow] duration-300 sm:p-6"
         style={{ background: `radial-gradient(120% 90% at 30% 0%, ${t.from}, ${t.to})`, transform: `rotateX(10deg) ${flash === 'bad' ? 'translateX(-4px)' : ''}`, transformStyle: 'preserve-3d', boxShadow: ring }}>
         <div className="pointer-events-none absolute inset-0 rounded-[28px]" style={{ background: 'linear-gradient(160deg, rgba(255,255,255,0.16), transparent 40%)' }} />
+        <div className="relative mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="text-xs font-black uppercase tracking-[0.25em]" style={{ color: t.accent }}>{title}</div>
+          {level != null && <span className="rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-widest" style={{ borderColor: t.accent, color: t.accent }} data-testid="game-difficulty-badge">Level {level} · {difficultyName(level)}</span>}
+        </div>
         {stats.length > 0 && <div className="relative mb-4 flex flex-wrap justify-center gap-2">
           {stats.map(([k, v]) => <div key={k} className="rounded-xl bg-black/30 px-3 py-1.5 text-center backdrop-blur"><div className="text-[9px] font-bold uppercase tracking-widest text-white/50">{k}</div><div className="text-base font-black text-white" data-testid={`game-stat-${k.toLowerCase().replace(/\s+/g, '-')}`}>{v}</div></div>)}
         </div>}

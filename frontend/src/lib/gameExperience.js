@@ -23,7 +23,7 @@ export function pickResultQuote(solved, previous = '') {
 }
 
 export const GAME_EXPERIENCE = {
-  memory_match: { objective: 'Match all 8 image pairs.', controls: 'Tap two cards to reveal them. Matched pairs stay face up.', win: 'Find every matching pair.', mistakes: 'Unmatched cards turn back over; fewer moves improve your accuracy.', timer: 'The server measures your verified completion time for the leaderboard.' },
+  memory_match: { objective: 'Match every image pair.', controls: 'Tap two cards to reveal them. Matched pairs stay face up.', win: 'Find every matching pair.', mistakes: 'Unmatched cards turn back over; fewer moves improve your accuracy.', timer: 'The server measures your verified completion time for the leaderboard.' },
   number_sequence: { objective: 'Tap the numbers in ascending order.', controls: 'Select the next number shown in the progress display.', win: 'Reach the final number without running out of time.', mistakes: 'Out-of-order taps do not advance the sequence.', timer: 'The official countdown is enforced by the server.' },
   target_tap: { objective: 'Hit the moving target as accurately as you can.', controls: 'Tap the target when it appears.', win: 'Complete every target round.', mistakes: 'Missed taps reduce your accuracy.', timer: 'Your official time is measured by the server.' },
   word_unscramble: { objective: 'Rebuild the hidden word from its scrambled letters.', controls: 'Choose or arrange letters using the controls shown.', win: 'Submit the correctly spelled word.', mistakes: 'Incorrect guesses reduce your accuracy.', timer: 'Your official time is measured by the server.' },
