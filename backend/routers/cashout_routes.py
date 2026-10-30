@@ -39,6 +39,8 @@ DEFAULT_SETTINGS = {
     "google_review_url": "",
     "trustpilot_review_url": "",
     "review_mode": "disabled",
+    "review_bonus_enabled": False,
+    "review_bonus_tokens": 5,
 }
 REVIEW_MODES = ("mandatory", "optional", "disabled")
 
@@ -347,6 +349,8 @@ class ConfigBody(BaseModel):
     google_review_url: str | None = None
     trustpilot_review_url: str | None = None
     review_mode: Literal["mandatory", "optional", "disabled"] | None = None
+    review_bonus_enabled: bool | None = None
+    review_bonus_tokens: float | None = Field(None, gt=0, le=1000)
 
 
 @admin_router.put("/config")
@@ -361,6 +365,10 @@ async def admin_update_config(body: ConfigBody, request: Request):
         update["google_review_url"] = body.google_review_url.strip()
     if body.trustpilot_review_url is not None:
         update["trustpilot_review_url"] = body.trustpilot_review_url.strip()
+    if body.review_bonus_enabled is not None:
+        update["review_bonus_enabled"] = body.review_bonus_enabled
+    if body.review_bonus_tokens is not None:
+        update["review_bonus_tokens"] = round(body.review_bonus_tokens, 2)
     if body.review_mode is not None:
         update["review_mode"] = body.review_mode
     if update:
@@ -414,7 +422,26 @@ async def decide_review(rid: str, body: DecisionBody, request: Request):
     if not r.matched_count:
         raise HTTPException(404, "Screenshot not found")
     await _audit(db, f"cashout_review_{body.decision}", admin["user_id"], rid, {"note": body.note.strip()})
-    return {"ok": True, "status": body.decision}
+    bonus = await _review_thanks(db, rid, admin) if body.decision == "approved" else None
+    return {"ok": True, "status": body.decision, "bonus_tokens": bonus}
+
+
+async def _review_thanks(db, rid: str, admin: dict):
+    s = await get_settings(db)
+    amount = float(s.get("review_bonus_tokens") or 0)
+    if not s.get("review_bonus_enabled") or amount <= 0:
+        return None
+    doc = await db.cashout_reviews.find_one({"review_id": rid}, {"_id": 0, "user_id": 1})
+    ref = f"review_thanks:{doc['user_id']}"
+    if await db.bonus_grants.find_one({"ref_key": ref}, {"_id": 1}):
+        return None
+    from services.bonus_grants import create_grant
+    grant = await create_grant(db, user_id=doc["user_id"], amount=amount, expires_at=None, actor_id=admin["user_id"],
+                               actor_email=admin.get("email"), reason="Thank you for your review", ref_key=ref, source="review_thanks")
+    await db.cashout_reviews.update_one({"review_id": rid}, {"$set": {"bonus_grant_id": grant["grant_id"], "bonus_tokens": amount}})
+    await notify(db, user_id=doc["user_id"], kind="review_thanks", title="Thanks for your review! 🎁",
+                 body=f"We've added {amount:g} Bonus Tokens to your wallet as a thank-you.")
+    return amount
 
 
 class BypassBody(BaseModel):

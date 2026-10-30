@@ -19,7 +19,7 @@ function Proof({ r, onDecide, onOpen }) {
       <button type="button" onClick={() => url && onOpen(url)} className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-slate-100" aria-label="View screenshot" data-testid={`cashout-proof-open-${r.review_id}`}>{url && <img src={url} alt="" className="h-full w-full object-cover" />}</button>
       <div className="min-w-0 flex-1">
         <div className="font-semibold">{r.name || r.email} <span className="text-xs font-normal capitalize text-slate-500">· {r.platform}</span></div>
-        <div className="text-xs text-slate-400">{r.created_at ? new Date(r.created_at).toLocaleString('en-GB') : ''}{r.withdrawal_id ? ` · ${r.withdrawal_id}` : ''}</div>
+        <div className="text-xs text-slate-400">{r.created_at ? new Date(r.created_at).toLocaleString('en-GB') : ''}{r.withdrawal_id ? ` · ${r.withdrawal_id}` : ''}{r.bonus_tokens ? ` · ${r.bonus_tokens} Bonus Tokens sent` : ''}</div>
       </div>
       <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold capitalize ${BADGE[r.status] || 'bg-slate-100'}`} data-testid={`cashout-proof-status-${r.review_id}`}>{r.status}</span>
       {r.status !== 'approved' && <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => onDecide(r, 'approved')} data-testid={`cashout-proof-approve-${r.review_id}`}><Check className="h-3.5 w-3.5" /></Button>}
@@ -41,8 +41,14 @@ export function CashoutReviewSettings({ config, onSaved, toast }) {
     catch (e) { toast({ title: 'Save failed', variant: 'destructive' }); } finally { setBusy(false); }
   };
   const decide = async (r, decision) => {
-    try { await cashoutAPI.adminReviewDecision(r.review_id, decision); toast({ title: decision === 'approved' ? 'Review approved — player can skip next time' : 'Review rejected' }); load(); }
+    try { const res = await cashoutAPI.adminReviewDecision(r.review_id, decision); toast({ title: decision === 'approved' ? `Review approved${res.bonus_tokens ? ` · ${res.bonus_tokens} Bonus Tokens sent` : ''}` : 'Review rejected' }); load(); }
     catch (e) { toast({ title: 'Update failed', variant: 'destructive' }); }
+  };
+  const [bonusAmt, setBonusAmt] = useState(String(config?.review_bonus_tokens ?? 5));
+  const saveBonus = async (patch) => {
+    setBusy(true);
+    try { onSaved(await cashoutAPI.adminUpdateConfig(patch)); toast({ title: 'Thank-you bonus saved' }); }
+    catch (e) { toast({ title: 'Enter an amount between 0.01 and 1000', variant: 'destructive' }); } finally { setBusy(false); }
   };
   const grant = async () => {
     setBusy(true);
@@ -60,6 +66,12 @@ export function CashoutReviewSettings({ config, onSaved, toast }) {
             <div className="text-sm font-bold text-slate-900">{label}</div><div className="mt-1 text-[11px] text-slate-500">{desc}</div>
           </button>
         ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-3 rounded-xl bg-amber-50 p-3" data-testid="review-bonus-settings">
+        <div className="min-w-[220px] flex-1"><div className="text-xs font-semibold text-slate-800">Review thank-you bonus</div><div className="text-[11px] text-slate-500">Bonus Tokens sent automatically when you approve a player's first review screenshot. Once per player.</div></div>
+        <Input type="number" min="0.01" max="1000" step="0.01" className="w-24" value={bonusAmt} onChange={(e) => setBonusAmt(e.target.value)} data-testid="review-bonus-amount" />
+        <Button variant="outline" disabled={busy} onClick={() => saveBonus({ review_bonus_tokens: Number(bonusAmt) })} data-testid="review-bonus-save">Save amount</Button>
+        <Button disabled={busy} onClick={() => saveBonus({ review_bonus_enabled: !config?.review_bonus_enabled })} className={config?.review_bonus_enabled ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-400 hover:bg-slate-500'} data-testid="review-bonus-toggle">{config?.review_bonus_enabled ? 'On' : 'Off'}</Button>
       </div>
       <div className="rounded-xl bg-slate-50 p-3 space-y-2">
         <div className="text-xs font-semibold text-slate-700">Support bypass (one-time, for Mandatory mode)</div>
