@@ -1,7 +1,7 @@
 import { Circle, Maximize2, Pause, Play, Square, UploadCloud, X } from 'lucide-react';
 
 const btn = 'inline-flex h-10 items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-4 text-xs font-bold text-white backdrop-blur transition-colors hover:bg-white/20 disabled:opacity-40';
-const STEPS = [['ENTER POOL', ['ready']], ['MIX', ['loading', 'loaded']], ['DRAW', ['mixing', 'mixed']], ['WINNER REVEAL', ['drawing', 'drawn']]];
+const STEPS = [['ENTER POOL', ['ready', 'loading']], ['MIX', ['loaded', 'mixing']], ['DRAW', ['mixed', 'drawing']], ['WINNER REVEAL', ['drawn', 'revealed']]];
 
 export function StageSteps({ stage }) {
   const active = STEPS.findIndex(([, s]) => s.includes(stage));

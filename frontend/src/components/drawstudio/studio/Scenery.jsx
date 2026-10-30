@@ -101,11 +101,11 @@ export function Scenery({ slides }) {
       <Backdrop slides={slides} />
       <LedPillars />
       <Bulbs />
-      <Crown position={[0, 6.05, -1]} />
-      <Text font={FONTS.title} fontSize={0.78} position={[0, 5.45, -1]} anchorX="center" anchorY="middle" letterSpacing={0.04} outlineWidth={0.012} outlineColor="#5a3500">
+      <Crown position={[0, 6.25, -1]} />
+      <Text font={FONTS.title} fontSize={0.78} position={[0, 5.65, -1]} anchorX="center" anchorY="middle" letterSpacing={0.04} outlineWidth={0.012} outlineColor="#5a3500">
         PRIZE LEAGUE<meshStandardMaterial {...GOLD} emissiveIntensity={1.1} />
       </Text>
-      <Text font={FONTS.bold} fontSize={0.26} position={[0, 4.92, -1]} anchorX="center" letterSpacing={0.35} color="#ffffff">DRAW STUDIO</Text>
+      <Text font={FONTS.bold} fontSize={0.26} position={[0, 5.1, -1]} anchorX="center" letterSpacing={0.35} color="#ffffff">DRAW STUDIO</Text>
       <mesh position={[0, 0, 0]} rotation-x={-Math.PI / 2}>
         <planeGeometry args={[60, 60]} />
         <MeshReflectorMaterial blur={[320, 90]} resolution={512} mixBlur={1} mixStrength={30} roughness={0.9} depthScale={1.1}

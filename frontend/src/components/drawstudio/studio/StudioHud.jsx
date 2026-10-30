@@ -79,7 +79,7 @@ function Intro({ view, u }) {
   const r = view.rounds[view.round];
   const first = view.round === 0;
   return (
-    <group position={[0, -20 * u, 0]}>
+    <group position={[0, -60 * u, 0]}>
       <Panel w={820 * u} h={410 * u} tex={tex} />
       <Text font={FONTS.semi} fontSize={22 * u} position={[0, 150 * u, 0]} color="#c9b8ff" letterSpacing={0.2} maxWidth={760 * u} textAlign="center">{(view.title || '').toUpperCase()}</Text>
       <Text font={FONTS.num} fontSize={120 * u} position={[0, 55 * u, 0]} color="#ffd54a" outlineWidth={2 * u} outlineColor="#7a4a00">{first ? gbp(view.totalPrize) : r.name.toUpperCase()}</Text>
@@ -107,7 +107,7 @@ function WinnerCards({ view, u, w }) {
   useFrame(() => group.current?.children.forEach((c) => { c.scale.setScalar(c.scale.x + (scale - c.scale.x) * 0.08); }));
   return (
     <>
-      <mesh position={[0, 0, -2]}><planeGeometry args={[w * 2, w * 2]} /><meshBasicMaterial color="#03010c" transparent opacity={0.6} /></mesh>
+      <mesh position={[0, 0, -2]}><planeGeometry args={[w * 2, w * 2]} /><meshBasicMaterial color="#03010c" transparent opacity={0.93} /></mesh>
       <Text font={FONTS.title} fontSize={100 * u} position={[0, 285 * u, 0]} color="#ffd54a" outlineWidth={3 * u} outlineColor="#6b3d00">{winners.length > 1 ? 'WINNERS!' : 'WINNER!'}</Text>
       <Text font={FONTS.bold} fontSize={26 * u} position={[0, 215 * u, 0]} color="#ffffff" letterSpacing={0.15}>{`ROUND ${view.round + 1} · ${r.name.toUpperCase()}`}</Text>
       <group ref={group} position={[0, -70 * u, 0]}>
@@ -131,7 +131,7 @@ function Finale({ view, u, w }) {
   const cols = [-360, -120, 60, 300].map((c) => c * u);
   return (
     <>
-      <mesh position={[0, 0, -2]}><planeGeometry args={[w * 2, w * 2]} /><meshBasicMaterial color="#03010c" transparent opacity={0.65} /></mesh>
+      <mesh position={[0, 0, -2]}><planeGeometry args={[w * 2, w * 2]} /><meshBasicMaterial color="#03010c" transparent opacity={0.93} /></mesh>
       <Panel w={900 * u} h={(190 + rows.length * 42) * u} y={-10 * u} tex={tex} />
       <Text font={FONTS.title} fontSize={56 * u} position={[0, (70 + rows.length * 21) * u, 0]} color="#ffd54a">DRAW COMPLETE</Text>
       <Text font={FONTS.bold} fontSize={20 * u} position={[0, (18 + rows.length * 21) * u, 0]} color="#ffffff" letterSpacing={0.1}>{`TOTAL PRIZES ${gbp(view.totalPrize)}  •  ${rows.length} WINNER${rows.length === 1 ? '' : 'S'}`}</Text>
@@ -160,6 +160,7 @@ function Overlay({ S, view }) {
   const L = -w / 2 + 36 * u;
   const T = h / 2 - 36 * u;
   const showStats = !['revealed', 'complete'].includes(view.stage);
+  const tagY = -h / 2 + 14 * u;
   return (
     <>
       <OrthographicCamera makeDefault position={[0, 0, 100]} />
@@ -172,8 +173,8 @@ function Overlay({ S, view }) {
         {view.stage !== 'ready' && <Text font={FONTS.bold} fontSize={14 * u} position={[-L, T - 56 * u, 0]} anchorX="right" anchorY="top" color="#ffffff" letterSpacing={0.2}>{`OF ${view.eligible.toLocaleString('en-GB')} TICKETS IN THE POOL`}</Text>}
         <Text font={FONTS.bold} fontSize={22 * u} position={[0, -h / 2 + 44 * u, 0]} color="#ffffff" letterSpacing={0.35}>{STAGE_CAPTION[view.stage]}</Text>
       </>}
-      {view.preview && <Text font={FONTS.bold} fontSize={13 * u} position={[0, T, 0]} anchorY="top" color="#ff8fa3" letterSpacing={0.25}>PREVIEW · SIMULATED RESULT · NOT OFFICIAL</Text>}
-      {view.replay && <Text font={FONTS.bold} fontSize={13 * u} position={[0, T, 0]} anchorY="top" color="#9fe8c4" letterSpacing={0.25}>REPLAY OF OFFICIAL RESULT</Text>}
+      {view.preview && <Text font={FONTS.bold} fontSize={13 * u} position={[0, tagY, 0]} anchorY="bottom" color="#ff8fa3" letterSpacing={0.25}>PREVIEW · SIMULATED RESULT · NOT OFFICIAL</Text>}
+      {view.replay && <Text font={FONTS.bold} fontSize={13 * u} position={[0, tagY, 0]} anchorY="bottom" color="#9fe8c4" letterSpacing={0.25}>REPLAY OF OFFICIAL RESULT</Text>}
       {view.stage === 'ready' && <Intro view={view} u={u} />}
       {view.stage === 'mixing' && <>
         <LiveText S={S} font={FONTS.num} fontSize={92 * u} position={[-L - 40 * u, 0, 0]} anchorX="right" color="#ffffff" outlineWidth={2 * u} outlineColor="#7b3bff"

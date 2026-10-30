@@ -15,6 +15,7 @@ function CameraRig({ S }) {
     const base = 10.2 * Math.max(1, 1.45 / aspect);
     const push = S.current.stage === 'drawing' || S.current.stage === 'drawn' ? 0.88 : 1;
     const t = clock.elapsedTime;
+    if (!camera.userData.framed) { camera.position.z = base * push; camera.userData.framed = true; }
     camera.position.x += (Math.sin(t * 0.12) * 0.5 - camera.position.x) * 0.03;
     camera.position.y += (2.8 + Math.sin(t * 0.09) * 0.12 - camera.position.y) * 0.03;
     camera.position.z += (base * push - camera.position.z) * 0.03;
@@ -39,7 +40,7 @@ export function Studio3D({ S, view, numbers, onCanvas }) {
   const [slides, setSlides] = useState([]);
   useEffect(() => { let live = true; buildSlides().then((s) => live && setSlides(s)); return () => { live = false; }; }, []);
   return (
-    <Canvas dpr={[1, 1.6]} camera={{ position: [0, 2.6, 11], fov: 40 }} gl={{ antialias: true, preserveDrawingBuffer: true }}
+    <Canvas dpr={[1, 1.6]} camera={{ position: [0, 2.6, 11], fov: 40 }} gl={{ antialias: true, preserveDrawingBuffer: true, alpha: false }}
       onCreated={({ gl }) => onCanvas?.(gl.domElement)} data-testid="draw-stage-canvas">
       <Suspense fallback={null}>
         <Environment resolution={256} frames={1}>

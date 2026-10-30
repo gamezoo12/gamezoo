@@ -108,7 +108,7 @@ export function DrawTheatre({ mode, contest, rounds, tickets, plan, results = []
     go('revealed');
     if (mode === 'official') {
       drawStudioAPI.markRevealed(plan.plan_id, round).then(() => onChanged?.()).catch(() => {});
-      capture.finish(canvasRef.current, { contest_id: contest.contest_id, plan_id: plan.plan_id, round_index: round, label: `${contest.title || 'Draw'} · ${rounds[round]?.name || `Round ${round + 1}`}`.slice(0, 120) });
+      capture.finish({ contest_id: contest.contest_id, plan_id: plan.plan_id, round_index: round, label: `${contest.title || 'Draw'} · ${rounds[round]?.name || `Round ${round + 1}`}`.slice(0, 120) });
     }
   };
   const next = () => { const r = round + 1; S.current.cfg = rounds[r]; setRound(r); go('ready'); };
@@ -138,7 +138,7 @@ export function DrawTheatre({ mode, contest, rounds, tickets, plan, results = []
     <div ref={rootRef} className="fixed inset-0 z-[2147483000] flex flex-col bg-[#050211]" data-testid="draw-stage" data-stage={stage} data-mode={mode}>
       <div className="relative min-h-0 flex-1">
         <Studio3D S={S} view={view} numbers={stage === 'ready' ? [] : numbers} onCanvas={(c) => { canvasRef.current = c; }} />
-        {(preview || replay) && <span className="pointer-events-none absolute bottom-3 right-3 rounded-full bg-rose-600/90 px-3 py-1 text-[10px] font-black tracking-widest text-white" data-testid="draw-preview-badge">{replay ? 'REPLAY · OFFICIAL RESULT' : 'PREVIEW · SIMULATED'}</span>}
+        {(preview || replay) && <span className="pointer-events-none absolute bottom-3 right-3 hidden rounded-full sm:inline bg-rose-600/90 px-3 py-1 text-[10px] font-black tracking-widest text-white" data-testid="draw-preview-badge">{replay ? 'REPLAY · OFFICIAL RESULT' : 'PREVIEW · SIMULATED'}</span>}
         {(error || notice) && <div className={`absolute inset-x-4 top-12 mx-auto max-w-2xl rounded-xl border p-3 text-sm ${error ? 'border-rose-400/50 bg-rose-950/90 text-rose-100' : 'border-emerald-400/50 bg-emerald-950/90 text-emerald-100'}`} role={error ? 'alert' : 'status'} data-testid={error ? 'draw-stage-error' : 'draw-stage-notice'}>{error || notice}</div>}
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 bg-[#0b0724]/95 px-4 py-3">
