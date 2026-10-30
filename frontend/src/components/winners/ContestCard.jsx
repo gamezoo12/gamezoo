@@ -16,7 +16,8 @@ export function ContestCard({ c, tab, onOpen, index }) {
       className="pw-rise group relative flex flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#120c3a] text-left shadow-[0_20px_60px_-30px_rgba(124,58,237,0.7)] transition-[transform,border-color] duration-300 hover:-translate-y-1 hover:border-amber-300/60"
       data-testid={`pw-card-${tab}-${c.contest_id}`}>
       <div className="relative aspect-[16/10] overflow-hidden bg-[#1b1250]">
-        {coverSrc(c) && <img src={coverSrc(c)} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />}
+        {coverSrc(c) ? <img src={coverSrc(c)} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
+          : <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_50%_40%,#4c1d95,#1b1250_70%)]"><Trophy className="h-16 w-16 text-amber-300/70" /></div>}
         <div className="absolute inset-0 bg-gradient-to-t from-[#0a0628] via-[#0a0628]/30 to-transparent" />
         <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-black/50 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-amber-200 backdrop-blur">
           <Icon className="h-3 w-3" />{c.kind === 'draw' ? 'Prize draw' : 'Skill leaderboard'}

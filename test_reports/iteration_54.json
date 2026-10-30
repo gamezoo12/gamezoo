@@ -1,0 +1,42 @@
+{
+  "summary": "Tested Paid World Winners end-to-end. Backend: 17/17 pytest pass against the isolated loopback API (self-seeded DB test_pw_iter54, now dropped). Real object storage was checked on preview with a separate script: cover/gallery image+video upload, public streaming, reorder, delete, and round clip/screenshot streaming all work. UI checks: approvals (kind/status filters, wallet select, approve & credit once, visibility toggle), Publish section (switches, order, cover upload, gallery upload with caption, reorder, round-media hide/show), Hall of Winners in My Account (3 tabs, cards, detail, back, masked names, leaderboard, gallery, lightbox image/video playback, Esc/close), the /winners redirect, and admin contests phases, tabs and Draw button. Everything works except 1 UI bug: the lightbox is not fullscreen and is clipped (badly on mobile). There is also 1 minor count bug.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/admin/paid-winners/winners", "issue": "'counts' is passed through from draw_studio_ops list_winners. It counts ALL winners, including promo_ contests, and ignores the kind filter. Preview shows Pending (7) but only 5 non-promo pending rows exist (2 promo_drawstudio_test winners are included). With kind=leaderboard the tab still shows Pending (7) while the list is empty. Fix: compute counts from the filtered non-promo rows (respect kind)."},
+      {"endpoint": "GET /api/public/paid-winners/media/{cid}/{mid} and /round-media/{cid}/{rid}", "issue": "The whole file is read into memory and returned as one Response with no HTTP Range/206 support. Video files can be up to 150 MB. iOS Safari needs byte-range responses to play <video>, and seeking won't work. Recommend StreamingResponse with Range handling (or signed URLs)."},
+      {"endpoint": "DELETE /api/admin/paid-winners/contests/{cid}/media/{mid}", "issue": "Only removes the DB reference; the object-storage file is orphaned. Also returns ok:true for unknown ids (no 404)."},
+      {"endpoint": "PUT /api/admin/paid-winners/contests/{cid}/round-media/{rid}/visibility", "issue": "Does not check that the contest or recording exists. It upserts a paid_winner_publication doc for any cid."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "winners/Lightbox.jsx (inside GalleryDetail in WinnersHall)", "issue": "The lightbox is NOT fullscreen. Its position:fixed overlay sits inside <div className='pw-rise' data-testid='pw-detail'>. The pw-rise animation (fill-mode both) leaves a computed transform (matrix(1,0,0,1,0,0)), which makes that div the containing block, and the ancestor paid-winners-page has overflow-hidden, so the overlay is clipped. Desktop: overlay is 1040x497 inside the card, with the site header and ticker still visible. Mobile 390px: overlay box y=-379, h=893, partly off-screen and clipped. Fix: render Lightbox through createPortal(..., document.body), or remove pw-rise/transform from the DetailView wrapper.", "selector": "[data-testid='winners-lightbox']", "priority": "HIGH"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Hall of Winners mobile 390px", "issues": ["The tab bar scrolls sideways and the 3rd tab 'Draw Gallery' is cut off at the right edge with no scroll hint (scrollbar hidden)."]},
+      {"screen": "Winners & Approvals", "issues": ["Status tab counts don't match the kind filter or the list (see backend minor issue)."]},
+      {"screen": "Hall of Winners cards", "issues": ["Contests without image or cover show an empty dark area. end_date is a naive datetime parsed as local time (could be off by a day near midnight)."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_paid_winners.py", "/app/test_reports/pytest/pytest_paid_winners.xml"],
+  "action_items": [
+    "HIGH: Make the Hall of Winners lightbox truly fullscreen: portal Lightbox to document.body (createPortal) or drop the transform-based pw-rise animation from the pw-detail wrapper. Verify at 390px.",
+    "Fix /api/admin/paid-winners/winners counts: exclude promo_ winners and respect the kind filter.",
+    "Consider Range/streaming responses for public video media (iOS Safari playback, 150MB memory reads).",
+    "Optional: delete the storage object on media delete; validate contest/recording in the round-media visibility endpoint; add a scroll hint for the mobile tab bar."
+  ],
+  "critical_code_review_comments": [
+    "paid_winners_routes.approve: idempotency is solid (paid_out short-circuit + adjust_single_wallet op id paid_winner_credit:{id}:main/bonus). Leaderboard winners also get prize_bonus_tokens credited to winning_bonus (verified +5).",
+    "_mask treats '@' as a separator, so a raw email user_name like 'john@x.com' becomes 'John X.'. This is acceptable but leaks the domain initial.",
+    "WinnersHall tab switching has no request cancellation, so a fast tab switch could show the previous tab's list (race)."
+  ],
+  "updated_files": ["/app/backend/tests/test_paid_winners.py (new)"],
+  "success_rate": {"backend": "100% (17/17 isolated pytest + preview media checks)", "frontend": "~93% (all flows work; lightbox fullscreen/clipping bug)"},
+  "seed_data_creation": "Preview DB: temporarily seeded c_test_pw_ui_skill (+3 game_scores, winner w_test_pw_ui_lb credited to winning_bonus via UI) and c_test_pw_ph_await/c_test_pw_ph_live. Uploaded TEST gallery/cover media to c_drawstudio_e2e. Everything was removed afterwards and ds_test_user_9's wallet credit was reverted (now 0). c_drawstudio_e2e publication is unchanged (show_winners+show_gallery, media []). Isolated DB test_pw_iter54 was dropped. Existing c_drawstudio_test pending winners were not touched. Free World was not touched.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "backend/tests/conftest.py blocks non-loopback HTTP. Run the suite with: cd /app/backend; TEST_DB_NAME=test_pw_iterNN nohup bash scripts/run_isolated_test_api.sh & then /app/.venv/bin/python scripts/seed_isolated_test_db.py, then TEST_DB_NAME=... bash scripts/run_isolated_backend_tests.sh tests/test_paid_winners.py. Use a fresh TEST_DB_NAME if /tmp/prizeleague_test_creds.env was regenerated. Object storage is unavailable in the isolated API, so media upload/stream must be checked on preview (script pattern in /tmp/preview_media_check.py). Lightbox check: bounding box of [data-testid=winners-lightbox] should equal the viewport.",
+  "rca of the issue": "Lightbox clipping: .pw-rise { animation: pw-rise ... both } keeps the last keyframe applied, and Chrome reports a computed transform matrix on #pw-detail. Any transform creates a containing block for position:fixed descendants, so inset-0 resolves to pw-detail's box, and paid-winners-page overflow-hidden clips it. Reproduce: /my-account/contest-winners -> Draw Gallery -> open card -> click tile -> lightbox is boxed inside the card (desktop) or off-screen (mobile). Fix: createPortal to document.body."
+}

@@ -68,12 +68,14 @@ async def _audit(db, admin, action, **fields):
 async def admin_winners(request: Request, status: str = "all", kind: Literal["all", "draw", "leaderboard"] = "all"):
     from routers.draw_studio_ops_routes import list_winners
 
-    data = await list_winners(request, status=status)
+    data = await list_winners(request, status="all")
     rows = [w for w in data["winners"] if not str(w.get("contest_id", "")).startswith("promo_")]
     for w in rows:
         w["kind"] = "draw" if w.get("source") == "draw_studio" else "leaderboard"
         w["public_visible"] = not w.get("public_hidden")
-    return {"winners": [w for w in rows if kind == "all" or w["kind"] == kind], "counts": data["counts"]}
+    rows = [w for w in rows if kind == "all" or w["kind"] == kind]
+    counts = {k: sum(1 for w in rows if w["status"] == k) for k in ("pending", "approved", "credited")}
+    return {"winners": [w for w in rows if status == "all" or w["status"] == status], "counts": counts}
 
 
 class ApproveIn(BaseModel):
@@ -223,8 +225,10 @@ async def reorder_media(cid: str, body: OrderIn, request: Request):
 async def delete_media(cid: str, mid: str, request: Request):
     admin = await require_super_admin(request)
     db = get_db()
-    await db[PUB].update_one({"contest_id": cid}, {"$pull": {"media": {"media_id": mid}}})
-    await db[PUB].update_one({"contest_id": cid, "cover.media_id": mid}, {"$unset": {"cover": ""}})
+    r1 = await db[PUB].update_one({"contest_id": cid}, {"$pull": {"media": {"media_id": mid}}})
+    r2 = await db[PUB].update_one({"contest_id": cid, "cover.media_id": mid}, {"$unset": {"cover": ""}})
+    if not (r1.modified_count or r2.modified_count):
+        raise HTTPException(status_code=404, detail="Media not found")
     await _audit(db, admin, "media_delete", contest_id=cid, media_id=mid)
     return {"ok": True}
 
@@ -233,6 +237,8 @@ async def delete_media(cid: str, mid: str, request: Request):
 async def round_media_visibility(cid: str, rid: str, body: VisibilityIn, request: Request):
     admin = await require_super_admin(request)
     db = get_db()
+    if not await db.draw_studio_recordings.find_one({"recording_id": rid, "contest_id": cid}, {"_id": 1}):
+        raise HTTPException(status_code=404, detail="Recording not found for this contest")
     op = {"$pull": {"hidden_round_media": rid}} if body.visible else {"$addToSet": {"hidden_round_media": rid}}
     await db[PUB].update_one({"contest_id": cid}, {**op, "$setOnInsert": {"contest_id": cid}}, upsert=True)
     await _audit(db, admin, "round_media_visibility", contest_id=cid, recording_id=rid, visible=body.visible)
@@ -242,7 +248,7 @@ async def round_media_visibility(cid: str, rid: str, body: VisibilityIn, request
 @admin_router.get("/media/{cid}/{mid}")
 async def admin_media(cid: str, mid: str, request: Request):
     await require_super_admin(request)
-    return await _media_response(get_db(), cid, mid, public=False)
+    return await _media_response(get_db(), cid, mid, public=False, request=request)
 
 
 # ------------------------------------------------------------------ public (Paid World only)
@@ -250,7 +256,8 @@ async def admin_media(cid: str, mid: str, request: Request):
 def _card(c: dict) -> dict:
     p = c["publication"]
     return {"contest_id": c["contest_id"], "title": c.get("title"), "kind": c["kind"], "prize_amount": c.get("prize_amount"),
-            "end_date": c.get("end_date"), "image": c.get("image"), "cover_id": (p.get("cover") or {}).get("media_id")}
+            "end_date": c["end_date"].replace(tzinfo=timezone.utc).isoformat() if isinstance(c.get("end_date"), datetime) else c.get("end_date"),
+            "image": c.get("image"), "cover_id": (p.get("cover") or {}).get("media_id")}
 
 
 @public_router.get("")
@@ -308,7 +315,22 @@ async def public_gallery(cid: str):
             "round_media": clips}
 
 
-async def _media_response(db, cid: str, mid: str, public: bool):
+def _ranged(request: Request, data: bytes, ctype: str, cache: str) -> Response:
+    headers = {"Accept-Ranges": "bytes", "Cache-Control": cache}
+    rng = (request.headers.get("range") or "").replace("bytes=", "")
+    if rng and "-" in rng and "," not in rng:
+        a, b = rng.split("-", 1)
+        size = len(data)
+        start, end = (int(a), int(b) if b else size - 1) if a else (max(0, size - int(b or 0)), size - 1)
+        end = min(end, size - 1)
+        if start > end:
+            return Response(status_code=416, headers={"Content-Range": f"bytes */{size}"})
+        headers["Content-Range"] = f"bytes {start}-{end}/{size}"
+        return Response(content=data[start:end + 1], status_code=206, media_type=ctype, headers=headers)
+    return Response(content=data, media_type=ctype, headers=headers)
+
+
+async def _media_response(db, cid: str, mid: str, public: bool, request: Request):
     p = await db[PUB].find_one({"contest_id": cid}, {"_id": 0}) or {}
     cover = p.get("cover") or {}
     item = cover if cover.get("media_id") == mid else next((m for m in p.get("media", []) if m.get("media_id") == mid), None)
@@ -317,16 +339,16 @@ async def _media_response(db, cid: str, mid: str, public: bool):
         raise HTTPException(status_code=404, detail="Media not found")
     from object_storage import get_object
     data, _ = get_object(item["path"])
-    return Response(content=data, media_type=item["content_type"], headers={"Cache-Control": "public, max-age=300" if public else "private, max-age=60"})
+    return _ranged(request, data, item["content_type"], "public, max-age=300" if public else "private, max-age=60")
 
 
 @public_router.get("/media/{cid}/{mid}")
-async def public_media(cid: str, mid: str):
-    return await _media_response(get_db(), cid, mid, public=True)
+async def public_media(cid: str, mid: str, request: Request):
+    return await _media_response(get_db(), cid, mid, public=True, request=request)
 
 
 @public_router.get("/round-media/{cid}/{rid}")
-async def public_round_media(cid: str, rid: str):
+async def public_round_media(cid: str, rid: str, request: Request):
     db = get_db()
     c = await _visible(db, cid, "show_gallery")
     from routers.draw_studio_ops_routes import published_round_media
@@ -337,4 +359,4 @@ async def public_round_media(cid: str, rid: str):
         raise HTTPException(status_code=404, detail="Media not found")
     from object_storage import get_object
     data, _ = get_object(doc["storage_path"])
-    return Response(content=data, media_type=doc["content_type"].split(";")[0], headers={"Cache-Control": "public, max-age=300"})
+    return _ranged(request, data, doc["content_type"].split(";")[0], "public, max-age=300")

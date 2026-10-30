@@ -626,3 +626,12 @@ See `/app/memory/test_credentials.md`.
 ## 2026-06 Draw Studio: earlier-winners switch
 - RoundsEditor "Repeat" checkbox replaced by a labelled per-round switch ("Round 1 winners CAN win again / excluded"); shown in Draw Flow panel and 3D round intro. Backend `allow_previous_winners` unchanged.
 - DECLINED: hidden pre-selected winners in official paid draws (shown to players as random). Only an openly labelled "chosen winner" would be acceptable; not built.
+
+## 2026-10 · Paid World Winners Management + Hall of Winners (preview only, not deployed)
+- Phase 1 done earlier: Four-wallet Super Admin credit/debit (FourWalletAdjust.jsx, services/wallet_admin_adjust.py).
+- Backend `routers/paid_winners_routes.py` (Paid World only, promo_ excluded): admin winners list (kind/status + counts), approve into chosen wallet (Winnings default; Bonus/Winning Bonus/Top-Up) exactly once via adjust_single_wallet idempotent op id, per-winner public visibility, per-contest publication flags (show_winners/show_leaderboard/show_gallery, display_order), cover + gallery uploads (object storage), reorder/delete, auto Draw Studio clips show/hide. Public endpoints with masked names (first name + last initial), byte-range (206) media streaming. Contests hidden until published.
+- Admin UI: Production -> Winners & Approvals has Approvals | Publish to Winners page sections (PaidWinnersPublishing.jsx, PublishMedia.jsx).
+- Hall of Winners (components/winners/*) lives INSIDE My Account -> Winners (/my-account/contest-winners); /winners redirects there. Tabs: Winners, Past Leaderboards, Draw Gallery; fullscreen lightbox via portal.
+- Admin contests list: `phase` from GET /api/admin/contests (live / awaiting_draw / completed); Draw button hidden after end and for skill contests; Awaiting draw + Completed tabs.
+- Known gaps: deleting gallery media leaves the stored file orphaned (no storage delete API); old auto-listing of draw winners in account panel replaced by publish-controlled Hall.
+- Tests: iteration_54 (backend 17/17; frontend lightbox bug fixed after).
