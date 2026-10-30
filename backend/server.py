@@ -198,8 +198,11 @@ async def public_contest_winners():
         g['winners'].append({'winner_id': r['winner_id'], 'name': r.get('user_name') or 'Winner', 'ticket_number': r.get('ticket_number'),
                              'prize_amount': r.get('prize_amount'), 'reward_type': r.get('reward_type') or 'winnings',
                              'round_name': r.get('draw_round_name') or r.get('prize_title'), 'round_index': r.get('draw_round_index') or 0})
+    from routers.draw_studio_ops_routes import published_round_media
+    media = await published_round_media(db, list(groups))
     for g in groups.values():
         g['winners'].sort(key=lambda w: w['round_index'])
+        g['media'] = media.get(g['contest_id'], [])
     return {'contests': list(groups.values())}
 
 
@@ -248,7 +251,7 @@ from routers.world_gc_competition_routes import (
     ensure_world_gc_competition_indexes,
 )
 from routers.draw_studio_routes import router as draw_studio_router, ensure_draw_studio_indexes
-from routers.draw_studio_ops_routes import router as draw_studio_ops_router
+from routers.draw_studio_ops_routes import router as draw_studio_ops_router, public_media_router as draw_media_public_router
 from routers.world_gc_live_routes import (
     admin_router as world_gc_live_admin_router,
     public_router as world_gc_live_public_router,
@@ -324,6 +327,7 @@ app.include_router(world_gc_public_router)
 app.include_router(world_gc_router)
 app.include_router(draw_studio_router)
 app.include_router(draw_studio_ops_router)
+app.include_router(draw_media_public_router)
 app.include_router(world_gc_live_admin_router)
 app.include_router(world_gc_live_public_router)
 app.include_router(world_gc_admin_router)

@@ -6,7 +6,7 @@ export const DEFAULT_VOLUMES = { entry: 0.5, music: 0.45, heartbeat: 0.9, countd
 // Built-in fallback tones (used only for slots without an uploaded file).
 function synth(ctx, slot) {
   const sr = ctx.sampleRate;
-  const len = { entry: 0.09, countdown: 0.35, heartbeat: 0.9, music: 8, drumroll: 2.5, reveal: 2.2, announcement: 2.4, celebration: 3 }[slot];
+  const len = { entry: 0.09, countdown: 0.35, heartbeat: 0.62, music: 8, drumroll: 2.5, reveal: 2.2, announcement: 2.4, celebration: 3 }[slot];
   const buf = ctx.createBuffer(1, Math.floor(sr * len), sr);
   const d = buf.getChannelData(0);
   for (let i = 0; i < d.length; i += 1) {
@@ -15,7 +15,14 @@ function synth(ctx, slot) {
     if (slot === 'entry') v = (Math.random() * 2 - 1) * Math.exp(-t * 60) * 0.6 + Math.sin(2 * Math.PI * 2400 * t) * Math.exp(-t * 80) * 0.2;
     if (slot === 'announcement') v = [392, 523.3, 659.3, 784].reduce((a, f, k) => a + (t > k * 0.18 ? Math.sin(2 * Math.PI * f * t) * (Math.sin(2 * Math.PI * f * 2 * t) * 0.3 + 1) * Math.exp(-(t - k * 0.18) * 1.6) : 0), 0) * 0.16;
     if (slot === 'countdown') v = Math.sin(2 * Math.PI * 880 * t) * Math.exp(-t * 9);
-    if (slot === 'heartbeat') v = [0, 0.28].reduce((a, s) => a + (t > s ? Math.sin(2 * Math.PI * 55 * (t - s)) * Math.exp(-(t - s) * 14) : 0), 0);
+    if (slot === 'heartbeat') v = [[0, 1], [0.24, 0.72]].reduce((a, [s, amp]) => {
+      if (t < s) return a;
+      const x = t - s;
+      const body = Math.sin(2 * Math.PI * (48 + 34 * Math.exp(-x * 22)) * x) * Math.exp(-x * 11);
+      const punch = Math.sin(2 * Math.PI * 150 * x) * Math.exp(-x * 38) * 0.45;
+      const thud = (Math.random() * 2 - 1) * Math.exp(-x * 90) * 0.18;
+      return a + amp * (body + punch + thud);
+    }, 0) * 0.95;
     if (slot === 'music') v = [110, 164.8, 220, 277.2].reduce((a, f, k) => a + Math.sin(2 * Math.PI * f * t + k) * (0.5 + 0.5 * Math.sin(t * 0.8 + k)), 0) * 0.12;
     if (slot === 'drumroll') v = (Math.random() * 2 - 1) * (0.5 + 0.5 * Math.sin(2 * Math.PI * 22 * t)) * Math.min(1, t / 2) * 0.5;
     if (slot === 'reveal') v = [523.3, 659.3, 784, 1046.5].reduce((a, f) => a + Math.sin(2 * Math.PI * f * t), 0) * Math.exp(-t * 1.4) * 0.22;
@@ -71,6 +78,25 @@ export class DrawAudio {
     if (!overlap) this.sources[slot] = { src, gain, base: volume };
   }
 
+  // Heartbeat: one lub-dub per beat at a changing tempo (pitch stays natural). Uploaded files loop with rate instead.
+  startHeartbeat(bpm = 72) {
+    this.stopHeartbeat();
+    this.hbBpm = bpm;
+    if (this.custom.heartbeat) { this.play('heartbeat', { loop: true }); return; }
+    const beat = () => {
+      this.play('heartbeat', { overlap: true, volume: 0.85 + Math.min(0.4, (this.hbBpm - 72) / 200) });
+      this.hbTimer = setTimeout(beat, 60000 / this.hbBpm);
+    };
+    beat();
+  }
+
+  setHeartbeatBpm(bpm) {
+    this.hbBpm = Math.max(40, Math.min(200, bpm));
+    if (this.custom.heartbeat) this.setRate('heartbeat', this.hbBpm / 72);
+  }
+
+  stopHeartbeat() { clearTimeout(this.hbTimer); this.hbTimer = null; this.stop('heartbeat'); }
+
   setRate(slot, rate) { if (this.sources[slot]) this.sources[slot].src.playbackRate.value = rate; }
 
   stop(slot) {
@@ -78,7 +104,7 @@ export class DrawAudio {
     if (s) { try { s.src.stop(); } catch { /* already stopped */ } delete this.sources[slot]; }
   }
 
-  stopAll() { Object.keys(this.sources).forEach((k) => this.stop(k)); }
+  stopAll() { this.stopHeartbeat(); Object.keys(this.sources).forEach((k) => this.stop(k)); }
 
   close() { this.stopAll(); this.ctx.close(); }
 }

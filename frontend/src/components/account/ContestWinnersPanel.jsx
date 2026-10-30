@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Trophy } from 'lucide-react';
 import { contestWinnersAPI } from '../../lib/api';
+import { RoundMedia } from './RoundMedia';
 
 const money = (v) => `£${Number(v || 0).toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 const TYPE = { winnings: 'Winnings Tokens', bonus: 'Bonus Tokens' };
@@ -28,6 +29,9 @@ export default function ContestWinnersPanel() {
               </li>
             ))}
           </ul>
+          {c.media?.length > 0 && <div className="mt-4 grid gap-3 sm:grid-cols-2" data-testid={`contest-media-${c.contest_id}`}>
+            {c.media.map((m) => <RoundMedia key={m.round_index} media={m} contestId={c.contest_id} roundName={c.winners.find((w) => w.round_index === m.round_index)?.round_name} />)}
+          </div>}
         </section>
       ))}
     </div>

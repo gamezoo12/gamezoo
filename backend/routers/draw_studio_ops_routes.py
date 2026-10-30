@@ -218,6 +218,8 @@ class RecordingIn(BaseModel):
     contest_id: Optional[str] = None
     plan_id: Optional[str] = None
     label: str = Field(default="", max_length=120)
+    kind: Literal["full", "clip", "screenshot"] = "full"
+    round_index: Optional[int] = Field(default=None, ge=0, le=50)
     content_type: str = Field(..., max_length=80)
     size: int = Field(..., gt=0, le=MAX_RECORDING)
 
@@ -225,8 +227,9 @@ class RecordingIn(BaseModel):
 @router.post("/recordings")
 async def init_recording(body: RecordingIn, request: Request):
     admin = await require_super_admin(request)
-    if not body.content_type.startswith(("video/webm", "video/mp4")):
-        raise HTTPException(status_code=415, detail="Recordings must be WebM or MP4")
+    allowed = ("image/png", "image/jpeg") if body.kind == "screenshot" else ("video/webm", "video/mp4")
+    if not body.content_type.startswith(allowed):
+        raise HTTPException(status_code=415, detail="Screenshots must be PNG/JPEG; recordings must be WebM or MP4")
     rid = f"dsv_{uuid.uuid4().hex[:14]}"
     os.makedirs(os.path.join(REC_DIR, rid), exist_ok=True)
     doc = {"recording_id": rid, **body.model_dump(), "status": "uploading", "created_at": _now(), "created_by": admin.get("email")}
@@ -266,7 +269,8 @@ async def complete_recording(rid: str, body: CompleteIn, request: Request):
     data = b"".join(open(p, "rb").read() for p in parts)
     from object_storage import APP_NAME, put_object
 
-    ext = "mp4" if "mp4" in doc["content_type"] else "webm"
+    ctype = doc["content_type"]
+    ext = "png" if "png" in ctype else "jpg" if "jpeg" in ctype else "mp4" if "mp4" in ctype else "webm"
     stored = put_object(f"{APP_NAME}/draw-studio/recordings/{rid}.{ext}", data, doc["content_type"].split(";")[0])
     shutil.rmtree(folder, ignore_errors=True)
     await db.draw_studio_recordings.update_one({"recording_id": rid}, {"$set": {
@@ -278,7 +282,7 @@ async def complete_recording(rid: str, body: CompleteIn, request: Request):
 @router.get("/recordings")
 async def list_recordings(request: Request, contest_id: Optional[str] = None):
     await require_super_admin(request)
-    q = {"status": "ready", **({"contest_id": contest_id} if contest_id else {})}
+    q = {"status": "ready", "kind": {"$nin": ["clip", "screenshot"]}, **({"contest_id": contest_id} if contest_id else {})}
     return {"recordings": await get_db().draw_studio_recordings.find(q, {"_id": 0}).sort("created_at", -1).to_list(200)}
 
 
@@ -338,3 +342,47 @@ async def backdrop_image(url: str, request: Request):
     if resp.status_code != 200 or not resp.headers.get("Content-Type", "").startswith("image/") or len(resp.content) > 10 * 1024 * 1024:
         raise HTTPException(status_code=502, detail="Backdrop image unavailable")
     return Response(content=resp.content, media_type=resp.headers["Content-Type"])
+
+
+# --------------------------------------------------------------------------- player-facing round media
+
+public_media_router = APIRouter(prefix="/api/contest-winners", tags=["contest-winner-media"])
+MEDIA_KINDS = ["clip", "screenshot"]
+
+
+async def published_round_media(db, contest_ids: list[str]) -> dict:
+    """Latest official clip + screenshot per contest round, only for rounds whose winners are published."""
+    published = {(w["contest_id"], int(w.get("draw_round_index") or 0)) async for w in db.winners.find(
+        {"contest_id": {"$in": contest_ids}, "source": "draw_studio", "published": True},
+        {"_id": 0, "contest_id": 1, "draw_round_index": 1})}
+    out: dict = {}
+    async for d in db.draw_studio_recordings.find(
+            {"contest_id": {"$in": contest_ids}, "mode": "official", "kind": {"$in": MEDIA_KINDS}, "status": "ready"},
+            {"_id": 0, "recording_id": 1, "contest_id": 1, "round_index": 1, "kind": 1, "completed_at": 1}).sort("completed_at", -1):
+        key = (d["contest_id"], int(d.get("round_index") or 0))
+        if key not in published:
+            continue
+        slot = out.setdefault(d["contest_id"], {}).setdefault(key[1], {"round_index": key[1]})
+        slot.setdefault(d["kind"], d["recording_id"])
+    return {cid: sorted(rounds.values(), key=lambda x: x["round_index"]) for cid, rounds in out.items()}
+
+
+@public_media_router.get("/media/{rid}")
+async def round_media_file(rid: str, request: Request):
+    from auth import get_current_user
+
+    await get_current_user(request)
+    db = get_db()
+    doc = await db.draw_studio_recordings.find_one(
+        {"recording_id": rid, "status": "ready", "mode": "official", "kind": {"$in": MEDIA_KINDS}}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Media not found")
+    media = await published_round_media(db, [doc["contest_id"]])
+    if not any(rid in (m.get("clip"), m.get("screenshot")) for m in media.get(doc["contest_id"], [])):
+        raise HTTPException(status_code=404, detail="Media not found")
+    from object_storage import get_object
+
+    data, _ = get_object(doc["storage_path"])
+    return Response(content=data, media_type=doc["content_type"].split(";")[0],
+                    headers={"Cache-Control": "private, max-age=3600",
+                             "Content-Disposition": f'inline; filename="prize-league-round-{int(doc.get("round_index") or 0) + 1}.{doc["ext"]}"'})

@@ -569,6 +569,7 @@ export const drawStudioAPI = {
   },
 };
 export const contestWinnersAPI = () => api.get('/public/contest-winners').then(r => r.data);
+export const contestWinnerMediaBlob = (rid) => api.get(`/contest-winners/media/${rid}`, { responseType: 'blob' }).then(r => r.data);
 
 
 export const worldGcCompetitionAdminAPI = {

@@ -4,6 +4,7 @@ import { drawStudioAPI } from '../../../lib/api';
 import { Studio3D } from './Studio3D';
 import { RecordControls, StageSteps, UtilityControls } from './TheatreControls';
 import { useRecorder } from './useRecorder';
+import { useRoundCapture } from './useRoundCapture';
 import { drawPhase, eligibleFor, elapsed, now, sampleNumbers, simulateWinners } from './timeline';
 import { loadCanvasFonts } from './textures';
 
@@ -31,6 +32,7 @@ export function DrawTheatre({ mode, contest, rounds, tickets, plan, results = []
   const rootRef = useRef(null);
   const canvasRef = useRef(null);
   const rec = useRecorder();
+  const capture = useRoundCapture();
   const preview = mode === 'preview';
   const replay = mode === 'replay';
 
@@ -48,13 +50,15 @@ export function DrawTheatre({ mode, contest, rounds, tickets, plan, results = []
         if (t >= s.cfg.load_duration_s + 0.9) go('loaded');
       }
       if (s.stage === 'mixing') {
-        audio?.setRate('heartbeat', 1 + Math.min(1, t / s.cfg.mix_duration_s) * 0.6);
+        audio?.setHeartbeatBpm(72 + Math.min(1, t / s.cfg.mix_duration_s) * 38);
         const left = Math.ceil(s.cfg.mix_duration_s - t);
         if (left <= 3 && left > 0 && s.beeped !== left) { s.beeped = left; audio?.play('countdown'); }
-        if (t >= s.cfg.mix_duration_s) { audio?.setRate('heartbeat', 1); go('mixed'); }
+        if (t >= s.cfg.mix_duration_s) go('mixed');
       }
       if (s.stage === 'drawing') {
         const ph = drawPhase(s);
+        const total = Math.max(1, s.winners?.length || 1);
+        audio?.setHeartbeatBpm(115 + Math.min(1, ((ph.w || 0) + Math.max(0, ph.local || 0)) / total) * 45);
         if (!ph.waiting && ph.local >= 0.72 && s.revealSound !== ph.w) { s.revealSound = ph.w; audio?.play('reveal', { overlap: true }); }
         if (ph.done) { audio?.stop('drumroll'); go('drawn'); }
       }
@@ -69,10 +73,12 @@ export function DrawTheatre({ mode, contest, rounds, tickets, plan, results = []
     audio?.play('music', { loop: true });
     go('loading');
   };
-  const mix = () => { audio?.play('heartbeat', { loop: true }); go('mixing'); };
+  const mix = () => { audio?.startHeartbeat(72); go('mixing'); };
   const draw = async () => {
     setBusy(true); setError('');
     audio?.play('drumroll', { loop: true });
+    audio?.setHeartbeatBpm(115);
+    if (mode === 'official' && canvasRef.current) capture.start(canvasRef.current, audio);
     go('drawing');
     try {
       let winners;
@@ -89,17 +95,21 @@ export function DrawTheatre({ mode, contest, rounds, tickets, plan, results = []
       setOutcomes((o) => { const c = [...o]; c[round] = winners; return c; });
     } catch (e) {
       audio?.stop('drumroll');
+      capture.cancel();
       setError(errText(e));
       go('mixed');
     } finally { setBusy(false); }
   };
   const reveal = () => {
-    audio?.stop('heartbeat'); audio?.stop('music');
+    audio?.stopHeartbeat(); audio?.stop('music');
     audio?.play('announcement');
     setTimeout(() => audio?.play('celebration'), 900);
     S.current.confettiAt = now();
     go('revealed');
-    if (mode === 'official') drawStudioAPI.markRevealed(plan.plan_id, round).then(() => onChanged?.()).catch(() => {});
+    if (mode === 'official') {
+      drawStudioAPI.markRevealed(plan.plan_id, round).then(() => onChanged?.()).catch(() => {});
+      capture.finish(canvasRef.current, { contest_id: contest.contest_id, plan_id: plan.plan_id, round_index: round, label: `${contest.title || 'Draw'} · ${rounds[round]?.name || `Round ${round + 1}`}`.slice(0, 120) });
+    }
   };
   const next = () => { const r = round + 1; S.current.cfg = rounds[r]; setRound(r); go('ready'); };
   const finale = () => { audio?.play('celebration'); S.current.confettiAt = now(); go('complete'); };
@@ -132,7 +142,7 @@ export function DrawTheatre({ mode, contest, rounds, tickets, plan, results = []
         {(error || notice) && <div className={`absolute inset-x-4 top-12 mx-auto max-w-2xl rounded-xl border p-3 text-sm ${error ? 'border-rose-400/50 bg-rose-950/90 text-rose-100' : 'border-emerald-400/50 bg-emerald-950/90 text-emerald-100'}`} role={error ? 'alert' : 'status'} data-testid={error ? 'draw-stage-error' : 'draw-stage-notice'}>{error || notice}</div>}
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 bg-[#0b0724]/95 px-4 py-3">
-        <div className="flex items-center gap-3"><StageSteps stage={stage} /><span className="text-xs font-bold text-white/60" data-testid="draw-stage-status">Round {round + 1}/{rounds.length} · {stage}</span></div>
+        <div className="flex items-center gap-3"><StageSteps stage={stage} /><span className="text-xs font-bold text-white/60" data-testid="draw-stage-status">Round {round + 1}/{rounds.length} · {stage}</span>{capture.status && <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${capture.status === 'error' ? 'bg-rose-500/20 text-rose-200' : 'bg-emerald-500/15 text-emerald-200'}`} data-testid="draw-capture-status">{{ recording: '● Capturing winner clip', saving: 'Saving clip + screenshot…', saved: 'Clip + screenshot saved', error: 'Clip save failed' }[capture.status]}</span>}</div>
         <div className="flex flex-wrap items-center gap-2">
           {action && <button type="button" className={primary} disabled={!action[0] || busy} onClick={action[0] || undefined} data-testid="draw-stage-action">{stage === 'revealed' ? <ChevronRight className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}{action[1]}</button>}
           {stage === 'complete' && !mode.startsWith('off') && <button type="button" className={primary} onClick={again} data-testid="draw-stage-again"><RotateCcw className="h-5 w-5" />Play Again (Preview)</button>}
