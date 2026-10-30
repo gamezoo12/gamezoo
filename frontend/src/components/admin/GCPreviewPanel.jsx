@@ -116,7 +116,7 @@ export const GCPreviewPanel = ({ gcNumber }) => {
         {preview.champion_result && <p className="text-xs" data-testid="preview-champion-result"><b>Champion winners:</b> {preview.champion_result.map((w) => `${w.rank}. ${w.name} +${w.champion_prize_tokens}`).join(' · ')}</p>}
         <p className="text-[11px] text-slate-500">Sim time: {preview.sim_now} · {preview.log?.slice(-1)[0]}</p>
       </div>}
-      {gameStage !== 'idle' && row && <div className="fixed inset-0 z-[10050] overflow-y-auto bg-slate-950/85" data-testid="full-gameplay-preview">
+      {gameStage !== 'idle' && row && <div className="fixed inset-0 z-[10050] overflow-y-auto bg-slate-950" data-testid="full-gameplay-preview">
         <Header />
         <main className="min-h-[calc(100vh-112px)] px-3 py-4 sm:px-6 sm:py-6" data-testid="preview-player-surface">
           <div className={`mx-auto ${previewViewport === 'mobile' ? 'w-full max-w-[390px]' : 'w-full max-w-4xl'}`}>

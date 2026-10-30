@@ -614,3 +614,11 @@ See `/app/memory/test_credentials.md`.
 - WorldClientGame now uses the original .fwv3-timer clock + captions (practice/official/champion); demo timer ticks for all games.
 - Restored 'COLOUR MATCH' title, styled Skip practice, removed duplicate guide text. Tested iteration_50/51.
 - Preview limits: Champion official run blocked (CHAMPION_NOT_READY, window opens 2026-11-01); EveryLevelWorld unreachable (only GC4 config uses engine legacy_hybrid, excluded by /api/world/gc/active-model).
+
+## 2026-06 Free World premium boards + Level Leaderboard (preview only, not deployed)
+- Shared premium boards (`components/games/premium/boards.jsx`): SequenceBoard, ChromaBoard, MemoryTile/MemoryBoard3D. Used by client games AND real Free World number_sequence/colour_match screens (server layouts + tap validation unchanged; verified server accepts taps) and EveryLevelWorld memory.
+- WorldClientGame has `inline` mode; Super Admin Preview (GCPreviewPanel -> PreviewPlaySurface) and GamePreviewDialog render the same Free World play cards. GAME_MAP has `colour_match` alias.
+- Leaderboard: Championship | Level tabs; level picker L1-10 (greyed when not Every-Level / upcoming), uses /api/world/gc/level-board (now also supports every_level engine configs). LEVEL BOARDS nav button removed.
+- Preview DB: GC5 applied as future Every-Level (legacy_hybrid, mixed games, opens 2026-11-03). GC4 untouched.
+- Floating support launcher/back pill hidden during game overlays.
+- Tests: iteration_52/53 pass.

@@ -1,0 +1,29 @@
+{
+  "summary": "Frontend-only retest of the iteration_52 fixes, all PASS. (1) Super Admin Preview GC5 after reset: L2 colour_match official reached SUCCESS (00:05.685). L3 memory_match: world-client-stopwatch ticked live from zero (00:00.195 -> 00:01.695 over 1.5s, not frozen at the previous game's time). Solved 6 pairs: SUCCESS with preview-result-time 00:11.514, matching the simulated leaderboard 'You (Admin) · 11.51s'. (2) preview-game-select shows 'Colour Match (Free World)' (value colour_match) for L2 and Champion; L3 shows 'Memory Match (pairs)'. (3) Demo 'Skip practice' (world-client-game-skip) goes to preview-ready with label 'OFFICIAL ATTEMPT'; preview-demo-result does not render. Verified on desktop and mobile. (4) The Board3D title is inside the dark board: 'Sequence Grid' rgb(96,165,250) on a navy gradient in the real Free World demo (player1, free-world-level-33, GC4 L3); 'CHROMA CLASH' amber on a dark gradient in the admin preview. Good contrast. (5) Mobile 390px: support-assistant-launcher and global-back-button are visible on the world map, hidden in the .fwv3-overlay entry and demo, and visible again after Close. In the admin full-gameplay-preview, global-back-button is hidden while open and visible after Exit (the launcher is not rendered on admin pages). (6) Regression: lb-tab-level/lb-tab-championship switch correctly (aria-selected). The level tab shows GC4 L9 Colour Match with GameZoo Admin 00:17.123. The Free World number-sequence demo 1-20 completes to 'Ready to play?'. No official attempts were consumed and no GC4/GC5 configs were changed.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Free World level entry card (mobile 390)", "issues": ["In the middle 'GAME / 1 to 20 / SEQUENCE' stat tile, the icon renders as a tall dashed vertical line that cuts through the '1 to 20' text."]},
+      {"screen": "Admin full-gameplay-preview (mobile)", "issues": ["The bg-slate-950/85 backdrop is translucent enough that admin panel text ('Reset preview from GC5', 'Model ...') shows through behind the PREVIEW phase pill and the Desktop/Mobile/Exit controls. Consider a solid backdrop."]},
+      {"screen": "Leaderboard page (desktop)", "issues": ["There are two Back controls: the header 'Back' and the floating global-back-button pill at bottom-left (redundant)."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Optional polish: fix the dashed icon overlapping '1 to 20' in the Free World entry stat tile.",
+    "Optional polish: make the full-gameplay-preview backdrop opaque.",
+    "Optional: hide global-back-button on pages that already have a header Back button (leaderboard)."
+  ],
+  "critical_code_review_comments": [
+    "PreviewPlaySurface now derives startedMs/finishedMs/passed from memory for memory_match, which is correct. resultMs uses `finishedMs || 0`, so a genuine 0 is fine; there are no remaining stale-play paths.",
+    "FreeWorldNumberSequenceV3.jsx is still around 2800 lines; split it into modules."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped)", "frontend": "100%"},
+  "seed_data_creation": "None. GC5 preview sandbox was reset and played L2/L3 (sandbox only).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Free World map is at /world (not /free-world, which is the landing page). player1 is on free-world-level-33 (GC4 L3, number_sequence); level 32 is not clickable. Click free-world-level-33 with force=True, then PLAY DEMO, then START DEMO. Tiles are .fwv3-overlay buttons with the number text. Close via button[aria-label*=lose i]. Colour solver: read [data-testid=color-rule] and the computed color of [data-testid=color-word], then click color-option-<name>. Memory solver: aria-label 'Card N' on preview-card-N. The support launcher is not rendered on admin routes."
+}
