@@ -10,6 +10,7 @@ import {
 } from '../../components/ui/dialog';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../hooks/use-toast';
+import { FourWalletAdjust } from '../../components/admin/FourWalletAdjust';
 import BackButton from '../../components/BackButton';
 import { gbp } from '../../lib/format';
 import {
@@ -905,19 +906,7 @@ export default function UserDetailsPage() {
             <div className="text-xs font-semibold text-amber-700">Legacy wallet source split unavailable; no category amounts are inferred.</div>
           )}
           <div className="mt-1 text-xs text-slate-500">Winnings available: {gbp(Number(wallet_breakdown?.winnings_pence || 0) / 100)} · Lifetime winnings: {gbp(Number(wallet_breakdown?.lifetime_winnings_pence || 0) / 100)}</div>
-          {canManageUserFunds && <form className="mt-4 grid gap-3 rounded-xl border border-slate-200 p-4 sm:grid-cols-[10rem_1fr_auto] sm:items-end" onSubmit={adjustWallet}>
-            <div className="space-y-1">
-              <Label htmlFor="wallet-adjust-amount">Token adjustment</Label>
-              <Input id="wallet-adjust-amount" type="number" step="0.01" min="-500" max="500" value={walletAdjustAmount} onChange={event => setWalletAdjustAmount(event.target.value)} placeholder="e.g. -5 or 10" disabled={walletAdjustBusy || erased} />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="wallet-adjust-reason">Reason (10+ characters)</Label>
-              <Input id="wallet-adjust-reason" value={walletAdjustReason} onChange={event => setWalletAdjustReason(event.target.value)} maxLength={300} placeholder="Explain the correction" disabled={walletAdjustBusy || erased} />
-            </div>
-            <Button type="submit" disabled={walletAdjustBusy || erased || !walletAdjustAmount || !walletAdjustReason.trim()}>
-              {walletAdjustBusy ? 'Applying…' : 'Apply adjustment'}
-            </Button>
-          </form>}
+          {canManageUserFunds && <FourWalletAdjust userId={user_id} disabled={erased} onDone={load} />}
           <div className="mt-3 max-h-40 overflow-y-auto text-xs">
             {wallet_transactions.length === 0 ? <div className="text-slate-400">No wallet transactions.</div> :
               wallet_transactions.slice(0, 20).map((t, i) => (

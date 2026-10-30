@@ -1366,7 +1366,26 @@ async def all_contests(request: Request):
     await require_admin(request)
     from deps import get_db
     db = get_db()
-    return await db.contests.find({}, {'_id': 0}).sort('end_date', 1).to_list(500)
+    rows = await db.contests.find({}, {'_id': 0}).sort('end_date', 1).to_list(500)
+    ids = [c['contest_id'] for c in rows]
+    studio_done = set(await db.draw_studio_plans.distinct('contest_id', {'contest_id': {'$in': ids}, 'status': 'completed'}))
+    studio_plans = set(await db.draw_studio_plans.distinct('contest_id', {'contest_id': {'$in': ids}}))
+    drawn = set(await db.winners.distinct('contest_id', {'contest_id': {'$in': ids}}))
+    now = datetime.now(timezone.utc)
+    for c in rows:
+        end = c.get('end_date')
+        if isinstance(end, datetime) and end.tzinfo is None:
+            end = end.replace(tzinfo=timezone.utc)
+        ended = (isinstance(end, datetime) and end <= now) or c.get('status') in ('closed', 'drawn', 'archived', 'closed_no_entries')
+        if c.get('status') == 'draft' or not ended:
+            c['phase'] = c.get('status')
+        elif c['contest_id'] in studio_plans and c['contest_id'] not in studio_done:
+            c['phase'] = 'awaiting_draw'
+        elif c.get('game_type') or c['contest_id'] in studio_done or c['contest_id'] in drawn or c.get('status') in ('drawn', 'closed_no_entries'):
+            c['phase'] = 'completed'
+        else:
+            c['phase'] = 'awaiting_draw'
+    return rows
 
 
 @router.post('/contests')

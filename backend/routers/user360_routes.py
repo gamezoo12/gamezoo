@@ -39,7 +39,8 @@ class BulkUserActionRequest(BaseModel):
 
 
 class UserWalletAdjustmentRequest(BaseModel):
-    amount: float = Field(ge=-500, le=500)
+    amount: float = Field(ge=-1_000_000, le=1_000_000)
+    wallet: Optional[Literal['winnings', 'bonus', 'winning_bonus', 'topup']] = None
     reason: str = Field(min_length=10, max_length=300)
     operation_id: str = Field(min_length=16, max_length=64)
 
@@ -216,6 +217,17 @@ async def bulk_user_actions(payload: BulkUserActionRequest, request: Request):
     }
 
 
+@router.get('/{user_id}/wallet-breakdown')
+async def user_wallet_breakdown(user_id: str, request: Request):
+    await require_admin(request)
+    from deps import get_db
+    from services.wallet_admin_adjust import wallet_breakdown
+    db = get_db()
+    w = await db.wallets.find_one({'user_id': user_id}, {'_id': 0}) or {}
+    txs = await db.wallet_tx.find({'user_id': user_id, 'kind': 'admin_adjust'}, {'_id': 0}).sort('created_at', -1).to_list(100)
+    return {'wallets': wallet_breakdown(w), 'adjustments': txs}
+
+
 @router.post('/{user_id}/wallet-adjust')
 async def adjust_user_wallet(user_id: str, payload: UserWalletAdjustmentRequest, request: Request):
     admin = await require_admin(request)
@@ -243,14 +255,17 @@ async def adjust_user_wallet(user_id: str, payload: UserWalletAdjustmentRequest,
     if len(operation_id) < 16:
         raise HTTPException(status_code=400, detail='A valid operation ID is required')
 
-    result = await _apply_tx_idempotent(
-        db,
-        user_id,
-        'admin_adjust',
-        round(float(payload.amount), 2),
-        note=f"Admin adjustment by {admin.get('email', admin.get('user_id'))}: {reason}",
-        ref_order_id=f'admin_user_adjust:{operation_id}',
-    )
+    note = f"Admin adjustment by {admin.get('email', admin.get('user_id'))}: {reason}"
+    if payload.wallet:
+        from services.wallet_admin_adjust import WALLET_LABELS, adjust_single_wallet
+        note = f"{WALLET_LABELS[payload.wallet]} · {note}"
+        result = await adjust_single_wallet(db, user_id, payload.wallet, payload.amount, note=note,
+                                            operation_id=operation_id, admin=admin)
+    else:
+        result = await _apply_tx_idempotent(
+            db, user_id, 'admin_adjust', round(float(payload.amount), 2),
+            note=note, ref_order_id=f'admin_user_adjust:{operation_id}',
+        )
     now = datetime.now(timezone.utc)
     await db.audit_log.update_one(
         {'audit_id': f'aud_wallet_adjust_{operation_id}'},
@@ -261,6 +276,7 @@ async def adjust_user_wallet(user_id: str, payload: UserWalletAdjustmentRequest,
             'admin_email': admin.get('email'),
             'target_user_id': user_id,
             'amount': round(float(payload.amount), 2),
+            'wallet': payload.wallet or 'legacy_default',
             'reason': reason,
             'operation_id': operation_id,
             'at': now,

@@ -3,7 +3,7 @@ import { drawStudioAPI } from '../../../lib/api';
 import { makeRecordStream } from './recordFrame';
 
 const CLIP_TAIL_MS = 6000;
-const SHOT_DELAY_MS = 2600;
+const SHOT_DELAY_MS = 3800;
 
 function pickMime() {
   const options = ['video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];

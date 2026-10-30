@@ -12,7 +12,8 @@ const STATUS_TABS = [
   { key: 'draft', label: 'On hold' },
   { key: 'coming-soon', label: 'Coming Soon' },
   { key: 'live', label: 'Live' },
-  { key: 'drawn', label: 'Drawn' },
+  { key: 'awaiting_draw', label: 'Awaiting draw' },
+  { key: 'completed', label: 'Completed' },
 ];
 
 export default function CompetitionsAdmin() {
@@ -51,8 +52,11 @@ export default function CompetitionsAdmin() {
   const remove = async (id) => { if (!window.confirm('Delete contest? Tickets will be deleted too.')) return; try { await adminAPI.deleteContest(id); toast({ title: 'Deleted' }); load(); } catch (e) { toast({ title: 'Failed', description: e?.response?.data?.detail }); } };
   const draw = async (id) => { try { const r = await adminAPI.draw(id); toast({ title: 'Winner drawn!', description: `${r.winner.user_name} – Ticket #${r.winner.ticket_number}` }); load(); } catch (e) { toast({ title: 'Draw failed', description: e?.response?.data?.detail }); } };
 
-  const filtered = contests.filter(c => tab === 'all' || (tab === 'coming-soon' ? c.public_coming_soon === true : tab === 'draft' ? c.status === 'draft' && !c.public_coming_soon : c.status === tab));
-  const colors = { live: 'bg-emerald-100 text-emerald-700', draft: 'bg-slate-200 text-slate-700', drawn: 'bg-amber-100 text-amber-700', archived: 'bg-slate-100 text-slate-500' };
+  const phaseOf = (c) => c.phase || c.status;
+  const inTab = (c, key) => key === 'all' || (key === 'coming-soon' ? c.public_coming_soon === true : key === 'draft' ? c.status === 'draft' && !c.public_coming_soon : phaseOf(c) === key);
+  const filtered = contests.filter(c => inTab(c, tab));
+  const PHASE_LABEL = { awaiting_draw: 'Awaiting draw', completed: 'Completed' };
+  const colors = { live: 'bg-emerald-100 text-emerald-700', draft: 'bg-slate-200 text-slate-700', drawn: 'bg-amber-100 text-amber-700', awaiting_draw: 'bg-violet-100 text-violet-700', completed: 'bg-sky-100 text-sky-700', archived: 'bg-slate-100 text-slate-500' };
 
   return (
     <div className="space-y-4">
@@ -61,9 +65,9 @@ export default function CompetitionsAdmin() {
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex gap-1 bg-white border border-slate-100 p-1 rounded-xl overflow-x-auto no-scrollbar max-w-full">
             {STATUS_TABS.map(t => {
-              const count = t.key === 'all' ? contests.length : contests.filter(c => t.key === 'coming-soon' ? c.public_coming_soon === true : t.key === 'draft' ? c.status === 'draft' && !c.public_coming_soon : c.status === t.key).length;
+              const count = contests.filter(c => inTab(c, t.key)).length;
               return (
-                <button key={t.key} onClick={() => setTab(t.key)} className={`px-2.5 md:px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium whitespace-nowrap ${tab === t.key ? 'bg-[#6C2BFF] text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
+                <button key={t.key} data-testid={`contests-tab-${t.key}`} onClick={() => setTab(t.key)} className={`px-2.5 md:px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium whitespace-nowrap ${tab === t.key ? 'bg-[#6C2BFF] text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
                   {t.label} <span className={`ml-1 text-[10px] md:text-xs ${tab === t.key ? 'text-white/80' : 'text-slate-400'}`}>({count})</span>
                 </button>
               );
@@ -111,7 +115,7 @@ export default function CompetitionsAdmin() {
               <div className="flex gap-3 p-3">
                 <img src={c.image} alt="" className="w-20 h-20 rounded-lg object-cover" />
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2"><span className={`text-[10px] uppercase px-2 py-0.5 rounded-full ${colors[c.status] || colors.draft}`}>{c.status}</span><span className="text-xs text-slate-500">{c.category}</span></div>
+                  <div className="flex items-center gap-2"><span data-testid={`contest-phase-${c.contest_id}`} className={`text-[10px] uppercase px-2 py-0.5 rounded-full ${colors[phaseOf(c)] || colors.draft}`}>{PHASE_LABEL[phaseOf(c)] || c.status}</span><span className="text-xs text-slate-500">{c.category}</span></div>
                   <div className="font-semibold text-slate-900 line-clamp-2 mt-1">{c.title}</div>
                   <div className="text-xs text-slate-500 mt-1">Prize {Number(c.prize_amount || 0) > 0 ? gbp(c.prize_amount) : ''}{Number(c.prize_bonus_tokens || 0) > 0 ? `${Number(c.prize_amount || 0) > 0 ? ' + ' : ''}${Number(c.prize_bonus_tokens).toLocaleString()} Winning Bonus Tokens` : ''} • {c.tickets_sold || 0}/{c.tickets_total} • {gbp(c.price)}/entry</div>
                   <div className="text-xs text-slate-400 mt-0.5">Ends {new Date(c.end_date).toLocaleDateString('en-GB')}</div>
@@ -133,8 +137,9 @@ export default function CompetitionsAdmin() {
                 <Button size="sm" variant="outline" onClick={() => setEditing(c)}><Pencil className="w-3.5 h-3.5 mr-1" /> Edit</Button>
                 {c.status === 'draft' && !c.public_coming_soon && <Button size="sm" onClick={() => launch(c.contest_id)} className="bg-emerald-600 hover:bg-emerald-700"><Play className="w-3.5 h-3.5 mr-1" /> Launch</Button>}
                 {c.public_coming_soon === true && <Button size="sm" variant="outline" onClick={() => pauseComingSoon(c.contest_id)}><Pause className="w-3.5 h-3.5 mr-1" /> Pause Coming Soon</Button>}
-                {c.status === 'live' && <Button size="sm" variant="outline" onClick={() => pause(c.contest_id)}><Pause className="w-3.5 h-3.5 mr-1" /> Pause</Button>}
-                {c.status === 'live' && <Button size="sm" onClick={() => draw(c.contest_id)} className="bg-[#6C2BFF] hover:bg-[#4A15D9]"><Trophy className="w-3.5 h-3.5 mr-1" /> Draw</Button>}
+                {phaseOf(c) === 'live' && <Button size="sm" variant="outline" onClick={() => pause(c.contest_id)}><Pause className="w-3.5 h-3.5 mr-1" /> Pause</Button>}
+                {phaseOf(c) === 'live' && !c.game_type && <Button size="sm" data-testid={`contest-draw-${c.contest_id}`} onClick={() => draw(c.contest_id)} className="bg-[#6C2BFF] hover:bg-[#4A15D9]"><Trophy className="w-3.5 h-3.5 mr-1" /> Draw</Button>}
+                {phaseOf(c) === 'completed' && <span data-testid={`contest-completed-${c.contest_id}`} className="inline-flex items-center gap-1 rounded-md bg-sky-50 px-2.5 text-xs font-semibold text-sky-700"><Trophy className="w-3.5 h-3.5" /> Completed</span>}
                 <Button size="sm" variant="outline" onClick={() => remove(c.contest_id)} className="text-rose-600 hover:text-rose-700 border-rose-200"><Trash2 className="w-3.5 h-3.5" /></Button>
               </div>
             </div>

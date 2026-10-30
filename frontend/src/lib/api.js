@@ -570,6 +570,25 @@ export const drawStudioAPI = {
 };
 export const contestWinnersAPI = () => api.get('/public/contest-winners').then(r => r.data);
 export const contestWinnerMediaBlob = (rid) => api.get(`/contest-winners/media/${rid}`, { responseType: 'blob' }).then(r => r.data);
+export const paidWinnersAPI = {
+  winners: (params) => api.get('/admin/paid-winners/winners', { params }).then(r => r.data),
+  approve: (id, wallet) => api.post(`/admin/paid-winners/winners/${id}/approve`, { wallet }).then(r => r.data),
+  setWinnerVisible: (id, visible) => api.put(`/admin/paid-winners/winners/${id}/visibility`, { visible }).then(r => r.data),
+  contests: () => api.get('/admin/paid-winners/contests').then(r => r.data),
+  setPublication: (cid, body) => api.put(`/admin/paid-winners/contests/${cid}/publication`, body).then(r => r.data),
+  upload: (cid, kind, file, caption = '', onProgress) => { const fd = new FormData(); fd.append('kind', kind); fd.append('caption', caption); fd.append('file', file); return api.post(`/admin/paid-winners/contests/${cid}/media`, fd, { onUploadProgress: (e) => onProgress?.(e.total ? e.loaded / e.total : 0) }).then(r => r.data); },
+  reorder: (cid, ids) => api.put(`/admin/paid-winners/contests/${cid}/media/order`, { media_ids: ids }).then(r => r.data),
+  removeMedia: (cid, mid) => api.delete(`/admin/paid-winners/contests/${cid}/media/${mid}`).then(r => r.data),
+  setRoundMediaVisible: (cid, rid, visible) => api.put(`/admin/paid-winners/contests/${cid}/round-media/${rid}/visibility`, { visible }).then(r => r.data),
+  list: (tab) => api.get('/public/paid-winners', { params: { tab } }).then(r => r.data),
+  contestWinners: (cid) => api.get(`/public/paid-winners/${cid}/winners`).then(r => r.data),
+  leaderboard: (cid) => api.get(`/public/paid-winners/${cid}/leaderboard`).then(r => r.data),
+  gallery: (cid) => api.get(`/public/paid-winners/${cid}/gallery`).then(r => r.data),
+  mediaUrl: (cid, mid) => `${API}/public/paid-winners/media/${cid}/${mid}`,
+  roundMediaUrl: (cid, rid) => `${API}/public/paid-winners/round-media/${cid}/${rid}`,
+  adminMediaBlob: (cid, mid) => api.get(`/admin/paid-winners/media/${cid}/${mid}`, { responseType: 'blob' }).then(r => r.data),
+};
+
 
 
 export const worldGcCompetitionAdminAPI = {

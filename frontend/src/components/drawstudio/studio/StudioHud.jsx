@@ -51,7 +51,7 @@ function Confetti({ S, w, h }) {
     ref.current.instanceColor.needsUpdate = true;
   }, []);
   useFrame((_, dtRaw) => {
-    const dt = Math.min(dtRaw, 0.05) * 60;
+    const dt = Math.min(dtRaw, 0.12) * 60;
     const s = S.current;
     if (s.confettiAt && s.confettiAt !== fired.current) {
       fired.current = s.confettiAt;
@@ -104,7 +104,7 @@ function WinnerCards({ view, u, w }) {
   const cw = 380 * u;
   const scale = Math.min(1, (w * 0.92) / (winners.length * (cw + 30 * u)));
   const group = useRef();
-  useFrame(() => group.current?.children.forEach((c) => { c.scale.setScalar(c.scale.x + (scale - c.scale.x) * 0.08); }));
+  useFrame((_, dt) => group.current?.children.forEach((c) => { c.scale.setScalar(c.scale.x + (scale - c.scale.x) * Math.min(1, dt * 5)); }));
   return (
     <>
       <mesh position={[0, 0, -2]}><planeGeometry args={[w * 2, w * 2]} /><meshBasicMaterial color="#03010c" transparent opacity={0.93} /></mesh>
@@ -132,9 +132,9 @@ function Finale({ view, u, w }) {
   return (
     <>
       <mesh position={[0, 0, -2]}><planeGeometry args={[w * 2, w * 2]} /><meshBasicMaterial color="#03010c" transparent opacity={0.93} /></mesh>
-      <Panel w={900 * u} h={(190 + rows.length * 42) * u} y={-10 * u} tex={tex} />
-      <Text font={FONTS.title} fontSize={56 * u} position={[0, (70 + rows.length * 21) * u, 0]} color="#ffd54a">DRAW COMPLETE</Text>
-      <Text font={FONTS.bold} fontSize={20 * u} position={[0, (18 + rows.length * 21) * u, 0]} color="#ffffff" letterSpacing={0.1}>{`TOTAL PRIZES ${gbp(view.totalPrize)}  •  ${rows.length} WINNER${rows.length === 1 ? '' : 'S'}`}</Text>
+      <Panel w={900 * u} h={(123 + rows.length * 42) * u} y={33.5 * u} tex={tex} />
+      <Text font={FONTS.title} fontSize={52 * u} position={[0, (55 + rows.length * 21) * u, 0]} color="#ffd54a">DRAW COMPLETE</Text>
+      <Text font={FONTS.bold} fontSize={19 * u} position={[0, (10 + rows.length * 21) * u, 0]} color="#ffffff" letterSpacing={0.1}>{`TOTAL PRIZES ${gbp(view.totalPrize)}  •  ${rows.length} WINNER${rows.length === 1 ? '' : 'S'}`}</Text>
       {rows.map(({ r, i, x }, k) => {
         const y = ((rows.length * 21) - 30 - k * 42) * u;
         const c = k % 2 ? '#e8e0ff' : '#ffffff';

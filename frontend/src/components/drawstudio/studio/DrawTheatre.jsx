@@ -122,7 +122,7 @@ export function DrawTheatre({ mode, contest, rounds, tickets, plan, results = []
     setSaving(0);
     try { await drawStudioAPI.saveRecording(rec.last.blob, { mode: mode === 'official' ? 'official' : 'preview', contest_id: contest.contest_id, plan_id: plan?.plan_id, label: contest.title?.slice(0, 120), onProgress: setSaving }); setSaving(1); } catch (e) { setError(errText(e)); setSaving(null); }
   };
-  const close = () => { rec.stop(); audio?.stopAll(); if (document.fullscreenElement) document.exitFullscreen(); onClose(); };
+  const close = () => { capture.cancel(); rec.stop(); audio?.stopAll(); if (document.fullscreenElement) document.exitFullscreen(); onClose(); };
 
   const last = round === rounds.length - 1;
   const action = {
