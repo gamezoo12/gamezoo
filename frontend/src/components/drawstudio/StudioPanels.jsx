@@ -13,6 +13,7 @@ export function FlowPanel({ rounds }) {
         {rounds.map((r, i) => (
           <li key={i} className="rounded-xl border border-white/5 bg-[#0b0724] p-3" data-testid={`draw-flow-round-${i}`}>
             <div className="flex items-center justify-between text-sm font-bold text-white"><span>{i + 1}. {r.name}</span><span className="text-amber-300">{money(r.prize_amount)} × {r.num_winners}</span></div>
+            {i > 0 && <p className={`mt-1 text-[11px] font-bold ${r.allow_previous_winners ? 'text-emerald-300' : 'text-indigo-200/60'}`} data-testid={`draw-flow-repeat-${i}`}>{r.allow_previous_winners ? 'Earlier winners can win again' : 'Earlier winners excluded'}</p>}
             <div className="mt-2 grid grid-cols-4 gap-1 text-center text-[10px] font-bold uppercase text-indigo-200/70">
               {[['Enter pool', r.load_duration_s], ['Mix', r.mix_duration_s], ['Draw', r.reveal_duration_s * r.num_winners], ['Reveal', null]].map(([k, v]) => (
                 <div key={k} className="rounded-lg bg-white/5 px-1 py-1.5">{k}<div className="text-xs text-white">{v === null ? 'manual' : `${v}s`}</div></div>

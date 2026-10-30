@@ -25,7 +25,17 @@ function RoundRow({ r, i, update, remove, locked, drawn }) {
               onBlur={(e) => parse !== 'text' && update(i, { [key]: parse(e.target.value) })} data-testid={`draw-round-${key}-${i}`} />}
         </td>
       ))}
-      <td className="px-2 py-2 text-center"><input type="checkbox" className="h-4 w-4 accent-amber-400" disabled={locked} checked={r.allow_previous_winners} onChange={(e) => update(i, { allow_previous_winners: e.target.checked })} data-testid={`draw-round-repeat-${i}`} aria-label="Earlier winners stay eligible" /></td>
+      <td className="px-2 py-2">
+        {i === 0 ? <span className="text-[11px] text-indigo-200/50" data-testid={`draw-round-repeat-na-${i}`}>First round</span> : (
+          <label className="inline-flex cursor-pointer items-center gap-2 whitespace-nowrap text-[11px] font-bold text-indigo-100">
+            <button type="button" role="switch" aria-checked={r.allow_previous_winners} disabled={locked} onClick={() => update(i, { allow_previous_winners: !r.allow_previous_winners })} data-testid={`draw-round-repeat-${i}`}
+              className={`relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:opacity-60 ${r.allow_previous_winners ? 'bg-emerald-400' : 'bg-white/20'}`}>
+              <span className={`absolute left-0 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${r.allow_previous_winners ? 'translate-x-4' : 'translate-x-0.5'}`} />
+            </button>
+            <span data-testid={`draw-round-repeat-label-${i}`}>{`${i === 1 ? "Round 1" : `Rounds 1–${i}`} winners ${r.allow_previous_winners ? "CAN win again" : "excluded"}`}</span>
+          </label>
+        )}
+      </td>
       <td className="px-2 py-2">{!locked && <button type="button" onClick={() => remove(i)} className="rounded-full p-1.5 text-rose-300 transition-colors hover:bg-rose-500/10" data-testid={`draw-round-remove-${i}`} aria-label="Remove round"><Trash2 className="h-4 w-4" /></button>}</td>
     </tr>
   );
@@ -39,7 +49,7 @@ export function RoundsEditor({ rounds, setRounds, locked, results }) {
       <div className="overflow-x-auto rounded-xl border border-white/10">
         <table className="w-full min-w-[880px] text-left">
           <thead className="bg-white/5 text-[10px] font-black uppercase tracking-wider text-indigo-200/70">
-            <tr><th className="px-2 py-2">#</th>{COLS.map(([k, label]) => <th key={k} className="px-1 py-2">{label}</th>)}<th className="px-2 py-2" title="Earlier winners stay eligible">Repeat</th><th /></tr>
+            <tr><th className="px-2 py-2">#</th>{COLS.map(([k, label]) => <th key={k} className="px-1 py-2">{label}</th>)}<th className="px-2 py-2">Earlier winners</th><th /></tr>
           </thead>
           <tbody>{rounds.map((r, i) => <RoundRow key={i} r={r} i={i} update={update} remove={remove} locked={locked} drawn={Boolean(results?.[i])} />)}</tbody>
         </table>

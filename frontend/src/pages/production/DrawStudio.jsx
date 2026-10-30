@@ -106,7 +106,7 @@ export default function DrawStudio() {
 
           {pool && <section className={card}>
             <h2 className="text-lg font-black">2. Configure Draw Rounds</h2>
-            <p className="mb-3 mt-1 text-xs text-indigo-200/60">Every round uses this contest's ticket pool. Durations are in seconds. Tick "Repeat" to let earlier winners win again.</p>
+            <p className="mb-3 mt-1 text-xs text-indigo-200/60">Every round uses this contest's ticket pool. Durations are in seconds. Use the "Earlier winners" switch on each round to let winners from earlier rounds enter and win again.</p>
             <RoundsEditor rounds={rounds} setRounds={setRounds} locked={locked} results={results} />
             <TotalsRow rounds={rounds} budget={budget} published={published} />
             {budget > published && <p className="mt-2 text-sm font-bold text-rose-300" data-testid="draw-budget-error">Total prizes exceed the contest's published prize of {money(published)}.</p>}

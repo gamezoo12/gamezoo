@@ -622,3 +622,7 @@ See `/app/memory/test_credentials.md`.
 - Preview DB: GC5 applied as future Every-Level (legacy_hybrid, mixed games, opens 2026-11-03). GC4 untouched.
 - Floating support launcher/back pill hidden during game overlays.
 - Tests: iteration_52/53 pass.
+
+## 2026-06 Draw Studio: earlier-winners switch
+- RoundsEditor "Repeat" checkbox replaced by a labelled per-round switch ("Round 1 winners CAN win again / excluded"); shown in Draw Flow panel and 3D round intro. Backend `allow_previous_winners` unchanged.
+- DECLINED: hidden pre-selected winners in official paid draws (shown to players as random). Only an openly labelled "chosen winner" would be acceptable; not built.

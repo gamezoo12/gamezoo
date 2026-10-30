@@ -84,6 +84,7 @@ function Intro({ view, u }) {
       <Text font={FONTS.semi} fontSize={22 * u} position={[0, 150 * u, 0]} color="#c9b8ff" letterSpacing={0.2} maxWidth={760 * u} textAlign="center">{(view.title || '').toUpperCase()}</Text>
       <Text font={FONTS.num} fontSize={120 * u} position={[0, 55 * u, 0]} color="#ffd54a" outlineWidth={2 * u} outlineColor="#7a4a00">{first ? gbp(view.totalPrize) : r.name.toUpperCase()}</Text>
       <Text font={FONTS.bold} fontSize={26 * u} position={[0, -30 * u, 0]} color="#ffffff" letterSpacing={0.12}>{first ? 'GRAND PRIZE DRAW' : `ROUND ${view.round + 1} · ${gbp(r.prize_amount)} × ${r.num_winners}`}</Text>
+      {!first && <Text font={FONTS.semi} fontSize={18 * u} position={[0, -80 * u, 0]} color={r.allow_previous_winners ? '#6ee7b7' : '#c9b8ff'} letterSpacing={0.12}>{r.allow_previous_winners ? 'EARLIER WINNERS ARE BACK IN THE DRAW' : 'EARLIER WINNERS HAVE BEEN REMOVED'}</Text>}
       {first && view.rounds.slice(0, 4).map((x, i, arr) => (
         <group key={i} position={[(i - (arr.length - 1) / 2) * 180 * u, -100 * u, 0]}>
           <mesh position={[0, 0, -0.5]}><planeGeometry args={[164 * u, 70 * u]} /><meshBasicMaterial color={tierOf(i).b} transparent opacity={0.9} /></mesh>
