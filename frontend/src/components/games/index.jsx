@@ -663,23 +663,25 @@ export function PatternRepeat({ onComplete }) {
 
 // ---------- Registry ----------
 import { GAMES_V2 } from './games_v2';
+import { PremiumColorMatch, PremiumOddOne, PremiumSimon, PremiumTrivia, PremiumWhack } from './premium/batch2';
+import { PremiumMathSprint, PremiumMemory, PremiumReaction, PremiumTargetTap, PremiumWordUnscramble } from './premium/batch1';
 
 export const GAME_MAP = {
-  memory_match: (config, onComplete) => <MemoryMatch config={config} onComplete={onComplete} />,
+  memory_match: (config, onComplete) => <PremiumMemory config={config} onComplete={onComplete} />,
   number_sequence: (config, onComplete) => <NumberSequence config={config} onComplete={onComplete} />,
-  target_tap: (config, onComplete) => <TargetTap config={config} onComplete={onComplete} />,
-  word_unscramble: (config, onComplete) => <WordUnscramble config={config} onComplete={onComplete} />,
+  target_tap: (config, onComplete) => <PremiumTargetTap config={config} onComplete={onComplete} />,
+  word_unscramble: (config, onComplete) => <PremiumWordUnscramble config={config} onComplete={onComplete} />,
   emoji_riddle: (config, onComplete) => <EmojiRiddle config={config} onComplete={onComplete} />,
   jigsaw_3x3: (config, onComplete) => <ImageJigsaw size={3} config={config} onComplete={onComplete} />,
   jigsaw_4x4: (config, onComplete) => <ImageJigsaw size={4} config={config} onComplete={onComplete} />,
   slider_puzzle: (config, onComplete) => <SliderPuzzle config={config} onComplete={onComplete} />,
-  math_sprint: (config, onComplete) => <MathSprint config={config} onComplete={onComplete} />,
-  reaction_time: (config, onComplete) => <ReactionTime config={config} onComplete={onComplete} />,
-  trivia_quiz: (config, onComplete) => <TriviaQuiz config={config} onComplete={onComplete} />,
-  simon_says: (config, onComplete) => <SimonSays config={config} onComplete={onComplete} />,
-  whack_a_mole: (config, onComplete) => <WhackMole config={config} onComplete={onComplete} />,
-  odd_one_out: (config, onComplete) => <OddOneOut config={config} onComplete={onComplete} />,
-  color_match: (config, onComplete) => <ColorMatch config={config} onComplete={onComplete} />,
+  math_sprint: (config, onComplete) => <PremiumMathSprint config={config} onComplete={onComplete} />,
+  reaction_time: (config, onComplete) => <PremiumReaction config={config} onComplete={onComplete} />,
+  trivia_quiz: (config, onComplete) => <PremiumTrivia config={config} onComplete={onComplete} />,
+  simon_says: (config, onComplete) => <PremiumSimon config={config} onComplete={onComplete} />,
+  whack_a_mole: (config, onComplete) => <PremiumWhack config={config} onComplete={onComplete} />,
+  odd_one_out: (config, onComplete) => <PremiumOddOne config={config} onComplete={onComplete} />,
+  color_match: (config, onComplete) => <PremiumColorMatch config={config} onComplete={onComplete} />,
   pattern_repeat: (config, onComplete) => <PatternRepeat config={config} onComplete={onComplete} />,
   ...GAMES_V2,
 };

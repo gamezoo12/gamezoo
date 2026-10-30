@@ -77,7 +77,6 @@ const SupportTicketsAdmin = lazy(() => import('./pages/admin/SupportTicketsAdmin
 const PromotionAdminShell = lazy(() => import('./pages/admin/PromotionAdminShell'));
 const PromotionCampaignsAdmin = lazy(() => import('./pages/admin/PromotionCampaignsAdmin'));
 const PromotionCampaignsPage = lazy(() => import('./pages/PromotionCampaignsPage'));
-const PromotionDrawStudio = lazy(() => import('./pages/admin/PromotionDrawStudio'));
 
 const LegalDocPage = lazy(() => import('./pages/legal/LegalDocPage'));
 const PlayGame = lazy(() => import('./pages/PlayGame'));
@@ -560,7 +559,7 @@ function AppRouter() {
 
         <Route
           path="promotion/draw-studio"
-          element={<RequireSuperAdmin><PromotionDrawStudio /></RequireSuperAdmin>}
+          element={<Navigate to="/production/live-draw" replace />}
         />
 
 

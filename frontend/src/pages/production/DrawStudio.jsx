@@ -89,8 +89,10 @@ export default function DrawStudio() {
             <h2 className="text-lg font-black">1. Select Contest</h2>
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <select className="h-11 min-w-0 flex-1 rounded-xl border border-white/15 bg-[#0b0724] px-3 text-sm" value={contestId} onChange={(e) => setContestId(e.target.value)} data-testid="draw-contest-select">
-                <option value="">Select a Paid World contest</option>
-                {contests.map((c) => <option key={c.contest_id} value={c.contest_id}>{c.title} · {c.eligible_tickets} tickets</option>)}
+                <option value="">Select a Paid World or Promotion contest</option>
+                {[['paid_world', 'Paid World contests'], ['promotion', 'Promotion prize draws']].map(([k, label]) => (
+                  <optgroup key={k} label={label}>{contests.filter((c) => (c.kind || 'paid_world') === k).map((c) => <option key={c.contest_id} value={c.contest_id}>{c.title} · {c.eligible_tickets} tickets</option>)}</optgroup>
+                ))}
               </select>
               {pool && <span className="rounded-lg border border-emerald-400/40 px-3 py-1 text-xs font-bold capitalize text-emerald-300" data-testid="draw-contest-status">{pool.contest.status}</span>}
             </div>

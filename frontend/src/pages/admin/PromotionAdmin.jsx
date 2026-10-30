@@ -415,26 +415,24 @@ export default function PromotionAdmin() {
             </div>
 
             <h2 className="text-2xl 2xl:text-4xl font-black mt-2">
-              Cinematic Draw Studio
+              Draws now run in the Visual Draw Studio
             </h2>
 
             <p className="text-white/55 mt-1 2xl:text-lg">
-              16:9 presentation view for screen
-              recording. The server fixes the real
-              winners; the studio only reveals them.
+              All prize draws (Paid World and promotions) are run from Production Panel → Visual Draw Studio.
+              Winners go to Winners &amp; Approvals before any credit.
             </p>
           </div>
 
           <button
             onClick={() =>
               (window.location.href =
-                '/admin/promotion/draw-studio')
+                '/production/live-draw')
             }
             className="px-8 2xl:px-12 py-4 2xl:py-5 rounded-2xl bg-gradient-to-r from-yellow-300 to-yellow-500 text-black font-black text-lg 2xl:text-2xl shadow-lg"
+            data-testid="promotion-open-visual-studio"
           >
-            {draw?.drawn
-              ? 'VIEW DRAW STUDIO'
-              : '🎬 OPEN DRAW STUDIO'}
+            OPEN VISUAL DRAW STUDIO
           </button>
         </div>
 

@@ -12,6 +12,8 @@ import {
 import { useToast } from '../hooks/use-toast';
 import { Upload, X, Loader2 } from 'lucide-react';
 import { GAME_CATALOG, GAME_CATEGORIES } from '../lib/gameCatalog';
+import { DIFFICULTY_LEVELS } from '../lib/difficulty';
+import { GamePreviewDialog } from './games/GamePreviewDialog';
 
 
 // Live preview of the auto-generated skill question. Whenever admin changes
@@ -69,6 +71,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
   };
   const [form, setForm] = useState(() => (isCreate ? emptyForm : (contest || {})));
   const [busy, setBusy] = useState(false);
+  const [previewGame, setPreviewGame] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadErr, setUploadErr] = useState('');
   const fileInputRef = useRef(null);
@@ -299,6 +302,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
         skill_question_type: form.skill_question_type || 'addition',
         skill_question_difficulty: form.skill_question_difficulty || 'easy',
         game_type: form.game_type || null,
+        ...(form.game_config ? { game_config: form.game_config } : {}),
 
         // Existing contest-engine contracts. These remain backend-compatible.
         entry_mode:
@@ -842,6 +846,17 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                     </optgroup>
                   ))}
                 </select>
+                {form.game_type && <div className="mt-3 flex flex-wrap items-end gap-3">
+                  <label className="text-xs font-bold text-slate-600">Difficulty
+                    <select value={form.game_config?.difficulty || 3} onChange={(e) => upd('game_config', { ...(form.game_config || {}), difficulty: Number(e.target.value) })}
+                      data-testid="contest-difficulty-select" className="mt-1 block w-56 rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                      {DIFFICULTY_LEVELS.map((d) => <option key={d.level} value={d.level}>Level {d.level} · {d.name}</option>)}
+                    </select>
+                  </label>
+                  <button type="button" onClick={() => setPreviewGame(true)} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white" data-testid="contest-preview-game">Preview game</button>
+                  <p className="w-full text-[11px] text-slate-500">Game and difficulty lock automatically once paid entries or gameplay start.</p>
+                </div>}
+                {previewGame && <GamePreviewDialog gameId={form.game_type} difficulty={form.game_config?.difficulty || 3} context="Paid World" onClose={() => setPreviewGame(false)} />}
               </section>
             )}
 

@@ -1557,6 +1557,22 @@ async def update_contest_full(contest_id: str, payload: dict, request: Request):
         bonus = float(updates.get('prize_bonus_tokens', current.get('prize_bonus_tokens') or 0))
         if cash + bonus <= 0:
             raise HTTPException(status_code=400, detail='A cash or winning bonus-token prize is required')
+    if 'game_config' in updates:
+        cfg = updates['game_config'] if isinstance(updates['game_config'], dict) else {}
+        if 'difficulty' in cfg:
+            try:
+                cfg['difficulty'] = int(cfg['difficulty'])
+            except (TypeError, ValueError):
+                raise HTTPException(status_code=400, detail='Difficulty must be a level from 1 to 10')
+            if not 1 <= cfg['difficulty'] <= 10:
+                raise HTTPException(status_code=400, detail='Difficulty must be a level from 1 to 10')
+        updates['game_config'] = cfg
+    if {'game_type', 'game_config'} & updates.keys():
+        current = await db.contests.find_one({'contest_id': contest_id}, {'_id': 0, 'game_type': 1, 'game_config': 1}) or {}
+        changed = any(updates[k] != current.get(k) for k in ('game_type', 'game_config') if k in updates)
+        if changed and (await db.tickets.find_one({'contest_id': contest_id}, {'_id': 1})
+                        or await db.game_scores.find_one({'contest_id': contest_id}, {'_id': 1})):
+            raise HTTPException(status_code=409, detail='The game and difficulty are locked because paid entries or gameplay have started')
     r = await db.contests.update_one({'contest_id': contest_id}, {'$set': updates})
     if r.matched_count == 0:
         raise HTTPException(status_code=404, detail='Contest not found')

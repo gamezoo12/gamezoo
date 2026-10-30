@@ -53,11 +53,44 @@ async def _audit(db, action: str, admin: dict, **fields):
                                 "at": _now(), **fields})
 
 
+async def _promotion(db, pid: str) -> Optional[dict]:
+    from routers.promotion_draw_routes import _cfg
+
+    try:
+        cfg = await _cfg(db, pid)
+    except HTTPException:
+        return None
+    if cfg.get("promotion_id") != pid or cfg.get("promotion_type") != "prize_draw":
+        return None
+    end = cfg.get("end_at")
+    try:
+        ended = bool(end) and datetime.fromisoformat(str(end).replace("Z", "+00:00")) <= _now()
+    except ValueError:
+        ended = False
+    return {"contest_id": pid, "title": f"[Promotion] {cfg.get('name') or 'Prize draw'}", "kind": "promotion",
+            "prize_amount": round(float(cfg.get("prize_per_winner_gbp") or 0) * int(cfg.get("winner_count") or 1), 2),
+            "status": "live" if cfg.get("active") and not ended else "closed"}
+
+
+async def _contest(db, cid: str) -> dict:
+    c = await db.contests.find_one({"contest_id": cid}, {"_id": 0, "contest_id": 1, "title": 1, "prize_amount": 1, "status": 1})
+    if c:
+        return {**c, "kind": "paid_world"}
+    p = await _promotion(db, cid)
+    if not p:
+        raise HTTPException(status_code=404, detail="Contest not found")
+    return p
+
+
 async def _pool(db, contest_id: str) -> list[dict]:
     tickets = await db.tickets.find(
         {"contest_id": contest_id, "refunded": {"$ne": True}, "disqualified": {"$ne": True}},
         {"_id": 0, "ticket_id": 1, "ticket_number": 1, "user_id": 1},
     ).sort("ticket_number", 1).to_list(200000)
+    if not tickets and await db.promotion_tickets.find_one({"promotion_id": contest_id}, {"_id": 1}):
+        tickets = [{**t, "ticket_id": f"pt_{contest_id}_{t['ticket_number']}"} for t in await db.promotion_tickets.find(
+            {"promotion_id": contest_id, "ticket_number": {"$ne": None}, "user_id": {"$ne": None}},
+            {"_id": 0, "ticket_number": 1, "user_id": 1}).sort("ticket_number", 1).to_list(200000)]
     users = {}
     ids = list({t["user_id"] for t in tickets})
     for chunk in range(0, len(ids), 5000):
@@ -174,6 +207,13 @@ async def list_contests(request: Request):
         {"$group": {"_id": "$contest_id", "n": {"$sum": 1}}}])}
     for c in contests:
         c["eligible_tickets"] = counts.get(c["contest_id"], 0)
+        c["kind"] = "paid_world"
+    pids = set(await db.promotion_campaigns.distinct("promotion_id")) | set(await db.promotion_config.distinct("promotion_id"))
+    for pid in sorted(p for p in pids if p):
+        promo = await _promotion(db, pid)
+        if promo:
+            promo["eligible_tickets"] = await db.promotion_tickets.count_documents({"promotion_id": pid, "ticket_number": {"$ne": None}})
+            contests.append(promo)
     return {"contests": contests}
 
 
@@ -181,7 +221,7 @@ async def list_contests(request: Request):
 async def contest_pool(contest_id: str, request: Request):
     await require_super_admin(request)
     db = get_db()
-    contest = await db.contests.find_one({"contest_id": contest_id}, {"_id": 0, "contest_id": 1, "title": 1, "prize_amount": 1, "status": 1})
+    contest = await _contest(db, contest_id)
     if not contest:
         raise HTTPException(status_code=404, detail="Contest not found")
     pool = await _pool(db, contest_id)
@@ -204,7 +244,7 @@ async def list_plans(request: Request, contest_id: Optional[str] = None):
 async def create_plan(body: PlanIn, request: Request):
     admin = await require_super_admin(request)
     db = get_db()
-    contest = await db.contests.find_one({"contest_id": body.contest_id}, {"_id": 0})
+    contest = await _contest(db, body.contest_id)
     if not contest:
         raise HTTPException(status_code=404, detail="Contest not found")
     rounds = [r.model_dump() for r in body.rounds]
@@ -212,6 +252,7 @@ async def create_plan(body: PlanIn, request: Request):
     budget, published = await _validate(db, contest, rounds, pool_size)
     plan = {"plan_id": f"dsp_{uuid.uuid4().hex[:12]}", "contest_id": body.contest_id, "contest_title": contest.get("title"),
             "rounds": rounds, "total_budget": budget, "published_prize": published, "status": "draft",
+            "contest_kind": contest.get("kind", "paid_world"),
             "created_at": _now(), "created_by": admin.get("email"), "updated_at": _now()}
     await db[PLANS].insert_one(dict(plan))
     await _audit(db, "plan_created", admin, plan_id=plan["plan_id"], contest_id=body.contest_id, rounds=rounds)
@@ -227,7 +268,7 @@ async def update_plan(plan_id: str, body: PlanIn, request: Request):
         raise HTTPException(status_code=404, detail="Plan not found")
     if plan["status"] != "draft" or body.contest_id != plan["contest_id"]:
         raise HTTPException(status_code=409, detail="Locked plans cannot be edited")
-    contest = await db.contests.find_one({"contest_id": plan["contest_id"]}, {"_id": 0})
+    contest = await _contest(db, plan["contest_id"])
     rounds = [r.model_dump() for r in body.rounds]
     budget, _ = await _validate(db, contest, rounds, len(await _pool(db, plan["contest_id"])))
     result = await db[PLANS].update_one({"plan_id": plan_id, "status": "draft"},
@@ -251,9 +292,11 @@ async def lock_plan(plan_id: str, body: ConfirmIn, request: Request):
         return {"plan": _public_plan(plan), "idempotent_replay": True}
     if await db[PLANS].find_one({"contest_id": plan["contest_id"], "status": {"$in": ["locked", "in_progress", "completed"]}}):
         raise HTTPException(status_code=409, detail="This contest already has a locked or completed official draw")
-    contest = await db.contests.find_one({"contest_id": plan["contest_id"]}, {"_id": 0})
+    contest = await _contest(db, plan["contest_id"])
     if contest.get("status") == "live":
         raise HTTPException(status_code=409, detail="Ticket sales are still open. Close the contest before locking the draw so every ticket is included.")
+    if contest.get("kind") == "promotion" and await db.promotion_draws.find_one({"promotion_id": plan["contest_id"]}, {"_id": 1}):
+        raise HTTPException(status_code=409, detail="This promotion was already drawn with the previous promotion draw tool")
     pool = await _pool(db, plan["contest_id"])
     await _validate(db, contest, plan["rounds"], len(pool))
     seed = secrets.token_hex(32)

@@ -14,6 +14,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 CONTEST_ID = "c_drawstudio_test"
 E2E_ID = "c_drawstudio_e2e"
+PROMO_ID = "promo_drawstudio_test"
 NAMES = ["Amelia Hart", "Oliver Grant", "Isla Moore", "Noah Patel", "Ava Clarke", "Leo Byrne", "Mia Evans",
          "Harry Shah", "Grace Lee", "Jack Turner", "Sophie Wood", "Oscar King"]
 
@@ -46,11 +47,19 @@ async def main():
         await db.tickets.insert_many([{"ticket_id": f"t_dse_{n}", "order_id": f"o_dse_{n // 10}", "contest_id": E2E_ID,
                                        "user_id": rng.choice(users)["user_id"], "ticket_number": n, "created_at": now}
                                       for n in range(1, 1249)])
+    await db.promotion_campaigns.update_one({"promotion_id": PROMO_ID}, {"$setOnInsert": {
+        "promotion_id": PROMO_ID, "name": "[TEST] Draw Studio Promotion £200", "promotion_type": "prize_draw",
+        "campaign_type": "ticket_draw", "winner_count": 2, "prize_per_winner_gbp": 100.0, "active": False,
+        "end_at": "2026-01-01T00:00:00Z", "created_at": now, "is_test": True}}, upsert=True)
+    if await db.promotion_tickets.count_documents({"promotion_id": PROMO_ID}) == 0:
+        rng = random.Random(3)
+        await db.promotion_tickets.insert_many([{"promotion_id": PROMO_ID, "ticket_number": n, "user_id": rng.choice(users)["user_id"],
+                                                 "source": "test", "created_at": now} for n in range(1, 301)])
     if "--reset-e2e" in sys.argv:
-        plans = [p["plan_id"] async for p in db.draw_studio_plans.find({"contest_id": E2E_ID}, {"plan_id": 1})]
+        plans = [p["plan_id"] async for p in db.draw_studio_plans.find({"contest_id": {"$in": [E2E_ID, PROMO_ID]}}, {"plan_id": 1})]
         await db.draw_studio_results.delete_many({"plan_id": {"$in": plans}})
-        await db.draw_studio_plans.delete_many({"contest_id": E2E_ID})
-        await db.winners.delete_many({"contest_id": E2E_ID, "paid_out": {"$ne": True}})
+        await db.draw_studio_plans.delete_many({"contest_id": {"$in": [E2E_ID, PROMO_ID]}})
+        await db.winners.delete_many({"contest_id": {"$in": [E2E_ID, PROMO_ID]}, "paid_out": {"$ne": True}})
         print("reset e2e draw plans", len(plans))
     print("seeded", await db.tickets.count_documents({"contest_id": CONTEST_ID}), "+",
           await db.tickets.count_documents({"contest_id": E2E_ID}), "tickets")

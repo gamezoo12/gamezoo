@@ -77,6 +77,7 @@ async def draw_status(request:Request,promotion_id:str|None=None):
 async def run_draw(request:Request,promotion_id:str|None=None):
  admin=await require_admin(request);db=get_db();cfg=await _cfg(db,promotion_id);pid=cfg['promotion_id'];now=datetime.now(timezone.utc)
  if cfg.get('promotion_type') != 'prize_draw':raise HTTPException(400,'Only prize draw promotions allow a draw.')
+ if await db.draw_studio_plans.find_one({'contest_id':pid,'status':{'$in':['locked','in_progress','completed']}},{'_id':1}):raise HTTPException(409,'This promotion is being drawn in the Visual Draw Studio.')
  if await db.promotion_manual_winners.find_one({'_id':pid},{'_id':1}):raise HTTPException(409,'A manual winner is already selected for this promotion.')
  if cfg.get('campaign_type') not in ('ticket_draw','referral_draw'):raise HTTPException(400,'This promotion does not use a ticket draw.')
  if await db.promotion_draws.find_one({'promotion_id':pid},{'_id':1}):raise HTTPException(409,'This promotion has already been drawn.')

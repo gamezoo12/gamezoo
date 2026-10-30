@@ -3,6 +3,9 @@ import { AlertTriangle, CheckCircle2, CircleDot, FlaskConical, Lock, Save } from
 import { worldGcCompetitionAdminAPI } from '../../lib/api';
 import { GCPreviewPanel } from '../../components/admin/GCPreviewPanel';
 import { GAME_CATALOG } from '../../lib/gameCatalog';
+import { DIFFICULTY_LEVELS } from '../../lib/difficulty';
+import { GAME_MAP } from '../../components/games';
+import { GamePreviewDialog } from '../../components/games/GamePreviewDialog';
 
 const gcOptions = Array.from({ length: 50 }, (_, index) => index + 4);
 const gameNames = { ...Object.fromEntries(GAME_CATALOG.map((g) => [g.id, g.label])), colour_match: 'Colour Match (Free World, server-checked)' };
@@ -32,7 +35,7 @@ function StatusPipeline({ status, hasDraft }) {
   );
 }
 
-function GameFields({ row, onChange, disabled, options }) {
+function GameFields({ row, onChange, disabled, options, onPreview }) {
   const cfg = row.game_config || {};
   const setCfg = (patch) => onChange({ game_config: { ...cfg, ...patch } });
   return <>
@@ -44,6 +47,10 @@ function GameFields({ row, onChange, disabled, options }) {
       <label><span className={labelClass}>Colours</span><input className={fieldClass} disabled={disabled} type="number" min="2" max="11" value={cfg.colours ?? 6} onChange={(e) => setCfg({ colours: Number(e.target.value) })} /></label>
       <label><span className={labelClass}>Rounds</span><input className={fieldClass} disabled={disabled} type="number" min="1" max="100" value={cfg.rounds ?? 10} onChange={(e) => setCfg({ rounds: Number(e.target.value) })} /></label>
     </>}
+    {row.game_id && row.game_id !== 'memory_match' && row.game_id !== 'colour_match' && <label><span className={labelClass}>Difficulty</span><select className={fieldClass} disabled={disabled} value={cfg.difficulty ?? 3} onChange={(e) => setCfg({ difficulty: Number(e.target.value) })} data-testid={`gc-difficulty-${row.level ?? 'champion'}`}>
+      {DIFFICULTY_LEVELS.map((d) => <option key={d.level} value={d.level}>Level {d.level} · {d.name}</option>)}
+    </select></label>}
+    {row.game_id && GAME_MAP[row.game_id] && <button type="button" className="self-end rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white" onClick={() => onPreview(row)} data-testid={`gc-preview-game-${row.level ?? 'champion'}`}>Preview game</button>}
   </>;
 }
 
@@ -55,6 +62,7 @@ export default function WorldGCCompetitionAdmin() {
   const [report, setReport] = useState(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [gamePreview, setGamePreview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -108,6 +116,7 @@ export default function WorldGCCompetitionAdmin() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-5" data-testid="world-gc-settings">
+      {gamePreview && <GamePreviewDialog gameId={gamePreview.row.game_id} difficulty={gamePreview.row.game_config?.difficulty || 3} context={gamePreview.label} onClose={() => setGamePreview(null)} />}
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-950">GC Competition Settings</h1>
@@ -175,7 +184,7 @@ export default function WorldGCCompetitionAdmin() {
               return <article key={n} className={`rounded-lg border p-4 ${locked ? 'border-slate-200 bg-slate-50' : 'border-slate-200 bg-white'}`} data-testid={`gc-level-card-${n}`}>
                 <div className="mb-3 flex items-center justify-between"><h3 className="font-semibold text-slate-800">Level {n}</h3>{locked && <span className="flex items-center gap-1 text-xs font-semibold text-slate-500"><Lock className="h-3 w-3" /> Opened — existing settings kept</span>}</div>
                 {locked ? <div className="space-y-2 text-sm text-slate-600" data-testid={`gc-level-locked-${n}`}><p>Running: <b>{gameNames[states?.levels?.[n - 1]?.effective_game_id] || states?.levels?.[n - 1]?.effective_game_id || 'Number Sequence'}</b>{states?.levels?.[n - 1]?.applied_model === 'every_level' ? ' · Every-Level Bonus Tokens' : ''}</p>{(row.game_id && row.game_id !== states?.levels?.[n - 1]?.effective_game_id) && <p role="note" className="rounded-md border border-amber-300 bg-amber-50 p-2 font-semibold text-amber-900" data-testid={`gc-level-locked-notice-${n}`}>Level {n} is already open. Its game is locked to protect existing player progress. Your new selection ({gameNames[row.game_id] || row.game_id}) has not been applied to this level.</p>}</div> : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <GameFields row={row} disabled={locked} options={gameOptions} onChange={(patch) => updateLevel(n, patch)} />
+                  <GameFields row={row} disabled={locked} options={gameOptions} onPreview={(r) => setGamePreview({ row: r, label: `${draft.model === 'every_level' ? 'Free World Every-Level' : 'Free World Champion-Only'} · GC ${gcNumber} · Level ${n}` })} onChange={(patch) => updateLevel(n, patch)} />
                   {draft.model === 'every_level' && [1, 2, 3, 4, 5].map((rank) => <label key={rank}><span className={labelClass}>{rank}{['st', 'nd', 'rd', 'th', 'th'][rank - 1]} place · Bonus Tokens</span><input className={fieldClass} disabled={locked} type="number" min="0" max="500" step="1" value={row.bonus_rewards?.[String(rank)] ?? defaultRewards[String(rank)]} onChange={(e) => updateLevel(n, { bonus_rewards: { ...defaultRewards, ...row.bonus_rewards, [String(rank)]: Number(e.target.value) } })} data-testid={`gc-bonus-${n}-${rank}`} /></label>)}
                 </div>}
               </article>;
@@ -185,7 +194,7 @@ export default function WorldGCCompetitionAdmin() {
           <section className="rounded-lg border border-slate-200 bg-white p-4" data-testid="gc-champion-settings">
             <h2 className="font-bold text-slate-900">Champion Level game</h2>
             <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              <GameFields row={draft.champion || {}} disabled={(isActiveGc && !states.champion_unopened) || status === 'completed'} options={gameOptions} onChange={(patch) => setDraft((cur) => ({ ...cur, champion: { ...cur.champion, ...patch } }))} />
+              <GameFields row={draft.champion || {}} onPreview={(r) => setGamePreview({ row: r, label: `${draft.model === 'every_level' ? 'Free World Every-Level' : 'Free World Champion-Only'} · GC ${gcNumber} · Champion Level` })} disabled={(isActiveGc && !states.champion_unopened) || status === 'completed'} options={gameOptions} onChange={(patch) => setDraft((cur) => ({ ...cur, champion: { ...cur.champion, ...patch } }))} />
             </div>
             <p className="mt-2 text-xs text-slate-500">Champion prizes stay in the existing World Champion prize settings.</p>
           </section>
