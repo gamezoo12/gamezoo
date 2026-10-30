@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BadgeCheck, Copy, ExternalLink, Plus, RefreshCw, Users } from 'lucide-react';
+import { BadgeCheck, Copy, ExternalLink, Plus, QrCode, RefreshCw, Users } from 'lucide-react';
+import { InfluencerPosterDialog } from '../../components/admin/InfluencerPosterDialog';
 import { adminAPI } from '../../lib/api';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -31,6 +32,7 @@ export default function InfluencersAdmin() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [posterPromo, setPosterPromo] = useState(null);
 
   const selectedProfile = profiles.find(profile => profile.influencer_id === selected);
   const selectedPromos = useMemo(() => promos.filter(promo => promo.influencer_id === selected), [promos, selected]);
@@ -344,7 +346,7 @@ export default function InfluencersAdmin() {
                   {selectedPromos.map(promo => (
                     <div key={promo.promo_id} className="flex flex-wrap items-center justify-between gap-3 p-4">
                       <div><p className="font-semibold">{promo.campaign_name || promo.code} <span className="text-xs text-slate-500">{promo.active ? 'Active' : 'Paused'}</span></p><p className="text-xs text-slate-500">{promo.code} · {promo.registration_commission_pence || 0}p / eligible signup · {(promo.topup_commission_bps || 0) / 100}% top-up</p><a className="mt-1 block break-all text-xs text-emerald-700 underline" href={campaignLink(promo.code)}>{campaignLink(promo.code)}</a></div>
-                      <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => copy(campaignLink(promo.code))}><Copy className="mr-1 h-3.5 w-3.5" /> Copy</Button><Button size="sm" variant="outline" onClick={() => editCampaign(promo)}>Edit</Button><Button size="sm" variant="outline" disabled={busy} onClick={() => setCampaignActive(promo)}>{promo.active ? 'Pause' : 'Activate'}</Button></div>
+                      <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => copy(campaignLink(promo.code))}><Copy className="mr-1 h-3.5 w-3.5" /> Copy</Button><Button size="sm" variant="outline" onClick={() => setPosterPromo(promo)} data-testid={`influencer-qr-btn-${promo.code}`}><QrCode className="mr-1 h-3.5 w-3.5" /> QR & Poster</Button><Button size="sm" variant="outline" onClick={() => editCampaign(promo)}>Edit</Button><Button size="sm" variant="outline" disabled={busy} onClick={() => setCampaignActive(promo)}>{promo.active ? 'Pause' : 'Activate'}</Button></div>
                     </div>
                   ))}
                   {!selectedPromos.length && <p className="p-4 text-sm text-slate-500">No campaigns created for this partner.</p>}
@@ -359,6 +361,7 @@ export default function InfluencersAdmin() {
           )}
         </div>
       </section>
+      {posterPromo && <InfluencerPosterDialog promo={posterPromo} link={campaignLink(posterPromo.code)} onClose={() => setPosterPromo(null)} notify={setMessage} />}
     </div>
   );
 }

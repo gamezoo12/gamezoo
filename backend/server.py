@@ -252,6 +252,7 @@ from routers.world_gc_competition_routes import (
 )
 from routers.draw_studio_routes import router as draw_studio_router, ensure_draw_studio_indexes
 from routers.draw_studio_ops_routes import router as draw_studio_ops_router, public_media_router as draw_media_public_router
+from routers.admin_winners_all_routes import router as admin_winners_all_router
 from routers.paid_winners_routes import admin_router as paid_winners_admin_router, public_router as paid_winners_public_router
 from routers.world_gc_live_routes import (
     admin_router as world_gc_live_admin_router,
@@ -330,6 +331,7 @@ app.include_router(draw_studio_router)
 app.include_router(draw_studio_ops_router)
 app.include_router(draw_media_public_router)
 app.include_router(paid_winners_admin_router)
+app.include_router(admin_winners_all_router)
 app.include_router(paid_winners_public_router)
 app.include_router(world_gc_live_admin_router)
 app.include_router(world_gc_live_public_router)

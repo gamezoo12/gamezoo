@@ -176,7 +176,23 @@ async def set_publication(cid: str, body: PublicationIn, request: Request):
         raise HTTPException(status_code=404, detail="Only completed Paid World contests can be published")
     await db[PUB].update_one({"contest_id": cid}, {"$set": {**body.model_dump(), "updated_at": _now(), "updated_by": admin.get("email")}}, upsert=True)
     await _audit(db, admin, "publication", contest_id=cid, settings=body.model_dump())
-    return {"ok": True}
+    sent = await _shout_out(db, cid) if body.show_winners else 0
+    return {"ok": True, "shoutouts_sent": sent}
+
+
+async def _shout_out(db, cid: str) -> int:
+    claimed = await db[PUB].update_one({"contest_id": cid, "shoutout_sent_at": {"$exists": False}}, {"$set": {"shoutout_sent_at": _now()}})
+    if not claimed.modified_count:
+        return 0
+    from notifications import notify
+    c = await db.contests.find_one({"contest_id": cid}, {"_id": 0, "title": 1}) or {}
+    users = {w["user_id"] async for w in db.winners.find({"contest_id": cid}, {"_id": 0}) if _official(w) and w.get("user_id")}
+    for uid in users:
+        await notify(db, user_id=uid, kind="winner_shoutout", title=f"You're in the Hall of Winners! 🏆",
+                     body=f"Your win in “{c.get('title') or 'Prize League'}” is now published. Tap to see your result.",
+                     contest_id=cid, target_url=f"/my-account/contest-winners?contest={cid}")
+    await db[PUB].update_one({"contest_id": cid}, {"$set": {"shoutout_count": len(users)}})
+    return len(users)
 
 
 @admin_router.post("/contests/{cid}/media")

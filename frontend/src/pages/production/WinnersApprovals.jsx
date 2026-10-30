@@ -11,7 +11,7 @@ const BADGE = { pending: 'bg-amber-400/15 text-amber-200', approved: 'bg-sky-400
 const field = 'mt-1 h-10 w-full rounded-lg border border-white/15 bg-[#0b0724] px-3 text-sm text-white';
 const pill = (on) => `rounded-full px-4 py-2 text-sm font-black capitalize transition-colors ${on ? 'bg-amber-400 text-[#1a1033]' : 'bg-white/5 text-white/70 hover:bg-white/10'}`;
 
-function EditDialog({ winner, onClose, onSaved }) {
+export function EditDialog({ winner, onClose, onSaved }) {
   const [form, setForm] = useState({ prize_amount: winner.prize_amount, reward_type: winner.reward_type === 'bonus' ? 'bonus' : 'winnings', reason: '' });
   const [err, setErr] = useState('');
   const save = async () => {

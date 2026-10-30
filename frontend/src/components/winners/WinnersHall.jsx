@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Film, ListOrdered, Sparkles, Trophy } from 'lucide-react';
 import { paidWinnersAPI } from '../../lib/api';
 import { ContestCard, coverSrc } from './ContestCard';
@@ -60,7 +60,9 @@ export default function WinnersHall() {
   const [list, setList] = useState(null);
   const [open, setOpen] = useState(null);
   const setTab = useCallback((t) => { setTabState(t); setOpen(null); }, []);
-  useEffect(() => { setList(null); paidWinnersAPI.list(tab).then((r) => setList(r.contests)).catch(() => setList([])); }, [tab]);
+  const [params] = useSearchParams();
+  const deep = params.get('contest');
+  useEffect(() => { setList(null); paidWinnersAPI.list(tab).then((r) => { setList(r.contests); const hit = deep && r.contests.find((c) => c.contest_id === deep); if (hit) setOpen(hit); }).catch(() => setList([])); }, [tab, deep]);
   const meta = TABS.find((t) => t.key === tab);
 
   return (

@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { Bell, Check, MailOpen, Trophy, X, ExternalLink } from 'lucide-react';
 import { userAPI } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
@@ -251,6 +252,16 @@ export default function NotificationsBell({ dark = false }) {
                 >
                   View Support Ticket <ExternalLink className="w-4 h-4" />
                 </button>
+              )}
+              {!isTicketNotification(detail) && detail.target_url?.startsWith('/') && (
+                <Link
+                  to={detail.target_url}
+                  onClick={() => { setDetail(null); setOpen(false); }}
+                  data-testid="notification-open-link"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-amber-400 px-3.5 py-2 text-sm font-bold text-[#1a1033] hover:bg-amber-300 transition"
+                >
+                  View my result <ExternalLink className="w-4 h-4" />
+                </Link>
               )}
             </div>
           </div>

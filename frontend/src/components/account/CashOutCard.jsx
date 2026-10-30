@@ -4,6 +4,7 @@ import { useToast } from '../../hooks/use-toast';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { CashoutReviewStep } from './CashoutReviewStep';
 import {
   Banknote, Coins, Gift, Lock, ShieldCheck, ArrowRight, CheckCircle2,
   Landmark, Star, Trophy, ChevronRight,
@@ -64,16 +65,21 @@ export default function CashOutCard() {
     } finally { setAddingBank(false); }
   };
 
-  const submit = async () => {
+  const submit = async (reviewId) => {
+    const mode = config?.review_mode || 'disabled';
+    if (reviewId === undefined && mode !== 'disabled' && !config?.has_review_bypass) { setStep('review'); return; }
     setSubmitting(true);
     try {
-      const res = await cashoutAPI.request({ amount_tokens: parseInt(amount, 10), bank_account_id: bankId });
+      const res = await cashoutAPI.request({ amount_tokens: parseInt(amount, 10), bank_account_id: bankId, review_id: reviewId || undefined });
       setSuccess(res); setStep('success');
       await load();
     } catch (e) {
-      toast({ title: e?.response?.data?.detail || 'Cash out failed', variant: 'destructive' });
+      const d = e?.response?.data?.detail;
+      if (d?.code === 'REVIEW_REQUIRED') { setStep('review'); return; }
+      toast({ title: typeof d === 'string' ? d : 'Cash out failed', variant: 'destructive' });
     } finally { setSubmitting(false); }
   };
+  const openSupport = () => { setOpen(false); window.dispatchEvent(new CustomEvent('pl-open-support-ticket', { detail: {} })); };
 
   const amt = parseInt(amount, 10) || 0;
   const amountValid = amt > 0 && amt <= Math.floor(available);
@@ -225,11 +231,15 @@ export default function CashOutCard() {
               <p className="text-[11px] text-slate-500">We'll review your KYC and payment details before completing the payment. No money is sent until an admin approves.</p>
               <div className="flex gap-2">
                 <Button variant="outline" className="flex-1 h-11 rounded-2xl" onClick={() => setStep('bank')}>Back</Button>
-                <Button className="flex-1 h-11 rounded-2xl bg-[#6C2BFF] text-white font-bold" onClick={submit} disabled={submitting} data-testid="cashout-confirm-btn">
+                <Button className="flex-1 h-11 rounded-2xl bg-[#6C2BFF] text-white font-bold" onClick={() => submit()} disabled={submitting} data-testid="cashout-confirm-btn">
                   {submitting ? 'Submitting…' : 'Confirm cash out'}
                 </Button>
               </div>
             </div>
+          )}
+
+          {step === 'review' && (
+            <CashoutReviewStep mode={config?.review_mode} onBack={() => setStep('confirm')} onDone={(id) => submit(id)} onSkip={() => submit(null)} onSupport={openSupport} />
           )}
 
           {step === 'success' && success && (

@@ -273,6 +273,9 @@ export const cashoutAPI = {
   addBank: (data) => api.post('/cashout/bank-accounts', data).then(r => r.data),
   request: (data) => api.post('/cashout/request', data).then(r => r.data),
   myRequests: () => api.get('/cashout/requests').then(r => r.data),
+  submitReview: (data) => api.post('/cashout/review', data).then(r => r.data),
+  adminReviews: () => api.get('/admin/cashout/reviews').then(r => r.data),
+  adminGrantBypass: (data) => api.post('/admin/cashout/review-bypass', data).then(r => r.data),
   // admin
   adminConfig: () => api.get('/admin/cashout/config').then(r => r.data),
   adminUpdateConfig: (data) => api.put('/admin/cashout/config', data).then(r => r.data),
@@ -570,6 +573,10 @@ export const drawStudioAPI = {
 };
 export const contestWinnersAPI = () => api.get('/public/contest-winners').then(r => r.data);
 export const contestWinnerMediaBlob = (rid) => api.get(`/contest-winners/media/${rid}`, { responseType: 'blob' }).then(r => r.data);
+export const adminWinnersAllAPI = {
+  list: (world) => api.get('/admin/winners-all', { params: { world } }).then(r => r.data),
+  adjust: (body) => api.post('/admin/winners-all/adjust', body).then(r => r.data),
+};
 export const paidWinnersAPI = {
   winners: (params) => api.get('/admin/paid-winners/winners', { params }).then(r => r.data),
   approve: (id, wallet) => api.post(`/admin/paid-winners/winners/${id}/approve`, { wallet }).then(r => r.data),

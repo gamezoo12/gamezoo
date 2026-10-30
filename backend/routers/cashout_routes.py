@@ -12,7 +12,9 @@ import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
+from typing import Literal
+
+from pydantic import BaseModel, Field
 
 from deps import get_db
 from auth import get_current_user, require_admin, require_verified_user
@@ -35,7 +37,9 @@ DEFAULT_SETTINGS = {
     "enabled": False,
     "google_review_url": "",
     "trustpilot_review_url": "",
+    "review_mode": "disabled",
 }
+REVIEW_MODES = ("mandatory", "optional", "disabled")
 
 
 def _now():
@@ -81,7 +85,7 @@ async def _audit(db, action, actor_id, target, meta=None):
 
 @router.get("/config")
 async def cashout_config(request: Request):
-    await get_current_user(request)
+    user = await get_current_user(request)
     db = get_db()
     s = await get_settings(db)
     return {
@@ -90,7 +94,26 @@ async def cashout_config(request: Request):
         "currency": CURRENCY,
         "google_review_url": s["google_review_url"],
         "trustpilot_review_url": s["trustpilot_review_url"],
+        "review_mode": s["review_mode"],
+        "has_review_bypass": bool((await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "cashout_review_bypass": 1}) or {}).get("cashout_review_bypass")),
     }
+
+
+class ReviewBody(BaseModel):
+    rating: int = Field(..., ge=1, le=5)
+    feedback: str = Field("", max_length=2000)
+
+
+@router.post("/review")
+async def submit_review(body: ReviewBody, request: Request):
+    user = await get_current_user(request)
+    db = get_db()
+    rid = "RV-" + uuid.uuid4().hex[:12].upper()
+    await db.cashout_reviews.insert_one({
+        "review_id": rid, "user_id": user["user_id"], "rating": body.rating,
+        "feedback": body.feedback.strip(), "context": "cashout", "withdrawal_id": None, "created_at": _now(),
+    })
+    return {"review_id": rid}
 
 
 @router.get("/summary")
@@ -187,6 +210,7 @@ async def list_bank_accounts(request: Request):
 class CashOutBody(BaseModel):
     amount_tokens: int
     bank_account_id: str
+    review_id: str | None = None
 
 
 @router.post("/request")
@@ -213,6 +237,19 @@ async def create_cashout(body: CashOutBody, request: Request):
     # User may submit while KYC is pending; admin reviews before paying.
     if kyc_status == "rejected":
         raise HTTPException(400, "Your KYC was rejected. Please resubmit before cashing out.")
+
+    review = None
+    if body.review_id:
+        review = await db.cashout_reviews.find_one({"review_id": body.review_id, "user_id": user["user_id"], "withdrawal_id": None})
+        if not review:
+            raise HTTPException(400, "Review not found or already used")
+    bypass = False
+    if settings["review_mode"] == "mandatory" and not review:
+        bypass = bool(await db.users.find_one_and_update(
+            {"user_id": user["user_id"], "cashout_review_bypass": True},
+            {"$set": {"cashout_review_bypass": False, "cashout_review_bypass_used_at": _now()}}))
+        if not bypass:
+            raise HTTPException(409, {"code": "REVIEW_REQUIRED", "message": "Please leave a quick review, or contact Support to withdraw without one."})
 
     # Atomic reserve of withdrawable tokens (prevents double-withdrawal).
     ok = await reserve_withdrawable(db, user["user_id"], float(amount))
@@ -249,8 +286,10 @@ async def create_cashout(body: CashOutBody, request: Request):
         # Defense-in-depth: never leave tokens reserved without a request.
         await release_withdrawable(db, user["user_id"], float(amount))
         raise HTTPException(500, "Could not create cash-out request")
+    if review:
+        await db.cashout_reviews.update_one({"review_id": review["review_id"]}, {"$set": {"withdrawal_id": wid}})
     await _audit(db, "cashout_request", user["user_id"], wid,
-                 {"amount_tokens": amount, "kyc": kyc_status})
+                 {"amount_tokens": amount, "kyc": kyc_status, "review_id": (review or {}).get("review_id"), "review_bypass": bypass})
     return {
         "withdrawal_id": wid,
         "status": "processing",
@@ -296,6 +335,7 @@ class ConfigBody(BaseModel):
     enabled: bool | None = None
     google_review_url: str | None = None
     trustpilot_review_url: str | None = None
+    review_mode: Literal["mandatory", "optional", "disabled"] | None = None
 
 
 @admin_router.put("/config")
@@ -310,6 +350,8 @@ async def admin_update_config(body: ConfigBody, request: Request):
         update["google_review_url"] = body.google_review_url.strip()
     if body.trustpilot_review_url is not None:
         update["trustpilot_review_url"] = body.trustpilot_review_url.strip()
+    if body.review_mode is not None:
+        update["review_mode"] = body.review_mode
     if update:
         update["key"] = SETTINGS_KEY
         update["updated_at"] = _now()
@@ -318,6 +360,38 @@ async def admin_update_config(body: ConfigBody, request: Request):
         )
         await _audit(db, "cashout_config_update", admin["user_id"], SETTINGS_KEY, update)
     return await get_settings(db)
+
+
+@admin_router.get("/reviews")
+async def admin_reviews(request: Request):
+    await require_admin(request)
+    db = get_db()
+    rows = await db.cashout_reviews.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    ids = list({r["user_id"] for r in rows})
+    users = {u["user_id"]: u async for u in db.users.find({"user_id": {"$in": ids}}, {"_id": 0, "user_id": 1, "name": 1, "email": 1})}
+    for r in rows:
+        r["created_at"] = _iso(r.get("created_at"))
+        r["name"] = users.get(r["user_id"], {}).get("name")
+        r["email"] = users.get(r["user_id"], {}).get("email")
+    return {"items": rows}
+
+
+class BypassBody(BaseModel):
+    email: str
+    reason: str = Field(..., min_length=5, max_length=300)
+
+
+@admin_router.post("/review-bypass")
+async def grant_review_bypass(body: BypassBody, request: Request):
+    admin = await require_admin(request)
+    _require_payout_admin(admin)
+    db = get_db()
+    u = await db.users.find_one({"email": body.email.strip().lower()}, {"_id": 0, "user_id": 1, "email": 1})
+    if not u:
+        raise HTTPException(404, "No user with that email")
+    await db.users.update_one({"user_id": u["user_id"]}, {"$set": {"cashout_review_bypass": True}})
+    await _audit(db, "cashout_review_bypass_granted", admin["user_id"], u["user_id"], {"reason": body.reason.strip()})
+    return {"ok": True, "user_id": u["user_id"]}
 
 
 @admin_router.get("/withdrawals")

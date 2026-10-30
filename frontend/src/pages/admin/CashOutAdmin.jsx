@@ -3,6 +3,7 @@ import { cashoutAPI } from '../../lib/api';
 import { useToast } from '../../hooks/use-toast';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
+import { CashoutReviewSettings } from '../../components/admin/CashoutReviewSettings';
 import { Banknote, ShieldCheck, Eye, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
 
 const gbp = (n) => `£${(Number(n) || 0).toFixed(2)}`;
@@ -103,6 +104,8 @@ export default function CashOutAdmin() {
         </div>
         <Button variant="outline" onClick={saveUrls} disabled={busy} data-testid="admin-save-urls">Save review links</Button>
       </div>
+
+      {config && <CashoutReviewSettings config={config} onSaved={setConfig} toast={toast} />}
 
       {/* WITHDRAWALS */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5">
