@@ -102,13 +102,14 @@ def uk_date(value: datetime) -> str:
 # --------------------------------------------------------------------------- grant creation
 
 async def create_grant(db, *, user_id: str, amount: float, expires_at: Optional[datetime], actor_id: str,
-                       actor_email: str, reason: str, ref_key: str, source: str = 'admin') -> dict:
+                       actor_email: str, reason: str, ref_key: str, source: str = 'admin',
+                       max_amount: float = MAX_GRANT_TOKENS) -> dict:
     """Credit bonus tokens and record the grant. Idempotent per `ref_key`."""
     from routers.wallet_routes import _apply_tx_idempotent
 
     amt = r2(amount)
-    if not 0 < amt <= MAX_GRANT_TOKENS:
-        raise HTTPException(status_code=400, detail=f'Credit must be greater than 0 and at most {MAX_GRANT_TOKENS} tokens')
+    if not 0 < amt <= max_amount:
+        raise HTTPException(status_code=400, detail=f'Credit must be greater than 0 and at most {max_amount} tokens')
     existing = await db.bonus_grants.find_one({'ref_key': ref_key}, {'_id': 0})
     if existing:
         if existing.get('status') == 'active':

@@ -1,16 +1,15 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
-import { Radio, Boxes, Wrench, LogOut, ShieldCheck, Trophy, Shield, Menu, X } from 'lucide-react';
+import { Radio, History, SlidersHorizontal, LogOut, ShieldCheck, Trophy, Menu, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import PrizeLeagueLogo from '../layout/PrizeLeagueLogo';
 import MeeraChat from '../MeeraChat';
 
 const LINKS = [
- { to: '/production', label: 'Operations', icon: Wrench, end: true },
- { to: '/production/live-draw', label: 'Draw Studio', icon: Radio },
- { to: '/production/inventory', label: 'Prize Inventory', icon: Boxes },
- { to: '/production/winners', label: 'Winners feed', icon: Trophy },
- { to: '/production/kyc', label: 'KYC review', icon: Shield },
+ { to: '/production/live-draw', label: 'Visual Draw Studio', icon: Radio, id: 'studio' },
+ { to: '/production/winners', label: 'Winners & Approvals', icon: Trophy, id: 'winners' },
+ { to: '/production/history', label: 'Draw History & Recordings', icon: History, id: 'history' },
+ { to: '/production/settings', label: 'Draw Settings & Audio', icon: SlidersHorizontal, id: 'settings' },
 ];
 
 /**
@@ -45,7 +44,7 @@ export default function ProductionLayout() {
  <NavLink
  key={l.to}
  to={l.to}
- end={l.end}
+ data-testid={`production-nav-${l.id}`}
  className={({ isActive }) => `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${isActive ? 'bg-gradient-to-r from-[#8B5CFF] to-[#6C2BFF] text-white shadow-lg shadow-[#6C2BFF]/30' : 'text-white/70 hover:bg-white/5 hover:text-white'}`}
  >
  <l.icon className="w-4 h-4" /> {l.label}

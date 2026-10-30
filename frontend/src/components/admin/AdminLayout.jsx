@@ -40,6 +40,8 @@ const LINKS = [
    { to: '/admin/referrals', label: 'Referrals & Bonuses', icon: Gift },
    { to: '/admin/roles', label: 'Roles & Permissions', icon: ShieldCheck },
    { to: '/admin/kyc', label: 'KYC', icon: Shield },
+   { to: '/admin/operations', label: 'Production Operations', icon: ClipboardList },
+   { to: '/admin/prize-inventory', label: 'Prize Inventory', icon: Package },
   { to: '/admin/influencers', label: 'Influencers', icon: Handshake, adminOnly: true },
   { to: '/admin/promotion', label: 'Promotion Management', icon: Gift, superOnly: true },
   { to: '/admin/promotion-campaigns', label: 'Promotion Campaigns', icon: Gift, superOnly: true },

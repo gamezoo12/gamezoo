@@ -177,8 +177,30 @@ async def diagnostics_find_authorized_db():
 @api_router.get('/public/winners')
 async def public_winners(limit: int = 50):
     limit = max(1, min(limit, 200))
-    docs = await db.winners.find({}, {'_id': 0}).sort('drawn_at', -1).to_list(limit)
+    docs = await db.winners.find(PUBLIC_WINNERS, {'_id': 0}).sort('drawn_at', -1).to_list(limit)
     return docs
+
+
+PUBLIC_WINNERS = {'$or': [{'source': {'$ne': 'draw_studio'}}, {'published': True}]}
+
+
+@api_router.get('/public/contest-winners')
+async def public_contest_winners():
+    rows = await db.winners.find(PUBLIC_WINNERS, {'_id': 0, 'winner_id': 1, 'contest_id': 1, 'contest_title': 1, 'user_name': 1,
+                                                  'ticket_number': 1, 'prize_amount': 1, 'reward_type': 1, 'prize_title': 1,
+                                                  'draw_round_name': 1, 'draw_round_index': 1, 'drawn_at': 1}).sort('drawn_at', -1).to_list(1000)
+    titles = {c['contest_id']: c.get('title') async for c in db.contests.find(
+        {'contest_id': {'$in': list({r['contest_id'] for r in rows})}}, {'_id': 0, 'contest_id': 1, 'title': 1})}
+    groups = {}
+    for r in rows:
+        g = groups.setdefault(r['contest_id'], {'contest_id': r['contest_id'], 'contest_title': r.get('contest_title') or titles.get(r['contest_id']) or 'Prize contest',
+                                                'drawn_at': r.get('drawn_at'), 'winners': []})
+        g['winners'].append({'winner_id': r['winner_id'], 'name': r.get('user_name') or 'Winner', 'ticket_number': r.get('ticket_number'),
+                             'prize_amount': r.get('prize_amount'), 'reward_type': r.get('reward_type') or 'winnings',
+                             'round_name': r.get('draw_round_name') or r.get('prize_title'), 'round_index': r.get('draw_round_index') or 0})
+    for g in groups.values():
+        g['winners'].sort(key=lambda w: w['round_index'])
+    return {'contests': list(groups.values())}
 
 
 @api_router.get('/public/stats')
@@ -226,6 +248,7 @@ from routers.world_gc_competition_routes import (
     ensure_world_gc_competition_indexes,
 )
 from routers.draw_studio_routes import router as draw_studio_router, ensure_draw_studio_indexes
+from routers.draw_studio_ops_routes import router as draw_studio_ops_router
 from routers.world_gc_live_routes import (
     admin_router as world_gc_live_admin_router,
     public_router as world_gc_live_public_router,
@@ -300,6 +323,7 @@ app.include_router(world_admin_router)
 app.include_router(world_gc_public_router)
 app.include_router(world_gc_router)
 app.include_router(draw_studio_router)
+app.include_router(draw_studio_ops_router)
 app.include_router(world_gc_live_admin_router)
 app.include_router(world_gc_live_public_router)
 app.include_router(world_gc_admin_router)

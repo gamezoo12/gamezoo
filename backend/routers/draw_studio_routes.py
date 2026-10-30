@@ -14,7 +14,7 @@ import json
 import secrets
 import uuid
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
@@ -30,7 +30,8 @@ PLANS = "draw_studio_plans"
 RESULTS = "draw_studio_results"
 AUDIO = "draw_studio_audio"
 AUDIT = "draw_studio_audit"
-AUDIO_SLOTS = ("countdown", "heartbeat", "music", "drumroll", "reveal", "celebration")
+AUDIO_SLOTS = ("entry", "music", "heartbeat", "countdown", "drumroll", "reveal", "announcement", "celebration")
+REWARD_TYPES = ("winnings", "bonus")
 AUDIO_TYPES = {"audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/wave", "audio/ogg", "audio/webm",
                "audio/aac", "audio/mp4", "audio/x-m4a"}
 ALGORITHM = "hmac-sha256-rejection-v1"
@@ -92,23 +93,37 @@ def select_winners(seed: str, plan_id: str, round_index: int, candidates: list[i
 
 
 async def _upsert_winners(db, plan: dict, result: dict):
-    """Idempotently create pending winner records (paid only via the existing Super Admin mark-paid flow)."""
+    """Idempotently create PENDING reward records; credited only after Super Admin approval."""
     cfg = plan["rounds"][result["round_index"]]
+    reward_type = cfg.get("reward_type") or "winnings"
+    users = {u["user_id"]: u async for u in db.users.find({"user_id": {"$in": [w["user_id"] for w in result["winners"]]}},
+                                                          {"_id": 0, "user_id": 1, "name": 1, "username": 1, "email": 1})}
     for w in result["winners"]:
+        u = users.get(w["user_id"], {})
+        amount = float(w["prize_amount"])
         await db.winners.update_one({"winner_id": w["winner_id"]}, {"$setOnInsert": {
-            "winner_id": w["winner_id"], "contest_id": plan["contest_id"], "user_id": w["user_id"],
-            "user_name": w["display_name"], "ticket_number": w["ticket_number"], "prize_amount": w["prize_amount"],
-            "prize_cash_amount": w["prize_amount"], "prize_bonus_tokens": 0.0,
+            "winner_id": w["winner_id"], "contest_id": plan["contest_id"], "contest_title": plan.get("contest_title"),
+            "user_id": w["user_id"], "user_name": w["display_name"], "user_full_name": u.get("name"),
+            "username": u.get("username"), "ticket_number": w["ticket_number"], "ticket_id": w.get("ticket_id"),
+            "prize_amount": amount, "reward_type": reward_type,
+            "prize_cash_amount": amount if reward_type == "winnings" else 0.0,
+            "prize_bonus_tokens": amount if reward_type == "bonus" else 0.0,
+            "proposed_amount": amount, "proposed_reward_type": reward_type,
             "prize_title": f"{plan.get('contest_title') or 'Prize draw'} — {cfg['name']}", "drawn_at": result["drawn_at"],
-            "paid_out": False, "payment_status": "pending", "source": "draw_studio", "draw_plan_id": plan["plan_id"],
-            "draw_round_index": result["round_index"]}}, upsert=True)
+            "paid_out": False, "payment_status": "pending", "approval_status": "pending", "edit_history": [],
+            "source": "draw_studio", "draw_plan_id": plan["plan_id"], "draw_round_index": result["round_index"],
+            "draw_round_name": cfg["name"], "draw_result_id": result["result_id"]}}, upsert=True)
 
 
 class RoundIn(BaseModel):
     name: str = Field(..., min_length=1, max_length=80)
     prize_amount: float = Field(..., gt=0, le=1_000_000)
     num_winners: int = Field(..., ge=1, le=100)
-    duration_s: int = Field(..., ge=10, le=600)
+    reward_type: Literal["winnings", "bonus"] = "winnings"
+    load_duration_s: int = Field(default=12, ge=3, le=300)
+    mix_duration_s: int = Field(default=15, ge=3, le=300)
+    reveal_duration_s: int = Field(default=10, ge=3, le=120)
+    duration_s: int = Field(default=30, ge=3, le=600)
     reveals: int = Field(default=3, ge=0, le=20)
     announcement_text: str = Field(default="", max_length=300)
     allow_previous_winners: bool = False
@@ -309,6 +324,20 @@ async def draw_round(plan_id: str, round_index: int, body: ConfirmIn, request: R
     return {"result": result, "resumed": False}
 
 
+@router.post("/plans/{plan_id}/rounds/{round_index}/revealed")
+async def mark_revealed(plan_id: str, round_index: int, request: Request):
+    """Marks the on-screen show of an already-fixed result as completed (recovery bookkeeping only)."""
+    admin = await require_super_admin(request)
+    db = get_db()
+    r = await db[RESULTS].update_one({"plan_id": plan_id, "round_index": round_index, "revealed_at": {"$exists": False}},
+                                     {"$set": {"revealed_at": _now(), "revealed_by": admin.get("email")}})
+    if r.modified_count:
+        await _audit(db, "round_revealed", admin, plan_id=plan_id, round_index=round_index)
+    elif not await db[RESULTS].find_one({"plan_id": plan_id, "round_index": round_index}, {"_id": 1}):
+        raise HTTPException(status_code=404, detail="Round has not been drawn")
+    return {"ok": True}
+
+
 @router.get("/plans/{plan_id}")
 async def get_plan(plan_id: str, request: Request):
     await require_super_admin(request)
@@ -389,15 +418,53 @@ async def announce_round(plan_id: str, round_index: int, request: Request):
     ann_id = created.get("announcement_id")
     await db[RESULTS].update_one({"plan_id": plan_id, "round_index": round_index},
                                  {"$set": {"announcement_id": ann_id, "announced_at": _now()}})
+    await db.winners.update_many({"draw_plan_id": plan_id, "draw_round_index": round_index}, {"$set": {"published": True, "published_at": _now()}})
     await _audit(db, "round_announced", admin, plan_id=plan_id, round_index=round_index, announcement_id=ann_id)
     return {"announcement_id": ann_id, "idempotent_replay": False}
+
+
+@router.post("/plans/{plan_id}/announce-all")
+async def announce_all(plan_id: str, request: Request):
+    """One site announcement listing every winner of every round; makes the winners public."""
+    admin = await require_super_admin(request)
+    db = get_db()
+    plan = await db[PLANS].find_one({"plan_id": plan_id}, {"_id": 0, "pool_snapshot": 0, "server_seed": 0})
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    if plan.get("announcement_id"):
+        return {"announcement_id": plan["announcement_id"], "idempotent_replay": True}
+    results = await db[RESULTS].find({"plan_id": plan_id}, {"_id": 0}).sort("round_index", 1).to_list(50)
+    if len(results) != len(plan["rounds"]):
+        raise HTTPException(status_code=409, detail="Complete every round before announcing the winners")
+    claim = await db[PLANS].update_one({"plan_id": plan_id, "announcement_id": {"$exists": False}, "announcement_claimed": {"$ne": True}},
+                                       {"$set": {"announcement_claimed": True}})
+    if claim.modified_count != 1:
+        raise HTTPException(status_code=409, detail="This announcement is already being published")
+    lines = [f"{plan['rounds'][r['round_index']]['name']}: " + ", ".join(f"#{w['ticket_number']} {w['display_name']}" for w in r["winners"])
+             for r in results]
+    from routers.announcement_routes import AnnouncementIn, create_announcement
+
+    try:
+        created = await create_announcement(AnnouncementIn(title=f"Winners — {plan.get('contest_title') or 'Prize draw'}"[:120],
+                                                           text=("Congratulations! " + " · ".join(lines))[:300],
+                                                           link="/my-account/contest-winners", publish=True), request)
+    except Exception:
+        await db[PLANS].update_one({"plan_id": plan_id}, {"$unset": {"announcement_claimed": ""}})
+        raise
+    now = _now()
+    await db[PLANS].update_one({"plan_id": plan_id}, {"$set": {"announcement_id": created.get("announcement_id"), "winners_published_at": now}})
+    await db.winners.update_many({"draw_plan_id": plan_id}, {"$set": {"published": True, "published_at": now}})
+    await _audit(db, "winners_announced", admin, plan_id=plan_id, announcement_id=created.get("announcement_id"))
+    return {"announcement_id": created.get("announcement_id"), "idempotent_replay": False}
 
 
 @router.get("/audio")
 async def list_audio(request: Request):
     await require_super_admin(request)
-    rows = await get_db()[AUDIO].find({"is_deleted": False}, {"_id": 0}).to_list(50)
-    return {"slots": AUDIO_SLOTS, "audio": rows}
+    db = get_db()
+    rows = await db[AUDIO].find({"is_deleted": False}, {"_id": 0}).to_list(50)
+    cfg = await db.settings.find_one({"_id": "draw_studio"}, {"_id": 0, "volumes": 1}) or {}
+    return {"slots": AUDIO_SLOTS, "audio": rows, "volumes": cfg.get("volumes") or {}}
 
 
 @router.post("/audio/{slot}")
@@ -438,5 +505,6 @@ async def audio_file(slot: str, request: Request):
 
 async def ensure_draw_studio_indexes(db):
     await db[RESULTS].create_index([("plan_id", 1), ("round_index", 1)], unique=True)
+    await db.draw_studio_recordings.create_index("recording_id", unique=True)
     await db[PLANS].create_index("plan_id", unique=True)
     await db[PLANS].create_index("official_contest_lock", unique=True, sparse=True)

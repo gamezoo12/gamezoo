@@ -1,38 +1,50 @@
 import { Plus, Trash2 } from 'lucide-react';
 
-const field = 'h-10 w-full rounded-lg border border-white/15 bg-[#0b0f33] px-3 text-sm text-white placeholder:text-white/30 focus:border-amber-300 focus:outline-none disabled:opacity-50';
-const label = 'mb-1 block text-[11px] font-bold uppercase tracking-wider text-indigo-200/70';
-export const newRound = (n) => ({ name: `Draw ${n}`, prize_amount: 50, num_winners: 1, duration_s: 30, reveals: 3, announcement_text: '', allow_previous_winners: false });
+const cell = 'h-9 w-full rounded-lg border border-white/10 bg-[#0b0724] px-2 text-sm text-white focus:border-amber-300 focus:outline-none disabled:opacity-60';
+export const newRound = (n) => ({ name: n === 1 ? 'Grand Prize' : `Prize ${n}`, prize_amount: 50, num_winners: 1, reward_type: 'winnings', load_duration_s: 12,
+  mix_duration_s: 15, reveal_duration_s: 10, announcement_text: '', allow_previous_winners: false });
+export const normaliseRounds = (rounds) => rounds.map((r, i) => ({ ...newRound(i + 1), ...r }));
+
+const num = (min, max) => (v) => Math.max(min, Math.min(max, Number(v) || min));
+const COLS = [
+  ['name', 'Draw name', 'text', 'min-w-[140px]'], ['prize_amount', 'Prize £', num(1, 1000000), 'w-24'], ['num_winners', 'Winners', num(1, 100), 'w-20'],
+  ['reward_type', 'Reward', null, 'w-32'], ['load_duration_s', 'Load s', num(3, 300), 'w-20'], ['mix_duration_s', 'Mix s', num(3, 300), 'w-20'],
+  ['reveal_duration_s', 'Draw s', num(3, 120), 'w-20'],
+];
+
+function RoundRow({ r, i, update, remove, locked, drawn }) {
+  return (
+    <tr className="border-t border-white/5" data-testid={`draw-round-${i}`}>
+      <td className="px-2 py-2 text-sm font-black text-amber-300">{i + 1}{drawn && <span className="ml-1 text-[9px] text-emerald-300">DRAWN</span>}</td>
+      {COLS.map(([key, , parse, width]) => (
+        <td key={key} className={`px-1 py-2 ${width}`}>
+          {key === 'reward_type'
+            ? <select className={cell} disabled={locked} value={r.reward_type} onChange={(e) => update(i, { reward_type: e.target.value })} data-testid={`draw-round-reward-${i}`}><option value="winnings">Winnings Tokens</option><option value="bonus">Bonus Tokens</option></select>
+            : <input className={cell} disabled={locked} type={parse === 'text' ? 'text' : 'number'} maxLength={80} value={r[key]}
+              onChange={(e) => update(i, { [key]: parse === 'text' ? e.target.value : e.target.value === '' ? '' : Number(e.target.value) })}
+              onBlur={(e) => parse !== 'text' && update(i, { [key]: parse(e.target.value) })} data-testid={`draw-round-${key}-${i}`} />}
+        </td>
+      ))}
+      <td className="px-2 py-2 text-center"><input type="checkbox" className="h-4 w-4 accent-amber-400" disabled={locked} checked={r.allow_previous_winners} onChange={(e) => update(i, { allow_previous_winners: e.target.checked })} data-testid={`draw-round-repeat-${i}`} aria-label="Earlier winners stay eligible" /></td>
+      <td className="px-2 py-2">{!locked && <button type="button" onClick={() => remove(i)} className="rounded-full p-1.5 text-rose-300 transition-colors hover:bg-rose-500/10" data-testid={`draw-round-remove-${i}`} aria-label="Remove round"><Trash2 className="h-4 w-4" /></button>}</td>
+    </tr>
+  );
+}
 
 export function RoundsEditor({ rounds, setRounds, locked, results }) {
   const update = (i, patch) => setRounds(rounds.map((r, k) => (k === i ? { ...r, ...patch } : r)));
+  const remove = (i) => rounds.length > 1 && setRounds(rounds.filter((_, k) => k !== i));
   return (
-    <div className="space-y-3" data-testid="draw-rounds-editor">
-      {rounds.map((r, i) => (
-        <article key={i} className="rounded-2xl border border-white/10 bg-gradient-to-br from-[#16124a] to-[#0b0f33] p-4" data-testid={`draw-round-${i}`}>
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="font-black text-amber-300">Round {i + 1}{results?.[i] ? ' · drawn' : ''}</h3>
-            {!locked && rounds.length > 1 && <button type="button" onClick={() => setRounds(rounds.filter((_, k) => k !== i))} className="text-rose-300 hover:text-rose-200" data-testid={`draw-round-remove-${i}`} aria-label="Remove round"><Trash2 className="h-4 w-4" /></button>}
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <label><span className={label}>Draw name</span><input className={field} disabled={locked} value={r.name} onChange={(e) => update(i, { name: e.target.value })} data-testid={`draw-round-name-${i}`} /></label>
-            <label><span className={label}>Prize per winner (£)</span><input className={field} disabled={locked} type="number" min="1" step="0.01" value={r.prize_amount} onChange={(e) => update(i, { prize_amount: Number(e.target.value) })} data-testid={`draw-round-prize-${i}`} /></label>
-            <label><span className={label}>Winners</span><input className={field} disabled={locked} type="number" min="1" max="100" value={r.num_winners} onChange={(e) => update(i, { num_winners: Number(e.target.value) })} data-testid={`draw-round-winners-${i}`} /></label>
-            <label><span className={label}>Duration (s)</span>
-              <div className="flex gap-1">
-                <select className={field} disabled={locked} value={[10, 20, 30, 45, 60, 90, 120].includes(r.duration_s) ? r.duration_s : 'custom'} onChange={(e) => e.target.value !== 'custom' && update(i, { duration_s: Number(e.target.value) })} data-testid={`draw-round-duration-${i}`}>
-                  {[10, 20, 30, 45, 60, 90, 120].map((d) => <option key={d} value={d}>{d}s</option>)}<option value="custom">Custom</option>
-                </select>
-                <input className={`${field} w-20`} disabled={locked} type="number" min="10" max="600" value={r.duration_s} onChange={(e) => update(i, { duration_s: Number(e.target.value) })} data-testid={`draw-round-duration-custom-${i}`} />
-              </div>
-            </label>
-            <label><span className={label}>Ticket reveals</span><input className={field} disabled={locked} type="number" min="0" max="20" value={r.reveals} onChange={(e) => update(i, { reveals: Number(e.target.value) })} data-testid={`draw-round-reveals-${i}`} /></label>
-            <label className="sm:col-span-2"><span className={label}>Winner announcement ({'{winners}'} = names)</span><input className={field} disabled={locked} maxLength={300} value={r.announcement_text} placeholder="Congratulations {winners}!" onChange={(e) => update(i, { announcement_text: e.target.value })} data-testid={`draw-round-announcement-${i}`} /></label>
-            <label className="flex items-center gap-2 self-end pb-2 text-sm text-indigo-100"><input type="checkbox" disabled={locked} checked={r.allow_previous_winners} onChange={(e) => update(i, { allow_previous_winners: e.target.checked })} data-testid={`draw-round-repeat-${i}`} /> Earlier winners stay eligible</label>
-          </div>
-        </article>
-      ))}
-      {!locked && <button type="button" onClick={() => setRounds([...rounds, newRound(rounds.length + 1)])} className="inline-flex items-center gap-2 rounded-full border border-dashed border-amber-300/60 px-4 py-2 text-sm font-bold text-amber-200 transition-colors hover:bg-amber-300/10" data-testid="draw-round-add"><Plus className="h-4 w-4" /> Add round</button>}
+    <div data-testid="draw-rounds-editor">
+      <div className="overflow-x-auto rounded-xl border border-white/10">
+        <table className="w-full min-w-[880px] text-left">
+          <thead className="bg-white/5 text-[10px] font-black uppercase tracking-wider text-indigo-200/70">
+            <tr><th className="px-2 py-2">#</th>{COLS.map(([k, label]) => <th key={k} className="px-1 py-2">{label}</th>)}<th className="px-2 py-2" title="Earlier winners stay eligible">Repeat</th><th /></tr>
+          </thead>
+          <tbody>{rounds.map((r, i) => <RoundRow key={i} r={r} i={i} update={update} remove={remove} locked={locked} drawn={Boolean(results?.[i])} />)}</tbody>
+        </table>
+      </div>
+      {!locked && <button type="button" onClick={() => setRounds([...rounds, newRound(rounds.length + 1)])} className="mt-3 inline-flex items-center gap-2 rounded-full bg-amber-400 px-4 py-2 text-xs font-black text-[#1a1033] transition-transform hover:-translate-y-0.5" data-testid="draw-round-add"><Plus className="h-4 w-4" /> Add Round</button>}
     </div>
   );
 }

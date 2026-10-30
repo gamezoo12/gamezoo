@@ -1600,6 +1600,8 @@ async def mark_paid(winner_id: str, request: Request):
     winner = await db.winners.find_one({'winner_id': winner_id}, {'_id': 0})
     if not winner:
         raise HTTPException(status_code=404, detail='Winner not found')
+    if winner.get('source') == 'draw_studio' and not winner.get('paid_out'):
+        raise HTTPException(status_code=409, detail='Draw Studio rewards are approved and credited from Production Panel > Winners & Approvals')
     if winner.get('paid_out') is True or winner.get('payment_status') == 'paid':
         return {'ok': True, 'idempotent': True, 'payment_status': 'paid',
                 'wallet_transaction_ids': winner.get('wallet_transaction_ids') or []}

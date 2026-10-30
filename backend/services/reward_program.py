@@ -34,6 +34,10 @@ DEFAULT_REWARD_SETTINGS = {
     "referral_bonus_expiry_enabled": False,
     "referral_bonus_expiry_days": 30,
 
+    # Paid World draw prizes awarded as Bonus Tokens
+    "draw_prize_bonus_expiry_enabled": False,
+    "draw_prize_bonus_expiry_days": 30,
+
     # Influencer promo bonus
     "influencer_reward_tokens": 2.0,
     "influencer_qualifying_topup_gbp": 10.0,
@@ -207,6 +211,7 @@ async def save_reward_settings(db, payload: dict) -> dict:
         "referral_referred_reward_tokens": (0.0, 1000.0),
         "referral_qualifying_topup_gbp": (0.0, 10000.0),
         "referral_bonus_expiry_days": (1, 3650),
+        "draw_prize_bonus_expiry_days": (1, 3650),
 
         "influencer_reward_tokens": (0.0, 1000.0),
         "influencer_qualifying_topup_gbp": (0.0, 10000.0),
@@ -232,7 +237,8 @@ async def save_reward_settings(db, payload: dict) -> dict:
 
         updates[field] = value
 
-    for field in ('signup_bonus_expiry_days', 'referral_bonus_expiry_days', 'normal_topup_bonus_expiry_days'):
+    for field in ('signup_bonus_expiry_days', 'referral_bonus_expiry_days', 'normal_topup_bonus_expiry_days',
+                  'draw_prize_bonus_expiry_days'):
         if field not in updates:
             continue
         if not float(updates[field]).is_integer():
@@ -247,6 +253,7 @@ async def save_reward_settings(db, payload: dict) -> dict:
         "normal_topup_bonus_enabled",
         "normal_topup_bonus_first_only",
         "normal_topup_bonus_expiry_enabled",
+        "draw_prize_bonus_expiry_enabled",
         "referral_contest_entry_required",
         "influencer_contest_entry_required",
     )

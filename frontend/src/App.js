@@ -1,5 +1,5 @@
 
-import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import './App.css';
@@ -102,7 +102,9 @@ import ProductionLayout from './components/admin/ProductionLayout';
 const DrawStudioPage = lazy(() => import('./pages/production/DrawStudio'));
 const PrizeInventory = lazy(() => import('./pages/production/PrizeInventory'));
 const OperationsPage = lazy(() => import('./pages/production/Operations'));
-const WinnersFeed = lazy(() => import('./pages/production/WinnersFeed'));
+const WinnersApprovals = lazy(() => import('./pages/production/WinnersApprovals'));
+const DrawHistoryPage = lazy(() => import('./pages/production/DrawHistory'));
+const DrawSettingsPage = lazy(() => import('./pages/production/DrawSettings'));
 
 
 function RouteLoader() {
@@ -494,6 +496,10 @@ function AppRouter() {
           element={<AdminKyc />}
         />
 
+        <Route path="operations" element={<OperationsPage />} />
+        <Route path="prize-inventory" element={<PrizeInventory />} />
+
+
         <Route
           path="competitions"
           element={<AdminCompetitions />}
@@ -655,30 +661,13 @@ function AppRouter() {
         element={<ProductionLayout />}
       >
 
-        <Route
-          index
-          element={<OperationsPage />}
-        />
-
-        <Route
-          path="live-draw"
-          element={<DrawStudioPage />}
-        />
-
-        <Route
-          path="inventory"
-          element={<PrizeInventory />}
-        />
-
-        <Route
-          path="winners"
-          element={<WinnersFeed />}
-        />
-
-        <Route
-          path="kyc"
-          element={<AdminKyc />}
-        />
+        <Route index element={<Navigate to="/production/live-draw" replace />} />
+        <Route path="live-draw" element={<DrawStudioPage />} />
+        <Route path="winners" element={<WinnersApprovals />} />
+        <Route path="history" element={<DrawHistoryPage />} />
+        <Route path="settings" element={<DrawSettingsPage />} />
+        <Route path="inventory" element={<Navigate to="/admin/prize-inventory" replace />} />
+        <Route path="kyc" element={<Navigate to="/admin/kyc" replace />} />
 
       </Route>
 

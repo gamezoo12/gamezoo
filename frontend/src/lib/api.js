@@ -545,7 +545,30 @@ export const drawStudioAPI = {
   audio: () => api.get('/admin/draw-studio/audio').then(r => r.data),
   uploadAudio: (slot, file) => { const fd = new FormData(); fd.append('file', file); return api.post(`/admin/draw-studio/audio/${slot}`, fd).then(r => r.data); },
   audioBlob: (slot) => api.get(`/admin/draw-studio/audio/${slot}/file`, { responseType: 'blob' }).then(r => r.data),
+  markRevealed: (planId, index) => api.post(`/admin/draw-studio/plans/${planId}/rounds/${index}/revealed`).then(r => r.data),
+  announceAll: (planId) => api.post(`/admin/draw-studio/plans/${planId}/announce-all`).then(r => r.data),
+  allPlans: () => api.get('/admin/draw-studio/plans').then(r => r.data),
+  winners: (params) => api.get('/admin/draw-studio/winners', { params }).then(r => r.data),
+  editWinner: (id, body) => api.patch(`/admin/draw-studio/winners/${id}`, body).then(r => r.data),
+  approveWinner: (id) => api.post(`/admin/draw-studio/winners/${id}/approve`).then(r => r.data),
+  winnerAudit: (id) => api.get(`/admin/draw-studio/winners/${id}/audit`).then(r => r.data),
+  settings: () => api.get('/admin/draw-studio/settings').then(r => r.data),
+  saveSettings: (body) => api.put('/admin/draw-studio/settings', body).then(r => r.data),
+  backdrops: () => api.get('/admin/draw-studio/backdrops').then(r => r.data),
+  backdropImage: (url) => api.get('/admin/draw-studio/backdrops/image', { params: { url }, responseType: 'blob' }).then(r => r.data),
+  recordings: (contestId) => api.get('/admin/draw-studio/recordings', { params: { contest_id: contestId } }).then(r => r.data),
+  recordingBlob: (id) => api.get(`/admin/draw-studio/recordings/${id}/file`, { responseType: 'blob' }).then(r => r.data),
+  async saveRecording(blob, meta) {
+    const init = await api.post('/admin/draw-studio/recordings', { ...meta, content_type: blob.type || 'video/webm', size: blob.size }).then(r => r.data);
+    const chunks = Math.ceil(blob.size / init.chunk_size);
+    for (let i = 0; i < chunks; i += 1) {
+      await api.put(`/admin/draw-studio/recordings/${init.recording_id}/chunks/${i}`, blob.slice(i * init.chunk_size, (i + 1) * init.chunk_size), { headers: { 'Content-Type': 'application/octet-stream' } });
+      meta.onProgress?.((i + 1) / chunks);
+    }
+    return api.post(`/admin/draw-studio/recordings/${init.recording_id}/complete`, { chunks }).then(r => r.data);
+  },
 };
+export const contestWinnersAPI = () => api.get('/public/contest-winners').then(r => r.data);
 
 
 export const worldGcCompetitionAdminAPI = {
