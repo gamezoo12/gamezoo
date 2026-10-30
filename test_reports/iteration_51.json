@@ -1,0 +1,28 @@
+{
+  "summary": "Frontend-only retest of the iteration_50 fixes, as player1 at 1920x1080. To get a WorldClientGame level I unregistered the service worker and used page.route to rewrite /api/world/level/N. No DB changes were made and no official attempt was used. ALL 5 ITEMS PASS. (1) The WorldClientGame (math_sprint) practice timer now counts down: world-client-practice-stopwatch went 00:54.043 -> 00:52.560 in 1.5s, with the caption 'PRACTICE MODE - NO ATTEMPT USED'. (2) The Skip practice button (world-client-game-skip) now uses 'fwv3-button fwv3-button-outline': white background, 2px purple border, purple bold text, same look as REPLAY DEMO. Clicking it goes to 'Ready to play?' (REPLAY DEMO / START ATTEMPT). (3) With colour_match the instructions title reads 'COLOUR MATCH'. (4) WorldClientGame instructions no longer repeat the guide text. The guide is now only in game-specific-instructions, and the bottom fwv3-info-box shows only 'Pass the skill challenge to progress...'. (5) Regression: opening free-world-level-32 (real data, number_sequence) shows no crash and no pageerrors in either run. The title is 'NUMBER SEQUENCE (1->20)' and the info box shows a single guide text. PLAY DEMO -> START DEMO -> the timer counts down (00:54.707 -> 00:53.640), and EXIT DEMO / SKIP DEMO are both there.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "WorldClientGame instructions banner", "issues": ["The Gamepad2 icon is still small and sits off-centre to the left of the 'SKILL GAME / MATH SPRINT' title (carried over from iteration_50, low priority)"]},
+      {"screen": "Ready-to-play card, desktop", "issues": ["REPLAY DEMO / START ATTEMPT labels still wrap onto 2 lines (this was there before)"]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Optional: centre or enlarge the Gamepad2 icon in the WorldClientGame instructions banner"
+  ],
+  "critical_code_review_comments": [
+    "startDemo now calls setDemoStarted(isWorldClientGame(level?.game_id)), so the timer effect runs for client games. Verified at runtime.",
+    "The gameName fallback now covers colour_match ('Colour Match') and number_sequence",
+    "FreeWorldNumberSequenceV3.jsx is still ~3000 lines; splitting it is recommended",
+    "The official WorldClientGame still has no exit/abandon control (iteration_50 note, not in scope)"
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped)", "frontend": "100% (5/5 retest items pass)"},
+  "seed_data_creation": "None. No official attempts were started in this run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Same recipe as iteration_50: add_init_script that stubs navigator.serviceWorker.register and unregisters existing registrations, then page.route /api/world/level/\\d+ to override level.game_id. When colour_match is faked without game_config, the card shows '0 colours' and the colour demo word does not render. That comes from the fake, not from the app. Supply game_config.colour_count when testing colour via the route."
+}

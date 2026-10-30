@@ -608,3 +608,9 @@ See `/app/memory/test_credentials.md`.
 - Root cause: POST /api/world/contest/enter (enter_world_contest, world_routes.py) created a world_contest_entries doc WITHOUT the champion_ready (Level-10) check. Once an entry existed, _ensure_champion_entry returned it and skipped its own gate, so champion_session_start let users play the Champion Challenge without completing Level 10.
 - Fix: added the same champion_ready 403 guard to enter_world_contest (contest-active window already enforced there). Frontend already gated (isCurrentChampionship && champion_ready) so no FE change.
 - Verified: ready user (admin, current_level 10) -> 200; not-ready users (champion_ready False) -> 403 CHAMPION_NOT_READY branch (identical to proven _ensure_champion_entry gate). File changed: backend/routers/world_routes.py. Not deployed.
+
+## 2026-06 Fix: Free World game crash + timer
+- Fixed TDZ crash ('session' before init) in FreeWorldNumberSequenceV3 (gameId moved below session state).
+- WorldClientGame now uses the original .fwv3-timer clock + captions (practice/official/champion); demo timer ticks for all games.
+- Restored 'COLOUR MATCH' title, styled Skip practice, removed duplicate guide text. Tested iteration_50/51.
+- Preview limits: Champion official run blocked (CHAMPION_NOT_READY, window opens 2026-11-01); EveryLevelWorld unreachable (only GC4 config uses engine legacy_hybrid, excluded by /api/world/gc/active-model).
