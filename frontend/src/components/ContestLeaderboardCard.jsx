@@ -1,3 +1,4 @@
+import { VerifiedReviewerBadge } from './VerifiedReviewerBadge';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { gamesAPI } from '../lib/api';
@@ -67,7 +68,7 @@ export default function ContestLeaderboardCard({ contestId, contestTitle, limit 
                   {m.Icon ? <m.Icon className="w-4 h-4" /> : r.rank}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-slate-900 truncate text-sm">{r.user_name}</div>
+                  <div className="font-semibold text-slate-900 truncate text-sm flex items-center gap-1"><span className="truncate">{r.user_name}</span><VerifiedReviewerBadge show={r.verified_reviewer} testid={`lb-card-verified-${r.rank}`} /></div>
                   <div className="text-[11px] text-slate-500">{(r.duration_ms / 1000).toFixed(1)}s · {Math.round(r.accuracy * 100)}% accuracy</div>
                 </div>
                 <div className="font-display text-xl font-extrabold text-orange-600">{r.points}</div>

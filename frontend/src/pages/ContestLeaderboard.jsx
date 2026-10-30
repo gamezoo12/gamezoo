@@ -1,3 +1,4 @@
+import { VerifiedReviewerBadge } from '../components/VerifiedReviewerBadge';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
@@ -205,6 +206,7 @@ export default function ContestLeaderboard() {
                 <div className="font-bold truncate w-full">
                   {player.user_name || 'Player'}
                 </div>
+                <VerifiedReviewerBadge show={player.verified_reviewer} testid={`lb-podium-verified-${rank}`} />
 
                 <div className="text-2xl font-extrabold font-display">
                   {getScore(player).toFixed(2)}
@@ -271,6 +273,7 @@ export default function ContestLeaderboard() {
                     <div className="flex-1 min-w-0">
                       <div className="font-semibold text-slate-900 truncate flex items-center gap-1">
                         {isMe ? 'You' : row.user_name || 'Player'}
+                        <VerifiedReviewerBadge show={row.verified_reviewer} testid={`lb-row-verified-${row.rank}`} />
 
                         {isMe && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#FFD54A] text-slate-900 font-bold">

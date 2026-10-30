@@ -416,6 +416,7 @@ async def contest_leaderboard(
                 'public_id': 1,
                 'username': 1,
                 'name': 1,
+                'verified_reviewer': 1,
             },
         ):
             users[user['user_id']] = user
@@ -458,6 +459,7 @@ async def contest_leaderboard(
         row['accuracy_pct'] = round(row['accuracy'] * 100.0, 2)
         row['duration_ms'] = int(row.get('duration_ms') or 0)
         row['is_current_user'] = row['user_id'] == current_user_id
+        row['verified_reviewer'] = bool(user.get('verified_reviewer'))
 
     visible_entries = ranked_rows[:safe_limit]
 

@@ -422,6 +422,9 @@ async def decide_review(rid: str, body: DecisionBody, request: Request):
     if not r.matched_count:
         raise HTTPException(404, "Screenshot not found")
     await _audit(db, f"cashout_review_{body.decision}", admin["user_id"], rid, {"note": body.note.strip()})
+    doc = await db.cashout_reviews.find_one({"review_id": rid}, {"_id": 0, "user_id": 1})
+    verified = bool(await db.cashout_reviews.find_one({"user_id": doc["user_id"], "status": "approved"}, {"_id": 1}))
+    await db.users.update_one({"user_id": doc["user_id"]}, {"$set": {"verified_reviewer": verified}})
     bonus = await _review_thanks(db, rid, admin) if body.decision == "approved" else None
     return {"ok": True, "status": body.decision, "bonus_tokens": bonus}
 
