@@ -30,7 +30,7 @@ export function WorldClientGame({ gameId, config = {}, label, onComplete, onSkip
         <div onPointerDownCapture={() => playGameSound('tap')} style={{ background: '#fff', color: '#0f172a', borderRadius: 16, padding: 12, opacity: busy ? 0.6 : 1 }}>
           {GAME_MAP[gameId](config, (result) => !busy && finish(result))}
         </div>
-        {onSkip && <button type="button" onClick={onSkip} className="fwv3-secondary" style={{ marginTop: 12 }} data-testid="world-client-game-skip">Skip practice</button>}
+        {onSkip && <button type="button" onClick={onSkip} className="fwv3-button fwv3-button-outline" style={{ marginTop: 12 }} data-testid="world-client-game-skip">Skip practice</button>}
       </section>
     </div>
   );

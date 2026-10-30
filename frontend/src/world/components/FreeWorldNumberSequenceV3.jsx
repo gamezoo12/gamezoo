@@ -291,7 +291,7 @@ export default function FreeWorldNumberSequenceV3({
   const [session, setSession] =
     useState(null);
   const gameId = session?.game_id || level?.game_id || 'number_sequence';
-  const gameName = GAME_CATALOG.find((game) => game.id === gameId)?.label || gameId;
+  const gameName = GAME_CATALOG.find((game) => game.id === gameId)?.label || (isColour ? 'Colour Match' : gameId === 'number_sequence' ? 'Number Sequence' : gameId);
   const gameGuide = gameExperienceFor(gameId);
 
   const [officialNext, setOfficialNext] =
@@ -511,7 +511,7 @@ export default function FreeWorldNumberSequenceV3({
 
         setDemoNext(1);
         setDemoElapsedMs(0);
-        setDemoStarted(false);
+        setDemoStarted(isWorldClientGame(level?.game_id));
         setError('');
         setStage('demo');
       },
@@ -519,6 +519,7 @@ export default function FreeWorldNumberSequenceV3({
         target,
         isColour,
         colourCount,
+        level?.game_id,
       ],
     );
 
@@ -1707,8 +1708,8 @@ if (
             <Info />
 
             <p>
-              {isWorldClientGame(gameId) && gameGuide
-                ? `${gameGuide.objective} ${gameGuide.controls} ${gameGuide.mistakes} ${gameGuide.timer}`
+              {isWorldClientGame(gameId)
+                ? (championMode ? 'Your verified server time determines your ranking.' : 'Pass the skill challenge to progress to the next destination. Retries never unlock levels automatically.')
                 : championMode
                   ? (
                       isColour
