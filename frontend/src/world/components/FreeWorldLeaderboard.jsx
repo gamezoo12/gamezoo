@@ -1,4 +1,5 @@
 ﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { VerifiedReviewerBadge } from '../../components/VerifiedReviewerBadge';
 import {
   Trophy, X, Clock, RefreshCw, Radio, Crown, User, ChevronDown, Coins, ChevronRight,
 } from 'lucide-react';
@@ -197,7 +198,7 @@ export default function FreeWorldLeaderboard({ open, onClose, activeGc }) {
               <span className="pl-global-lb-rankcell"><b>{r.rank}</b>{rankBadge(r.rank)}</span>
               <span className="pl-global-lb-player">
                 <span className={`pl-global-lb-av r${r.rank <= 3 ? r.rank : ''}`}>{initials(nameOf(r))}</span>
-                <span className="pl-global-lb-pn">{nameOf(r)}{isMine(r) && <em>YOU</em>}</span>
+                <span className="pl-global-lb-pn">{nameOf(r)} <VerifiedReviewerBadge show={r.verified_reviewer} testid={`fw-global-verified-${r.rank}`} />{isMine(r) && <em>YOU</em>}</span>
               </span>
               <span className="pl-global-lb-champ"><Trophy size={12} /> {champOf(r)}</span>
               <span className="pl-global-lb-time"><Clock size={12} /> {fmtTime(r.duration_ms)}</span>

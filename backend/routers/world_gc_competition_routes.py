@@ -535,6 +535,8 @@ async def future_gc_leaderboard_rows(db, gc_number: int, level_key: str, user_id
     ).to_list(1000)
     for rank, row in enumerate(rows, 1):
         row["rank"] = rank
+    from services.verified_reviewer import mark_verified_reviewers
+    await mark_verified_reviewers(db, rows)
     mine = await db.world_gc_level_bests.find_one({**base, "user_id": user_id}, {"_id": 0}) if user_id else None
     rank = None
     gap = None

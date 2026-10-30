@@ -1,3 +1,4 @@
+import { VerifiedReviewerBadge } from '../../components/VerifiedReviewerBadge';
 import { useEffect, useState } from 'react';
 import { Clock, Crown, Lock } from 'lucide-react';
 import { worldGcCompetitionAPI } from '../../lib/api';
@@ -60,7 +61,7 @@ export function LevelLeaderboardPanel({ gcNumber, boards, isMine }) {
         {board.leaderboard.length ? <div className="pl-global-lb-tablewrap" data-testid="lb-level-list">
           {board.leaderboard.map((r) => <div key={r.rank} style={{ gridTemplateColumns: "48px 1fr 110px" }} className={`pl-global-lb-tr ${r.rank <= 3 ? `top top-${r.rank}` : ''} ${isMine?.(r) ? 'is-me' : ''}`} data-testid="lb-level-row">
             <span className="pl-global-lb-rankcell"><b>{r.rank}</b>{r.rank === 1 && <span className="pl-global-lb-rk gold"><Crown size={12} /></span>}</span>
-            <span className="pl-global-lb-player"><span className={`pl-global-lb-av r${r.rank <= 3 ? r.rank : ''}`}>{initials(r.user_name)}</span><span className="pl-global-lb-pn">{r.user_name || 'Player'}</span></span>
+            <span className="pl-global-lb-player"><span className={`pl-global-lb-av r${r.rank <= 3 ? r.rank : ''}`}>{initials(r.user_name)}</span><span className="pl-global-lb-pn">{r.user_name || 'Player'} <VerifiedReviewerBadge show={r.verified_reviewer} testid={`fw-level-verified-${r.rank}`} /></span></span>
             <span className="pl-global-lb-time"><Clock size={12} /> {fmt(r.duration_ms)}</span>
           </div>)}
         </div> : <div className="pl-global-lb-state" data-testid="lb-level-empty"><p>No successful times yet for Level {board.level}.</p></div>}

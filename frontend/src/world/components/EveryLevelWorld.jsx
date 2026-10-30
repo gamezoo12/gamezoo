@@ -1,3 +1,4 @@
+import { VerifiedReviewerBadge } from '../../components/VerifiedReviewerBadge';
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Crown, RotateCcw, Trophy } from 'lucide-react';
 import { worldGcCompetitionAPI } from '../../lib/api';
@@ -211,7 +212,7 @@ export default function EveryLevelWorld({ gcNumber, onExit }) {
               : [1, 2, 3, 4, 5].map((rank) => <span key={rank} className="rounded border border-amber-200 bg-amber-50 px-2 py-1">{rank}: {leaderboard?.rewards?.[String(rank)] ?? defaultRewards[String(rank)]} Bonus Tokens</span>)}
           </div>
           <ol className="divide-y divide-slate-100" data-testid="every-level-leaderboard">
-            {(leaderboard?.leaderboard || []).slice(0, 20).map((row) => <li key={row.user_id} className="flex items-center justify-between gap-3 py-2 text-sm"><span className="flex items-center gap-2"><b className="w-7 text-slate-500">#{row.rank}</b>{row.rank === 1 && <Crown className="h-4 w-4 text-amber-600" />}{row.user_name}</span><span className="font-mono font-semibold tabular-nums">{formatTime(row.duration_ms)}</span></li>)}
+            {(leaderboard?.leaderboard || []).slice(0, 20).map((row) => <li key={row.user_id} className="flex items-center justify-between gap-3 py-2 text-sm"><span className="flex items-center gap-2"><b className="w-7 text-slate-500">#{row.rank}</b>{row.rank === 1 && <Crown className="h-4 w-4 text-amber-600" />}{row.user_name}<VerifiedReviewerBadge show={row.verified_reviewer} testid={`fw-every-verified-${row.rank}`} /></span><span className="font-mono font-semibold tabular-nums">{formatTime(row.duration_ms)}</span></li>)}
             {!leaderboardRows.length && <li className="py-6 text-center text-sm text-slate-500">No successful times yet.</li>}
           </ol>
           <div className="text-xs text-slate-500">{leaderboard?.reward_status === 'finalized' ? 'Finalized leaderboard and locked rewards.' : 'Ranks and rewards are provisional until the next level opens.'}</div>

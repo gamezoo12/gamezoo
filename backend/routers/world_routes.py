@@ -935,6 +935,8 @@ async def world_public_leaderboard(
             }
         )
 
+    from services.verified_reviewer import mark_verified_reviewers
+    await mark_verified_reviewers(db, leaderboard)
     return {
         "contest": (
             _contest_public(contest)
@@ -11887,6 +11889,8 @@ async def public_champion_leaderboard(
             item
         )
 
+    from services.verified_reviewer import mark_verified_reviewers
+    await mark_verified_reviewers(db, leaderboard)
     return {
         "contest": {
             "season_id":

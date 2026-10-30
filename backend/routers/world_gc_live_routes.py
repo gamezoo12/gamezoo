@@ -613,7 +613,8 @@ async def hybrid_level_board(gc_number: int, level: int, request: Request):
         "enabled": True, "gc_number": gc_number, "level": level, "game_id": row.get("game_id"), "status": status,
         "opens_at": opens.isoformat() if opens else None, "closes_at": closes.isoformat() if closes else None,
         "rewards": rewards, "reward_status": "finalized" if finalization else "provisional",
-        "leaderboard": [{"rank": r["rank"], "user_name": r.get("user_name"), "duration_ms": r["duration_ms"]}
+        "leaderboard": [{"rank": r["rank"], "user_name": r.get("user_name"), "duration_ms": r["duration_ms"],
+                         "verified_reviewer": r.get("verified_reviewer", False)}
                         for r in board["rows"][:20]],
         "mine": {"rank": board["rank"], "personal_best_ms": board["personal_best_ms"],
                  "gap_to_next_ms": board["gap_to_next_ms"]} if board["mine"] else None,
