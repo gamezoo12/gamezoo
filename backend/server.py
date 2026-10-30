@@ -225,11 +225,13 @@ from routers.world_gc_competition_routes import (
     public_router as world_gc_public_router,
     ensure_world_gc_competition_indexes,
 )
+from routers.draw_studio_routes import router as draw_studio_router, ensure_draw_studio_indexes
 from routers.world_gc_live_routes import (
     admin_router as world_gc_live_admin_router,
     public_router as world_gc_live_public_router,
 )
 from routers.payments_routes import payments_router
+from routers.announcement_routes import public_router as announcement_public_router, admin_router as announcement_admin_router
 from routers.uploads_routes import uploads_router
 from routers.winners_routes import winners_router
 from routers.twilio_routes import router as twilio_router
@@ -297,9 +299,12 @@ app.include_router(world_public_router)
 app.include_router(world_admin_router)
 app.include_router(world_gc_public_router)
 app.include_router(world_gc_router)
+app.include_router(draw_studio_router)
 app.include_router(world_gc_live_admin_router)
 app.include_router(world_gc_live_public_router)
 app.include_router(world_gc_admin_router)
+app.include_router(announcement_public_router)
+app.include_router(announcement_admin_router)
 app.include_router(payments_router)
 app.include_router(uploads_router)
 app.include_router(winners_router)
@@ -348,6 +353,8 @@ async def _ensure_future_world_gc_indexes():
     async def _bg():
         try:
             await ensure_world_gc_competition_indexes()
+            from deps import get_db as _gdb
+            await ensure_draw_studio_indexes(_gdb())
         except Exception as e:
             import logging
             logging.warning(f'[startup] future world GC index setup failed: {e}')

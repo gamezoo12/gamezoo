@@ -226,9 +226,15 @@ class TestAttemptsPerTicket:
         first, second = tickets[0]['ticket_id'], tickets[1]['ticket_id']
 
         def submit(ticket_id):
+            started = requests.post(
+                f"{API}/games/session/start", json={'ticket_id': ticket_id},
+                headers=headers, timeout=15,
+            )
+            assert started.status_code == 200, started.text
+            time.sleep(0.12)
             return requests.post(
                 f"{API}/games/submit",
-                json={'ticket_id': ticket_id, 'duration_ms': 5000, 'accuracy': 0.9, 'solved': True},
+                json={'ticket_id': ticket_id, 'session_id': started.json()['session_id'], 'duration_ms': 5000, 'accuracy': 0.9, 'solved': True},
                 headers=headers, timeout=15,
             )
 

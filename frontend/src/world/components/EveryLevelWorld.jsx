@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Crown, RotateCcw, Trophy } from 'lucide-react';
 import { worldGcCompetitionAPI } from '../../lib/api';
+import { MemoryCard } from '../../components/games/MemoryCard';
 
 const defaultRewards = { '1': 5, '2': 4, '3': 3, '4': 2, '5': 1 };
 
@@ -23,14 +24,8 @@ function encourage(rank, gapMs, slowerThanBest) {
   return 'Your time is recorded. Keep playing to set your leaderboard position.';
 }
 
-function Card({ position, symbol, revealed, matched, disabled, onClick }) {
-  return <button type="button" aria-label={revealed ? `Card ${position + 1}, symbol ${symbol + 1}` : `Reveal card ${position + 1}`}
-    disabled={disabled || matched} onClick={() => onClick(position)}
-    className={`aspect-square min-h-14 rounded-lg border text-xl font-black transition sm:text-2xl ${matched ? 'border-emerald-500 bg-emerald-100 text-emerald-900' : revealed ? 'border-cyan-500 bg-cyan-50 text-cyan-950' : 'border-slate-300 bg-slate-800 text-white hover:bg-slate-700'}`}
-    data-testid={`memory-card-${position}`}>
-    {revealed || matched ? String.fromCharCode(65 + Number(symbol || 0)) : '•'}
-  </button>;
-}
+const Card = ({ position, symbol, revealed, matched, disabled, onClick }) =>
+  <MemoryCard position={position} symbol={symbol} flipped={revealed} matched={matched} disabled={disabled} onClick={onClick} />;
 
 export default function EveryLevelWorld({ gcNumber, onExit }) {
   const [progress, setProgress] = useState(null);
@@ -175,7 +170,7 @@ export default function EveryLevelWorld({ gcNumber, onExit }) {
 
           {!session && !result && <div className="rounded-md bg-slate-50 p-4 text-sm text-slate-600">Match every pair. The timer counts up with no time limit; completion time is measured by the server. Retries are free while the level remains open.</div>}
 
-          {session && <div className="grid grid-cols-4 gap-2 sm:grid-cols-6" data-testid="memory-board">
+          {session && <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 sm:gap-3" data-testid="memory-board">
             {session.cards.map((position) => <Card key={position} position={position} symbol={revealed[position]} revealed={revealed[position] != null} matched={matched.includes(position)} disabled={busy || Boolean(mismatch.length)} onClick={clickCard} />)}
           </div>}
 

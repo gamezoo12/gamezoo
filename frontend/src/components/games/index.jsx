@@ -6,6 +6,7 @@
   Games are intentionally short (< 60-120s) and browser-only.
 */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { MemoryCard } from './MemoryCard';
 
 const shuffle = (arr) => {
   const a = [...arr];
@@ -18,8 +19,8 @@ const shuffle = (arr) => {
 
 // ---------- Memory Match ----------
 export function MemoryMatch({ onComplete }) {
-  const symbols = ['🎁', '🏆', '💷', '🎯', '🔥', '⭐', '🎉', '💎'];
-  const [cards, setCards] = useState(() => shuffle([...symbols, ...symbols]).map((s, i) => ({ id: i, s, open: false, done: false })));
+  // Fixed layout so every player faces the identical board (fair competition).
+  const [cards, setCards] = useState(() => [0, 3, 5, 1, 7, 2, 4, 6, 5, 0, 2, 7, 3, 6, 1, 4].map((s, i) => ({ id: i, s, open: false, done: false })));
   const [flipped, setFlipped] = useState([]);
   const [start] = useState(() => Date.now());
   const [moves, setMoves] = useState(0);
@@ -60,16 +61,9 @@ export function MemoryMatch({ onComplete }) {
   return (
     <div className="max-w-md mx-auto">
       <div className="text-center text-slate-600 text-sm mb-3">Match all 8 pairs — the fewer moves, the higher your score. Moves: <b>{moves}</b></div>
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-4 gap-2 sm:gap-3">
         {cards.map((c, i) => (
-          <button
-            key={c.id}
-            onClick={() => flip(i)}
-            data-testid={`memory-card-${i}`}
-            className={`aspect-square rounded-xl text-3xl flex items-center justify-center font-bold shadow-md transition-transform ${c.done ? 'bg-emerald-100 text-emerald-700' : c.open ? 'bg-white' : 'bg-gradient-to-br from-orange-500 to-fuchsia-600 text-white'}`}
-          >
-            {c.open || c.done ? c.s : '?'}
-          </button>
+          <MemoryCard key={c.id} position={i} symbol={c.s} flipped={c.open} matched={c.done} onClick={flip} />
         ))}
       </div>
     </div>

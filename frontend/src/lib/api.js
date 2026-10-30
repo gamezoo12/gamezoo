@@ -453,6 +453,7 @@ export const worldGcCompetitionAPI = {
     api.post(`/world/gc/memory-match/session/${encodeURIComponent(sessionId)}/click`, { position }).then(r => r.data),
   leaderboard: (gcNumber, level) =>
     api.get(`/world/gc/leaderboard/${gcNumber}/${encodeURIComponent(level)}`).then(r => r.data),
+  levelBoard: (gcNumber, level) => api.get(`/world/gc/level-board/${gcNumber}/${level}`).then(r => r.data),
 };
 
 export const worldAdminAPI = {
@@ -529,6 +530,23 @@ export const worldAdminAPI = {
   setStageLevelConfig: (data) =>
     api.put('/admin/world/stage-level-config', data).then(r => r.data),
 };
+
+export const drawStudioAPI = {
+  contests: () => api.get('/admin/draw-studio/contests').then(r => r.data),
+  pool: (contestId) => api.get(`/admin/draw-studio/contests/${contestId}/pool`).then(r => r.data),
+  plans: (contestId) => api.get('/admin/draw-studio/plans', { params: { contest_id: contestId } }).then(r => r.data),
+  plan: (planId) => api.get(`/admin/draw-studio/plans/${planId}`).then(r => r.data),
+  createPlan: (body) => api.post('/admin/draw-studio/plans', body).then(r => r.data),
+  updatePlan: (planId, body) => api.put(`/admin/draw-studio/plans/${planId}`, body).then(r => r.data),
+  lock: (planId) => api.post(`/admin/draw-studio/plans/${planId}/lock`, { confirmation: 'LOCK DRAW' }).then(r => r.data),
+  drawRound: (planId, index) => api.post(`/admin/draw-studio/plans/${planId}/rounds/${index}/draw`, { confirmation: `DRAW ROUND ${index + 1}` }).then(r => r.data),
+  announce: (planId, index) => api.post(`/admin/draw-studio/plans/${planId}/rounds/${index}/announce`).then(r => r.data),
+  report: (planId) => api.get(`/admin/draw-studio/plans/${planId}/report`).then(r => r.data),
+  audio: () => api.get('/admin/draw-studio/audio').then(r => r.data),
+  uploadAudio: (slot, file) => { const fd = new FormData(); fd.append('file', file); return api.post(`/admin/draw-studio/audio/${slot}`, fd).then(r => r.data); },
+  audioBlob: (slot) => api.get(`/admin/draw-studio/audio/${slot}/file`, { responseType: 'blob' }).then(r => r.data),
+};
+
 
 export const worldGcCompetitionAdminAPI = {
   list: () => api.get('/admin/world-gc/competitions').then(r => r.data),
@@ -627,6 +645,8 @@ export const worldAPI = {
 
 export const gamesAPI = {
   types: () => api.get('/games/types').then(r => r.data),
+
+  start: (data) => api.post('/games/session/start', data).then(r => r.data),
 
   submit: (data) =>
     api.post('/games/submit', data).then(r => r.data),
@@ -741,4 +761,18 @@ export const promotionCampaignAPI = {
   runDraw: (promotionId) => api.post('/admin/promotion/draw', null, { params: promotionId ? { promotion_id: promotionId } : {} }).then(r => r.data),
   verifyWinner: (promotionId, place) => api.post(`/admin/promotion/draw/winners/${place}/verify`, null, { params: promotionId ? { promotion_id: promotionId } : {} }).then(r => r.data),
   payWinner: (promotionId, place) => api.post(`/admin/promotion/draw/winners/${place}/paid`, null, { params: promotionId ? { promotion_id: promotionId } : {} }).then(r => r.data),
+};
+
+export const announcementsAdminAPI = {
+  list: () => api.get('/admin/announcements').then(r => r.data),
+  generated: () => api.get('/admin/announcements/generated').then(r => r.data),
+  updateGenerated: (id, body) => api.put(`/admin/announcements/generated/${encodeURIComponent(id)}`, body).then(r => r.data),
+  badgeSettings: () => api.get('/admin/announcements/promotion-badge').then(r => r.data),
+  saveBadgeSettings: (body) => api.put('/admin/announcements/promotion-badge', body).then(r => r.data),
+  create: (body) => api.post('/admin/announcements', body).then(r => r.data),
+  update: (id, body) => api.put(`/admin/announcements/${id}`, body).then(r => r.data),
+  action: (id, action) => api.post(`/admin/announcements/${id}/${action}`).then(r => r.data),
+  remove: (id) => api.delete(`/admin/announcements/${id}`).then(r => r.data),
+  reorder: (ids) => api.post('/admin/announcements/reorder', { ids }).then(r => r.data),
+  audit: () => api.get('/admin/announcements/audit').then(r => r.data),
 };

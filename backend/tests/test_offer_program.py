@@ -13,7 +13,7 @@ from deps import _mongo_url, _sanitize_db_name
 from models import Referral
 from routers import offer_routes
 from routers.referral_routes import (
-    _complete_referral_if_eligible, _grant_signup_bonus_once, _sync_current_user, record_contest_entry,
+    _complete_referral_if_eligible, _grant_signup_bonus_once, _sync_current_user, grant_zero_threshold_signup_bonus, record_contest_entry,
     record_verified_topup,
 )
 from services.offer_terms import (
@@ -97,6 +97,115 @@ def test_saving_changes_bumps_version_records_history_and_noop_does_not(safe_db,
         history = await db.reward_settings_history.find({'offer_version': 2}).to_list(5)
         assert history and history[-1]['changes']['signup_qualifying_topup_gbp'] == {'from': 10.0, 'to': 7.5}
         await db.reward_settings_history.delete_many({'offer_version': {'$gte': 2}})
+    run_db(safe_db, run)
+
+
+def test_zero_threshold_signup_grants_once_without_topup(safe_db, tag):
+    async def run(db):
+        await save_reward_settings(db, {'signup_qualifying_topup_gbp': 0, 'signup_reward_tokens': 5})
+        uid = f'{tag}_zero'
+        await enrolled_user(db, uid)
+        assert await grant_zero_threshold_signup_bonus(db, uid) is True
+        await _sync_current_user(db, uid)
+        assert await grant_zero_threshold_signup_bonus(db, uid) is False
+        user = await db.users.find_one({'user_id': uid})
+        assert user['signup_bonus_granted'] is True and user['signup_bonus_tokens'] == 5
+        assert not user.get('qualifying_topup_completed') and not user.get('signup_bonus_topup_session_id')
+        assert await bonus(db, uid) == 5
+        assert await db.bonus_grants.count_documents({'user_id': uid, 'source': 'signup'}) == 1
+        assert await db.payment_transactions.count_documents({'user_id': uid}) == 0
+        assert await db.wallet_tx.count_documents({'user_id': uid, 'kind': 'topup'}) == 0
+        offer = public_offer(await get_reward_settings(db))
+        assert 'no top-up is required' in offer['signup']['text']
+        assert topup_preview(await get_reward_settings(db), 10)['signup_bonus']['tokens'] == 0
+
+        recovery = f'{tag}_recovery'
+        await enrolled_user(db, recovery)
+        await _sync_current_user(db, recovery)
+        await _sync_current_user(db, recovery)
+        assert await bonus(db, recovery) == 5
+        assert await db.bonus_grants.count_documents({'user_id': recovery, 'source': 'signup'}) == 1
+
+        locked = f'{tag}_processing'
+        await enrolled_user(db, locked)
+        await db.users.update_one({'user_id': locked}, {'$set': {
+            'signup_bonus_processing': True, 'signup_bonus_processing_at': datetime.now(timezone.utc)}})
+        assert (await record_verified_topup(db, locked, 10, 'cs_concurrent'))['signup_qualified'] is False
+        assert not (await db.users.find_one({'user_id': locked})).get('qualifying_topup_completed')
+        await db.users.update_one({'user_id': locked}, {'$unset': {'signup_bonus_processing': '', 'signup_bonus_processing_at': ''}})
+        await _sync_current_user(db, locked)
+        assert await bonus(db, locked) == 5
+
+        blocked = f'{tag}_influencer'
+        await enrolled_user(db, blocked)
+        await db.users.update_one({'user_id': blocked}, {'$set': {'acquisition_type': 'influencer_pending'}})
+        assert await grant_zero_threshold_signup_bonus(db, blocked) is False
+        assert await bonus(db, blocked) == 0
+
+        disabled = f'{tag}_disabled'
+        await save_reward_settings(db, {'signup_offer_enabled': False})
+        await enrolled_user(db, disabled)
+        assert await grant_zero_threshold_signup_bonus(db, disabled) is False
+        assert await bonus(db, disabled) == 0
+    run_db(safe_db, run)
+
+
+def test_zero_threshold_granted_during_email_and_google_signup(safe_db, tag, monkeypatch):
+    async def run(db):
+        import deps
+        import otp_verify
+        from models import RegisterInput
+        from routers import auth_routes
+
+        async def return_phone(phone, _code):
+            return phone
+
+        async def verify_email(*_args):
+            return None
+
+        async def public_id(_db):
+            return f'PL{tag}'
+
+        async def contest(*_args):
+            return 1
+
+        monkeypatch.setattr(deps, 'get_db', lambda: db)
+        monkeypatch.setattr(otp_verify, 'verify_twilio_email_otp', verify_email)
+        monkeypatch.setattr(auth_routes, '_verify_twilio_otp', return_phone)
+        monkeypatch.setattr(auth_routes, 'allocate_user_public_id', public_id)
+        monkeypatch.setattr(auth_routes, '_world_signup_contest', contest)
+        monkeypatch.setattr(auth_routes, 'hash_password', lambda _password: 'test-hash')
+        await save_reward_settings(db, {'signup_qualifying_topup_gbp': 0, 'signup_reward_tokens': 5})
+
+        email = f'{tag}@example.com'
+        registered = await auth_routes.register(RegisterInput(
+            email=email, password='Password123!', name='Test Player', phone='+15550001234',
+            otp_code='000000', email_otp_code='000000', accept_terms=True, dob='2000-08-02'), None)
+        email_id = registered['user']['user_id']
+        try:
+            assert await bonus(db, email_id) == 5
+            assert await db.bonus_grants.count_documents({'user_id': email_id, 'source': 'signup'}) == 1
+            assert await db.payment_transactions.count_documents({'user_id': email_id}) == 0
+
+            google_id = f'{tag}_google'
+            google = {'user_id': google_id, 'email': f'{tag}_google@example.com', 'name': 'Google Player',
+                      'role': 'user', 'method': 'google', 'created_at': datetime.now(timezone.utc),
+                      'free_world_started_global_contest': 1}
+            await db.users.insert_one(dict(google))
+
+            async def current_user(_request):
+                return google
+
+            monkeypatch.setattr(auth_routes, 'get_current_user', current_user)
+            await auth_routes.finalize_google_signup(auth_routes.GoogleFinalizeInput(
+                phone='+15550001235', otp_code='000000', accept_terms=True, dob='2000-08-02'), None)
+            assert await bonus(db, google_id) == 5
+            assert await db.bonus_grants.count_documents({'user_id': google_id, 'source': 'signup'}) == 1
+            assert await db.payment_transactions.count_documents({'user_id': google_id}) == 0
+        finally:
+            await db.users.delete_many({'user_id': email_id})
+            for name in ('wallets', 'wallet_tx', 'bonus_grants', 'notifications'):
+                await db[name].delete_many({'user_id': email_id})
     run_db(safe_db, run)
 
 

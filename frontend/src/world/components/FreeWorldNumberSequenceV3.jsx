@@ -14,6 +14,7 @@ import {
   RefreshCw,
   ShieldCheck,
   Trophy,
+  Gamepad2,
   X,
 } from 'lucide-react';
 
@@ -29,6 +30,9 @@ import { useNavigate } from 'react-router-dom';
 
 import '../styles/freeWorldGameV3.css';
 import { WorldClientGame, isWorldClientGame } from './WorldClientGame';
+import GameSoundToggle from '../../components/games/GameSoundToggle';
+import { GAME_CATALOG } from '../../lib/gameCatalog';
+import { gameExperienceFor, pickResultQuote, playGameSound, gameSoundEnabled } from '../../lib/gameExperience';
 
 
 function shuffle(values) {
@@ -150,6 +154,7 @@ let colourAudioContext;
 
 function playColourSelectSound(index = 0) {
   if (typeof window === 'undefined') return;
+  if (!gameSoundEnabled()) return;
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
   if (!AudioContextClass) return;
 
@@ -194,6 +199,9 @@ export default function FreeWorldNumberSequenceV3({
 
   const isColour =
     level?.game_id === 'colour_match';
+  const gameId = session?.game_id || level?.game_id || 'number_sequence';
+  const gameName = GAME_CATALOG.find((game) => game.id === gameId)?.label || gameId;
+  const gameGuide = gameExperienceFor(gameId);
 
   const colourCount =
     Number(
@@ -303,6 +311,7 @@ export default function FreeWorldNumberSequenceV3({
 
   const [result, setResult] =
     useState(null);
+  const [resultQuote, setResultQuote] = useState('');
 
   const [
     attemptSummary,
@@ -526,6 +535,7 @@ export default function FreeWorldNumberSequenceV3({
 
       const ok =
         name === question?.answer;
+      playGameSound(ok ? 'correct' : 'incorrect');
 
       setDemoColourFeedback({
         ok,
@@ -648,12 +658,11 @@ export default function FreeWorldNumberSequenceV3({
 
   const tapDemo =
     (number) => {
-      if (
-        !demoStarted ||
-        number !== demoNext
-      ) {
+      if (!demoStarted) {
         return;
       }
+      if (number !== demoNext) { playGameSound('incorrect'); return; }
+      playGameSound('correct');
 
       if (
         number >= target
@@ -818,6 +827,7 @@ export default function FreeWorldNumberSequenceV3({
     if (
       countdown > 0
     ) {
+      playGameSound('countdown');
       const timer =
         window.setTimeout(
           () => {
@@ -892,6 +902,8 @@ if (
           setStage(
             'official',
           );
+          playGameSound('start');
+          playGameSound('start');
         } catch (requestError) {
           setError(
             getErrorMessage(
@@ -985,6 +997,8 @@ if (
                 ? 'Great first run. Sign up to continue.'
                 : 'Your free Level 1 try is complete. Sign up to continue.',
           });
+          setResultQuote(pickResultQuote(Boolean(solved)));
+          playGameSound(solved ? 'success' : 'failure');
 
           setStage(
             'result',
@@ -1045,6 +1059,8 @@ if (
           setResult(
             response,
           );
+          setResultQuote(pickResultQuote(Boolean(response?.passed)));
+          playGameSound(response?.passed ? 'success' : 'failure');
 
           if (
             championMode
@@ -1212,11 +1228,13 @@ if (
       if (
         stage !== 'official' ||
         busy ||
-        submittingRef.current ||
-        number !== officialNext
+        submittingRef.current
       ) {
         return;
       }
+
+      if (number !== officialNext) { playGameSound('incorrect'); return; }
+      playGameSound('correct');
 
       playColourSelectSound(number);
 
@@ -1559,6 +1577,8 @@ if (
                 <i style={{ background: '#00c853' }} />
                 <i style={{ background: '#ffff00' }} />
               </div>
+            ) : isWorldClientGame(gameId) ? (
+              <div className="fwv3-number-icon" aria-hidden="true"><Gamepad2 /></div>
             ) : (
             <div
               className="fwv3-number-icon"
@@ -1579,12 +1599,17 @@ if (
               </span>
 
               <h2>
-                {isColour ? 'COLOUR MATCH' : 'NUMBER SEQUENCE'}
+                {gameName.toUpperCase()}
               </h2>
 
             </div>
 
           </section>
+
+          {isWorldClientGame(gameId) && gameGuide && <section className="fwv3-info-box" data-testid="game-specific-instructions">
+            <Info />
+            <div><b>{gameGuide.objective}</b><p>{gameGuide.controls} {gameGuide.win} {gameGuide.mistakes}</p><small>{gameGuide.timer}</small></div>
+          </section>}
 
 
           <section className="fwv3-stat-grid">
@@ -1639,11 +1664,11 @@ if (
                 </span>
 
                 <strong>
-                  {isColour ? `${colourCount} colours` : `1 to ${target}`}
+                  {isColour ? `${colourCount} colours` : isWorldClientGame(gameId) ? gameName : `1 to ${target}`}
                 </strong>
 
                 <small>
-                  {isColour ? `${target} QUESTIONS` : 'SEQUENCE'}
+                  {isColour ? `${target} QUESTIONS` : isWorldClientGame(gameId) ? 'SKILL CHALLENGE' : 'SEQUENCE'}
                 </small>
 
               </div>
@@ -1681,8 +1706,9 @@ if (
             <Info />
 
             <p>
-              {
-                championMode
+              {isWorldClientGame(gameId) && gameGuide
+                ? `${gameGuide.objective} ${gameGuide.controls} ${gameGuide.mistakes} ${gameGuide.timer}`
+                : championMode
                   ? (
                       isColour
                         ? (
@@ -1696,14 +1722,15 @@ if (
                             'Your verified server time determines your ranking.'
                           )
                     )
-                  : (
-                      'Pass the skill challenge to progress to the next ' +
-                      'destination. Retries never unlock levels automatically.'
-                    )
+                  : (gameGuide
+                    ? `${gameGuide.objective} ${gameGuide.controls} ${gameGuide.mistakes} ${gameGuide.timer}`
+                    : 'Pass the skill challenge to progress to the next destination. Retries never unlock levels automatically.')
               }
             </p>
 
           </section>
+
+          <GameSoundToggle className="mt-3" />
 
 
           <section className="fwv3-entry-actions">
@@ -1781,12 +1808,12 @@ if (
 
 
   if (stage === 'demo' && isWorldClientGame(level?.game_id)) {
-    return <WorldClientGame gameId={level.game_id} label="DEMO MODE · no attempt used"
+    return <WorldClientGame gameId={level.game_id} config={level.game_config} practice elapsedMs={demoDisplayMs} label="DEMO MODE · no attempt used"
       onComplete={() => setStage('demo-complete')} onSkip={() => setStage('demo-complete')} />;
   }
 
   if (stage === 'official' && isWorldClientGame(session?.game_id)) {
-    return <WorldClientGame gameId={session.game_id} busy={busy}
+    return <WorldClientGame gameId={session.game_id} config={session.game_config} busy={busy} elapsedMs={officialDisplayMs}
       label={championMode ? 'CHAMPION RUN' : 'OFFICIAL ATTEMPT'}
       onComplete={(result) => submitOfficial({ solved: Boolean(result.solved), taps: [] })} />;
   }
@@ -1811,6 +1838,7 @@ if (
           <div className="fwv3-mode-label">
             DEMO MODE
           </div>
+          <GameSoundToggle className="mb-3" />
 
           <div className="fwv3-colour-progress" aria-hidden="true">
             <span style={{ width: `${(demoColourIdx / demoColourQs.length) * 100}%` }} />
@@ -2077,6 +2105,7 @@ if (
           <div className="fwv3-mode-label">
             OFFICIAL ATTEMPT
           </div>
+          <GameSoundToggle className="mb-3" />
 
 
           <h2>
@@ -2296,6 +2325,7 @@ if (
           <div className="fwv3-mode-label">
             OFFICIAL ATTEMPT
           </div>
+          <GameSoundToggle className="mb-3" />
 
           <strong className="fwv3-countdown-number">
             {
@@ -2345,6 +2375,7 @@ if (
           <div className="fwv3-mode-label">
             {championMode ? 'CHAMPION RUN' : 'OFFICIAL ATTEMPT'}
           </div>
+          <GameSoundToggle className="mb-3" />
 
           <div className="fwv3-timer">
             <Clock3 />
@@ -2424,6 +2455,7 @@ if (
                 : 'OFFICIAL ATTEMPT'
             }
           </div>
+          <GameSoundToggle className="mb-3" />
 
 
           <div className="fwv3-timer">
@@ -2587,6 +2619,7 @@ if (
           <div className="fwv3-mode-label">
             ATTEMPT RESULT
           </div>
+          <GameSoundToggle className="mb-3" />
 
 
           <section
@@ -2625,15 +2658,16 @@ if (
                   ? (
                       championMode
                         ? 'Verified Champion time submitted to the leaderboard.'
-                        : 'You completed the sequence.'
+                        : (gameGuide?.win || `You completed ${gameName}.`)
                     )
                   : (
                       championMode
                         ? 'This Champion run was not verified as complete.'
-                        : 'The sequence was not completed in time.'
+                        : (gameGuide?.mistakes || `${gameName} was not completed.`)
                     )
             }
           </p>
+          {resultQuote && <p className="my-3 text-center text-sm font-semibold text-slate-600" data-testid="game-result-quote">{resultQuote}</p>}
 
 
           <section className="fwv3-result-grid">
@@ -2972,6 +3006,7 @@ if (
         <div className="fwv3-mode-label">
           GAME ERROR
         </div>
+        <GameSoundToggle className="mb-3" />
 
         <h2>
           Attempt unavailable

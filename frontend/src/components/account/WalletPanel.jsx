@@ -119,7 +119,7 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  const signupBonusFor = (amount) => {
    if (isInfluencer || promoUnresolved) return 0;
    const s = myOffer;
-   return s && s.eligible && !s.granted && s.offer_enabled && amount >= Number(s.required_topup_gbp) ? Number(s.reward_tokens) : 0;
+  return s && s.eligible && !s.granted && s.offer_enabled && Number(s.required_topup_gbp) > 0 && amount >= Number(s.required_topup_gbp) ? Number(s.reward_tokens) : 0;
  };
  const purchasedTokensFor = (amount) => amount * Number(offer?.topup?.tokens_per_gbp ?? 1);
  const normalTopupBonusFor = (amount) => {

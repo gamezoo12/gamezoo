@@ -1243,8 +1243,7 @@ export default function ReferralsBonusesAdmin() {
         </div>
 
         <div className="text-xs text-violet-800 mt-1 leading-5">
-          Signup: verified £
-          {rules.signup_qualifying_topup_gbp ?? 0}+ top-up →{' '}
+          Signup: {Number(rules.signup_qualifying_topup_gbp) === 0 ? 'no top-up required' : `verified £${rules.signup_qualifying_topup_gbp}+ top-up`} →{' '}
           {rules.signup_bonus_tokens ?? 0} tokens.
           {' '}Referral: verified £
           {rules.referral_qualifying_topup_gbp ?? 0}+ top-up

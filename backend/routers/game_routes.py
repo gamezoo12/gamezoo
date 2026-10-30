@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 from typing import Optional
 import secrets
+from pymongo.errors import DuplicateKeyError
 
 from auth import get_current_user, require_verified_user
 from deps import get_db
@@ -51,10 +52,28 @@ GAME_TYPES = [
 
 class SubmitScoreInput(BaseModel):
     ticket_id: str
+    session_id: Optional[str] = Field(default=None, min_length=16, max_length=80)
     duration_ms: int = Field(..., ge=100, le=1200000)
     accuracy: float = Field(..., ge=0.0, le=1.0)
     solved: bool = True
     challenge_token: Optional[str] = None
+
+
+class StartGameSessionInput(BaseModel):
+    ticket_id: str = Field(..., min_length=1, max_length=100)
+
+
+def _attempt_limit(contest: dict, meta: dict | None) -> int:
+    return max(1, min(int(contest.get('attempts_per_ticket') or contest.get('max_attempts') or (meta or {}).get('max_attempts', 3)), 10))
+
+
+async def _ensure_game_session_indexes(db):
+    await db.game_attempt_sessions.create_index('session_id', unique=True, name='ux_game_attempt_session_id')
+    await db.game_attempt_sessions.create_index(
+        [('ticket_id', 1)], unique=True,
+        partialFilterExpression={'status': 'started'}, name='ux_game_active_session_per_ticket',
+    )
+    await db.game_scores.create_index('game_session_id', unique=True, sparse=True, name='ux_game_score_session')
 
 
 def _calc_points(
@@ -101,6 +120,62 @@ async def list_types():
     return {'games': GAME_TYPES}
 
 
+@router.post('/session/start')
+async def start_game_session(inp: StartGameSessionInput, request: Request):
+    user = await require_verified_user(request)
+    db = get_db()
+    ticket = await db.tickets.find_one({'ticket_id': inp.ticket_id, 'user_id': user['user_id']}, {'_id': 0})
+    if not ticket:
+        raise HTTPException(status_code=404, detail='Ticket not found')
+    contest = await db.contests.find_one({'contest_id': ticket['contest_id']}, {'_id': 0})
+    if not contest:
+        raise HTTPException(status_code=404, detail='Contest not found')
+    game_type = contest.get('game_type')
+    meta = next((game for game in GAME_TYPES if game.get('id') == game_type), None)
+    if not meta:
+        raise HTTPException(status_code=400, detail='This contest is not tied to a supported game')
+    end_raw = contest.get('end_date')
+    if end_raw:
+        try:
+            end_at = datetime.fromisoformat(str(end_raw).replace('Z', '+00:00'))
+            end_at = end_at if end_at.tzinfo else end_at.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) > end_at:
+                raise HTTPException(status_code=400, detail='Contest has closed. Attempts are no longer accepted.')
+        except (ValueError, TypeError):
+            pass
+    await _ensure_game_session_indexes(db)
+    now = datetime.now(timezone.utc)
+    active = await db.game_attempt_sessions.find_one(
+        {'ticket_id': inp.ticket_id, 'user_id': user['user_id'], 'status': 'started'}, {'_id': 0},
+    )
+    if active and active.get('started_at'):
+        if (now - active['started_at']).total_seconds() <= 1800:
+            return {'session_id': active['session_id'], 'started_at': active['started_at'].isoformat(), 'game_type': game_type, 'resumed': True}
+        await db.game_attempt_sessions.update_one({'session_id': active['session_id'], 'status': 'started'},
+                                                  {'$set': {'status': 'expired', 'completed_at': now}})
+    prior_ticket = await db.game_scores.count_documents({
+        'ticket_id': inp.ticket_id, 'contest_id': contest['contest_id'], 'user_id': user['user_id'],
+    })
+    allowed = _attempt_limit(contest, meta)
+    if prior_ticket >= allowed:
+        raise HTTPException(status_code=400, detail=f'No attempts left for this ticket ({allowed} allowed per ticket)')
+    session = {
+        'session_id': f'GAS-{secrets.token_hex(16).upper()}', 'ticket_id': inp.ticket_id,
+        'contest_id': contest['contest_id'], 'user_id': user['user_id'], 'game_type': game_type,
+        'status': 'started', 'started_at': now, 'created_at': now,
+    }
+    try:
+        await db.game_attempt_sessions.insert_one(dict(session))
+    except DuplicateKeyError:
+        active = await db.game_attempt_sessions.find_one(
+            {'ticket_id': inp.ticket_id, 'user_id': user['user_id'], 'status': 'started'}, {'_id': 0},
+        )
+        if not active:
+            raise HTTPException(status_code=409, detail='Another attempt is being started. Please retry.')
+        session = active
+    return {'session_id': session['session_id'], 'started_at': session['started_at'].isoformat(), 'game_type': game_type, 'resumed': False}
+
+
 @router.post('/submit')
 async def submit_score(inp: SubmitScoreInput, request: Request):
     user = await require_verified_user(request)
@@ -115,9 +190,10 @@ async def submit_score(inp: SubmitScoreInput, request: Request):
     if not game_type:
         raise HTTPException(status_code=400, detail='This contest is not tied to a game')
     meta = next((g for g in GAME_TYPES if g['id'] == game_type), None)
+    if not meta:
+        raise HTTPException(status_code=400, detail='This contest is not tied to a supported game')
     # Prefer attempts_per_ticket; fall back to legacy max_attempts. Clamp 1..10.
-    apt = int(contest.get('attempts_per_ticket') or contest.get('max_attempts') or (meta or {}).get('max_attempts', 3))
-    apt = max(1, min(apt, 10))
+    apt = _attempt_limit(contest, meta)
 
     # Attempts are enforced independently PER TICKET.
     # Buying additional tickets creates additional independent game entries;
@@ -159,7 +235,45 @@ async def submit_score(inp: SubmitScoreInput, request: Request):
             detail=f'No attempts left for this ticket ({total_allowed} allowed per ticket)',
         )
 
-    pts = _calc_points(game_type, inp.duration_ms, inp.accuracy, inp.solved)
+    if not inp.session_id:
+        raise HTTPException(status_code=409, detail='Start an official game session before submitting a result.')
+    prior_session_score = await db.game_scores.find_one(
+        {'game_session_id': inp.session_id, 'ticket_id': inp.ticket_id, 'contest_id': contest['contest_id'],
+         'user_id': user['user_id']}, {'_id': 0},
+    )
+    if prior_session_score:
+        attempts_used = await db.game_scores.count_documents({
+            'ticket_id': inp.ticket_id, 'contest_id': contest['contest_id'], 'user_id': user['user_id'],
+        })
+        return {'ok': True, 'idempotent_replay': True, 'points': prior_session_score['points'],
+                'attempts_left': max(0, total_allowed - attempts_used), 'total_allowed': total_allowed,
+                'attempts_per_ticket': apt, 'ticket_id': inp.ticket_id, 'duration_ms': prior_session_score['duration_ms'],
+                'score': prior_session_score}
+    session = await db.game_attempt_sessions.find_one({
+        'session_id': inp.session_id, 'ticket_id': inp.ticket_id, 'contest_id': contest['contest_id'],
+        'user_id': user['user_id'], 'game_type': game_type, 'status': 'started',
+    }, {'_id': 0})
+    if not session:
+        raise HTTPException(status_code=409, detail='This official game session is invalid, expired or already submitted.')
+    now = datetime.now(timezone.utc)
+    started_at = session['started_at']
+    if started_at.tzinfo is None:
+        started_at = started_at.replace(tzinfo=timezone.utc)
+    duration_ms = int((now - started_at).total_seconds() * 1000)
+    if duration_ms < 100:
+        raise HTTPException(status_code=400, detail='Official attempt must run for at least 100 milliseconds.')
+    if duration_ms > 1800000:
+        await db.game_attempt_sessions.update_one({'session_id': inp.session_id, 'status': 'started'},
+                                                  {'$set': {'status': 'expired', 'completed_at': now}})
+        raise HTTPException(status_code=409, detail='This official game session has expired. Start a new attempt.')
+    claimed = await db.game_attempt_sessions.update_one(
+        {'session_id': inp.session_id, 'status': 'started'},
+        {'$set': {'status': 'submitting', 'completed_at': now, 'duration_ms': duration_ms}},
+    )
+    if claimed.modified_count != 1:
+        raise HTTPException(status_code=409, detail='This official game session has already been submitted.')
+
+    pts = _calc_points(game_type, duration_ms, inp.accuracy, inp.solved)
     score = GameScore(
         contest_id=contest['contest_id'],
         ticket_id=inp.ticket_id,
@@ -167,11 +281,20 @@ async def submit_score(inp: SubmitScoreInput, request: Request):
         user_name=user.get('name', 'Anonymous'),
         game_type=game_type,
         points=pts,
-        duration_ms=inp.duration_ms,
+        duration_ms=duration_ms,
         accuracy=inp.accuracy,
         attempts_used=prior_ticket + 1,
     )
-    await db.game_scores.insert_one(score.model_dump())
+    try:
+        score_data = score.model_dump()
+        score_data['game_session_id'] = inp.session_id
+        await db.game_scores.insert_one(score_data)
+        await db.game_attempt_sessions.update_one({'session_id': inp.session_id, 'status': 'submitting'},
+                                                  {'$set': {'status': 'submitted', 'score_id': score.score_id}})
+    except Exception:
+        await db.game_attempt_sessions.update_one({'session_id': inp.session_id, 'status': 'submitting'},
+                                                  {'$set': {'status': 'started'}, '$unset': {'completed_at': '', 'duration_ms': ''}})
+        raise
     attempts_left = max(0, total_allowed - (prior_ticket + 1))
     return {
         'ok': True,
@@ -180,6 +303,7 @@ async def submit_score(inp: SubmitScoreInput, request: Request):
         'total_allowed': total_allowed,
         'attempts_per_ticket': apt,
         'ticket_id': inp.ticket_id,
+        'duration_ms': duration_ms,
         'score': score.model_dump(),
     }
 

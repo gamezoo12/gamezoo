@@ -18,6 +18,14 @@ const emptyCampaign = () => ({
   mobile_image_url: '',
   tablet_image_url: '',
   desktop_image_url: '',
+  signup_offer_text: '',
+  topup_offer_text: '',
+  show_join: true,
+  show_refer: false,
+  show_topup: false,
+  join_url: '/my-account/promotions',
+  refer_url: '/refer',
+  topup_url: '/my-account/wallet?topup=1',
 });
 
 const toLocal = (value) => {
@@ -177,6 +185,14 @@ export default function PromotionCampaignsAdmin() {
             <Field label="Desktop artwork URL" value={form.desktop_image_url || ''} onChange={(value) => setForm({ ...form, desktop_image_url: value })} />
           </div>
           <label className="block text-xs font-bold text-slate-600">Description<textarea value={form.description || ''} onChange={(event) => setForm({ ...form, description: event.target.value })} rows={3} className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm font-normal" /></label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Signup offer text" value={form.signup_offer_text || ''} onChange={(value) => setForm({ ...form, signup_offer_text: value })} />
+            <Field label="Top-up offer text" value={form.topup_offer_text || ''} onChange={(value) => setForm({ ...form, topup_offer_text: value })} />
+            {[["Join", 'show_join', 'join_url'], ["Refer", 'show_refer', 'refer_url'], ["Top Up", 'show_topup', 'topup_url']].map(([label, enabled, link]) => <div key={enabled}>
+              <label className="inline-flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={!!form[enabled]} onChange={(event) => setForm({ ...form, [enabled]: event.target.checked })} />{label}</label>
+              <Field label="Destination" value={form[link] || ''} onChange={(value) => setForm({ ...form, [link]: value })} />
+            </div>)}
+          </div>
           <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" checked={!!form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} /> Enabled during the scheduled window</label>
           <div className="flex justify-end">
             <Button disabled={saving} type="submit" className="gap-2 bg-slate-900 text-white"><Save className="h-4 w-4" />{saving ? 'Saving…' : 'Save promotion'}</Button>

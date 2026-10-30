@@ -318,12 +318,12 @@ export default function PromotionPopup() {
       );
 
       nav(
-        '/my-account/promotions'
+        cfg.join_url || '/my-account/promotions'
       );
     } else {
       guest(
         'join',
-        '/my-account/promotions'
+        cfg.join_url || '/my-account/promotions'
       );
     }
   };
@@ -349,12 +349,26 @@ export default function PromotionPopup() {
         'fw_promo_next'
       );
 
-      nav('/refer');
+      nav(cfg.refer_url || '/refer');
     } else {
       guest(
         'refer',
-        '/refer'
+        cfg.refer_url || '/refer'
       );
+    }
+  };
+
+  const topup = () => {
+    const next = cfg.topup_url || '/my-account/wallet?topup=1';
+    track('topup_click', path, cfg?.promotion_id);
+    if (seenKey) sessionStorage.setItem(seenKey, '1');
+    setOpen(false);
+    if (user) {
+      sessionStorage.removeItem('fw_promo_intent');
+      sessionStorage.removeItem('fw_promo_next');
+      nav(next);
+    } else {
+      guest('topup', next);
     }
   };
 
@@ -521,7 +535,7 @@ export default function PromotionPopup() {
                 "
               />
             </picture>
-          ) : (
+          ) : cfg.promotion_type === 'offer' ? null : (
             <div
               className="
                 absolute
@@ -554,6 +568,13 @@ export default function PromotionPopup() {
           )}
         </div>
 
+        {cfg.promotion_type !== 'offer' && (img || cfg.description || cfg.signup_offer_text || cfg.topup_offer_text) && <div className="px-4 pt-4 sm:px-6 text-white">
+          {img && <h2 className="text-xl font-black">{cfg.name || 'Promotion'}</h2>}
+          {cfg.description && img && <p className="mt-1 text-sm text-white/75">{cfg.description}</p>}
+          {cfg.signup_offer_text && <p className="mt-2 text-sm font-bold text-yellow-300">{cfg.signup_offer_text}</p>}
+          {cfg.topup_offer_text && <p className="mt-2 text-sm font-bold text-yellow-300">{cfg.topup_offer_text}</p>}
+        </div>}
+
         {/* ACTION BUTTONS */}
         <div
           className="
@@ -575,7 +596,7 @@ export default function PromotionPopup() {
             bg-[#0B0D1F]
           "
         >
-          <button
+          {cfg.promotion_type !== 'offer' && cfg.promotion_type !== 'referral' && cfg.show_join !== false && <button
             onClick={join}
             className="
               w-full
@@ -604,9 +625,9 @@ export default function PromotionPopup() {
               : cfg.campaign_type === 'ticket_draw'
                 ? 'CLAIM YOUR ENTRY'
                 : 'JOIN PROMOTION'}
-          </button>
+          </button>}
 
-          {cfg.campaign_type !== 'token_credit' && cfg.campaign_type !== 'ticket_draw' && <button
+          {cfg.show_refer !== false && <button
             onClick={refer}
             className="
               w-full
@@ -631,6 +652,7 @@ export default function PromotionPopup() {
           >
             REFER A FRIEND
           </button>}
+          {cfg.promotion_type !== 'referral' && cfg.show_topup !== false && <button onClick={topup} className="w-full py-4 2xl:py-6 rounded-xl 2xl:rounded-2xl border-2 border-[#FFD54A] text-[#FFD54A] font-black text-base sm:text-lg 2xl:text-2xl">TOP UP</button>}
         </div>
       </div>
     </div>

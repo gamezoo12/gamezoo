@@ -1,17 +1,38 @@
 import { GAME_MAP } from '../../components/games';
 import { GAME_CATALOG } from '../../lib/gameCatalog';
+import { gameExperienceFor, playGameSound } from '../../lib/gameExperience';
+import GameSoundToggle from '../../components/games/GameSoundToggle';
 
 export const isWorldClientGame = (gameId) => Boolean(gameId && gameId !== 'number_sequence' && GAME_MAP[gameId]);
 
-export function WorldClientGame({ gameId, label, onComplete, onSkip, busy }) {
+const formatTime = (ms = 0) => {
+  const safe = Math.max(0, Math.floor(ms));
+  return `${String(Math.floor(safe / 60000)).padStart(2, '0')}:${String(Math.floor((safe % 60000) / 1000)).padStart(2, '0')}.${String(safe % 1000).padStart(3, '0')}`;
+};
+
+export function WorldClientGame({ gameId, config = {}, label, onComplete, onSkip, busy, elapsedMs = 0, practice = false }) {
   const name = GAME_CATALOG.find((g) => g.id === gameId)?.label || gameId;
+  const guide = gameExperienceFor(gameId);
+  const finish = (result) => {
+    if (practice) playGameSound(result?.solved ? 'success' : 'failure');
+    onComplete(result || {});
+  };
   return (
     <div className="fwv3-overlay fwv3-play-overlay" data-testid={`world-client-game-${gameId}`}>
-      <section className="fwv3-card fwv3-play-card" style={{ maxWidth: 720, width: '100%' }}>
-        <div className="fwv3-mode-label">{label}</div>
-        <h2 style={{ fontWeight: 900, fontSize: 20, margin: '6px 0 12px' }}>{name}</h2>
-        <div style={{ background: '#fff', color: '#0f172a', borderRadius: 16, padding: 12, opacity: busy ? 0.6 : 1 }}>
-          {GAME_MAP[gameId]({}, (result) => !busy && onComplete(result || {}))}
+      <section className="fwv3-card fwv3-play-card" style={{ maxWidth: 760, width: '100%' }}>
+        <div className="flex items-center justify-between gap-3">
+          <div className="fwv3-mode-label">{label}</div>
+          <GameSoundToggle className="py-1 text-xs" />
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div><h2 style={{ fontWeight: 900, fontSize: 20, margin: '6px 0' }}>{name}</h2>{guide && <p className="mb-2 text-sm text-slate-600">{guide.objective}</p>}</div>
+          <div className={`rounded-lg px-3 py-2 text-right ${practice ? 'bg-sky-100 text-sky-900' : 'bg-slate-950 text-white'}`} data-testid={practice ? 'world-client-practice-stopwatch' : 'world-client-stopwatch'}>
+            <span className={`block text-[9px] uppercase ${practice ? 'text-sky-700' : 'text-white/60'}`}>{practice ? 'Practice timer · no attempt' : 'Official timer'}</span>
+            <strong className="font-mono tabular-nums">{formatTime(elapsedMs)}</strong>
+          </div>
+        </div>
+        <div onPointerDownCapture={() => playGameSound('tap')} style={{ background: '#fff', color: '#0f172a', borderRadius: 16, padding: 12, opacity: busy ? 0.6 : 1 }}>
+          {GAME_MAP[gameId](config, (result) => !busy && finish(result))}
         </div>
         {onSkip && <button type="button" onClick={onSkip} className="fwv3-secondary" style={{ marginTop: 12 }} data-testid="world-client-game-skip">Skip practice</button>}
       </section>

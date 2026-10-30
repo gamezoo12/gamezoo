@@ -355,6 +355,12 @@ async def register(inp: RegisterInput, request: Request):
                 import logging
                 logging.exception('Influencer registration qualification failed user=%s', user.user_id)
 
+    from routers.referral_routes import grant_zero_threshold_signup_bonus
+    try:
+        await grant_zero_threshold_signup_bonus(db, user.user_id)
+    except Exception:
+        logging.exception('Automatic signup bonus failed user=%s; recovery will retry', user.user_id)
+
     token = create_jwt(user.user_id)
     return {
         'user': _to_public(doc),
@@ -787,6 +793,11 @@ async def finalize_google_signup(inp: GoogleFinalizeInput, request: Request):
         else:
             await _apply_google_personal_referral(db, user['user_id'], referral_code)
 
+    from routers.referral_routes import grant_zero_threshold_signup_bonus
+    try:
+        await grant_zero_threshold_signup_bonus(db, user['user_id'])
+    except Exception:
+        logging.exception('Automatic signup bonus failed user=%s; recovery will retry', user['user_id'])
     fresh = await db.users.find_one({'user_id': user['user_id']}, {'_id': 0, 'password_hash': 0})
     return {'ok': True, 'user': _to_public(fresh)}
 

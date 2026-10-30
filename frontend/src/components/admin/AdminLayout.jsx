@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Package, ShoppingBag, Trophy, BarChart3, LogOut, Shield, CreditCard, Settings as SettingsIcon, ShieldCheck, Wallet as WalletIcon, Gamepad2, Menu, X, ClipboardList, FileText, Building2, Mailbox, Gift, Banknote, Bell, Medal, LifeBuoy, Handshake, CalendarCog } from 'lucide-react';
+import { LayoutDashboard, Users, Package, ShoppingBag, Trophy, BarChart3, LogOut, Shield, CreditCard, Settings as SettingsIcon, ShieldCheck, Wallet as WalletIcon, Gamepad2, Menu, X, ClipboardList, FileText, Building2, Mailbox, Gift, Banknote, Bell, Medal, LifeBuoy, Handshake, CalendarCog, Megaphone } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import PrizeLeagueLogo from '../layout/PrizeLeagueLogo';
 import MeeraChat from '../MeeraChat';
@@ -13,6 +13,7 @@ const LINKS = [
    { to: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
    { to: '/admin/audit-logs', label: 'Audit logs', icon: ClipboardList },
    { to: '/admin/settings', label: 'Settings', icon: SettingsIcon },
+   { to: '/admin/announcements', label: 'Announcement Management', icon: Megaphone, superOnly: true },
  ] },
  { group: 'Paid World', items: [
    { to: '/admin/competitions', label: 'Contests', icon: Package },
@@ -29,8 +30,8 @@ const LINKS = [
  ] },
  { group: 'Free World', items: [
    { to: '/admin/free-world', label: 'Free World', icon: Trophy },
-   { to: '/admin/world-gc-settings', label: 'GC Competition Settings', icon: CalendarCog },
-   { to: '/admin/leaderboards', label: 'Leaderboard', icon: Medal },
+   { to: '/admin/world-gc-settings', label: 'GC Competition Settings', icon: CalendarCog, superOnly: true },
+  { to: '/admin/leaderboards', label: 'Leaderboard', icon: Medal, superOnly: true },
    { to: '/admin/special-challenge', label: 'Special Challenge', icon: Trophy },
  ] },
  { group: 'Operations', items: [
@@ -40,8 +41,8 @@ const LINKS = [
    { to: '/admin/roles', label: 'Roles & Permissions', icon: ShieldCheck },
    { to: '/admin/kyc', label: 'KYC', icon: Shield },
   { to: '/admin/influencers', label: 'Influencers', icon: Handshake, adminOnly: true },
-  { to: '/admin/promotion', label: 'Legacy Promotion Draw', icon: Gift },
-  { to: '/admin/promotion-campaigns', label: 'Promotion Campaigns', icon: Gift },
+  { to: '/admin/promotion', label: 'Promotion Management', icon: Gift, superOnly: true },
+  { to: '/admin/promotion-campaigns', label: 'Promotion Campaigns', icon: Gift, superOnly: true },
    { to: '/admin/legal', label: 'Legal Docs', icon: FileText },
    { to: '/admin/company', label: 'Company Settings', icon: Building2 },
    { to: '/admin/postal', label: 'Postal Entries', icon: Mailbox },
@@ -78,7 +79,7 @@ export default function AdminLayout() {
  </Link>
  <div className="px-5 pt-4 pb-2 text-[10px] uppercase tracking-widest text-[#FFD54A]/70 font-bold">Admin Panel</div>
  <nav className="flex-1 p-3 space-y-3 overflow-y-auto" onClick={onNav}>
- {LINKS.map((group, index) => ({ ...group, items: group.items.filter(item => !item.adminOnly || ['admin', 'super_admin'].includes(user.role)) })).filter(group => group.items.length > 0).map((group, index) => (
+ {LINKS.map((group, index) => ({ ...group, items: group.items.filter(item => (!item.adminOnly || ['admin', 'super_admin'].includes(user.role)) && (!item.superOnly || user.role === 'super_admin')) })).filter(group => group.items.length > 0).map((group, index) => (
    <div key={group.group} className="space-y-1">
      <div className="px-2 pb-1 pt-1 text-[10px] uppercase tracking-[0.18em] text-white/40">{group.group}</div>
      {group.items.map((l) => (

@@ -58,6 +58,9 @@ export default function PromotionAdmin() {
   const [people, setPeople] = useState([]);
   const [draw, setDraw] = useState(null);
   const [history, setHistory] = useState([]);
+  const [manualWinner, setManualWinner] = useState(null);
+  const [selectedWinner, setSelectedWinner] = useState('');
+  const [savedPromotionType, setSavedPromotionType] = useState('offer');
   const [q, setQ] = useState('');
 
   const [saving, setSaving] = useState(false);
@@ -66,19 +69,23 @@ export default function PromotionAdmin() {
   const [winnerBusy, setWinnerBusy] = useState('');
 
   const load = async () => {
-    const [c, s, p, d, h] = await Promise.all([
+    const [c, s, p, d, h, m] = await Promise.all([
       getConfig(),
       getAnalytics(),
       getParticipants(),
       getDraw(),
-      getHistory()
+      getHistory(),
+      api.get('/admin/promotion/manual-winner').then(r => r.data)
     ]);
 
     setCfg(c);
+    setSavedPromotionType(c.promotion_type || 'offer');
     setStats(s);
     setPeople(p.items || []);
     setDraw(d);
     setHistory(h.items || []);
+    setManualWinner(m.winner || null);
+    setSelectedWinner(m.winner?.user_id || '');
   };
 
   useEffect(() => {
@@ -125,6 +132,8 @@ export default function PromotionAdmin() {
     try {
       await saveConfig(cfg);
       await load();
+    } catch (e) {
+      alert(e?.response?.data?.detail || 'Could not save promotion.');
     } finally {
       setSaving(false);
     }
@@ -338,6 +347,28 @@ export default function PromotionAdmin() {
 
   const winners =
     draw?.draw?.winners || [];
+  const promotionType = cfg.promotion_type || 'offer';
+  const isPrizeDraw = promotionType === 'prize_draw';
+  const setPromotionType = (type) => setCfg(current => ({
+    ...current,
+    promotion_type: type,
+    show_join: type === 'prize_draw',
+    show_refer: true,
+    show_topup: type !== 'referral',
+  }));
+
+  const selectManualWinner = async () => {
+    if (!selectedWinner || !window.confirm('Save this eligible participant as the promotion winner?')) return;
+    setWinnerBusy('manual');
+    try {
+      await api.put('/admin/promotion/manual-winner', { user_id: selectedWinner });
+      await load();
+    } catch (e) {
+      alert(e?.response?.data?.detail || 'Could not save the winner.');
+    } finally {
+      setWinnerBusy('');
+    }
+  };
 
   return (
     <div className="w-full max-w-[2200px] 2xl:max-w-[3000px] mx-auto pb-16 text-sm 2xl:text-base">
@@ -346,13 +377,20 @@ export default function PromotionAdmin() {
       </h1>
 
       <p className="text-slate-500 2xl:text-lg mt-1">
-        Promotion controls, analytics, ticket audit
-        and cryptographic winner draw.
+        Promotion controls and analytics.
       </p>
+
+      <label className="mt-4 block max-w-sm text-sm font-bold">Promotion type
+        <select data-testid="promotion-type" className="mt-1 w-full rounded-md border bg-white p-2" value={promotionType} onChange={e => setPromotionType(e.target.value)}>
+          <option value="offer">Offer Promotion</option>
+          <option value="prize_draw">Prize Draw Promotion</option>
+          <option value="referral">Referral Promotion</option>
+        </select>
+      </label>
 
       {/* ANALYTICS CARDS */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 2xl:gap-5 mt-5 2xl:mt-8">
-        {cards.map(([l, v]) => (
+        {cards.filter(([label]) => isPrizeDraw || !['Participants', 'Total tickets', 'Referral tickets', 'Join clicks'].includes(label)).map(([l, v]) => (
           <div
             key={l}
             className="bg-white border rounded-2xl 2xl:rounded-3xl p-4 2xl:p-7"
@@ -369,7 +407,7 @@ export default function PromotionAdmin() {
       </div>
 
       {/* RNG DRAW */}
-      <div className="bg-gradient-to-br from-[#100d2c] to-[#070815] text-white border border-violet-500/30 rounded-3xl 2xl:rounded-[2.5rem] p-6 2xl:p-10 mt-5 2xl:mt-8">
+      {isPrizeDraw && <div className="bg-gradient-to-br from-[#100d2c] to-[#070815] text-white border border-violet-500/30 rounded-3xl 2xl:rounded-[2.5rem] p-6 2xl:p-10 mt-5 2xl:mt-8">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
           <div>
             <div className="text-yellow-400 text-xs 2xl:text-base font-black tracking-[.25em]">
@@ -434,10 +472,23 @@ export default function PromotionAdmin() {
             </div>
           ))}
         </div>
-      </div>
+      </div>}
+
+      {isPrizeDraw && <section className="mt-5 rounded-lg border bg-white p-5" data-testid="promotion-manual-winner">
+        <h2 className="font-bold text-lg">Manual winner selection</h2>
+        <label className="mt-3 block text-sm font-semibold">Eligible participant
+          <select className="mt-1 w-full rounded-md border p-2" value={selectedWinner} onChange={e => setSelectedWinner(e.target.value)}>
+            <option value="">Select a participant</option>
+            {people.filter(p => p.ticket_count > 0 && p.user?.user_id).map(p => <option key={p.user.user_id} value={p.user.user_id}>{p.user.name || p.user.username || p.user.public_id || p.user.user_id} ({p.ticket_count} tickets)</option>)}
+          </select>
+        </label>
+        {savedPromotionType !== 'prize_draw' && <p className="mt-2 text-xs text-slate-600">Save the Prize Draw promotion before selecting a winner.</p>}
+        <button type="button" className="mt-3 rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white disabled:opacity-50" disabled={!selectedWinner || !!winnerBusy || savedPromotionType !== 'prize_draw'} onClick={selectManualWinner}>Save winner</button>
+        {manualWinner && <p className="mt-2 text-sm">Selected: {manualWinner.user_id} · Ticket {manualWinner.ticket_number}</p>}
+      </section>}
 
       {/* WINNER CONTROL */}
-      {draw?.drawn && (
+      {isPrizeDraw && draw?.drawn && (
         <div className="mt-5 2xl:mt-8 bg-slate-950 rounded-3xl 2xl:rounded-[2.5rem] p-5 2xl:p-9 text-white">
           <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-3">
             <div>
@@ -629,7 +680,7 @@ export default function PromotionAdmin() {
             </h2>
 
             <p className="text-sm 2xl:text-lg text-slate-500">
-              Set schedule, artwork and prizes, then
+              Set the schedule and artwork, then
               launch.
             </p>
           </div>
@@ -696,6 +747,23 @@ export default function PromotionAdmin() {
           ))}
         </div>
 
+        {promotionType !== 'offer' && <div className="grid gap-3 sm:grid-cols-2">
+          {[
+            ['Description', 'description', 'Promotion description'],
+            ['Signup offer', 'signup_offer_text', 'Signup Bonus: 5 free Tokens'],
+            ['Top-up offer', 'topup_offer_text', 'Top-Up Offer: Top up £20 and get 40 Tokens']
+          ].map(([label, key, placeholder]) => <label key={key} className="block text-sm font-bold">{label}
+            <input className="mt-1 w-full rounded-md border p-2 font-normal" maxLength={key === 'description' ? 500 : 200} placeholder={placeholder} value={cfg[key] || ''} onChange={e => change(key, e.target.value)} />
+          </label>)}
+        </div>}
+        <div className="grid gap-3 sm:grid-cols-3">
+          {(promotionType === 'offer' ? [['Top Up', 'show_topup', 'topup_url'], ['Refer', 'show_refer', 'refer_url']] : promotionType === 'referral' ? [['Refer', 'show_refer', 'refer_url']] : [['Join', 'show_join', 'join_url'], ['Refer', 'show_refer', 'refer_url'], ['Top Up', 'show_topup', 'topup_url']]).map(([label, enabled, link]) => <div key={enabled}>
+            <label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={cfg[enabled] !== false} onChange={e => change(enabled, e.target.checked)} />{label}</label>
+            <label className="mt-1 block text-xs text-slate-600">Destination<input className="mt-1 w-full rounded-md border p-2 text-sm" value={cfg[link] || ''} onChange={e => change(link, e.target.value)} /></label>
+          </div>)}
+        </div>
+        {promotionType === 'referral' && <a className="text-sm font-semibold text-violet-700 underline" href="/admin/referrals">Referral reward settings</a>}
+
         <div className="grid sm:grid-cols-2 gap-4 2xl:gap-6 bg-slate-50 border rounded-2xl p-4 2xl:p-7">
           {[
             ['Start date & time', 'start_at'],
@@ -721,7 +789,7 @@ export default function PromotionAdmin() {
           ))}
         </div>
 
-        <div className="grid sm:grid-cols-3 gap-4 2xl:gap-6">
+        {isPrizeDraw && <div className="grid sm:grid-cols-3 gap-4 2xl:gap-6">
           {[
             [
               'Total prize £',
@@ -751,7 +819,7 @@ export default function PromotionAdmin() {
               />
             </label>
           ))}
-        </div>
+        </div>}
 
         <div className="flex flex-wrap gap-3 2xl:gap-5 pt-2 border-t">
           <button
@@ -787,7 +855,7 @@ export default function PromotionAdmin() {
       </div>
 
       {/* DRAW HISTORY */}
-      <div className="bg-white border rounded-2xl 2xl:rounded-3xl p-5 2xl:p-8 mt-5 2xl:mt-8">
+      {isPrizeDraw && <div className="bg-white border rounded-2xl 2xl:rounded-3xl p-5 2xl:p-8 mt-5 2xl:mt-8">
         <h2 className="text-lg 2xl:text-3xl font-black">
           Draw history
         </h2>
@@ -837,10 +905,10 @@ export default function PromotionAdmin() {
             </p>
           )}
         </div>
-      </div>
+      </div>}
 
       {/* PARTICIPANTS */}
-      <div className="bg-white border rounded-2xl 2xl:rounded-3xl p-5 2xl:p-8 mt-5 2xl:mt-8">
+      {isPrizeDraw && <div className="bg-white border rounded-2xl 2xl:rounded-3xl p-5 2xl:p-8 mt-5 2xl:mt-8">
         <div className="flex flex-col sm:flex-row justify-between gap-3">
           <div>
             <h2 className="text-lg 2xl:text-3xl font-black">
@@ -943,7 +1011,7 @@ export default function PromotionAdmin() {
             </tbody>
           </table>
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

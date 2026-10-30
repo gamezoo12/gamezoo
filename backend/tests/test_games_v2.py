@@ -174,9 +174,12 @@ class TestSubmitWithNewGameType:
 
     def test_submit_awards_points(self, contest_and_gamer):
         d = contest_and_gamer
+        started = requests.post(f'{BASE_URL}/api/games/session/start', json={'ticket_id': d['ticket_id']}, headers=_auth(d['token']), timeout=30)
+        assert started.status_code == 200, started.text
+        time.sleep(0.12)
         r = requests.post(
             f'{BASE_URL}/api/games/submit',
-            json={'ticket_id': d['ticket_id'], 'duration_ms': 5000, 'accuracy': 1.0, 'solved': True},
+            json={'ticket_id': d['ticket_id'], 'session_id': started.json()['session_id'], 'duration_ms': 5000, 'accuracy': 1.0, 'solved': True},
             headers=_auth(d['token']), timeout=30,
         )
         assert r.status_code == 200, r.text

@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 from pymongo.errors import DuplicateKeyError
 
-from auth import require_admin
+from auth import require_admin, require_super_admin
 from deps import get_db
 from services.world_championship_schedule import championship_window, ordered_contest_sequence
 from services.world_gc_competition import (
@@ -41,13 +41,6 @@ def _utc(value):
         return None
     parsed = value if isinstance(value, datetime) else datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezone.utc)
-
-
-async def require_super_admin(request: Request) -> dict:
-    admin = await require_admin(request)
-    if admin.get("role") != "super_admin":
-        raise HTTPException(status_code=403, detail="Super Admin only")
-    return admin
 
 
 def config_engine(config: dict | None) -> str | None:
@@ -151,7 +144,7 @@ async def public_pause_status():
 
 @admin_router.get("/free-world/pause")
 async def admin_pause_status(request: Request):
-    await require_admin(request)
+    await require_super_admin(request)
     db = get_db()
     doc = await db.world_settings.find_one({"_id": PAUSE_ID}, {"_id": 0}) or {"paused": False}
     events = await _events_since(db, _utc(doc["paused_at"]), datetime.now(timezone.utc)) if doc.get("paused") else []
@@ -263,22 +256,48 @@ async def level_states(db, gc_number: int, config: dict | None) -> dict:
     active_gc = int(active.get("contest_number") or 0) if active else None
     now = datetime.now(timezone.utc)
     applied = config if config_engine(config) else None
+    draft = draft_of(config) if config else None
+    finalized = {row["level_key"] for row in await db.world_gc_level_finalizations.find(
+        {"season_id": SEASON_ID, "gc_number": int(gc_number)}, {"_id": 0, "level_key": 1}).to_list(20)}
+    cutoff = now + timedelta(seconds=APPLY_SAFETY_SECONDS)
     rows = []
     for n in range(1, 11):
         opens = schedule["levels"][n - 1] if schedule else None
+        closes = (schedule["levels"][n] if n < 10 else schedule["champion_opens_at"]) if schedule else None
         live_row = _level_row((applied or {}).get("levels"), n)
+        effective = live_row.get("game_id")
+        if active_gc == int(gc_number):
+            from routers.world_routes import _effective_level_config
+            effective = (await _effective_level_config(db, n)).get("game_id")
+        elif not effective and not applied:
+            effective = "number_sequence"
+        pending = _level_row((draft or {}).get("levels"), n).get("game_id")
+        status = ("Finalized" if f"L{n}" in finalized else "Upcoming" if not opens or opens > now
+                  else "Closed" if closes and closes <= now else "Open")
         rows.append({"level": n, "opens_at": opens.isoformat() if opens else None,
+                     "effective_game_id": effective, "pending_game_id": pending if pending and pending != effective else None,
+                     "status": status, "eligible": bool(opens and opens > cutoff and status == "Upcoming"),
                      "opened": bool(opens and opens <= now), "game_id": live_row.get("game_id"),
                      "applied_model": live_row.get("applied_model") or ((applied or {}).get("model") if applied and live_row.get("game_id") else None),
                      "bonus_rewards": live_row.get("bonus_rewards") if live_row.get("applied_model") == "every_level" else None})
     champ = (applied or {}).get("champion") or {}
+    champ_effective = champ.get("game_id")
+    if active_gc == int(gc_number):
+        from routers.world_routes import _champion_game_for
+        champ_effective = ((await _champion_game_for(db, gc_number)) or {}).get("game_id") or champ_effective
     next_level, champion_unopened = _first_unopened(schedule, now) if schedule else (None, False)
     return {
         "levels": rows,
         "champion": {"opens_at": schedule["champion_opens_at"].isoformat() if schedule else None,
                      "closes_at": schedule["champion_closes_at"].isoformat() if schedule else None,
                      "opened": bool(schedule and schedule["champion_opens_at"] <= now),
-                     "game_id": champ.get("game_id")},
+                     "game_id": champ.get("game_id"), "effective_game_id": champ_effective,
+                     "pending_game_id": ((draft or {}).get("champion") or {}).get("game_id")
+                     if ((draft or {}).get("champion") or {}).get("game_id") != champ_effective else None},
+        "last_apply": ({"at": applied.get("applied_at"), "scope": applied.get("applied_scope"),
+                        "from_level": applied.get("applied_from_level"),
+                        "levels": [{"level": r["level"], "game_id": r.get("game_id")} for r in applied.get("levels", [])
+                                   if not r.get("locked") and r.get("game_id")]} if applied else None),
         "active_gc": active_gc, "is_active_gc": active_gc == int(gc_number),
         "next_unopened_level": next_level, "champion_unopened": champion_unopened,
         "has_started": bool(schedule and schedule["levels"][0] <= now),
@@ -478,7 +497,7 @@ async def apply_to_future_gc(gc_number: int, payload: ApplyInput, request: Reque
 
 @admin_router.get("/competitions/{gc_number}/audit")
 async def gc_config_audit(gc_number: int, request: Request):
-    await require_admin(request)
+    await require_super_admin(request)
     rows = await get_db().world_gc_config_audit.find(
         {"gc_number": gc_number}, {"_id": 0, "previous": 0},
     ).sort("created_at", -1).to_list(20)
@@ -555,6 +574,47 @@ async def settle_hybrid_level_bonuses(db, gc_number: int, now: datetime) -> bool
         {"$set": {"status": "forfeited", "forfeited_at": now, "forfeiture_reason": "not_in_champion_top_five"}},
     )
     return True
+
+
+@public_router.get("/gc/level-board/{gc_number}/{level}")
+async def hybrid_level_board(gc_number: int, level: int, request: Request):
+    """Player view of one Every-Level level running on the existing Free World engine (read-only)."""
+    from auth import get_current_user
+    from routers.world_gc_competition_routes import future_gc_leaderboard_rows
+
+    if not MIN_CONFIGURABLE_GC <= gc_number <= MAX_CONFIGURABLE_GC or not 1 <= level <= 10:
+        raise HTTPException(status_code=404, detail="Level not found")
+    db = get_db()
+    config = await db.world_gc_competition_configs.find_one(
+        {"season_id": SEASON_ID, "gc_number": gc_number, "activation_status": {"$in": ["active", "completed"]},
+         "engine": "legacy_hybrid"}, {"_id": 0})
+    row = _level_row((config or {}).get("levels"), level)
+    if not config or row.get("applied_model") != "every_level":
+        return {"enabled": False, "gc_number": gc_number, "level": level}
+    try:
+        user = await get_current_user(request)
+    except HTTPException:
+        user = None
+    schedule = await live_schedule(db, gc_number)
+    now = datetime.now(timezone.utc)
+    opens = schedule["levels"][level - 1] if schedule else None
+    closes = (schedule["levels"][level] if level < 10 else schedule["champion_opens_at"]) if schedule else None
+    key = {"season_id": SEASON_ID, "gc_number": gc_number, "level_key": f"L{level}"}
+    finalization = await db.world_gc_level_finalizations.find_one(key, {"_id": 0})
+    board = await future_gc_leaderboard_rows(db, gc_number, f"L{level}", (user or {}).get("user_id"))
+    rewards = ({str(w["rank"]): int(w.get("bonus_tokens", 0)) for w in finalization.get("winners", [])}
+               if finalization else {str(r): int(v) for r, v in (row.get("bonus_rewards") or {}).items()})
+    status = ("Finalized" if finalization else "Upcoming" if not opens or opens > now
+              else "Closed" if closes and closes <= now else "Open")
+    return {
+        "enabled": True, "gc_number": gc_number, "level": level, "game_id": row.get("game_id"), "status": status,
+        "opens_at": opens.isoformat() if opens else None, "closes_at": closes.isoformat() if closes else None,
+        "rewards": rewards, "reward_status": "finalized" if finalization else "provisional",
+        "leaderboard": [{"rank": r["rank"], "user_name": r.get("user_name"), "duration_ms": r["duration_ms"]}
+                        for r in board["rows"][:20]],
+        "mine": {"rank": board["rank"], "personal_best_ms": board["personal_best_ms"],
+                 "gap_to_next_ms": board["gap_to_next_ms"]} if board["mine"] else None,
+    }
 
 
 # ---------------------------------------------------------------- isolated preview sandbox

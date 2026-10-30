@@ -1104,14 +1104,15 @@ export default function UserDetailsPage() {
               <div className="flex justify-between gap-3">
                 <span className="text-slate-500">Required top-up</span>
                 <span className="font-semibold">{signup_bonus?.offer_terms?.qualifying_topup_gbp != null
-                  ? `${gbp(signup_bonus.offer_terms.qualifying_topup_gbp)}+ in one verified payment`
+                  ? Number(signup_bonus.offer_terms.qualifying_topup_gbp) === 0 ? 'No top-up required' : `${gbp(signup_bonus.offer_terms.qualifying_topup_gbp)}+ in one verified payment`
                   : 'No offer terms snapshot'}</span>
               </div>
 
               <div className="flex justify-between gap-3">
                 <span className="text-slate-500">Qualifying top-up</span>
                 <span className={signup_bonus?.qualifying_topup_completed ? 'text-emerald-700 font-semibold' : 'text-amber-700 font-semibold'}>
-                  {signup_bonus?.qualifying_topup_completed
+                  {Number(signup_bonus?.offer_terms?.qualifying_topup_gbp) === 0 && signup_bonus?.offer_terms?.qualifying_topup_gbp != null
+                    ? 'Not required' : signup_bonus?.qualifying_topup_completed
                     ? `Completed${signup_bonus?.qualifying_topup_amount_gbp != null ? ` · ${gbp(signup_bonus.qualifying_topup_amount_gbp)}` : ''}`
                     : 'Waiting'}
                 </span>

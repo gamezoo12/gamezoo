@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { pickResultQuote } from '../lib/gameExperience';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Clock, Coins, Gift, Hash, Palette, Target } from 'lucide-react';
 import { api, walletAPI } from '../lib/api';
@@ -50,24 +51,6 @@ const shuffle = (values) => {
 };
 const money = (pence) => `£${(Number(pence || 0) / 100).toFixed(2)}`;
 const messageOf = (e) => e?.response?.data?.detail || e?.message || 'Something went wrong. Please try again.';
-const RESULT_QUOTES = {
-  success: [
-    'Brilliant focus. You made every second count! 🏆✨',
-    'That was all skill, and it showed. Enjoy the win! 🎯🎉',
-    'You showed up, locked in, and got it done! 🚀👏',
-    'A fantastic finish. Your next great run starts here! 🌟🥇',
-    'Look at you go! That challenge never stood a chance! 💥🏆',
-  ],
-  retry: [
-    'Ooh, a tough round! Your focus is getting stronger every try. 💪✨',
-    'Not this time, and that is okay. Take a breath and come back swinging! 🌈🎯',
-    'Every attempt is practice for your next great run. You have got this! 🚀💛',
-    'That was a close one! Reset, refocus, and give it another go. 🔄⭐',
-    'The best runs have a few plot twists. Your comeback can start now! 🎬💪',
-    'Keep that determination. One round never defines your skill! 🌟🙌',
-  ],
-};
-
 export default function SpecialChallenge() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -97,11 +80,7 @@ export default function SpecialChallenge() {
   const lastQuoteRef = useRef('');
 
   const finishResult = (nextResult) => {
-    const quotePool = nextResult.result === 'success'
-      ? RESULT_QUOTES.success
-      : RESULT_QUOTES.retry;
-    const choices = quotePool.filter((quote) => quote !== lastQuoteRef.current);
-    const quote = choices[Math.floor(Math.random() * choices.length)] || quotePool[0];
+    const quote = pickResultQuote(nextResult.result === 'success', lastQuoteRef.current);
     lastQuoteRef.current = quote;
     setResult(nextResult);
     setResultQuote(quote);

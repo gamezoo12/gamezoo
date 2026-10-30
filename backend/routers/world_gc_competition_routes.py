@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 from pymongo.errors import DuplicateKeyError
 
-from auth import require_admin, require_verified_user
+from auth import require_admin, require_super_admin, require_verified_user
 from deps import get_db
 from services.world_gc_competition import (
     MAX_CONFIGURABLE_GC,
@@ -191,7 +191,7 @@ async def _assert_level_open(db, config: dict, user_id: str, level_key: str, now
 
 @admin_router.get("/competitions")
 async def list_future_gc_configs(request: Request):
-    await require_admin(request)
+    await require_super_admin(request)
     db = get_db()
     stored = await db.world_gc_competition_configs.find(
         {"season_id": SEASON_ID, "gc_number": {"$gte": MIN_CONFIGURABLE_GC, "$lte": MAX_CONFIGURABLE_GC}},
@@ -208,7 +208,7 @@ async def list_future_gc_configs(request: Request):
 
 @admin_router.get("/competitions/{gc_number}")
 async def get_future_gc_config(gc_number: int, request: Request):
-    await require_admin(request)
+    await require_super_admin(request)
     gc_number = _validate_gc(gc_number)
     db = get_db()
     config = await db.world_gc_competition_configs.find_one(
@@ -228,7 +228,7 @@ async def get_future_gc_config(gc_number: int, request: Request):
 
 @admin_router.put("/competitions/{gc_number}")
 async def save_future_gc_config(gc_number: int, payload: dict, request: Request):
-    admin = await require_admin(request)
+    admin = await require_super_admin(request)
     gc_number = _validate_gc(gc_number)
     db = get_db()
     key = {"season_id": SEASON_ID, "gc_number": gc_number}
@@ -279,13 +279,13 @@ class ActivateFutureGCInput(BaseModel):
 
 @admin_router.post("/competitions/{gc_number}/schedule")
 async def schedule_future_gc_model(gc_number: int, payload: ScheduleFutureGCInput, request: Request):
-    await require_admin(request)
+    await require_super_admin(request)
     raise HTTPException(status_code=410, detail="Schedules come only from the Free World scheduler. Use Apply to Future GC.")
 
 
 @admin_router.post("/competitions/{gc_number}/activate")
 async def activate_future_gc_model(gc_number: int, payload: ActivateFutureGCInput, request: Request):
-    await require_admin(request)
+    await require_super_admin(request)
     raise HTTPException(status_code=410, detail="Use Apply to Future GC or Apply to Current GC.")
 
 
@@ -598,7 +598,7 @@ async def future_gc_leaderboard(gc_number: int, level: str):
 
 @admin_router.get("/competitions/{gc_number}/report/{level}")
 async def future_gc_level_report(gc_number: int, level: str, request: Request, limit: int = 100):
-    await require_admin(request)
+    await require_super_admin(request)
     _validate_gc(gc_number)
     try:
         level_key = normalize_level_key(level)

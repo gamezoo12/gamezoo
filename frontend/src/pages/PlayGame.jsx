@@ -18,6 +18,8 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import TurnstileGate from '../components/games/TurnstileGate';
+import GameSoundToggle from '../components/games/GameSoundToggle';
+import { gameExperienceFor, pickResultQuote, playGameSound } from '../lib/gameExperience';
 
 const formatDuration = (milliseconds = 0) => {
   const safe = Math.max(0, Math.floor(milliseconds));
@@ -38,6 +40,7 @@ export default function PlayGame() {
   const [attempts, setAttempts] = useState([]);
   const [busy, setBusy] = useState(false);
   const [lastScore, setLastScore] = useState(null);
+  const [resultQuote, setResultQuote] = useState('');
   const [gameKey, setGameKey] = useState(0);
   const [challengeToken, setChallengeToken] = useState(null);
 
@@ -47,6 +50,7 @@ export default function PlayGame() {
   const [countdown, setCountdown] = useState(3);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
+  const [officialSessionId, setOfficialSessionId] = useState(null);
 
   const officialStartRef = useRef(null);
   const timerFrameRef = useRef(null);
@@ -126,6 +130,7 @@ export default function PlayGame() {
 
       const response = await gamesAPI.submit({
         ticket_id: ticketId,
+        session_id: officialSessionId,
         duration_ms: durationMs,
         accuracy: Number(result.accuracy || 0),
         solved: Boolean(result.solved),
@@ -133,6 +138,9 @@ export default function PlayGame() {
       });
 
       setLastScore(response);
+      setOfficialSessionId(null);
+      setResultQuote(pickResultQuote(Boolean(result.solved)));
+      playGameSound(result.solved ? 'success' : 'failure');
       setElapsedMs(durationMs);
       setChallengeToken(null);
       setPhase('result');
@@ -168,6 +176,7 @@ export default function PlayGame() {
   };
 
   const completeDemo = () => {
+    playGameSound('success');
     setDemoCompleted(true);
   };
 
@@ -182,6 +191,7 @@ export default function PlayGame() {
 
     setCountdown(3);
     setPhase('countdown');
+    playGameSound('countdown');
 
     let current = 3;
 
@@ -193,23 +203,33 @@ export default function PlayGame() {
         setCountdown(0);
 
         window.setTimeout(() => {
-          setGameKey((value) => value + 1);
-          setPhase('playing');
-          if (analyticsAllowed()) {
-            acquisitionAPI.paidGameStart({
-              ticket_id: ticketId,
-              start_id: window.crypto.randomUUID(),
-            }).catch(() => {});
-          }
+          gamesAPI.start({ ticket_id: ticketId }).then((session) => {
+            setOfficialSessionId(session.session_id);
+            setGameKey((value) => value + 1);
+            setPhase('playing');
+            playGameSound('start');
+            if (analyticsAllowed()) {
+              acquisitionAPI.paidGameStart({
+                ticket_id: ticketId,
+                start_id: session.session_id,
+              }).catch(() => {});
+            }
+          }).catch((error) => {
+            const detail = error?.response?.data?.detail;
+            toast({ title: 'Could not start official attempt', description: typeof detail === 'string' ? detail : 'Please try again.' });
+            setPhase('ready');
+          });
         }, 500);
       } else {
         setCountdown(current);
+        playGameSound('countdown');
       }
     }, 1000);
   };
 
   const playAgain = () => {
     setLastScore(null);
+    setOfficialSessionId(null);
     setChallengeToken(null);
     setElapsedMs(0);
     setPhase('ready');
@@ -242,6 +262,7 @@ export default function PlayGame() {
 
   const gameType = contest.game_type;
   const renderGame = gameType && GAME_MAP[gameType];
+  const gameGuide = gameExperienceFor(gameType);
 
   const attemptsPerTicket =
     contest?.attempts_per_ticket ?? contest?.max_attempts ?? 3;
@@ -298,6 +319,7 @@ export default function PlayGame() {
           View leaderboard
           <ArrowRight className="w-4 h-4" />
         </Link>
+        <GameSoundToggle />
       </div>
 
       <div className="bg-gradient-to-br from-slate-900 via-indigo-900 to-fuchsia-900 text-white rounded-3xl p-6 mb-6 relative overflow-hidden">
@@ -341,6 +363,13 @@ export default function PlayGame() {
               </p>
             </div>
           </div>
+
+          {gameGuide && <div className="mt-5 grid gap-3 sm:grid-cols-2" data-testid="game-specific-instructions">
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-4"><b>How to play</b><p className="mt-1 text-sm text-slate-600">{gameGuide.controls}</p></div>
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-4"><b>Goal</b><p className="mt-1 text-sm text-slate-600">{gameGuide.objective} {gameGuide.win}</p></div>
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-4"><b>Mistakes</b><p className="mt-1 text-sm text-slate-600">{gameGuide.mistakes}</p></div>
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-4"><b>Timer</b><p className="mt-1 text-sm text-slate-600">{gameGuide.timer}</p></div>
+          </div>}
 
           <div className="mt-6 grid sm:grid-cols-2 gap-3">
             <div className="rounded-xl bg-slate-50 border border-slate-100 p-4">
@@ -565,7 +594,7 @@ export default function PlayGame() {
             </div>
           </div>
 
-          <div className="p-6" key={`official-${gameKey}`}>
+          <div className="p-6" key={`official-${gameKey}`} onPointerDownCapture={() => playGameSound('tap')}>
             {renderGame(contest.game_config || {}, submitOfficialResult)}
           </div>
         </div>
@@ -622,6 +651,7 @@ export default function PlayGame() {
             </div>
 
             <div className="text-sm text-slate-500">out of 100.00</div>
+            {resultQuote && <p className="mx-auto mt-3 max-w-xl text-sm font-semibold text-slate-600" data-testid="game-result-quote">{resultQuote}</p>}
           </div>
 
           <div className="mt-6 grid sm:grid-cols-3 gap-3">

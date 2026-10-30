@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request
-from auth import require_admin
+from auth import require_super_admin
 from deps import get_db
 
 # server.py includes this router directly, so the full admin prefix belongs here.
@@ -19,7 +19,7 @@ def _breakdown(bucket, key):
 
 @router.get('/source-analytics')
 async def source_analytics(request: Request):
-    await require_admin(request)
+    await require_super_admin(request)
     db = get_db()
     cfg = await db.promotion_config.find_one({'key': 'freeworld'}, {'_id': 0}) or {}
     pid = cfg.get('promotion_id', 'freeworld-2026-01')

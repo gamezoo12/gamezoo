@@ -147,7 +147,7 @@ export default function AdminLeaderboards() {
       <div className="flex flex-wrap items-end gap-3 border-b border-slate-200 pb-4">
         <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1" role="tablist" aria-label="Leaderboard world">
           <button type="button" role="tab" aria-selected={world === 'paid'} onClick={() => { setWorld('paid'); setContestId(''); setSearch(''); }} className={`rounded-md px-4 py-2 text-sm font-bold ${world === 'paid' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>Paid World</button>
-          <button type="button" role="tab" aria-selected={world === 'free'} onClick={() => { setWorld('free'); setContestId(''); setSearch(''); }} className={`rounded-md px-4 py-2 text-sm font-bold ${world === 'free' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>Free World</button>
+          {isSuperAdmin && <button type="button" role="tab" aria-selected={world === 'free'} onClick={() => { setWorld('free'); setContestId(''); setSearch(''); }} className={`rounded-md px-4 py-2 text-sm font-bold ${world === 'free' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>Free World</button>}
         </div>
         <label className="min-w-64 flex-1 text-xs font-bold uppercase tracking-wide text-slate-500">
           Contest

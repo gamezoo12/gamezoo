@@ -102,7 +102,7 @@ export default function WorldGCCompetitionAdmin() {
   };
   const applyCurrent = () => window.confirm(`Apply the saved draft to GC${gcNumber} from Level ${states?.next_unopened_level || 'Champion'} onward? Already-opened levels, scores, attempts and rewards stay unchanged.`)
     && runAction(() => worldGcCompetitionAdminAPI.applyCurrent(gcNumber), (r) => r.idempotent_replay ? (r.message || 'Already applied — nothing changed.')
-      : `Applied to Level${r.affected_levels.length === 1 ? '' : 's'} ${r.affected_levels.join(', ') || '—'}${r.champion_affected ? ' + Champion game' : ''}. Levels ${r.locked_levels.join(', ') || '—'} kept their existing settings.`);
+      : `Applied to Level${r.affected_levels.length === 1 ? '' : 's'} ${r.affected_levels.join(', ') || '—'}${r.champion_affected ? ' + Champion game' : ''}: ${(r.config?.levels || []).filter((l) => r.affected_levels.includes(l.level)).map((l) => `L${l.level} ${l.game_id}`).join(', ')}${r.champion_affected ? `, Champion ${r.config?.champion?.game_id}` : ''}. Levels ${r.locked_levels.join(', ') || '—'} kept their existing settings.`);
   const applyFuture = () => window.confirm(`Apply the saved draft to GC${gcNumber}? It takes effect when GC${gcNumber} starts on the existing schedule.`)
     && runAction(() => worldGcCompetitionAdminAPI.applyFuture(gcNumber), (r) => r.idempotent_replay ? 'Already applied — nothing changed.' : `GC${gcNumber} settings applied; they start with its existing schedule.`);
 
@@ -145,6 +145,18 @@ export default function WorldGCCompetitionAdmin() {
         </div>}
 
         <form onSubmit={saveDraft} className="space-y-5">
+          <section className="overflow-x-auto rounded-lg border border-slate-200 bg-white p-4" data-testid="gc-effective-config">
+            <h2 className="font-bold text-slate-900">Effective configuration (what players receive)</h2>
+            <table className="mt-2 w-full text-left text-xs"><thead><tr className="text-slate-500"><th className="p-1">Level</th><th>Effective game</th><th>Pending selection</th><th>Status</th><th>Changes</th></tr></thead><tbody>
+              {(states?.levels || []).map((r) => <tr key={r.level} className="border-t" data-testid={`gc-effective-row-${r.level}`}>
+                <td className="p-1 font-semibold">{r.level}</td><td data-testid={`gc-effective-game-${r.level}`}>{gameNames[r.effective_game_id] || r.effective_game_id || '—'}</td>
+                <td>{r.pending_game_id ? (gameNames[r.pending_game_id] || r.pending_game_id) : '—'}</td><td>{r.status}</td>
+                <td>{r.eligible ? 'Eligible' : 'Locked'}</td></tr>)}
+              <tr className="border-t"><td className="p-1 font-semibold">Champion</td><td data-testid="gc-effective-game-champion">{gameNames[states?.champion?.effective_game_id] || states?.champion?.effective_game_id || '—'}</td>
+                <td>{states?.champion?.pending_game_id ? (gameNames[states.champion.pending_game_id] || states.champion.pending_game_id) : '—'}</td><td>{states?.champion?.opened ? 'Open' : 'Upcoming'}</td><td>{states?.champion_unopened ? 'Eligible' : 'Locked'}</td></tr>
+            </tbody></table>
+            <p className="mt-2 text-xs text-slate-500" data-testid="gc-last-apply">{states?.last_apply ? `Last applied ${londonTime(states.last_apply.at)} (${states.last_apply.scope}): ${states.last_apply.levels.map((l) => `L${l.level} ${l.game_id}`).join(', ') || 'no level changes'}` : 'No settings applied yet.'}</p>
+          </section>
           <section className="rounded-lg border border-slate-200 bg-white p-4">
             <h2 className="font-bold text-slate-900">Competition model</h2>
             <div className="mt-3 max-w-md">
@@ -162,7 +174,7 @@ export default function WorldGCCompetitionAdmin() {
               const locked = (isActiveGc && n < (states.next_unopened_level || 11)) || status === 'completed';
               return <article key={n} className={`rounded-lg border p-4 ${locked ? 'border-slate-200 bg-slate-50' : 'border-slate-200 bg-white'}`} data-testid={`gc-level-card-${n}`}>
                 <div className="mb-3 flex items-center justify-between"><h3 className="font-semibold text-slate-800">Level {n}</h3>{locked && <span className="flex items-center gap-1 text-xs font-semibold text-slate-500"><Lock className="h-3 w-3" /> Opened — existing settings kept</span>}</div>
-                {locked ? <p className="text-sm text-slate-600" data-testid={`gc-level-locked-${n}`}>Running: <b>{gameNames[states?.levels?.[n - 1]?.game_id] || 'Number Sequence (existing)'}</b>{states?.levels?.[n - 1]?.applied_model === 'every_level' ? ' · Every-Level Bonus Tokens' : ''}</p> : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {locked ? <div className="space-y-2 text-sm text-slate-600" data-testid={`gc-level-locked-${n}`}><p>Running: <b>{gameNames[states?.levels?.[n - 1]?.effective_game_id] || states?.levels?.[n - 1]?.effective_game_id || 'Number Sequence'}</b>{states?.levels?.[n - 1]?.applied_model === 'every_level' ? ' · Every-Level Bonus Tokens' : ''}</p>{(row.game_id && row.game_id !== states?.levels?.[n - 1]?.effective_game_id) && <p role="note" className="rounded-md border border-amber-300 bg-amber-50 p-2 font-semibold text-amber-900" data-testid={`gc-level-locked-notice-${n}`}>Level {n} is already open. Its game is locked to protect existing player progress. Your new selection ({gameNames[row.game_id] || row.game_id}) has not been applied to this level.</p>}</div> : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <GameFields row={row} disabled={locked} options={gameOptions} onChange={(patch) => updateLevel(n, patch)} />
                   {draft.model === 'every_level' && [1, 2, 3, 4, 5].map((rank) => <label key={rank}><span className={labelClass}>{rank}{['st', 'nd', 'rd', 'th', 'th'][rank - 1]} place · Bonus Tokens</span><input className={fieldClass} disabled={locked} type="number" min="0" max="500" step="1" value={row.bonus_rewards?.[String(rank)] ?? defaultRewards[String(rank)]} onChange={(e) => updateLevel(n, { bonus_rewards: { ...defaultRewards, ...row.bonus_rewards, [String(rank)]: Number(e.target.value) } })} data-testid={`gc-bonus-${n}-${rank}`} /></label>)}
                 </div>}

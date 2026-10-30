@@ -17,6 +17,7 @@ import PromotionFloatingBadge from './components/PromotionFloatingBadge';
 import GlobalSupportAssistant from './components/support/GlobalSupportAssistant';
 
 import PublicLayout from './components/layout/PublicLayout';
+import RequireSuperAdmin from './components/admin/RequireSuperAdmin';
 
 const Home = lazy(() => import('./pages/Home'));
 const Competitions = lazy(() => import('./pages/Competitions'));
@@ -68,6 +69,7 @@ const InfluencersAdmin = lazy(() => import('./pages/admin/InfluencersAdmin'));
 const InfluencerDashboard = lazy(() => import('./pages/InfluencerDashboard'));
 const FreeWorldAdmin = lazy(() => import('./pages/admin/FreeWorldAdmin'));
 const WorldGCCompetitionAdmin = lazy(() => import('./pages/admin/WorldGCCompetitionAdmin'));
+const AnnouncementsAdmin = lazy(() => import('./pages/admin/AnnouncementsAdmin'));
 const SpecialChallengeAdmin = lazy(() => import('./pages/admin/SpecialChallengeAdmin'));
 const WinningsPayoutsAdmin = lazy(() => import('./pages/admin/WinningsPayoutsAdmin'));
 const CashOutAdmin = lazy(() => import('./pages/admin/CashOutAdmin'));
@@ -97,7 +99,7 @@ const FreeWorldLanding = lazy(() => import('./pages/FreeWorldLanding'));
 const SpecialChallenge = lazy(() => import('./pages/SpecialChallenge'));
 
 import ProductionLayout from './components/admin/ProductionLayout';
-const LiveDrawPage = lazy(() => import('./pages/production/LiveDraw'));
+const DrawStudioPage = lazy(() => import('./pages/production/DrawStudio'));
 const PrizeInventory = lazy(() => import('./pages/production/PrizeInventory'));
 const OperationsPage = lazy(() => import('./pages/production/Operations'));
 const WinnersFeed = lazy(() => import('./pages/production/WinnersFeed'));
@@ -519,7 +521,12 @@ function AppRouter() {
 
         <Route
           path="world-gc-settings"
-          element={<WorldGCCompetitionAdmin />}
+          element={<RequireSuperAdmin><WorldGCCompetitionAdmin /></RequireSuperAdmin>}
+        />
+
+        <Route
+          path="announcements"
+          element={<RequireSuperAdmin><AnnouncementsAdmin /></RequireSuperAdmin>}
         />
 
         <Route
@@ -537,17 +544,17 @@ function AppRouter() {
 
         <Route
           path="promotion"
-          element={<PromotionAdminShell />}
+          element={<RequireSuperAdmin><PromotionAdminShell /></RequireSuperAdmin>}
         />
 
         <Route
           path="promotion-campaigns"
-          element={<PromotionCampaignsAdmin />}
+          element={<RequireSuperAdmin><PromotionCampaignsAdmin /></RequireSuperAdmin>}
         />
 
         <Route
           path="promotion/draw-studio"
-          element={<PromotionDrawStudio />}
+          element={<RequireSuperAdmin><PromotionDrawStudio /></RequireSuperAdmin>}
         />
 
 
@@ -655,7 +662,7 @@ function AppRouter() {
 
         <Route
           path="live-draw"
-          element={<LiveDrawPage />}
+          element={<DrawStudioPage />}
         />
 
         <Route

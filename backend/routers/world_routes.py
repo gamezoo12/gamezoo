@@ -14,6 +14,7 @@ IMPORTANT:
 from __future__ import annotations
 
 import asyncio
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 import secrets
@@ -4477,9 +4478,14 @@ async def _effective_level_config_base(
         config = {**config, "game_id": "number_sequence", "game_config": {"target_number": 20}}
     elif selected in _world_client_games():
         meta = _world_client_games()[selected]
-        config = {**config, "game_id": selected, "game_config": {"client_game": True},
+        selected_game_config = (row or {}).get("game_config") or {}
+        config = {**config, "game_id": selected,
+                  "game_config": {**(config.get("game_config") or {}), **selected_game_config, "client_game": True},
                   "time_limit_seconds": min(300, max(int(config.get("time_limit_seconds") or 60),
                                                      int(meta.get("target_time_s", 60)) * 2))}
+    elif selected and selected not in ("colour_match", "number_sequence"):
+        raise HTTPException(status_code=409, detail={"code": "GAME_UNAVAILABLE",
+                            "message": f"The game '{selected}' configured for this level is unavailable."})
     if selected:
         config = {**config, "gc_applied_model": row.get("applied_model")}
     return config
@@ -7039,6 +7045,9 @@ async def free_world_session_start(
         "game_id":
             config["game_id"],
 
+        "game_config":
+            deepcopy(config.get("game_config") or {}),
+
         "target_number":
             target,
 
@@ -7095,6 +7104,8 @@ async def free_world_session_start(
                 "questions": colour_questions,
             }
             if colour_questions is not None
+            else deepcopy(config.get("game_config") or {})
+            if config.get("game_id") in _world_client_games()
             else {
                 "target_number":
                     target,
@@ -12015,6 +12026,7 @@ async def _manual_ticker_winners(db) -> list:
     return [
         {
             "rank": 1000 + i,
+            "winner_id": r.get("winner_id"),
             "user_name": r["user_name"],
             "prize_amount": float(r["prize_amount"]),
             "currency": r.get("currency") or WORLD_DEFAULT_CURRENCY,

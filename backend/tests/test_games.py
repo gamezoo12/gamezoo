@@ -104,15 +104,27 @@ class TestContestGameType:
 
 
 class TestSubmitScore:
+    @staticmethod
+    def _start(gamer):
+        response = requests.post(
+            f'{BASE_URL}/api/games/session/start',
+            json={'ticket_id': gamer['ticket_id']},
+            headers=_auth(gamer['token']), timeout=30,
+        )
+        assert response.status_code == 200, response.text
+        return response.json()['session_id']
+
     def test_attempts_starts_empty(self, gamer):
         r = requests.get(f'{BASE_URL}/api/games/attempts/{gamer["ticket_id"]}', headers=_auth(gamer['token']), timeout=30)
         assert r.status_code == 200
         assert r.json()['attempts'] == []
 
     def test_submit_score_first_attempt(self, gamer):
+        session_id = self._start(gamer)
+        time.sleep(0.15)
         r = requests.post(
             f'{BASE_URL}/api/games/submit',
-            json={'ticket_id': gamer['ticket_id'], 'duration_ms': 15000, 'accuracy': 1.0, 'solved': True},
+            json={'ticket_id': gamer['ticket_id'], 'session_id': session_id, 'duration_ms': 1200000, 'accuracy': 1.0, 'solved': True},
             headers=_auth(gamer['token']),
             timeout=30,
         )
@@ -121,12 +133,15 @@ class TestSubmitScore:
         assert body['ok'] is True
         assert body['points'] > 0
         assert body['attempts_left'] == 2
+        assert 100 <= body['duration_ms'] < 1200000
 
     def test_submit_second_and_third(self, gamer):
         for expected_left in (1, 0):
+            session_id = self._start(gamer)
+            time.sleep(0.11)
             r = requests.post(
                 f'{BASE_URL}/api/games/submit',
-                json={'ticket_id': gamer['ticket_id'], 'duration_ms': 20000, 'accuracy': 0.8, 'solved': True},
+                json={'ticket_id': gamer['ticket_id'], 'session_id': session_id, 'duration_ms': 20000, 'accuracy': 0.8, 'solved': True},
                 headers=_auth(gamer['token']),
                 timeout=30,
             )
@@ -134,9 +149,16 @@ class TestSubmitScore:
             assert r.json()['attempts_left'] == expected_left
 
     def test_fourth_submit_rejected(self, gamer):
+        session = requests.post(
+            f'{BASE_URL}/api/games/session/start', json={'ticket_id': gamer['ticket_id']},
+            headers=_auth(gamer['token']), timeout=30,
+        )
+        assert session.status_code == 400
+        assert 'No attempts left' in session.text
+        session_id = 'no-session'
         r = requests.post(
             f'{BASE_URL}/api/games/submit',
-            json={'ticket_id': gamer['ticket_id'], 'duration_ms': 15000, 'accuracy': 1.0, 'solved': True},
+            json={'ticket_id': gamer['ticket_id'], 'session_id': session_id, 'duration_ms': 15000, 'accuracy': 1.0, 'solved': True},
             headers=_auth(gamer['token']),
             timeout=30,
         )

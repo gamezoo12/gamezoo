@@ -2,14 +2,14 @@ from datetime import datetime, timezone
 import secrets
 from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
-from fastapi import APIRouter, HTTPException, Request, Query
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, HTTPException, Request, Query
+from pydantic import BaseModel, Field, field_validator
 from typing import Literal
-from auth import get_current_user, require_admin, require_verified_user
+from auth import get_current_user, require_admin, require_super_admin, require_verified_user
 from deps import get_db
 
-router=APIRouter(prefix='/api/promotion',tags=['promotion']);admin_router=APIRouter(prefix='/api/admin/promotion',tags=['admin-promotion'])
-DEFAULT_CONFIG={'promotion_id':'freeworld-2026-01','name':'Free World Promotion','active':False,'mobile_image_url':'','tablet_image_url':'','desktop_image_url':'','prize_total_gbp':1000,'winner_count':2,'prize_per_winner_gbp':500,'start_at':None,'end_at':None}
+router=APIRouter(prefix='/api/promotion',tags=['promotion']);admin_router=APIRouter(prefix='/api/admin/promotion',tags=['admin-promotion'],dependencies=[Depends(require_super_admin)])
+DEFAULT_CONFIG={'promotion_id':'freeworld-2026-01','name':'Free World Promotion','active':False,'mobile_image_url':'','tablet_image_url':'','desktop_image_url':'','prize_total_gbp':1000,'winner_count':2,'prize_per_winner_gbp':500,'start_at':None,'end_at':None,'promotion_type':'offer','description':'','signup_offer_text':'','topup_offer_text':'','show_join':False,'show_refer':True,'show_topup':True,'join_url':'/my-account/promotions','refer_url':'/refer','topup_url':'/my-account/wallet?topup=1'}
 CAMPAIGN_TYPES={'ticket_draw','referral_draw','token_credit'}
 def _public_config(doc):
  d={**DEFAULT_CONFIG,**(doc or {})};d.pop('_id',None);now=datetime.now(timezone.utc);active=bool(d.get('active'))
@@ -23,7 +23,12 @@ def _public_config(doc):
  d['is_live']=active;return d
 async def _config(db):return _public_config(await db.promotion_config.find_one({'key':'freeworld'},{'_id':0}))
 def _public_campaign(doc):
- d=_public_config(doc);d.setdefault('campaign_type','referral_draw');d.setdefault('description','');d.setdefault('reward_tokens',0);d.setdefault('legacy',False);return d
+ d=_public_config(doc);d.setdefault('campaign_type','referral_draw');d.setdefault('description','');d.setdefault('reward_tokens',0);d.setdefault('legacy',False)
+ if 'promotion_type' not in doc:d['promotion_type']=None
+ if 'show_join' not in doc:d['show_join']=True
+ if 'show_refer' not in doc:d['show_refer']=d['campaign_type']=='referral_draw'
+ if 'show_topup' not in doc:d['show_topup']=False
+ return d
 async def _get_campaign(db,promotion_id):
  doc=await db.promotion_campaigns.find_one({'promotion_id':promotion_id},{'_id':0})
  if doc:return _public_campaign(doc)
@@ -106,6 +111,16 @@ class CampaignInput(BaseModel):
  mobile_image_url:str=''
  tablet_image_url:str=''
  desktop_image_url:str=''
+ signup_offer_text:str=Field(default='',max_length=200)
+ topup_offer_text:str=Field(default='',max_length=200)
+ show_join:bool=True;show_refer:bool=False;show_topup:bool=False
+ join_url:str='/my-account/promotions';refer_url:str='/refer';topup_url:str='/my-account/wallet?topup=1'
+
+ @field_validator('join_url','refer_url','topup_url')
+ @classmethod
+ def validate_button_url(cls,value):
+  if not value.startswith('/') or value.startswith('//') or '\\' in value or any(c.isspace() or ord(c)<32 for c in value):raise ValueError('Button links must be internal paths')
+  return value
 
 
 @router.get('/campaigns')
@@ -175,7 +190,7 @@ class EventInput(BaseModel):
 
 @router.post('/event')
 async def promotion_event(inp:EventInput,request:Request):
- db=get_db();cfg=await _config(db);allowed={'impression','close','join_click','refer_click','signup_start','signup_complete','profile_view'}
+ db=get_db();cfg=await _config(db);allowed={'impression','close','join_click','refer_click','topup_click','signup_start','signup_complete','profile_view'}
  if inp.event not in allowed:raise HTTPException(400,'Unknown promotion event')
  if inp.promotion_id:
   campaign=await _get_campaign(db,inp.promotion_id)
@@ -215,11 +230,30 @@ async def join_promotion(request:Request):
  return {'joined':True,'tickets':tickets,'ticket_count':len(tickets),'base_ticket_count':sum(1 for t in tickets if t.get('source')=='join'),'referral_ticket_count':sum(1 for t in tickets if t.get('source')=='referral')}
 class ConfigInput(BaseModel):
  active:bool=False;promotion_id:str='freeworld-2026-01';name:str='Free World Promotion';mobile_image_url:str='';tablet_image_url:str='';desktop_image_url:str='';prize_total_gbp:float=1000;winner_count:int=2;prize_per_winner_gbp:float=500;start_at:str|None=None;end_at:str|None=None
+ promotion_type:Literal['offer','prize_draw','referral']='offer'
+ description:str=Field(default='',max_length=500)
+ signup_offer_text:str=Field(default='',max_length=200)
+ topup_offer_text:str=Field(default='',max_length=200)
+ show_join:bool=False;show_refer:bool=True;show_topup:bool=True
+ join_url:str='/my-account/promotions';refer_url:str='/refer';topup_url:str='/my-account/wallet?topup=1'
+
+ @field_validator('join_url','refer_url','topup_url')
+ @classmethod
+ def validate_button_url(cls,value):
+  if not value.startswith('/') or value.startswith('//') or '\\' in value or any(c.isspace() or ord(c)<32 for c in value):raise ValueError('Button links must be internal paths')
+  return value
 @admin_router.get('/config')
 async def admin_get_config(request:Request):await require_admin(request);return await _config(get_db())
 @admin_router.put('/config')
 async def admin_save_config(inp:ConfigInput,request:Request):
- await require_admin(request);db=get_db();data=inp.model_dump();data.update({'key':'freeworld','updated_at':datetime.now(timezone.utc)});await db.promotion_config.update_one({'key':'freeworld'},{'$set':data},upsert=True);return await _config(db)
+ await require_super_admin(request);db=get_db();data=inp.model_dump()
+ if data['start_at'] or data['end_at']:
+  try:
+   start=datetime.fromisoformat(data['start_at'].replace('Z','+00:00')) if data['start_at'] else None
+   end=datetime.fromisoformat(data['end_at'].replace('Z','+00:00')) if data['end_at'] else None
+   if (start and not start.tzinfo) or (end and not end.tzinfo) or (start and end and end<=start):raise ValueError()
+  except ValueError:raise HTTPException(422,'Dates must include a timezone and end after start.')
+ data.update({'key':'freeworld','updated_at':datetime.now(timezone.utc)});await db.promotion_config.update_one({'key':'freeworld'},{'$set':data},upsert=True);return await _config(db)
 
 
 async def _save_campaign(inp:CampaignInput,request:Request,create:bool):

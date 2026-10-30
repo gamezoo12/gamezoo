@@ -136,7 +136,8 @@ async def _grant_signup_bonus_once(
                 db, user_id=user_id, amount=signup_reward_tokens,
                 expires_at=expiry_from_terms(terms, now),
                 actor_id='signup-reward-system', actor_email='Prize League',
-                reason='Verified qualifying Stripe top-up signup reward',
+                reason=('Verified qualifying Stripe top-up signup reward' if qualifying_session_id
+                        else 'Signup reward with no top-up required'),
                 ref_key=f'signup_reward:{user_id}', source='signup',
             )
             reward_tx = next(iter(grant.get('related_tx_ids') or []), None)
@@ -284,6 +285,19 @@ async def _complete_referral_if_eligible(db, referred_user_id: str) -> bool:
         raise
 
 
+async def grant_zero_threshold_signup_bonus(db, user_id: str) -> bool:
+    user = await db.users.find_one(
+        {'user_id': user_id, 'signup_bonus_offer_eligible': True, 'signup_bonus_granted': {'$ne': True}},
+        {'_id': 0, 'signup_offer_terms': 1},
+    )
+    if not user:
+        return False
+    terms = user.get('signup_offer_terms') or signup_terms(await get_reward_settings(db))
+    if not terms.get('enabled', True) or float(terms['qualifying_topup_gbp']) != 0:
+        return False
+    return await _grant_signup_bonus_once(db, user_id)
+
+
 async def record_verified_topup(
     db,
     user_id: str,
@@ -299,6 +313,7 @@ async def record_verified_topup(
     amount_gbp = round(float(amount_gbp), 2)
     settings = await get_reward_settings(db)
     now = datetime.now(timezone.utc)
+    await grant_zero_threshold_signup_bonus(db, user_id)
 
     user = await db.users.find_one(
         {'user_id': user_id},
@@ -310,6 +325,7 @@ async def record_verified_topup(
         program == 'normal'
         and user.get('signup_bonus_offer_eligible')
         and not user.get('signup_bonus_granted')
+        and float(signup_in_force['qualifying_topup_gbp']) > 0
         and amount_gbp >= float(signup_in_force['qualifying_topup_gbp'])
     )
 
@@ -424,6 +440,8 @@ async def _sync_current_user(db, user_id: str):
         '_id': 0, 'signup_bonus_offer_eligible': 1, 'normal_topup_offer_terms': 1,
     })
     program = await resolve_acquisition_program(db, user_id)
+    if program == 'normal' and user and user.get('signup_bonus_offer_eligible'):
+        await grant_zero_threshold_signup_bonus(db, user_id)
     pending_referral = await db.referrals.find_one(
         {'referred_user_id': user_id, 'program_version': PROGRAM_VERSION, 'status': 'pending'},
         {'_id': 1},

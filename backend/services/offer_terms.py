@@ -116,7 +116,9 @@ def expiry_from_terms(terms: dict, now: Optional[datetime] = None):
 
 
 def signup_conditions_text(terms: dict) -> str:
-    text = (f"Top up {money(terms['qualifying_topup_gbp'])} or more in one verified payment to receive "
+    text = (f"Receive {_num(terms['reward_tokens']):g} Bonus Tokens when you sign up; no top-up is required."
+            if _num(terms['qualifying_topup_gbp']) == 0 else
+            f"Top up {money(terms['qualifying_topup_gbp'])} or more in one verified payment to receive "
             f"{tokens_text(terms['reward_tokens'])} Bonus Tokens.")
     days = terms.get('expiry_days')
     return text + (f' Bonus Tokens expire {days} days after they are credited.' if days else ' These Bonus Tokens do not expire.')
@@ -191,7 +193,8 @@ def topup_preview(settings: dict, amount_gbp: float) -> dict:
     signup, referral, normal_topup = signup_terms(settings), referral_terms(settings), normal_topup_terms(settings)
     purchased = round(amount * TOPUP_TOKENS_PER_GBP, 2)
     valid = TOPUP_MIN_GBP <= amount <= TOPUP_MAX_GBP
-    signup_bonus = signup['reward_tokens'] if valid and signup['enabled'] and amount >= signup['qualifying_topup_gbp'] else 0.0
+    signup_bonus = (signup['reward_tokens'] if valid and signup['enabled'] and signup['qualifying_topup_gbp'] > 0
+                    and amount >= signup['qualifying_topup_gbp'] else 0.0)
     normal_topup_bonus = 0.0
     if valid and normal_topup['enabled'] and amount >= normal_topup['minimum_gbp']:
         normal_topup_bonus = (round(purchased * normal_topup['reward_percent'] / 100, 2)

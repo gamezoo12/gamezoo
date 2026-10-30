@@ -31,12 +31,21 @@ export default function PromotionFloatingBadge() {
   const badgeRef = useRef(null);
   const dragRef = useRef(null);
   const [cfg, setCfg] = useState(null);
+  const [settings, setSettings] = useState({ enabled: true, text: '', url: '/my-account/promotions' });
   const [position, setPosition] = useState(null);
   const [dragging, setDragging] = useState(false);
   const [hidden, setHidden] = useState(() => sessionStorage.getItem(DISMISS_KEY) === '1');
 
   useEffect(() => {
-    api.get('/promotion/config').then((r) => setCfg(r.data)).catch(() => {});
+    let active = true;
+    const load = () => {
+      api.get('/promotion/config').then((r) => { if (active) setCfg(r.data); }).catch(() => {});
+      api.get('/announcements/promotion-badge').then((r) => { if (active) setSettings(r.data); }).catch(() => {});
+    };
+    load();
+    const timer = window.setInterval(load, 60000);
+    window.addEventListener('pl:promotion-badge-updated', load);
+    return () => { active = false; window.clearInterval(timer); window.removeEventListener('pl:promotion-badge-updated', load); };
   }, []);
 
   useEffect(() => {
@@ -58,7 +67,17 @@ export default function PromotionFloatingBadge() {
     return () => window.removeEventListener('resize', place);
   }, []);
 
-  if (!user || !cfg?.is_live || hidden || excluded(location.pathname)) return null;
+  if (!user || !cfg?.is_live || !settings.enabled || hidden || excluded(location.pathname)) return null;
+
+  const openPromotion = () => {
+    api.post('/promotion/event', {
+      event: 'profile_view',
+      page: location.pathname,
+      device: window.innerWidth < 640 ? 'mobile' : window.innerWidth < 1024 ? 'tablet' : 'desktop',
+    }).catch(() => {});
+    if (/^https?:\/\//i.test(settings.url)) window.open(settings.url, '_blank', 'noopener,noreferrer');
+    else navigate(settings.url || '/my-account/promotions');
+  };
 
   const dismiss = (e) => {
     e.stopPropagation();
@@ -114,12 +133,7 @@ export default function PromotionFloatingBadge() {
       setPosition(docked);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(docked));
     } else {
-      api.post('/promotion/event', {
-        event: 'profile_view',
-        page: location.pathname,
-        device: window.innerWidth < 640 ? 'mobile' : window.innerWidth < 1024 ? 'tablet' : 'desktop',
-      }).catch(() => {});
-      navigate('/my-account/promotions');
+      openPromotion();
     }
   };
 
@@ -133,6 +147,7 @@ export default function PromotionFloatingBadge() {
       onPointerMove={moveDrag}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPromotion(); } }}
       style={{
         left: position?.x ?? -9999,
         top: position?.y ?? -9999,
@@ -157,12 +172,12 @@ export default function PromotionFloatingBadge() {
         </span>
         <span className="text-left leading-tight">
           <span className="block max-w-40 truncate text-[10px] sm:text-xs font-bold uppercase text-[#FFD54A]">{cfg.name || 'Special Promotion'}</span>
-          <span className="block text-xs sm:text-sm font-black whitespace-nowrap">
-            {cfg.campaign_type === 'token_credit'
+          <span className="block max-w-40 truncate text-xs sm:text-sm font-black">
+            {settings.text || (cfg.campaign_type === 'token_credit'
               ? `CLAIM ${cfg.reward_tokens || 0} TOKENS`
               : cfg.prize_total_gbp
                 ? `WIN UP TO £${Number(cfg.prize_total_gbp).toLocaleString('en-GB')}`
-                : 'CLAIM YOUR REWARD'}
+                : 'CLAIM YOUR REWARD')}
           </span>
         </span>
         <GripVertical className="h-4 w-4 text-white/45" />

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 
 import { worldAdminAPI } from '../../lib/api';
+import { useAuth } from '../../context/AuthContext';
 import { FreeWorldPauseControl } from '../../components/admin/FreeWorldPauseControl';
 import { Button } from '../../components/ui/button';
 import { useToast } from '../../hooks/use-toast';
@@ -95,6 +96,7 @@ function Stat({ label, value, testid }) {
 
 export default function FreeWorldAdmin() {
   const { toast } = useToast();
+  const { user: authUser } = useAuth();
 
   const [busy, setBusy] = useState(false);
   const [contests, setContests] = useState([]);
@@ -528,7 +530,7 @@ export default function FreeWorldAdmin() {
         </Button>
       </div>
 
-      <FreeWorldPauseControl />
+      {authUser?.role === 'super_admin' && <FreeWorldPauseControl />}
 
       {/* SECTION 1 — SEASON CONTROL */}
       <section className="rounded-2xl border border-slate-200 bg-white p-5"

@@ -90,17 +90,19 @@ async def _require_role(request: Request, allowed):
 
 @router.get('/leaderboards/contests')
 async def admin_leaderboard_contests(request: Request):
-    await require_admin(request)
+    admin = await require_admin(request)
     from deps import get_db
     db = get_db()
     paid = await db.contests.find(
         {}, {'_id': 0, 'contest_id': 1, 'title': 1, 'status': 1, 'entry_mode': 1,
             'game_type': 1, 'start_date': 1, 'end_date': 1},
     ).sort([('start_date', -1), ('title', 1)]).to_list(1000)
-    free_world = await db.world_global_contests.find(
-        {'season_id': 'season-1'},
-        {'_id': 0, 'contest_number': 1, 'status': 1, 'start_at': 1, 'end_at': 1},
-    ).sort('contest_number', 1).to_list(1000)
+    free_world = []
+    if admin.get('role') == 'super_admin':
+        free_world = await db.world_global_contests.find(
+            {'season_id': 'season-1'},
+            {'_id': 0, 'contest_number': 1, 'status': 1, 'start_at': 1, 'end_at': 1},
+        ).sort('contest_number', 1).to_list(1000)
     return {'paid_contests': paid, 'free_world_contests': free_world}
 
 
@@ -153,7 +155,8 @@ async def admin_paid_leaderboard(contest_id: str, request: Request, limit: int =
 
 @router.get('/leaderboards/free-world/{contest_number}')
 async def admin_free_world_leaderboard(contest_number: int, request: Request, limit: int = 1000):
-    await require_admin(request)
+    from auth import require_super_admin
+    await require_super_admin(request)
     if not 1 <= contest_number <= 100:
         raise HTTPException(status_code=400, detail='Invalid Free World contest number')
     from deps import get_db

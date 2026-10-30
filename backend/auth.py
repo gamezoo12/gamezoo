@@ -166,3 +166,10 @@ async def require_admin(request: Request):
     if user.get('role') not in ('admin', 'super_admin', 'operator', 'support'):
         raise HTTPException(status_code=403, detail='Admin only')
     return user
+
+
+async def require_super_admin(request: Request):
+    user = await require_admin(request)
+    if user.get('role') != 'super_admin':
+        raise HTTPException(status_code=403, detail='Super Admin only')
+    return user

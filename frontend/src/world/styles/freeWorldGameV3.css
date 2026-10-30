@@ -1,6 +1,7 @@
 .fwv3-overlay {
   position: fixed;
-  inset: 0;
+  inset: 0 0 0;
+  top: var(--pl-topbar-h, 113px);
   z-index: 10050;
 
   display: flex;
@@ -10,7 +11,7 @@
   overflow-y: auto;
 
   padding:
-    max(14px, env(safe-area-inset-top))
+    14px
     10px
     max(90px, env(safe-area-inset-bottom));
 
@@ -1917,7 +1918,10 @@ body:has(.fwv3-overlay) {
 }
 
 .fwv3-overlay {
-  inset: 56px 0 0;
+  top: var(--pl-topbar-h, 113px);
+  right: 0;
+  bottom: 0;
+  left: 0;
   overscroll-behavior: contain;
 }
 
@@ -1955,13 +1959,13 @@ body:has(.fwv3-overlay) {
 
 @media (min-width: 640px) {
   .fwv3-overlay {
-    inset: 64px 0 0;
+    top: var(--pl-topbar-h, 113px);
   }
 }
 
 @media (min-width: 768px) {
   .fwv3-overlay {
-    inset: 70px 0 0;
+    top: var(--pl-topbar-h, 113px);
   }
 }
 
