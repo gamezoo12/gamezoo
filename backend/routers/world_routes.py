@@ -4514,6 +4514,7 @@ async def _effective_level_config_base(
             config["game_config"] = {**(config.get("game_config") or {}), "timer_mode": "stopwatch"}
             config["unlimited_free_attempts"] = True
             config["token_retry_enabled"] = False
+            config["token_unlock_enabled"] = False
     return config
 
 

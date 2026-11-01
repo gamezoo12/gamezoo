@@ -891,6 +891,7 @@ const ChampionshipSection = React.memo(function ChampionshipSection({
       levelState?.lock_reason === 'time' &&
       levelState?.sequence_available === true &&
       levelState?.token_unlock_enabled !== false &&
+      levelState?.gc_applied_model !== 'every_level' &&
       Number(localLevel) >= 2;
 
     if (eligibleForEarlyUnlock) {
@@ -1744,6 +1745,7 @@ const ChampionshipSection = React.memo(function ChampionshipSection({
               backendState?.lock_reason === 'time' &&
               backendState?.sequence_available === true &&
               backendState?.token_unlock_enabled !== false &&
+              backendState?.gc_applied_model !== 'every_level' &&
               Number(localLevel) >= 2;
 
             return (
