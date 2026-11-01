@@ -29,6 +29,7 @@ import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 
 import '../styles/freeWorldGameV3.css';
+import '../styles/freeWorldFullscreen.css';
 import { WorldClientGame, isWorldClientGame } from './WorldClientGame';
 import { ChromaBoard, SequenceBoard } from '../../components/games/premium/boards';
 import GameSoundToggle from '../../components/games/GameSoundToggle';
@@ -376,6 +377,9 @@ export default function FreeWorldNumberSequenceV3({
     attemptSummary?.attempts ||
     initialAttempts;
 
+
+  const unlimitedLevelRetries = !championMode &&
+    Boolean(attempts?.unlimited_free_attempts || level?.attempts?.unlimited_free_attempts || level?.unlimited_free_attempts);
 
   const freeAttempts =
     Number(
@@ -1685,7 +1689,7 @@ if (
                 </span>
 
                 <strong>
-                  {freeAttempts}
+                  {unlimitedLevelRetries ? 'UNLIMITED' : freeAttempts}
                 </strong>
 
                 <small>
@@ -1806,15 +1810,21 @@ if (
 
 
   if (stage === 'demo' && isWorldClientGame(level?.game_id)) {
-    return <WorldClientGame gameId={level.game_id} config={level.game_config} practice timerText={formatElapsed(demoDisplayMs)} timerCaption="PRACTICE MODE - NO ATTEMPT USED" label="DEMO MODE · no attempt used"
-      onComplete={() => setStage('demo-complete')} onSkip={() => setStage('demo-complete')} />;
+    return <div className="fwv3-fullscreen-game">
+      <WorldClientGame gameId={level.game_id} config={level.game_config} practice timerText={formatElapsed(demoDisplayMs)} timerCaption="PRACTICE MODE - NO ATTEMPT USED" label="DEMO MODE · no attempt used"
+        onComplete={() => setStage('demo-complete')} onSkip={() => setStage('demo-complete')} />
+      <button type="button" className="fwv3-fullscreen-back" onClick={() => setStage('instructions')} aria-label="Back to level">‹ Back</button>
+    </div>;
   }
 
   if (stage === 'official' && isWorldClientGame(session?.game_id)) {
-    return <WorldClientGame gameId={session.game_id} config={session.game_config} busy={busy} timerText={formatElapsed(officialDisplayMs)}
-      timerCaption={championMode ? 'CHAMPION STOPWATCH - FASTEST VERIFIED TIME WINS' : 'OFFICIAL ATTEMPT - COUNTS AS ATTEMPT'}
-      label={championMode ? 'CHAMPION RUN' : 'OFFICIAL ATTEMPT'}
-      onComplete={(result) => submitOfficial({ solved: Boolean(result.solved), taps: [] })} />;
+    return <div className="fwv3-fullscreen-game">
+      <WorldClientGame gameId={session.game_id} config={session.game_config} busy={busy} timerText={formatElapsed(officialDisplayMs)}
+        timerCaption={championMode ? 'CHAMPION STOPWATCH - FASTEST VERIFIED TIME WINS' : 'OFFICIAL STOPWATCH'}
+        label={championMode ? 'CHAMPION RUN' : 'OFFICIAL ATTEMPT'}
+        onComplete={(result) => submitOfficial({ solved: Boolean(result.solved), taps: [] })} />
+      <button type="button" className="fwv3-fullscreen-back" disabled={busy} onClick={onClose} aria-label="Back to world">‹ Back</button>
+    </div>;
   }
 
   /*
@@ -1832,6 +1842,7 @@ if (
 
     return (
       <div className="fwv3-overlay fwv3-play-overlay">
+        <button type="button" className="fwv3-fullscreen-back" disabled={busy} onClick={stage === 'official' ? onClose : () => setStage('instructions')}>‹ Back</button>
         <section className="fwv3-card fwv3-play-card fwv3-colour-card">
 
           <div className="fwv3-mode-label">
@@ -1882,7 +1893,7 @@ if (
   ) {
     return (
       <div className="fwv3-overlay fwv3-play-overlay">
-
+        <button type="button" className="fwv3-fullscreen-back" disabled={busy} onClick={stage === 'official' ? onClose : () => setStage('instructions')}>‹ Back</button>
         <section className="fwv3-card fwv3-play-card">
 
           <div className="fwv3-mode-label">
@@ -2257,6 +2268,7 @@ if (
 
     return (
       <div className="fwv3-overlay fwv3-play-overlay">
+        <button type="button" className="fwv3-fullscreen-back" disabled={busy} onClick={stage === 'official' ? onClose : () => setStage('instructions')}>‹ Back</button>
         <section className="fwv3-card fwv3-play-card fwv3-colour-card">
 
           <div className="fwv3-mode-label">
@@ -2298,7 +2310,7 @@ if (
   ) {
     return (
       <div className="fwv3-overlay fwv3-play-overlay">
-
+        <button type="button" className="fwv3-fullscreen-back" disabled={busy} onClick={stage === 'official' ? onClose : () => setStage('instructions')}>‹ Back</button>
         <section className="fwv3-card fwv3-play-card">
 
           <div className="fwv3-mode-label">
@@ -2499,7 +2511,7 @@ if (
               </span>
 
               <strong>
-                {resultFreeAttempts}
+                {unlimitedLevelRetries ? 'UNLIMITED' : resultFreeAttempts}
               </strong>
 
             </div>
@@ -2512,7 +2524,7 @@ if (
               </span>
 
               <strong>
-                {attemptUsed} of {attemptTotal}
+                {unlimitedLevelRetries ? 'FREE REPLAYS' : `${attemptUsed} of ${attemptTotal}`}
               </strong>
 
             </div>
@@ -2521,7 +2533,7 @@ if (
 
 
           {
-            success && !championMode ? (
+            success && !championMode && !unlimitedLevelRetries && resultFreeAttempts <= 0 ? (
               <button
                 type="button"
                 className="fwv3-button fwv3-button-primary fwv3-full"
@@ -2535,7 +2547,7 @@ if (
               >
                 CONTINUE
               </button>
-            ) : resultFreeAttempts > 0 ? (
+            ) : (unlimitedLevelRetries || resultFreeAttempts > 0) ? (
               <button
                 type="button"
                 className="fwv3-button fwv3-button-primary fwv3-full"
@@ -2543,9 +2555,7 @@ if (
                   retryFree
                 }
               >
-                PLAY AGAIN - {
-                  resultFreeAttempts
-                } FREE
+                {unlimitedLevelRetries ? 'PLAY AGAIN — FREE · UNLIMITED' : `PLAY AGAIN — ${resultFreeAttempts} FREE`}
               </button>
             ) : (
               resultAttempts

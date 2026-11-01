@@ -4132,7 +4132,7 @@ def _admin_unlocked_level(progress: dict, level: int) -> bool:
     return level in {int(x) for x in (progress.get("admin_unlocked_levels") or [])}
 
 
-def _personal_unlock_context(level: int, progress: dict, active_number: int | None = None, active_start_at=None):
+def _personal_unlock_context(level: int, progress: dict, active_number: int | None = None, active_start_at=None, scheduled_unlock_at=None):
     """Every player follows the active GC's fixed schedule; catch-up Skip is disabled."""
     now = _utcnow()
     stage = int(progress.get("champion_stage") or 1)
@@ -4153,7 +4153,7 @@ def _personal_unlock_context(level: int, progress: dict, active_number: int | No
 
     anchor = _ensure_aware_datetime(active_start_at) or now
 
-    unlock_at = level_unlock_at(anchor, max(0, level - 1))
+    unlock_at = _ensure_aware_datetime(scheduled_unlock_at) or level_unlock_at(anchor, max(0, level - 1))
     scheduled_time_available = now >= unlock_at
     time_available = bool(
         scheduled_time_available
@@ -4367,11 +4367,30 @@ async def _resolve_unlock_context(db, level: int, progress: dict):
     if active_number is None:
         return await _world_unlock_context(db, level, progress)
 
+    # An applied Every-Level row follows the GC scheduler, not a separate
+    # per-player daily clock. The preceding level must still be verified.
+    scheduled_unlock_at = None
+    if 1 <= level <= 10:
+        config = await db.world_gc_competition_configs.find_one(
+            {"season_id": WORLD_SEASON_ID, "gc_number": active_number,
+             "activation_status": "active"},
+            {"_id": 0, "model": 1, "engine": 1, "levels": 1},
+        )
+        if config:
+            applied_row = next((row for row in config.get("levels", [])
+                                if int(row.get("level") or 0) == level), None)
+            if applied_row and applied_row.get("applied_model") == "every_level":
+                from routers.world_gc_live_routes import live_schedule
+                schedule = await live_schedule(db, active_number)
+                if schedule:
+                    scheduled_unlock_at = schedule["levels"][level - 1]
+
     return _personal_unlock_context(
         level,
         progress,
         active_number,
         active.get("start_at"),
+        scheduled_unlock_at=scheduled_unlock_at,
     )
 
 
@@ -4490,6 +4509,11 @@ async def _effective_level_config_base(
                             "message": f"The game '{selected}' configured for this level is unavailable."})
     if selected:
         config = {**config, "gc_applied_model": row.get("applied_model")}
+        if row.get("applied_model") == "every_level":
+            config["time_limit_seconds"] = 0  # zero = no countdown, never expire
+            config["game_config"] = {**(config.get("game_config") or {}), "timer_mode": "stopwatch"}
+            config["unlimited_free_attempts"] = True
+            config["token_retry_enabled"] = False
     return config
 
 
@@ -4751,7 +4775,7 @@ async def _effective_level_config(
         if active else None
     )
     colours = ((spec or {}).get("levels") or {}).get(int(level))
-    if not colours:
+    if not colours or config.get("gc_applied_model") == "every_level":
         return config
     return {
         **config,
@@ -4792,7 +4816,7 @@ class FreeWorldSessionSubmitInput(BaseModel):
     duration_ms: int = Field(
         ...,
         ge=100,
-        le=300000,
+        le=2147483647,  # stopwatch levels may exceed five minutes
     )
 
     solved: bool = True
@@ -5009,8 +5033,18 @@ async def _reconcile_verified_level_history(db, user_id: str, progress: dict) ->
     completion_conflicts = sorted(legacy_completed - verified)
     progress["completion_conflicts"] = completion_conflicts
     verified_progress = _verified_level_progress(verified)
-    # Admin-pinned progress for this championship is authoritative; gameplay then advances it.
-    if progress.get("admin_override_stage") != stage:
+    # A verified normal-level pass must appear as completed immediately.
+    # Admin-pinned progress may include legitimate grants; preserve those,
+    # but never hide a newly verified completion from the map or unlock checks.
+    if progress.get("admin_override_stage") == stage:
+        merged = legacy_completed | verified
+        progress["completed_levels"] = sorted(merged)
+        next_required = next((n for n in range(1, 11) if n not in merged), 10)
+        progress["current_level"] = max(int(progress.get("current_level") or 1), next_required)
+        progress["highest_unlocked_level"] = max(
+            int(progress.get("highest_unlocked_level") or 1), progress["current_level"]
+        )
+    else:
         progress.update(verified_progress)
     skipped = set(int(x) for x in (progress.get("skipped_levels") or []))
     skipped.update(int(row["level"]) for row in skip_rows)
@@ -5269,6 +5303,18 @@ async def _free_attempt_counter(
     user_id: str,
     level: int,
 ):
+    if await _hybrid_every_level_enabled(db, level):
+        from routers.world_gc_live_routes import live_schedule
+        active = await _active_contest(db)
+        schedule = await live_schedule(db, int(active["contest_number"]))
+        now = _utcnow()
+        if schedule and schedule["levels"][level - 1] <= now < (
+            schedule["levels"][level] if level < 10 else schedule["champion_opens_at"]
+        ):
+            return _unlimited_level_attempts()
+        return {**_unlimited_level_attempts(), "free_attempts_available": 0,
+                "total_attempts_available": 0, "attempt_source": None}
+
     champion_stage = await _user_champion_stage(db, user_id)
     config = await _effective_level_config(db, level, champion_stage)
 
@@ -5463,6 +5509,35 @@ async def _normalise_free_attempt_refresh(
     return counter
 
 
+async def _hybrid_every_level_enabled(db, level: int) -> bool:
+    """Only the applied Every-Level row of the active GC gets free stopwatch rules."""
+    active = await _active_contest(db)
+    gc = int((active or {}).get("contest_number") or 0)
+    if gc < 4:
+        return False
+    config = await db.world_gc_competition_configs.find_one(
+        {"season_id": WORLD_SEASON_ID, "gc_number": gc,
+         "activation_status": "active", "engine": "legacy_hybrid"},
+        {"_id": 0, "levels": 1},
+    )
+    return any(int(row.get("level") or 0) == int(level)
+               and row.get("applied_model") == "every_level"
+               for row in (config or {}).get("levels", []))
+
+
+def _unlimited_level_attempts() -> dict:
+    """Compatible with the existing attempt-status UI; no wallet entitlement."""
+    return {
+        "unlimited_free_attempts": True, "initial_free_attempts": None,
+        "initial_remaining": None, "free_attempts_available": 1,
+        "total_attempts_available": 1, "attempt_source": "unlimited",
+        "automatic_free_refresh": False, "refresh_available": False,
+        "refresh_next_at": None, "seconds_until_refresh": None,
+        "token_retry_enabled": False, "token_retry_available": False,
+        "token_retry_entitlement_remaining": 0, "token_retry_cost": 0,
+    }
+
+
 async def _free_attempt_status(
     db,
     user_id: str,
@@ -5487,6 +5562,18 @@ async def _free_attempt_status(
 
     Refreshed attempts do not accumulate.
     """
+
+    if await _hybrid_every_level_enabled(db, level):
+        from routers.world_gc_live_routes import live_schedule
+        active = await _active_contest(db)
+        schedule = await live_schedule(db, int(active["contest_number"]))
+        now = _utcnow()
+        opened = bool(schedule and schedule["levels"][level - 1] <= now <
+                      (schedule["levels"][level] if level < 10 else schedule["champion_opens_at"]))
+        return {**_unlimited_level_attempts(),
+                "free_attempts_available": 1 if opened else 0,
+                "total_attempts_available": 1 if opened else 0,
+                "level_open": opened}
 
     champion_stage = await _user_champion_stage(db, user_id)
     config = await _effective_level_config(
@@ -6192,6 +6279,14 @@ async def _consume_world_attempt(
       - does not advance Champion stage
     """
 
+    if await _hybrid_every_level_enabled(db, level):
+        status = await _free_attempt_status(db, user_id, level)
+        if not status.get("free_attempts_available"):
+            raise HTTPException(status_code=409, detail={
+                "code": "LEVEL_NOT_OPEN", "message": "This level is not currently open."
+            })
+        return {"source": "unlimited"}
+
     status = await _free_attempt_status(
         db,
         user_id,
@@ -6409,7 +6504,21 @@ async def free_world_state(
                     progress,
                 ),
             )
-            return {**level_config, **level_unlock}
+            # Applied Every-Level rows stay replayable until the next
+            # scheduled level opens, regardless of the completed flag.
+            replayable = False
+            next_opens = None
+            if level_config.get("gc_applied_model") == "every_level":
+                from routers.world_gc_live_routes import live_schedule
+                active_gc = await _active_contest(db)
+                schedule = await live_schedule(db, int(active_gc["contest_number"])) if active_gc else None
+                if schedule:
+                    opens = schedule["levels"][level_number - 1]
+                    next_opens = (schedule["levels"][level_number] if level_number < 10
+                                  else schedule["champion_opens_at"])
+                    replayable = opens <= _utcnow() < next_opens
+            return {**level_config, **level_unlock, "replayable": replayable,
+                    "next_level_opens_at": _serialize_datetime(next_opens) if next_opens else None}
 
     levels_state = await asyncio.gather(
         *(_load_level_state(level_number) for level_number in range(1, 11))
@@ -6804,9 +6913,11 @@ async def free_world_state(
         "current_level": {
             **current_config,
             **unlock_state,
-
-            "attempts":
-                attempt_status,
+            "replayable": next((row.get("replayable", False) for row in levels_state
+                                if int(row.get("level") or 0) == current_level), False),
+            "next_level_opens_at": next((row.get("next_level_opens_at") for row in levels_state
+                                         if int(row.get("level") or 0) == current_level), None),
+            "attempts": attempt_status,
         },
 
         "levels":
@@ -7118,9 +7229,8 @@ async def free_world_session_start(
         ),
 
         "time_limit_seconds":
-            session[
-                "time_limit_seconds"
-            ],
+            session["time_limit_seconds"],
+        "timer_mode": "stopwatch" if session["time_limit_seconds"] == 0 else "countdown",
 
         "attempts":
             attempts,
@@ -7451,20 +7561,16 @@ async def free_world_session_submit(
         # Client-component game: completion is browser-reported, so the score always
         # uses the server-measured elapsed time; a client cannot claim a faster run.
         sequence_valid = body.duration_ms <= server_elapsed_ms + 1500
-        body.duration_ms = max(100, min(server_elapsed_ms, 300000))
+        body.duration_ms = max(100, server_elapsed_ms if time_limit_ms == 0
+                               else min(server_elapsed_ms, 300000))
 
     submitted_in_time = (
-        body.duration_ms
-        <= time_limit_ms
+        time_limit_ms == 0 or body.duration_ms <= time_limit_ms
     )
 
     # Small allowance for the result HTTP request itself.
     server_in_time = (
-        server_elapsed_ms
-        <= (
-            time_limit_ms
-            + 5000
-        )
+        time_limit_ms == 0 or server_elapsed_ms <= time_limit_ms + 5000
     )
 
     passed = bool(
@@ -7597,8 +7703,7 @@ async def free_world_session_submit(
                         "highest_unlocked_level":
                             next_level,
 
-                        "current_level":
-                            next_level,
+                        "current_level": next_level,
                     },
 
                     "$set": {

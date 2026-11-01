@@ -656,3 +656,4 @@ Root causes fixed:
 - Admin email verified status uses auth.email_is_verified (email code OR Google sign-in); 360 identity adds email_verified_source, login_methods.
 - UK-only SMS (+447…), better phone normalisation, strict-but-standard email syntax (Yahoo/Outlook/iCloud/Proton/custom ok), Twilio error-code mapping to clear messages.
 - Diagnostics: services/otp_events.py (masked destination, no codes) + GET /api/admin/otp-diagnostics + admin page /admin/otp-diagnostics.
+- 2026-10 Every-Level Hybrid (L1-10) map fixes in WorldCanvas.jsx: REPLAY · FREE on completed globally-open level (not tied to isCurrent), COMPLETED badge always on passed levels, avatar pinned to open level node (min(open, current_level)), closed every_level levels not clickable, node countdown DD:HH:MM / HH:MM / MM:SS and dispatches pl-world-progress-refresh at zero. Backend unchanged (start/begin/submit already unlimited in window; best-time upsert).

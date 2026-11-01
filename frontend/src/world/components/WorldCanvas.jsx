@@ -102,6 +102,7 @@ function LevelCountdownBadge({
   };
 
   const [nowMs, setNowMs] = useState(getNow);
+  const expired = Number.isFinite(targetMs) && nowMs >= targetMs;
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -110,11 +111,24 @@ function LevelCountdownBadge({
     return () => clearInterval(timer);
   }, [serverClockAnchorRef]);
 
-  if (!Number.isFinite(targetMs) || nowMs >= targetMs) {
+  // At zero, pull the authoritative state so the map/avatar update.
+  useEffect(() => {
+    if (!expired) return undefined;
+    const t = setTimeout(() => window.dispatchEvent(new CustomEvent('pl-world-progress-refresh')), 1500);
+    return () => clearTimeout(t);
+  }, [expired]);
+
+  if (!Number.isFinite(targetMs) || expired) {
     return null;
   }
 
-  const val = formatWorldCountdown(targetMs, nowMs);
+  const left = Math.max(0, Math.floor((targetMs - nowMs) / 1000));
+  const p2 = (n) => String(n).padStart(2, '0');
+  const days = Math.floor(left / 86400);
+  const hours = Math.floor((left % 86400) / 3600);
+  const minutes = Math.floor((left % 3600) / 60);
+  // DD:HH:MM when days remain, HH:MM under a day, MM:SS in the final hour.
+  const val = days > 0 ? `${p2(days)}:${p2(hours)}:${p2(minutes)}` : left >= 3600 ? `${p2(hours)}:${p2(minutes)}` : `${p2(minutes)}:${p2(left % 60)}`;
 
   return (
     <span
@@ -236,6 +250,7 @@ function worldUnlockTimeForLevel(
   const candidates = [
     backendState?.unlockAt,
     backendState?.unlock_at,
+    backendState?.next_level_opens_at,
     backendState?.unlockTime,
     backendState?.unlock_time,
 
@@ -838,10 +853,14 @@ const ChampionshipSection = React.memo(function ChampionshipSection({
       return;
     }
 
+    // Every-Level: a level can only be played inside its global window.
+    if (levelState?.gc_applied_model === 'every_level' && levelState?.completed && !levelState?.replayable) {
+      return;
+    }
+
     // Playable level → open the game (existing behaviour).
     if (
-      levelState?.available &&
-      !levelState?.completed
+      (levelState?.available || (levelState?.completed && levelState?.replayable))
     ) {
       window.dispatchEvent(
         new CustomEvent(
@@ -939,10 +958,17 @@ const ChampionshipSection = React.memo(function ChampionshipSection({
         return null;
       }
 
-      const localLevel =
-        localLevelForGlobal(
-          currentGlobalLevel,
-        );
+      const serverLevel = localLevelForGlobal(currentGlobalLevel);
+      // Every-Level: the avatar stands on the globally open level node while the
+      // player has reached it; it moves only when the next level opens globally.
+      const openLevel = Array.from({ length: 10 }, (_, i) => i + 1)
+        .find((n) => backendLevelMap.get(n)?.replayable === true);
+      const finishedCurrent = backendLevelMap.get(serverLevel)?.completed === true;
+      const nextLevelState = backendLevelMap.get(serverLevel + 1);
+      const localLevel = openLevel
+        ? Math.min(openLevel, Math.max(1, serverLevel))
+        : finishedCurrent && serverLevel < 10 && nextLevelState?.available === true
+          ? serverLevel + 1 : serverLevel;
 
       const champion =
         worldState?.champion ?? {};
@@ -1028,7 +1054,8 @@ const ChampionshipSection = React.memo(function ChampionshipSection({
       if (
         championReached &&
         championSlot &&
-        levelTenSlot
+        levelTenSlot &&
+        openLevel !== 10
       ) {
         if (
           (
@@ -1180,83 +1207,11 @@ const ChampionshipSection = React.memo(function ChampionshipSection({
         !state.available &&
         !state.completed;
 
-      const roadX = (i) =>
-        (
-          PL1000_ROAD_X[i] != null
-            ? PL1000_ROAD_X[i]
-            : PL1000_SLOT_POSITIONS[i].x
-        );
-
-      if (
-        locked &&
-        slotIndex === 0
-      ) {
-        const next =
-          PL1000_SLOT_POSITIONS[
-            slotIndex + 1
-          ];
-
-        if (next) {
-          const back = 0.35;
-
-          return {
-            left:
-              roadX(0) -
-              back *
-                (
-                  roadX(1) -
-                  roadX(0)
-                ),
-
-            bottom:
-              slot.bottom -
-              back *
-                (
-                  next.bottom -
-                  slot.bottom
-                ),
-
-            waiting: true,
-          };
-        }
-      }
-
-      if (
-        locked &&
-        slotIndex >= 1
-      ) {
-        const prev =
-          PL1000_SLOT_POSITIONS[
-            slotIndex - 1
-          ];
-
-        const fraction = 0.42;
-
-        return {
-          left:
-            roadX(slotIndex - 1) +
-            fraction *
-              (
-                roadX(slotIndex) -
-                roadX(slotIndex - 1)
-              ),
-
-          bottom:
-            prev.bottom +
-            fraction *
-              (
-                slot.bottom -
-                prev.bottom
-              ),
-
-          waiting: true,
-        };
-      }
-
+      // The level and avatar share the same node coordinates.
       return {
         left: slot.x,
         bottom: slot.bottom,
-        waiting: false,
+        waiting: locked,
       };
     }, [
       isCurrentChampionship,
@@ -1646,6 +1601,7 @@ const ChampionshipSection = React.memo(function ChampionshipSection({
             const pendingHistory =
               historyStatus === 'pending';
 
+            const replayable = isCurrentChampionship && backendState?.replayable === true;
             const completed =
               isCurrentChampionship
                 ? Boolean(
@@ -1692,18 +1648,15 @@ const ChampionshipSection = React.memo(function ChampionshipSection({
               ? serverClockAnchorRef.current.serverNowMs + (performance.now() - serverClockAnchorRef.current.performanceNow)
               : Date.now();
 
+            // The countdown is a schedule indicator. Do not hide it merely
+            // because the progression gate is still waiting for a state refresh.
             const hasFutureUnlock =
+              isCurrentChampionship &&
+              !completed &&
               locked &&
-              (
-                backendState?.sequence_available === true ||
-                followingEarlyUnlockedLevel
-              ) &&
-              backendState?.lock_reason === 'time' &&
-              Number.isFinite(
-                levelUnlockMs,
-              ) &&
-              levelUnlockMs >
-                now;
+              Number.isFinite(levelUnlockMs) &&
+              levelUnlockMs > now &&
+               (isCurrent || localLevel === Number(worldState?.progress?.current_level ?? 1) + 1 || backendState?.sequence_available === true || followingEarlyUnlockedLevel);
 
             // Normally only the user's immediate next progression
             // level shows a countdown. Exception: while the Champion
@@ -1759,20 +1712,29 @@ const ChampionshipSection = React.memo(function ChampionshipSection({
                   )
                 : null;
 
+             const previousLevelState = backendLevelMap.get(localLevel - 1);
+             const previousNextOpensMs = Date.parse(previousLevelState?.next_level_opens_at ?? '');
+             const isImmediateNext = isCurrentChampionship &&
+               localLevel === Number(worldState?.progress?.current_level ?? 1) + 1;
             let countdownTargetMs = null;
             if (
-              hasFutureUnlock &&
-              (
-                isCurrent ||
-                followingEarlyUnlockedLevel ||
-                nextChampionshipCountdown
-              )
+              hasFutureUnlock
             ) {
               countdownTargetMs = levelUnlockMs;
             } else if (nextChampionshipCountdown) {
               countdownTargetMs = championNextLevelMs;
             } else if (futureFirstLevelCountdown) {
               countdownTargetMs = futureStartMs;
+            } else if (isImmediateNext && Number.isFinite(previousNextOpensMs) && previousNextOpensMs > now) {
+              countdownTargetMs = previousNextOpensMs;
+            }
+
+            // The API also supplies remaining seconds. Use it when a
+            // timestamp is omitted, keeping the badge live against server time.
+            if (!countdownTargetMs && (isCurrent || isImmediateNext) && locked &&
+                backendState?.lock_reason === 'time' &&
+                Number(backendState?.seconds_until_unlock) > 0) {
+              countdownTargetMs = now + Number(backendState.seconds_until_unlock) * 1000;
             }
 
             const canEarlyUnlock =
@@ -1906,11 +1868,9 @@ const ChampionshipSection = React.memo(function ChampionshipSection({
                   </span>
                 )}
 
-                {isCurrent &&
-                  available &&
-                  !completed && (
-                    <span className="pl1000-play">
-                      PLAY
+                {((isCurrent && available) || (replayable && (completed || isCurrent))) && (
+                    <span className="pl1000-play" data-testid={`free-world-play-${globalLevel}`}>
+                      {replayable && completed ? 'REPLAY · FREE' : 'PLAY'}
                     </span>
                   )}
 
@@ -2809,6 +2769,14 @@ export default function WorldCanvas({
             .catch(() => {});
         }
 
+        // Periodically reconcile the map with the authoritative backend.
+        // The timer reaching zero does not itself advance progression;
+        // the server must confirm that the next level is available.
+        if (!previewState && Math.floor(currentServerMs / 30000) !==
+            Math.floor((currentServerMs - 1000) / 30000)) {
+          worldAPI.state().then(setStateAndCountdowns).catch(() => {});
+        }
+
         const levels = worldState?.levels ?? [];
         let anyUnlocked = false;
         let pendingUnlockMs = null;
@@ -2819,7 +2787,6 @@ export default function WorldCanvas({
             currentServerMs >= unlockMs &&
             !levels[i]?.available &&
             !levels[i]?.completed &&
-            levels[i]?.sequence_available === true &&
             lastUnlockRefreshRef.current !== unlockMs
           ) {
             anyUnlocked = true;

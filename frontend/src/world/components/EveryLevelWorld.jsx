@@ -188,7 +188,7 @@ export default function EveryLevelWorld({ gcNumber, onExit }) {
             <p className="text-sm text-emerald-900">{encourage(result.rank, result.gap_to_next_ms, isSlower)}</p>
             <div className="flex flex-wrap gap-2">
               {result.nextLevel && result.action === 'next_level' && <button type="button" onClick={() => { setResult(null); setSelectedLevel(result.nextLevel === 'champion' ? 'champion' : `L${result.nextLevel}`); }} className="rounded-md bg-emerald-800 px-4 py-2 text-sm font-bold text-white">Next Level</button>}
-              <button type="button" onClick={() => { setResult(null); startLevel(); }} disabled={!currentProgress?.playable || result.action === 'next_level'} className="inline-flex items-center gap-2 rounded-md border border-emerald-800 px-4 py-2 text-sm font-bold text-emerald-950 disabled:opacity-40"><RotateCcw className="h-4 w-4" /> Retry</button>
+              <button type="button" onClick={() => { setResult(null); startLevel(); }} disabled={!currentProgress?.playable} className="inline-flex items-center gap-2 rounded-md border border-emerald-800 px-4 py-2 text-sm font-bold text-emerald-950 disabled:opacity-40"><RotateCcw className="h-4 w-4" /> Retry</button>
             </div>
           </div>}
 
