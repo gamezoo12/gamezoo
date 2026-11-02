@@ -6,6 +6,7 @@ import { DrawTheatre } from '../../components/drawstudio/studio/DrawTheatre';
 import { RoundsEditor, newRound, normaliseRounds } from '../../components/drawstudio/RoundsEditor';
 import { FlowPanel, ResultsPanel, TotalsRow } from '../../components/drawstudio/StudioPanels';
 import { downloadBlob } from '../../components/drawstudio/studio/useRecorder';
+import { HallPublishButton } from '../../components/drawstudio/HallPublishButton';
 
 const errText = (e) => { const d = e?.response?.data?.detail; return typeof d === 'string' ? d : Array.isArray(d) ? d.map((x) => x.msg).join('; ') : 'Request failed'; };
 const money = (v) => `£${Number(v || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -68,6 +69,7 @@ export default function DrawStudio() {
     (d) => (d.verification?.verified ? 'Audit report downloaded · independent verification PASSED.' : 'Audit report downloaded.'));
   const testSounds = () => SOUND_SLOTS.forEach((s, i) => setTimeout(() => { audio?.stopAll(); audio?.play(s); }, i * 900));
   const tickets = pool?.tickets || [];
+  const awaiting = useMemo(() => contests.filter((c) => c.awaiting_draw).sort((a, b) => new Date(a.end_date) - new Date(b.end_date)), [contests]);
   const contest = { contest_id: contestId, title: pool?.contest?.title };
   const official = () => window.confirm(`Open the OFFICIAL studio for ${contest.title}? When you press Draw, the server picks the winner from the frozen ticket pool. Results are final.`) && setShow({ mode: 'official' });
 
@@ -78,7 +80,10 @@ export default function DrawStudio() {
           <h1 className="text-4xl font-black tracking-tight sm:text-5xl">Draw Studio</h1>
           <p className="mt-2 max-w-xl text-sm text-indigo-200/70">Create, preview and run broadcast-quality ticket draws for Paid World contests. The server picks every official winner; the show only reveals it.</p>
         </div>
-        <span className={`rounded-full border px-4 py-1.5 text-xs font-black tracking-widest ${pool?.official_draws_enabled ? 'border-emerald-400/50 text-emerald-300' : 'border-sky-400/50 text-sky-300'}`} data-testid="draw-mode-badge">{pool?.official_draws_enabled ? 'OFFICIAL DRAWS ENABLED' : 'PREVIEW MODE'}</span>
+        <div className="flex flex-wrap items-center gap-2">
+          {awaiting.length > 0 && <button type="button" onClick={() => setContestId(awaiting[0].contest_id)} className="rounded-full border border-rose-400/60 bg-rose-500/15 px-4 py-1.5 text-xs font-black tracking-widest text-rose-200 transition-colors hover:bg-rose-500/25" data-testid="draw-queue-badge">{awaiting.length} ENDED · AWAITING DRAW</button>}
+          <span className={`rounded-full border px-4 py-1.5 text-xs font-black tracking-widest ${pool?.official_draws_enabled ? 'border-emerald-400/50 text-emerald-300' : 'border-sky-400/50 text-sky-300'}`} data-testid="draw-mode-badge">{pool?.official_draws_enabled ? 'OFFICIAL DRAWS ENABLED' : 'PREVIEW MODE'}</span>
+        </div>
       </header>
       {error && <div role="alert" className="mb-4 rounded-xl border border-rose-400/40 bg-rose-500/10 p-3 text-sm text-rose-200" data-testid="draw-error">{error}</div>}
       {notice && <div role="status" className="mb-4 rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-3 text-sm text-emerald-200" data-testid="draw-notice">{notice}</div>}
@@ -91,7 +96,7 @@ export default function DrawStudio() {
               <select className="h-11 min-w-0 flex-1 rounded-xl border border-white/15 bg-[#0b0724] px-3 text-sm" value={contestId} onChange={(e) => setContestId(e.target.value)} data-testid="draw-contest-select">
                 <option value="">Select a Paid World or Promotion contest</option>
                 {[['paid_world', 'Paid World contests'], ['promotion', 'Promotion prize draws']].map(([k, label]) => (
-                  <optgroup key={k} label={label}>{contests.filter((c) => (c.kind || 'paid_world') === k).map((c) => <option key={c.contest_id} value={c.contest_id}>{c.title} · {c.eligible_tickets} tickets</option>)}</optgroup>
+                  <optgroup key={k} label={label}>{contests.filter((c) => (c.kind || 'paid_world') === k).map((c) => <option key={c.contest_id} value={c.contest_id}>{c.awaiting_draw ? '[ENDED · AWAITING DRAW] ' : ''}{c.title} · {c.eligible_tickets} tickets</option>)}</optgroup>
                 ))}
               </select>
               {pool && <span className="rounded-lg border border-emerald-400/40 px-3 py-1 text-xs font-bold capitalize text-emerald-300" data-testid="draw-contest-status">{pool.contest.status}</span>}
@@ -118,6 +123,7 @@ export default function DrawStudio() {
               <button type="button" className={`${pill} bg-[#3b6bff] text-white`} disabled={!tickets.length || budget > published} onClick={() => setShow({ mode: 'preview' })} data-testid="draw-preview"><PlayCircle className="h-4 w-4" />Preview Full Draw</button>
               <button type="button" className={`${pill} border border-white/20 text-white`} onClick={testSounds} data-testid="draw-test-sounds"><Volume2 className="h-4 w-4" />Test Sounds</button>
               {locked && <button type="button" className={`${pill} bg-gradient-to-r from-amber-300 to-amber-500 text-[#1a1033] shadow-[0_0_30px_rgba(255,213,74,0.35)]`} disabled={busy || !pool.official_draws_enabled} onClick={official} data-testid="draw-official-start"><Sparkles className="h-4 w-4" />{finished ? 'Open finale' : results.length ? 'Continue Official Draw' : 'Start Official Draw'}</button>}
+              <HallPublishButton key={`${plan?.plan_id}-${plan?.announcement_id}-${plan?.hall_published}`} plan={plan} className={`${pill} border border-emerald-300/60 text-emerald-200`} onDone={() => setNotice('Published to the Hall of Winners.')} onError={setError} />
             </div>
           </section>}
           <ResultsPanel results={results} rounds={rounds} busy={busy} onReport={report} onReplay={(i) => setShow({ mode: 'replay', round: i })} />

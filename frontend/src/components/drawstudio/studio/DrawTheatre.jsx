@@ -7,6 +7,7 @@ import { useRecorder } from './useRecorder';
 import { useRoundCapture } from './useRoundCapture';
 import { drawPhase, eligibleFor, elapsed, now, sampleNumbers, simulateWinners } from './timeline';
 import { loadCanvasFonts } from './textures';
+import { HallPublishButton } from '../HallPublishButton';
 
 const errText = (e) => { const d = e?.response?.data?.detail; return typeof d === 'string' ? d : 'Request failed'; };
 const primary = 'inline-flex h-12 items-center gap-2 rounded-full bg-gradient-to-r from-amber-300 to-amber-500 px-7 text-sm font-black tracking-wider text-[#1a1033] shadow-[0_0_28px_rgba(255,213,74,0.45)] transition-transform hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-40';
@@ -147,6 +148,7 @@ export function DrawTheatre({ mode, contest, rounds, tickets, plan, results = []
           {action && <button type="button" className={primary} disabled={!action[0] || busy} onClick={action[0] || undefined} data-testid="draw-stage-action">{stage === 'revealed' ? <ChevronRight className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}{action[1]}</button>}
           {stage === 'complete' && !mode.startsWith('off') && <button type="button" className={primary} onClick={again} data-testid="draw-stage-again"><RotateCcw className="h-5 w-5" />Play Again (Preview)</button>}
           {stage === 'complete' && mode === 'official' && <button type="button" className={primary} disabled={busy || published} onClick={publishAll} data-testid="draw-publish-all"><Megaphone className="h-5 w-5" />{published ? 'Winners announced' : 'Publish all winners'}</button>}
+          {stage === 'complete' && mode === 'official' && published && <HallPublishButton key={plan?.announcement_id || 'new'} plan={{ ...plan, announcement_id: plan?.announcement_id || 'announced' }} className={primary} onDone={() => setNotice('Published to the Hall of Winners.')} onError={setError} />}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <RecordControls rec={rec} saving={saving} onSave={saveCopy} onStart={() => canvasRef.current && rec.start(canvasRef.current, audio)} />

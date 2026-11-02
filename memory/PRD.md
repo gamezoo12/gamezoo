@@ -677,3 +677,7 @@ Root causes fixed:
 - Draw buttons removed: Admin Contests, Edit Contest Random Draw panel, Winner Selection, Production Operations
 - Draw Studio final round marks contest drawn so it can be published to Hall of Winners manually
 - credit_lock on winners for approve + mark-paid: each winner credited once
+
+## 2026-06 Draw Studio queue + hall publish
+- /admin/draw-studio/contests returns awaiting_draw (live/closed, ended, tickets>0, no completed plan); badge + [ENDED · AWAITING DRAW] list marker
+- POST /admin/draw-studio/plans/{id}/publish-hall (after announce-all) turns on winners+leaderboard+gallery; HallPublishButton in DrawStudio + DrawTheatre finale

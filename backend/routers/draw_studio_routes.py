@@ -201,13 +201,20 @@ async def list_contests(request: Request):
     await require_super_admin(request)
     db = get_db()
     contests = await db.contests.find({}, {"_id": 0, "contest_id": 1, "title": 1, "prize_amount": 1, "status": 1,
-                                           "tickets_sold": 1, "tickets_total": 1}).sort("created_at", -1).to_list(500)
+                                           "tickets_sold": 1, "tickets_total": 1, "end_date": 1}).sort("created_at", -1).to_list(500)
     counts = {r["_id"]: r["n"] async for r in db.tickets.aggregate([
         {"$match": {"refunded": {"$ne": True}, "disqualified": {"$ne": True}}},
         {"$group": {"_id": "$contest_id", "n": {"$sum": 1}}}])}
+    done = set(await db[PLANS].distinct("contest_id", {"status": "completed"}))
+    now = _now()
     for c in contests:
         c["eligible_tickets"] = counts.get(c["contest_id"], 0)
         c["kind"] = "paid_world"
+        end = c.get("end_date")
+        if isinstance(end, datetime) and end.tzinfo is None:
+            end = end.replace(tzinfo=timezone.utc)
+        c["awaiting_draw"] = (c.get("status") in ("live", "closed") and isinstance(end, datetime) and end <= now
+                              and c["contest_id"] not in done and c["eligible_tickets"] > 0)
     pids = set(await db.promotion_campaigns.distinct("promotion_id")) | set(await db.promotion_config.distinct("promotion_id"))
     for pid in sorted(p for p in pids if p):
         promo = await _promotion(db, pid)
@@ -392,7 +399,30 @@ async def get_plan(plan_id: str, request: Request):
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
     results = await db[RESULTS].find({"plan_id": plan_id}, {"_id": 0}).sort("round_index", 1).to_list(50)
-    return {"plan": _public_plan(plan), "results": results}
+    pub = await db.paid_winner_publication.find_one({"contest_id": plan["contest_id"]}, {"_id": 0, "show_winners": 1}) or {}
+    return {"plan": {**_public_plan(plan), "hall_published": bool(pub.get("show_winners"))}, "results": results}
+
+
+@router.post("/plans/{plan_id}/publish-hall")
+async def publish_hall(plan_id: str, request: Request):
+    """Switch on winners, leaderboard and gallery in the Hall of Winners after the winners are announced."""
+    from routers.paid_winners_routes import COMPLETED, PUB, _audit as pub_audit, _shout_out
+    admin = await require_super_admin(request)
+    db = get_db()
+    plan = await db[PLANS].find_one({"plan_id": plan_id}, {"_id": 0, "contest_id": 1, "announcement_id": 1})
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    if not plan.get("announcement_id"):
+        raise HTTPException(status_code=409, detail="Announce the winners before publishing to the Hall of Winners")
+    cid = plan["contest_id"]
+    if str(cid).startswith("promo_") or not await db.contests.find_one({"contest_id": cid, "status": {"$in": COMPLETED}}, {"_id": 1}):
+        raise HTTPException(status_code=409, detail="Only completed Paid World contests can be published")
+    settings = {"show_winners": True, "show_leaderboard": True, "show_gallery": True}
+    await db[PUB].update_one({"contest_id": cid}, {"$set": {**settings, "updated_at": _now(), "updated_by": admin.get("email")},
+                                                   "$setOnInsert": {"display_order": 100}}, upsert=True)
+    await pub_audit(db, admin, "publication", contest_id=cid, settings=settings)
+    sent = await _shout_out(db, cid)
+    return {"ok": True, "shoutouts_sent": sent}
 
 
 def _verify(plan: dict, results: list[dict]) -> dict:

@@ -555,6 +555,7 @@ export const drawStudioAPI = {
   audioBlob: (slot) => api.get(`/admin/draw-studio/audio/${slot}/file`, { responseType: 'blob' }).then(r => r.data),
   markRevealed: (planId, index) => api.post(`/admin/draw-studio/plans/${planId}/rounds/${index}/revealed`).then(r => r.data),
   announceAll: (planId) => api.post(`/admin/draw-studio/plans/${planId}/announce-all`).then(r => r.data),
+  publishHall: (planId) => api.post(`/admin/draw-studio/plans/${planId}/publish-hall`).then(r => r.data),
   allPlans: () => api.get('/admin/draw-studio/plans').then(r => r.data),
   winners: (params) => api.get('/admin/draw-studio/winners', { params }).then(r => r.data),
   editWinner: (id, body) => api.patch(`/admin/draw-studio/winners/${id}`, body).then(r => r.data),
