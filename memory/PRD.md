@@ -668,3 +668,6 @@ Root causes fixed:
 - WelcomeBanner on /choose-world shown once after signup (pl_welcome_pending flag)
 - Signup draft saved 24h in localStorage (pl_signup_draft, no password; re-enter password on step 5 when resumed)
 - Promotion popup Join button only when admin sets show_join=true (backend default now False)
+
+## 2026-06 Free World map order fix
+- Restored DOM order in WorldCanvas: SeasonFinish at top, championships 100..1, SeasonStart at bottom (regression from commit 7c00c4e). Signup reminder email deferred by user.

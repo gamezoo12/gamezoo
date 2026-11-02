@@ -3433,18 +3433,7 @@ export default function WorldCanvas({
           '--world-zoom': zoom,
         }}
       >
-        <SeasonStart
-          showAvatar={
-            isAtJourneyStart &&
-            !journeyWalking
-          }
-          journeyWalking={
-            journeyWalking
-          }
-          onStartJourney={
-            startJourney
-          }
-        />
+        <SeasonFinish />
 
         {virtualizedChampionships.map(
           ({
@@ -3498,7 +3487,18 @@ export default function WorldCanvas({
           },
         )}
 
-        <SeasonFinish />
+        <SeasonStart
+          showAvatar={
+            isAtJourneyStart &&
+            !journeyWalking
+          }
+          journeyWalking={
+            journeyWalking
+          }
+          onStartJourney={
+            startJourney
+          }
+        />
       </div>
       
       <FreeWorldLeaderboard
