@@ -40,6 +40,25 @@ def db_ref():
 # Create the main app
 app = FastAPI(title='Prize League API')
 
+
+class _GetRequestCacheMiddleware:
+    """Enables per-request memoisation of hot read-only lookups for GET requests only."""
+    def __init__(self, app):
+        self.inner = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get('type') != 'http' or scope.get('method') != 'GET':
+            return await self.inner(scope, receive, send)
+        from services.request_cache import end_request_cache, start_request_cache
+        token = start_request_cache()
+        try:
+            await self.inner(scope, receive, send)
+        finally:
+            end_request_cache(token)
+
+
+app.add_middleware(_GetRequestCacheMiddleware)
+
 # Basic root
 api_router = APIRouter(prefix='/api')
 
@@ -486,6 +505,35 @@ async def _do_core_indexes():
         ('web_push_subscriptions', [('user_id', 1), ('active', 1), ('created_at', -1)], {}),
         ('native_push_devices', [('user_id', 1), ('active', 1), ('created_at', -1)], {}),
         ('web_push_outbox', [('status', 1), ('created_at', 1)], {}),
+        # Performance indexes for the hottest read paths (non-unique, safe to add).
+        ('tickets', [('contest_id', 1), ('user_id', 1)], {}),
+        ('tickets', [('user_id', 1), ('created_at', -1)], {}),
+        ('notifications', [('user_id', 1), ('created_at', -1)], {}),
+        ('winners', [('contest_id', 1)], {}),
+        ('winners', [('winner_id', 1)], {}),
+        ('winners', [('user_id', 1)], {}),
+        ('game_scores', [('contest_id', 1)], {}),
+        ('promotion_tickets', [('promotion_id', 1), ('user_id', 1)], {}),
+        ('promotion_tickets', [('user_id', 1)], {}),
+        ('user_sessions', [('user_id', 1)], {}),
+        ('orders', [('user_id', 1), ('created_at', -1)], {}),
+        ('cashout_requests', [('withdrawal_id', 1)], {}),
+        ('cashout_requests', [('user_id', 1), ('created_at', -1)], {}),
+        ('wallet_tx', [('user_id', 1), ('created_at', -1)], {}),
+        ('otp_attempts', [('phone', 1), ('sent_at', -1)], {}),
+        ('otp_attempts', [('email', 1), ('sent_at', -1)], {}),
+        ('otp_attempts', [('reset_destination', 1), ('sent_at', -1)], {}),
+        ('otp_events', [('at', -1)], {}),
+        ('otp_approvals', [('code_hash', 1)], {}),
+        ('users', [('phone', 1)], {}),
+        ('audit_log', [('kind', 1), ('at', -1)], {}),
+        ('orders', [('created_at', -1)], {}),
+        ('wallet_tx', [('created_at', -1)], {}),
+        ('cashout_requests', [('status', 1), ('created_at', -1)], {}),
+        ('payment_transactions', [('created_at', -1)], {}),
+        ('users', [('created_at', -1)], {}),
+        ('bonus_grants', [('user_id', 1)], {}),
+        ('tickets', [('created_at', -1)], {}),
     ]
     ok = 0
     for coll, keys, opts in _idx_specs:

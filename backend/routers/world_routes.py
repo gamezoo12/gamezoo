@@ -22,6 +22,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Request
 from pymongo.errors import DuplicateKeyError
+from services.request_cache import request_memo
 
 from world.season1 import SEASON_1_CHAMPIONSHIP_COUNT
 
@@ -479,6 +480,16 @@ async def ensure_world_indexes():
     )
 
 
+@request_memo
+async def _active_gc_config_levels(db, active_number: int):
+    return await db.world_gc_competition_configs.find_one(
+        {"season_id": WORLD_SEASON_ID, "gc_number": active_number,
+         "activation_status": "active"},
+        {"_id": 0, "model": 1, "engine": 1, "levels": 1},
+    )
+
+
+@request_memo
 async def _active_contest(db):
     setting = await db.world_settings.find_one(
         {
@@ -4371,11 +4382,7 @@ async def _resolve_unlock_context(db, level: int, progress: dict):
     # per-player daily clock. The preceding level must still be verified.
     scheduled_unlock_at = None
     if 1 <= level <= 10:
-        config = await db.world_gc_competition_configs.find_one(
-            {"season_id": WORLD_SEASON_ID, "gc_number": active_number,
-             "activation_status": "active"},
-            {"_id": 0, "model": 1, "engine": 1, "levels": 1},
-        )
+        config = await _active_gc_config_levels(db, active_number)
         if config:
             applied_row = next((row for row in config.get("levels", [])
                                 if int(row.get("level") or 0) == level), None)

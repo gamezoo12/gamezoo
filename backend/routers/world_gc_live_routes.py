@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 from pymongo.errors import DuplicateKeyError
+from services.request_cache import request_memo
 
 from auth import require_admin, require_super_admin
 from deps import get_db
@@ -52,6 +53,7 @@ def config_engine(config: dict | None) -> str | None:
 
 # ---------------------------------------------------------------- schedule (read-only)
 
+@request_memo
 async def live_schedule(db, gc_number: int) -> dict | None:
     """Read the existing Free World scheduler's window for a GC; never writes."""
     settings = await db.world_settings.find_one(

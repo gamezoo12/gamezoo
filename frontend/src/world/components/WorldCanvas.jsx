@@ -2520,9 +2520,16 @@ export default function WorldCanvas({
     journeyStarted,
   ]);
 
+  const lastStateSigRef = useRef('');
   const setStateAndCountdowns = React.useCallback(
     (response) => {
-      setWorldState(response);
+      // Skip re-rendering the whole map when the polled state is unchanged.
+      let sig = '';
+      try { sig = JSON.stringify({ ...response, server_now: undefined }); } catch { sig = ''; }
+      if (!sig || sig !== lastStateSigRef.current) {
+        lastStateSigRef.current = sig;
+        setWorldState(response);
+      }
 
       const serverNowMs = Date.parse(response?.server_now || '');
       if (Number.isFinite(serverNowMs)) {
@@ -2774,7 +2781,7 @@ export default function WorldCanvas({
         // Periodically reconcile the map with the authoritative backend.
         // The timer reaching zero does not itself advance progression;
         // the server must confirm that the next level is available.
-        if (!previewState && Math.floor(currentServerMs / 30000) !==
+        if (!previewState && document.visibilityState === 'visible' && Math.floor(currentServerMs / 30000) !==
             Math.floor((currentServerMs - 1000) / 30000)) {
           worldAPI.state().then(setStateAndCountdowns).catch(() => {});
         }

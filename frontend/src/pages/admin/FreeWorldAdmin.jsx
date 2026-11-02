@@ -41,6 +41,16 @@ const fmtCountdown = (ms) => {
   return `${d > 0 ? d + 'd ' : ''}${pad(h)}:${pad(m)}:${pad(ss)}`;
 };
 
+function LiveCountdown({ targetMs, offset }) {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return fmtCountdown(targetMs - (nowMs + offset));
+}
+
+
 const ukDate = (value, withTime = true) => {
   if (!value) return '—';
   const d = new Date(value);
@@ -137,13 +147,8 @@ export default function FreeWorldAdmin() {
   const [slcAttempts, setSlcAttempts] = useState('');
   const [slcSaving, setSlcSaving] = useState(false);
 
-  // Live countdown to C1 open (server-authoritative base + local ticking).
-  const [nowMs, setNowMs] = useState(() => Date.now());
+  // Live countdown to C1 open (server-authoritative base + local ticking in LiveCountdown).
   const [serverOffset, setServerOffset] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => setNowMs(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
   useEffect(() => {
     if (serverTime) setServerOffset(new Date(serverTime).getTime() - Date.now());
   }, [serverTime]);
@@ -579,7 +584,7 @@ export default function FreeWorldAdmin() {
                   <div className="text-sm text-amber-900">
                     Championship 1 opens in{' '}
                     <b data-testid="c1-countdown" className="font-mono font-black">
-                      {fmtCountdown(new Date(c1.start_at).getTime() - (nowMs + serverOffset))}
+                      <LiveCountdown targetMs={new Date(c1.start_at).getTime()} offset={serverOffset} />
                     </b>
                     {' '}· {ukDate(c1.start_at)} (Europe/London)
                   </div>

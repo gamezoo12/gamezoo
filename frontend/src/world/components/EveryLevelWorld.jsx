@@ -75,7 +75,7 @@ export default function EveryLevelWorld({ gcNumber, onExit }) {
     if (!session || result || !startedAt) return undefined;
     const tick = () => setElapsed(Date.now() - startedAt);
     tick();
-    const timer = window.setInterval(tick, 10);
+    const timer = window.setInterval(tick, 50);
     return () => window.clearInterval(timer);
   }, [session, result, startedAt]);
 

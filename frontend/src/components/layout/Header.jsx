@@ -62,7 +62,7 @@ const minimalWorldHeader =
  // Wallet balance
  useEffect(() => {
  if (!user) { setBalance(null); return undefined; }
- const load = () => walletAPI.me().then(w => setBalance(w.balance)).catch(() => {});
+ const load = () => { if (document.visibilityState === 'visible') walletAPI.me().then(w => setBalance(w.balance)).catch(() => {}); };
  load();
  const t = setInterval(load, 30000);
  window.addEventListener('pl-world-progress-refresh', load);
