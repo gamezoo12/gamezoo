@@ -1,5 +1,5 @@
 import { authAPI, api, offersAPI } from '../../lib/api';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -36,7 +36,8 @@ import {
 export default function SignupWizard() {
   const nav = useNavigate();
   const { toast } = useToast();
-  const { refresh } = useAuth();
+  const { setGoogleUser } = useAuth();
+  const submitting = useRef(false);
   const { offer } = useActiveOffer();
   const [influencerCampaign, setInfluencerCampaign] = useState(null);
   const [promoLookup, setPromoLookup] = useState(() => {
@@ -399,6 +400,7 @@ export default function SignupWizard() {
 
 
   const finish = async () => {
+    if (submitting.current) return;
     if (!data.accept_terms) {
       return toast({
         title:
@@ -441,6 +443,7 @@ export default function SignupWizard() {
       }
     }
 
+    submitting.current = true;
     setBusy(true);
 
     try {
@@ -484,7 +487,9 @@ export default function SignupWizard() {
       );
       localStorage.removeItem('pl_influencer_invite');
 
-      await refresh?.();
+      const destination = result?.user?.role === 'influencer' ? '/influencer' : '/choose-world';
+      if (sessionStorage.getItem('fw_promo_next')) sessionStorage.setItem('fw_promo_next', destination);
+      if (result?.user) setGoogleUser(result.user);
 
       toast({
         title:
@@ -495,22 +500,7 @@ export default function SignupWizard() {
           'Your verified account is ready.',
       });
 
-      const params =
-        new URLSearchParams(
-          window.location.search
-        );
-
-      const requestedNext = String(
-        params.get('next') || ''
-      ).trim();
-
-      const safeNext =
-        requestedNext.startsWith('/') &&
-        !requestedNext.startsWith('//')
-          ? requestedNext
-          : '/choose-world';
-
-      nav(result?.user?.role === 'influencer' ? '/influencer' : safeNext, {
+      nav(destination, {
         replace: true,
       });
     } catch (error) {
@@ -539,6 +529,7 @@ export default function SignupWizard() {
         description: detail,
       });
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   };

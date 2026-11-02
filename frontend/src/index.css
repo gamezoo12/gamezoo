@@ -56,7 +56,7 @@ h1, h2, h3, h4, h5, h6, .font-display { font-family: 'Poppins', sans-serif; lett
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
 /* Prevent accidental horizontal page overflow on small screens */
-html, body { overflow-x: hidden; }
+html, body { overflow-x: clip; }
 
 /* Prize card hover kept subtle on touch */
 @media (hover: none) {

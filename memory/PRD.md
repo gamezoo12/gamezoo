@@ -658,3 +658,8 @@ Root causes fixed:
 - Diagnostics: services/otp_events.py (masked destination, no codes) + GET /api/admin/otp-diagnostics + admin page /admin/otp-diagnostics.
 - 2026-10 Every-Level Hybrid (L1-10) map fixes in WorldCanvas.jsx: REPLAY · FREE on completed globally-open level (not tied to isCurrent), COMPLETED badge always on passed levels, avatar pinned to open level node (min(open, current_level)), closed every_level levels not clickable, node countdown DD:HH:MM / HH:MM / MM:SS and dispatches pl-world-progress-refresh at zero. Backend unchanged (start/begin/submit already unlimited in window; best-time upsert).
 - 2026-11 Performance: GET-request memo (services/request_cache.py + middleware in server.py) on _active_contest, _active_gc_config_levels, live_schedule → /api/world/state 223→56 DB queries; 27 new non-unique indexes in server.py _do_core_indexes; WorldCanvas skips setWorldState when polled state unchanged + 30s poll only when tab visible; FreeWorldAdmin 1s ticker moved into LiveCountdown; EveryLevel stopwatch 10ms→50ms; Header wallet poll only when visible.
+
+## 2026-06 Signup fixes
+- Signup page/Google finalize modal mobile scrolling (overflow-x clip, modal max-h scroll, stale scroll-lock release on /login)
+- Double-submit guards (Create account, Google button, finalize); skip extra /me call after signup
+- All new signups (email & Google finalize) land on /choose-world (influencers -> /influencer); promo popup next ignored for signup; referral tracking unchanged

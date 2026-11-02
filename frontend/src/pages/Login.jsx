@@ -92,8 +92,16 @@ function resolvePostAuthDestination() {
 export default function Login() {
  const [mode, setMode] = useState('login');
  const [busy, setBusy] = useState(false);
+ const [googleBusy, setGoogleBusy] = useState(false);
 
  useEffect(() => {
+   const resetGoogle = (e) => { if (e.persisted) setGoogleBusy(false); };
+   window.addEventListener('pageshow', resetGoogle);
+   if (!document.querySelector('[role="dialog"]')) {
+     document.body.removeAttribute('data-scroll-locked');
+     document.body.style.removeProperty('pointer-events');
+     document.body.style.removeProperty('overflow');
+   }
    const params = new URLSearchParams(window.location.search);
    const requestedTab = params.get('tab');
    const referralCode = String(params.get('ref') || '').trim().toUpperCase();
@@ -107,6 +115,7 @@ export default function Login() {
      localStorage.setItem('pl_referral_code', referralCode);
      localStorage.setItem('pl_referral_code_expires', String(Date.now() + 30 * 86400000));
    }
+   return () => window.removeEventListener('pageshow', resetGoogle);
  }, []);
  const nav = useNavigate();
  const { toast } = useToast();
@@ -128,6 +137,8 @@ export default function Login() {
  };
 
  const google = () => {
+  if (googleBusy) return;
+  setGoogleBusy(true);
   const params = new URLSearchParams(window.location.search);
 
   const next = params.get('next');
@@ -169,7 +180,7 @@ export default function Login() {
  };
 
  return (
- <div className="min-h-[calc(100vh-8rem)] grid lg:grid-cols-2 relative overflow-hidden bg-white" data-testid="login-page">
+ <div className="min-h-[calc(100vh-8rem)] grid lg:grid-cols-2 relative overflow-x-clip bg-white" data-testid="login-page">
  {/* Left panel — premium purple/gold brand hero */}
  <div className="relative hidden lg:flex flex-col justify-between p-12 text-white pl-hero-bg overflow-hidden">
  <div className="absolute -top-20 -right-20 w-80 h-80 bg-[#FFD54A]/25 rounded-full blur-3xl pl-float" />
@@ -222,7 +233,7 @@ export default function Login() {
  {mode === 'login' ? 'Great to see you again.' : 'Create your account with mandatory mobile verification.'}
  </p>
 
- <Button onClick={google} variant="outline" className="w-full h-11 gap-2 border-slate-200 hover:bg-slate-50 hover:border-[#6C2BFF]/40 font-semibold" data-testid="google-signin">
+ <Button onClick={google} disabled={googleBusy} variant="outline" className="w-full h-11 gap-2 border-slate-200 hover:bg-slate-50 hover:border-[#6C2BFF]/40 font-semibold" data-testid="google-signin">
  <GoogleIcon /> Continue with Google
  </Button>
 

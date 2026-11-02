@@ -55,15 +55,10 @@ export default function AuthCallback() {
     })();
   }, [nav, setGoogleUser]);
 
-  const onFinalized = async () => {
-    await refresh?.();
+  const onFinalized = async (finalUser) => {
+    if (finalUser) setGoogleUser(finalUser); else await refresh?.();
 
-    const savedNext = sessionStorage.getItem('pl_google_next');
-    const destination = pendingUser?.role === 'influencer'
-      ? '/influencer'
-      : savedNext && savedNext.startsWith('/') && !savedNext.startsWith('//')
-        ? savedNext
-        : '/choose-world';
+    const destination = (finalUser || pendingUser)?.role === 'influencer' ? '/influencer' : '/choose-world';
 
     sessionStorage.removeItem('pl_google_next');
     sessionStorage.removeItem('pl_google_promo');

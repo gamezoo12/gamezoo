@@ -101,6 +101,7 @@ export default function GoogleFinalizeModal({ open, onComplete, onSignOut }) {
   };
 
   const finish = async () => {
+    if (busy) return;
     if (!data.accept_terms) return toast({ title: 'Please accept the Terms & Privacy Policy' });
     setBusy(true);
     try {
@@ -153,7 +154,7 @@ export default function GoogleFinalizeModal({ open, onComplete, onSignOut }) {
   return (
     <Dialog open={open} onOpenChange={() => { /* mandatory: cannot dismiss */ }}>
       <DialogContent
-        className="max-w-md [&>button]:hidden"
+        className="max-w-md max-h-[90dvh] overflow-y-auto [&>button]:hidden"
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
         onInteractOutside={(e) => e.preventDefault()}
