@@ -61,6 +61,7 @@ async def upcoming_draws(request: Request, hours: int = 24):
 @production_router.post('/draw/{contest_id}')
 async def production_draw(contest_id: str, request: Request):
     await _require_staff(request)
+    raise HTTPException(status_code=403, detail='Draws are run only from Production Panel > Draw Studio')
     from deps import get_db
     db = get_db()
     result = await draw_contest(db, contest_id)

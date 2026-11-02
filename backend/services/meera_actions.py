@@ -192,6 +192,10 @@ async def handle_pause_contest(db, a: dict) -> dict:
 
 
 async def handle_draw_winner(db, a: dict) -> dict:
+    return {'action': 'draw_winner', 'ok': False, 'error': 'Draws are run only from Production Panel > Draw Studio'}
+
+
+async def _disabled_draw_winner(db, a: dict) -> dict:
     c = await _find_contest(db, a.get('id_or_slug') or '')
     if not c:
         return {'action': 'draw_winner', 'ok': False, 'error': f'Not found: {a.get("id_or_slug")}'}

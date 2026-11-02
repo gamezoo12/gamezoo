@@ -360,6 +360,9 @@ async def draw_round(plan_id: str, round_index: int, body: ConfirmIn, request: R
         return {"result": existing, "resumed": True}
     await _upsert_winners(db, plan, result)
     final = round_index == len(plan["rounds"]) - 1
+    if final:
+        await db.contests.update_one({"contest_id": plan["contest_id"], "status": {"$nin": ["drawn", "archived"]}},
+                                     {"$set": {"status": "drawn", "drawn_at": now}})
     await db[PLANS].update_one({"plan_id": plan_id}, {"$set": {"status": "completed" if final else "in_progress",
                                                                **({"completed_at": now} if final else {})}})
     await _audit(db, "round_drawn", admin, plan_id=plan_id, round_index=round_index,

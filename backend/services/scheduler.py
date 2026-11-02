@@ -4,7 +4,6 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
-from services.draw_service import draw_contest
 from services.world_championship_scheduler import tick_free_world
 
 log = logging.getLogger('gz.scheduler')
@@ -15,16 +14,7 @@ _running = False
 
 async def _tick(db):
     now = datetime.now(timezone.utc)
-    due = await db.contests.find(
-        {'status': 'live', 'end_date': {'$lte': now}},
-        {'_id': 0, 'contest_id': 1, 'title': 1},
-    ).to_list(100)
-    for c in due:
-        try:
-            result = await draw_contest(db, c['contest_id'])
-            log.info("[scheduler] contest=%s -> %s", c['contest_id'], result)
-        except Exception as e:  # noqa: BLE001
-            log.exception("[scheduler] draw failed for %s: %s", c['contest_id'], e)
+    # Paid World contests are never auto-drawn; draws run only from Production Panel > Draw Studio.
 
     # Free World Season 1 uses the same 60-second scheduler.
     # This does not create a second background task.

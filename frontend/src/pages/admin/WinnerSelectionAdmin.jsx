@@ -3,7 +3,7 @@ import { adminAPI } from '../../lib/api';
 import { useToast } from '../../hooks/use-toast';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import { Trophy, Dice5, Hand, ShieldCheck, ScrollText, Lock, AlertTriangle } from 'lucide-react';
+import { Trophy, ShieldCheck, ScrollText, Lock, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 /**
@@ -20,8 +20,6 @@ export default function WinnerSelectionAdmin() {
   const [tickets, setTickets] = useState([]);
   const [audit, setAudit] = useState([]);
   const [ct, setCt] = useState(null);
-  const [manualTn, setManualTn] = useState('');
-  const [manualReason, setManualReason] = useState('');
   const [correctTn, setCorrectTn] = useState('');
   const [correctReason, setCorrectReason] = useState('');
   const [busy, setBusy] = useState(false);
@@ -42,22 +40,6 @@ export default function WinnerSelectionAdmin() {
     const cs = await adminAPI.contests();
     setCt(cs.find(c => c.contest_id === cid) || null);
     setContests(cs.filter(c => (c.entry_mode || 'skill_game') === 'random_tickets'));
-  };
-
-  const doDraw = async () => {
-    if (!window.confirm('Run a random draw? This selects a preview winner — you still need to publish afterwards.')) return;
-    setBusy(true);
-    try { const r = await adminAPI.wsDraw(selCid); toast({ title: `Drew ticket #${r.winner_ticket_number}` }); await load(selCid); }
-    catch (e) { toast({ title: 'Draw failed', description: e?.response?.data?.detail }); }
-    finally { setBusy(false); }
-  };
-
-  const doManual = async () => {
-    if (!manualTn || manualReason.length < 10) { toast({ title: 'Provide a ticket number + 10+ char reason' }); return; }
-    setBusy(true);
-    try { const r = await adminAPI.wsManual(selCid, parseInt(manualTn), manualReason); toast({ title: `Manual pick: #${r.winner_ticket_number}` }); setManualTn(''); setManualReason(''); await load(selCid); }
-    catch (e) { toast({ title: 'Manual pick failed', description: e?.response?.data?.detail }); }
-    finally { setBusy(false); }
   };
 
   const doPublish = async () => {
@@ -116,20 +98,8 @@ export default function WinnerSelectionAdmin() {
           </div>
 
           {!published && (
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="rounded-2xl border border-slate-200 p-5">
-                <div className="font-bold text-slate-900 flex items-center gap-2"><Dice5 className="w-5 h-5 text-[#6C2BFF]" /> Random draw</div>
-                <p className="text-xs text-slate-500 mt-1">Cryptographically-secure random selection from all {tickets.length} paid tickets.</p>
-                <Button onClick={doDraw} disabled={busy || tickets.length === 0} data-testid="ws-draw" className="mt-3 pl-btn-purple">Run random draw</Button>
-              </div>
-              {isSuperAdmin && <div className="rounded-2xl border border-slate-200 p-5">
-                <div className="font-bold text-slate-900 flex items-center gap-2"><Hand className="w-5 h-5 text-[#6C2BFF]" /> Manual pick</div>
-                <div className="grid gap-2 mt-2">
-                  <Input placeholder="Ticket number" type="number" value={manualTn} onChange={e => setManualTn(e.target.value)} data-testid="ws-manual-tn" />
-                  <Input placeholder="Reason (10+ chars, required)" value={manualReason} onChange={e => setManualReason(e.target.value)} data-testid="ws-manual-reason" />
-                  <Button onClick={doManual} disabled={busy} className="bg-slate-900 text-white" data-testid="ws-manual-submit">Set manual winner</Button>
-                </div>
-              </div>}
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600" data-testid="ws-draw-studio-only">
+              Draws are run only from <b>Production Panel → Draw Studio</b>.
             </div>
           )}
 

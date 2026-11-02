@@ -85,11 +85,8 @@ async def eligible_tickets(contest_id: str, request: Request):
 async def random_draw(contest_id: str, request: Request):
     """Cryptographically-secure random draw. Sets a PREVIEW winner only. Not yet published."""
     admin = await _require_payout_role(request)
+    raise HTTPException(403, 'Draws are run only from Production Panel > Draw Studio')
     db = get_db()
-    c = await _get_contest(db, contest_id)
-    if c.get('winner_published'):
-        raise HTTPException(400, 'Winner is already published and locked. Use /correct with a reason instead.')
-
     tickets = await db.tickets.find({'contest_id': contest_id}, {'_id': 0, 'ticket_number': 1, 'user_id': 1}).to_list(10000)
     if not tickets:
         raise HTTPException(400, 'No eligible tickets to draw from')
@@ -110,6 +107,7 @@ async def random_draw(contest_id: str, request: Request):
 @winners_router.post('/{contest_id}/manual')
 async def manual_pick(contest_id: str, payload: dict, request: Request):
     admin = await _require_super_admin(request)
+    raise HTTPException(403, 'Draws are run only from Production Panel > Draw Studio')
     ticket_number = payload.get('ticket_number')
     reason = (payload.get('reason') or '').strip()
     if not ticket_number:

@@ -671,3 +671,9 @@ Root causes fixed:
 
 ## 2026-06 Free World map order fix
 - Restored DOM order in WorldCanvas: SeasonFinish at top, championships 100..1, SeasonStart at bottom (regression from commit 7c00c4e). Signup reminder email deferred by user.
+
+## 2026-06 Draw lockdown
+- Auto-draw removed from scheduler; all draw endpoints except Draw Studio return 403 (admin/draw, production/draw, admin/winners draw+manual, engines random-draw, Meera draw_winner)
+- Draw buttons removed: Admin Contests, Edit Contest Random Draw panel, Winner Selection, Production Operations
+- Draw Studio final round marks contest drawn so it can be published to Hall of Winners manually
+- credit_lock on winners for approve + mark-paid: each winner credited once

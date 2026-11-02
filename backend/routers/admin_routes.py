@@ -1610,6 +1610,7 @@ async def all_winners(request: Request):
 @router.post('/draw/{contest_id}')
 async def draw_winner(contest_id: str, request: Request):
     await _require_role(request, ['admin', 'super_admin', 'operator'])
+    raise HTTPException(status_code=403, detail='Draws are run only from Production Panel > Draw Studio')
     from deps import get_db
     from services.draw_service import draw_contest as _draw
     db = get_db()
@@ -1646,6 +1647,22 @@ async def mark_paid(winner_id: str, request: Request):
     bonus_amount = round(float(winner.get('prize_bonus_tokens') or 0), 2)
     if cash_amount < 0 or bonus_amount < 0 or cash_amount + bonus_amount <= 0:
         raise HTTPException(status_code=409, detail='Winner prize amounts are invalid')
+    lock = await db.winners.update_one({'winner_id': winner_id, 'paid_out': {'$ne': True}, 'credit_lock': {'$ne': True}},
+                                       {'$set': {'credit_lock': True}})
+    if lock.modified_count != 1:
+        fresh = await db.winners.find_one({'winner_id': winner_id}, {'_id': 0}) or {}
+        if fresh.get('paid_out'):
+            return {'ok': True, 'idempotent': True, 'payment_status': 'paid',
+                    'wallet_transaction_ids': fresh.get('wallet_transaction_ids') or []}
+        raise HTTPException(status_code=409, detail='This prize is already being credited')
+    try:
+        return await _credit_marked_paid(db, winner, winner_id, admin, cash_amount, bonus_amount)
+    finally:
+        await db.winners.update_one({'winner_id': winner_id}, {'$unset': {'credit_lock': ''}})
+
+
+async def _credit_marked_paid(db, winner, winner_id, admin, cash_amount, bonus_amount):
+    from routers.wallet_routes import _apply_tx_idempotent
     transaction_ids, transaction_refs = [], []
     if cash_amount:
         reference = f'paid-world:winner:{winner_id}:cash'

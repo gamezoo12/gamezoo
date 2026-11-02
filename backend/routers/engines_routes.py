@@ -60,6 +60,7 @@ async def execute_random_draw(contest_id: str, payload: RandomDrawRequest, reque
     admin = await require_admin(request)
     if admin.get('role') != 'super_admin':
         raise HTTPException(403, 'Random draw execution requires Super Admin')
+    raise HTTPException(403, 'Draws are run only from Production Panel > Draw Studio')
 
     from deps import get_db
     db = get_db()
@@ -144,6 +145,7 @@ async def confirm_random_draw(contest_id: str, draw_id: str, request: Request):
     admin = await require_admin(request)
     if admin.get('role') != 'super_admin':
         raise HTTPException(403, 'Super Admin required to publish')
+    raise HTTPException(403, 'Draws are run only from Production Panel > Draw Studio')
     from deps import get_db
     db = get_db()
     d = await db.contest_draws.find_one({'draw_id': draw_id, 'contest_id': contest_id})

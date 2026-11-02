@@ -101,6 +101,21 @@ async def approve(winner_id: str, body: ApproveIn, request: Request):
     if amount <= 0 and extra <= 0:
         raise HTTPException(status_code=400, detail="This winner has no reward amount to credit")
     now = _now()
+    lock = await db.winners.update_one({"winner_id": winner_id, "paid_out": {"$ne": True}, "credit_lock": {"$ne": True}},
+                                       {"$set": {"credit_lock": True}})
+    if lock.modified_count != 1:
+        fresh = await db.winners.find_one({"winner_id": winner_id}, {"_id": 0})
+        if fresh and fresh.get("paid_out"):
+            return {"winner": fresh, "idempotent_replay": True}
+        raise HTTPException(status_code=409, detail="This prize is already being credited")
+    try:
+        return await _credit_approved(db, w, winner_id, body, admin, amount, extra, studio, now)
+    finally:
+        await db.winners.update_one({"winner_id": winner_id}, {"$unset": {"credit_lock": ""}})
+
+
+async def _credit_approved(db, w, winner_id, body, admin, amount, extra, studio, now):
+    from services.wallet_admin_adjust import WALLET_LABELS, adjust_single_wallet
     if studio:
         await db.winners.update_one({"winner_id": winner_id, "approval_status": "pending"}, {"$set": {
             "approval_status": "approved", "approved_at": now, "approved_by_email": admin.get("email"),

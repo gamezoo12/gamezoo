@@ -1,16 +1,13 @@
 import { useEffect, useState } from 'react';
 import { adminAPI, productionAPI } from '../../lib/api';
 import { Button } from '../../components/ui/button';
-import { Package, CheckCircle2, Clock, ClipboardList, Trophy, Zap, AlertTriangle, Play } from 'lucide-react';
-import { useToast } from '../../hooks/use-toast';
+import { Package, CheckCircle2, Clock, ClipboardList, Trophy, Zap, AlertTriangle } from 'lucide-react';
 import { gbp } from '../../lib/format';
 
 export default function Operations() {
   const [winners, setWinners] = useState([]);
   const [contests, setContests] = useState([]);
   const [upcoming, setUpcoming] = useState({ ending_soon: [], overdue: [], recently_drawn: [] });
-  const [drawing, setDrawing] = useState('');
-  const { toast } = useToast();
 
   const loadAll = () => {
     adminAPI.winners().then(setWinners).catch(() => {});
@@ -24,16 +21,6 @@ export default function Operations() {
     return () => clearInterval(t);
   }, []);
 
-  const drawNow = async (contestId) => {
-    setDrawing(contestId);
-    try {
-      const r = await productionAPI.draw(contestId);
-      toast({ title: '🎉 Winner drawn', description: `${r.winner.user_name} • Ticket #${r.winner.ticket_number}` });
-      loadAll();
-    } catch (e) {
-      toast({ title: 'Draw failed', description: e?.response?.data?.detail || 'Try again' });
-    } finally { setDrawing(''); }
-  };
 
   const live = contests.filter(c => c.status === 'live').length;
   const fmtCountdown = (endDate) => {
@@ -70,14 +57,14 @@ export default function Operations() {
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-display font-bold text-white flex items-center gap-2">
             <Zap className="w-5 h-5 text-amber-400" /> Draw queue
-            <span className="text-xs font-normal text-slate-400">(auto-drawn every 60s when end-date passes)</span>
+            <span className="text-xs font-normal text-slate-400">(draw manually in Draw Studio)</span>
           </h3>
         </div>
 
         {upcoming.overdue.length > 0 && (
           <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-200 text-sm flex items-center gap-2">
             <AlertTriangle className="w-4 h-4" />
-            <span><b>{upcoming.overdue.length}</b> contest{upcoming.overdue.length > 1 ? 's' : ''} overdue — scheduler will process on next tick, or draw now.</span>
+            <span><b>{upcoming.overdue.length}</b> contest{upcoming.overdue.length > 1 ? 's' : ''} awaiting draw — run them from Draw Studio.</span>
           </div>
         )}
 
@@ -98,16 +85,6 @@ export default function Operations() {
                       {overdue ? 'Overdue' : `Ends in ${fmtCountdown(c.end_date)}`}
                     </div>
                   </div>
-                  <Button
-                    size="sm"
-                    data-testid={`draw-now-${c.contest_id}`}
-                    disabled={drawing === c.contest_id || (c.tickets_sold || 0) === 0}
-                    onClick={() => drawNow(c.contest_id)}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                  >
-                    <Play className="w-3.5 h-3.5 mr-1" />
-                    {drawing === c.contest_id ? 'Drawing…' : 'Draw now'}
-                  </Button>
                 </div>
               );
             })}

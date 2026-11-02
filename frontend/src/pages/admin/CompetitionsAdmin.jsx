@@ -50,7 +50,6 @@ export default function CompetitionsAdmin() {
     } catch (e) { toast({ title: 'Bulk hold failed', description: e?.response?.data?.detail }); }
   };
   const remove = async (id) => { if (!window.confirm('Delete contest? Tickets will be deleted too.')) return; try { await adminAPI.deleteContest(id); toast({ title: 'Deleted' }); load(); } catch (e) { toast({ title: 'Failed', description: e?.response?.data?.detail }); } };
-  const draw = async (id) => { try { const r = await adminAPI.draw(id); toast({ title: 'Winner drawn!', description: `${r.winner.user_name} – Ticket #${r.winner.ticket_number}` }); load(); } catch (e) { toast({ title: 'Draw failed', description: e?.response?.data?.detail }); } };
 
   const phaseOf = (c) => c.phase || c.status;
   const inTab = (c, key) => key === 'all' || (key === 'coming-soon' ? c.public_coming_soon === true : key === 'draft' ? c.status === 'draft' && !c.public_coming_soon : phaseOf(c) === key);
@@ -138,7 +137,6 @@ export default function CompetitionsAdmin() {
                 {c.status === 'draft' && !c.public_coming_soon && <Button size="sm" onClick={() => launch(c.contest_id)} className="bg-emerald-600 hover:bg-emerald-700"><Play className="w-3.5 h-3.5 mr-1" /> Launch</Button>}
                 {c.public_coming_soon === true && <Button size="sm" variant="outline" onClick={() => pauseComingSoon(c.contest_id)}><Pause className="w-3.5 h-3.5 mr-1" /> Pause Coming Soon</Button>}
                 {phaseOf(c) === 'live' && <Button size="sm" variant="outline" onClick={() => pause(c.contest_id)}><Pause className="w-3.5 h-3.5 mr-1" /> Pause</Button>}
-                {phaseOf(c) === 'live' && !c.game_type && <Button size="sm" data-testid={`contest-draw-${c.contest_id}`} onClick={() => draw(c.contest_id)} className="bg-[#6C2BFF] hover:bg-[#4A15D9]"><Trophy className="w-3.5 h-3.5 mr-1" /> Draw</Button>}
                 {phaseOf(c) === 'completed' && <span data-testid={`contest-completed-${c.contest_id}`} className="inline-flex items-center gap-1 rounded-md bg-sky-50 px-2.5 text-xs font-semibold text-sky-700"><Trophy className="w-3.5 h-3.5" /> Completed</span>}
                 <Button size="sm" variant="outline" onClick={() => remove(c.contest_id)} className="text-rose-600 hover:text-rose-700 border-rose-200"><Trash2 className="w-3.5 h-3.5" /></Button>
               </div>

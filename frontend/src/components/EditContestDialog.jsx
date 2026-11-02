@@ -6,7 +6,6 @@ import { Button } from './ui/button';
 import { adminAPI, uploadsAPI, api, API } from '../lib/api';
 import {
   ContestImageFocalPicker,
-  RandomDrawPanel,
   InstantWinComposer,
 } from './ContestEngineControls';
 import { useToast } from '../hooks/use-toast';
@@ -867,7 +866,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                 <h3 className="mb-3 text-base font-black text-slate-900">
                   Random Draw Controls
                 </h3>
-                <RandomDrawPanel contestId={contest.contest_id} />
+                <p className="text-sm text-slate-600" data-testid="contest-draw-studio-only">Draws are run only from <b>Production Panel → Draw Studio</b>.</p>
               </section>
             )}
 
