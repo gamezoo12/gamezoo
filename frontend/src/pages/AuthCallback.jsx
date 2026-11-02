@@ -57,6 +57,7 @@ export default function AuthCallback() {
 
   const onFinalized = async (finalUser) => {
     if (finalUser) setGoogleUser(finalUser); else await refresh?.();
+    localStorage.setItem('pl_welcome_pending', '1');
 
     const destination = (finalUser || pendingUser)?.role === 'influencer' ? '/influencer' : '/choose-world';
 

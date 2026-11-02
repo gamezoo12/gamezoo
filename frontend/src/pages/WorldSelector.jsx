@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/worldSelector.css';
+import { WelcomeBanner } from '../components/WelcomeBanner';
 
 export default function WorldSelector() {
   const navigate = useNavigate();
@@ -60,6 +61,7 @@ export default function WorldSelector() {
         />
 
       </div>
+      <WelcomeBanner />
     </main>
   );
 }

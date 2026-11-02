@@ -25,7 +25,7 @@ async def _config(db):return _public_config(await db.promotion_config.find_one({
 def _public_campaign(doc):
  d=_public_config(doc);d.setdefault('campaign_type','referral_draw');d.setdefault('description','');d.setdefault('reward_tokens',0);d.setdefault('legacy',False)
  if 'promotion_type' not in doc:d['promotion_type']=None
- if 'show_join' not in doc:d['show_join']=True
+ if 'show_join' not in doc:d['show_join']=False
  if 'show_refer' not in doc:d['show_refer']=d['campaign_type']=='referral_draw'
  if 'show_topup' not in doc:d['show_topup']=False
  return d

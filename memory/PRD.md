@@ -663,3 +663,8 @@ Root causes fixed:
 - Signup page/Google finalize modal mobile scrolling (overflow-x clip, modal max-h scroll, stale scroll-lock release on /login)
 - Double-submit guards (Create account, Google button, finalize); skip extra /me call after signup
 - All new signups (email & Google finalize) land on /choose-world (influencers -> /influencer); promo popup next ignored for signup; referral tracking unchanged
+
+## 2026-06 Post-signup UX
+- WelcomeBanner on /choose-world shown once after signup (pl_welcome_pending flag)
+- Signup draft saved 24h in localStorage (pl_signup_draft, no password; re-enter password on step 5 when resumed)
+- Promotion popup Join button only when admin sets show_join=true (backend default now False)

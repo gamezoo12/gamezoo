@@ -596,7 +596,7 @@ export default function PromotionPopup() {
             bg-[#0B0D1F]
           "
         >
-          {cfg.promotion_type !== 'offer' && cfg.promotion_type !== 'referral' && cfg.show_join !== false && <button
+          {cfg.promotion_type !== 'offer' && cfg.promotion_type !== 'referral' && cfg.show_join === true && <button
             onClick={join}
             className="
               w-full

@@ -33,7 +33,19 @@ import {
  * Twilio Verify codes are authoritatively checked by /auth/register
  * immediately before the account is inserted.
  */
+const DRAFT_KEY = 'pl_signup_draft';
+const DRAFT_TTL = 24 * 3600000;
+const readDraft = () => {
+  try {
+    const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
+    if (d && Date.now() - d.savedAt < DRAFT_TTL) return d;
+  } catch { /* ignore corrupt draft */ }
+  localStorage.removeItem(DRAFT_KEY);
+  return null;
+};
+
 export default function SignupWizard() {
+  const [draft] = useState(readDraft);
   const nav = useNavigate();
   const { toast } = useToast();
   const { setGoogleUser } = useAuth();
@@ -48,7 +60,8 @@ export default function SignupWizard() {
     return invite ? 'influencer-invite' : code ? 'checking' : 'normal';
   });
 
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(() => draft?.step || 1);
+  const needsPassword = (draft?.step || 1) > 1;
   const [busy, setBusy] = useState(false);
 
   const [emailCooldown, setEmailCooldown] = useState(0);
@@ -69,7 +82,14 @@ export default function SignupWizard() {
     referralCode: '',
     accept_terms: false,
     promo: { ...EMPTY_PROMO },
+    ...(draft?.data || {}),
   });
+
+  useEffect(() => {
+    const { password, accept_terms, promo, referralCode, ...rest } = data;
+    if (step === 1 && !rest.name && !rest.email && !rest.phone) return;
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ savedAt: Date.now(), step, data: rest }));
+  }, [data, step]);
 
   // Preserve referral / influencer acquisition code during signup.
   useEffect(() => {
@@ -408,6 +428,10 @@ export default function SignupWizard() {
       });
     }
 
+    if (data.password.length < 8) {
+      return toast({ title: 'Password must be 8+ characters' });
+    }
+
     if (
       !data.normalizedEmail ||
       data.emailCode.length !== 6
@@ -486,6 +510,8 @@ export default function SignupWizard() {
         'pl_referral_code'
       );
       localStorage.removeItem('pl_influencer_invite');
+      localStorage.removeItem(DRAFT_KEY);
+      localStorage.setItem('pl_welcome_pending', '1');
 
       const destination = result?.user?.role === 'influencer' ? '/influencer' : '/choose-world';
       if (sessionStorage.getItem('fw_promo_next')) sessionStorage.setItem('fw_promo_next', destination);
@@ -1023,6 +1049,20 @@ export default function SignupWizard() {
           <h3 className="font-display font-extrabold text-2xl text-slate-900">
             One last thing
           </h3>
+
+          {needsPassword && (
+            <div data-testid="signup-resume-password-block">
+              <Label className="mb-1 block">Re-enter your password</Label>
+              <Input
+                type="password"
+                data-testid="signup-resume-password"
+                value={data.password}
+                onChange={(e) => set('password', e.target.value)}
+                placeholder="8+ characters"
+              />
+              <p className="text-[11px] text-slate-500 mt-1">We kept your details, but never store passwords.</p>
+            </div>
+          )}
 
           <p className="text-sm text-slate-500">
             Confirm you agree to our terms —
