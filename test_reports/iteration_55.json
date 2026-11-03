@@ -1,0 +1,33 @@
+{
+  "summary": "Tested the chunked video upload stored in Mongo (backend and UI), the seasonal arcade catalog, and the GamePicker filters in the Contest editor and Free World GC settings. Backend: 9/9 pytest passed against the public URL. UI: all checks passed. Nothing was saved to settings, contests or GC configs.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/admin/uploads/video/*", "issue": "Abandoned upload sessions and their chunks (up to 120MB each) are never cleaned up. There is no TTL index, and chunk docs have no created_at. Add created_at to chunks and a TTL index on both collections (e.g. 1h)."},
+      {"endpoint": "uploads_routes.py:243", "issue": "The section comment still says 'max 60 MB / 30 seconds'. The code allows 120MB / 60.5s."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Admin > GC Competition Settings level cards", "issues": ["The GamePicker filters wrap badly in the narrow Game column: the theme select drops onto its own line under the search and style fields. Consider stacking the filters full-width or giving the Game column more space."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_video_upload_and_seasonal_games.py", "/app/test_reports/pytest/pytest_results_iter55.xml"],
+  "action_items": [
+    "Optional: add a TTL cleanup for video_upload_sessions / video_upload_chunks",
+    "Optional: SettingsPage videoDuration() rejects any file the browser cannot decode (e.g. HEVC .mov in Chrome on Windows or Linux) with 'Could not read this video.' Consider a fallback, e.g. let the server accept these files or show a clearer message.",
+    "Optional: fix the stale comment and the GC picker filter wrapping"
+  ],
+  "critical_code_review_comments": [
+    "complete_video_upload deletes the session in finally, even on a 400 'incomplete' error. This matches the spec, but the client cannot resume and must restart the whole upload.",
+    "All chunks are joined in memory (up to 120MB per request). Acceptable, but watch pod memory if several uploads run at once."
+  ],
+  "updated_files": ["/app/backend/tests/test_video_upload_and_seasonal_games.py"],
+  "success_rate": {"backend": "100% (9/9)", "frontend": "100%"},
+  "seed_data_creation": "None in the DB. Uploaded to R2: one 5MB fake mp4 (pytest) and one ~3KB webm (UI test), both under promotions/videos/. No settings were saved, and Mongo upload collections are empty after the tests (0/0).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The /app/backend/tests conftest forces an isolated loopback backend, so tests against the public URL are skipped there. To run test_video_upload_and_seasonal_games.py against the public URL: copy it to /tmp/t55, add an empty pytest.ini, and run with REACT_APP_BACKEND_URL set. Verified: start validation returns 400/413/415 and rejects unauthenticated calls with 401/403. A 3-chunk 5MB upload returns a public R2 URL (HEAD 200), and a second complete returns 404. A missing chunk returns 400 'Upload incomplete'. An oversized chunk returns 400. /api/games/types returns 190 games, 160 of them arcade. UI: the slide input accept attr is correct, and a browser-generated webm uploads through start, chunk and complete with 200s and shows a preview. In both Contest (New dialog) and GC pickers: 22 style options and 9 theme options (including Christmas Magic, Halloween Night, Summer Splash); Balloon Pop + Christmas Magic leaves 1 option; searching 'safe cracker' gives 8; 'Classic games' gives 30; the selected value stays selected under a non-matching filter. Note: the Edit dialog hides the game section for contests whose engine is not leaderboard."
+}

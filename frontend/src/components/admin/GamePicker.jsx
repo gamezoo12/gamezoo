@@ -25,16 +25,18 @@ export function GamePicker({ value, onChange, options, disabled, testid, classNa
   const field = 'rounded-lg border border-slate-200 px-2 py-1.5 text-xs';
   return (
     <div className="space-y-1.5">
-      {!disabled && <div className="flex flex-wrap gap-1.5" data-testid={`${testid}-filters`}>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search games…" className={`${field} min-w-[120px] flex-1`} data-testid={`${testid}-search`} />
-        <select value={style} onChange={(e) => setStyle(e.target.value)} className={field} data-testid={`${testid}-style`}>
+      {!disabled && <div className="grid grid-cols-1 gap-1.5" data-testid={`${testid}-filters`}>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search games…" className={`${field} w-full`} data-testid={`${testid}-search`} />
+        <div className="grid grid-cols-2 gap-1.5">
+        <select value={style} onChange={(e) => setStyle(e.target.value)} className={`${field} w-full min-w-0`} data-testid={`${testid}-style`}>
           <option value="all">All styles</option><option value="classic">Classic games</option>
           {Object.entries(ARCADE_STYLE_META).map(([k, m]) => <option key={k} value={k}>{m[0]}</option>)}
         </select>
-        <select value={theme} onChange={(e) => setTheme(e.target.value)} className={field} data-testid={`${testid}-theme`}>
+        <select value={theme} onChange={(e) => setTheme(e.target.value)} className={`${field} w-full min-w-0`} data-testid={`${testid}-theme`}>
           <option value="all">All themes</option>
           {Object.entries(ARCADE_THEME_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
         </select>
+        </div>
       </div>}
       <select value={value || ''} disabled={disabled} onChange={(e) => onChange(e.target.value || null)} className={className} data-testid={testid}>
         <option value="">{placeholder} ({shown.length})</option>

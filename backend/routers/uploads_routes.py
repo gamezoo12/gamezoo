@@ -240,7 +240,7 @@ async def upload_contest_image(
 
 
 # =====================================================================
-# Banner video upload — chunked (proxy-safe), max 60 MB / 30 seconds
+# Banner video upload — chunked (proxy-safe), max 120 MB / 60 seconds
 # =====================================================================
 VIDEO_MAX_BYTES = 120 * 1024 * 1024
 VIDEO_CHUNK = 2 * 1024 * 1024
@@ -278,6 +278,7 @@ async def start_video_upload(request: Request):
 @uploads_router.put('/video/{upload_id}/chunk/{index}')
 async def upload_video_chunk(upload_id: str, index: int, request: Request):
     from bson import Binary
+    from datetime import datetime, timezone
     from deps import get_db
     await require_admin(request)
     db = get_db()
@@ -286,7 +287,7 @@ async def upload_video_chunk(upload_id: str, index: int, request: Request):
     if not data or len(data) > VIDEO_CHUNK or not 0 <= index < 64:
         raise HTTPException(400, "Invalid chunk")
     await db.video_upload_chunks.update_one({"upload_id": upload_id, "index": index},
-                                            {"$set": {"data": Binary(data)}}, upsert=True)
+                                            {"$set": {"data": Binary(data), "created_at": datetime.now(timezone.utc)}}, upsert=True)
     return {"ok": True}
 
 

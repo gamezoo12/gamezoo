@@ -534,6 +534,9 @@ async def _do_core_indexes():
         ('users', [('created_at', -1)], {}),
         ('bonus_grants', [('user_id', 1)], {}),
         ('tickets', [('created_at', -1)], {}),
+        ('video_upload_sessions', [('created_at', 1)], {'expireAfterSeconds': 3600}),
+        ('video_upload_chunks', [('created_at', 1)], {'expireAfterSeconds': 3600}),
+        ('video_upload_chunks', [('upload_id', 1), ('index', 1)], {}),
     ]
     ok = 0
     for coll, keys, opts in _idx_specs:
