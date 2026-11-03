@@ -722,3 +722,4 @@ Root causes fixed:
 - Skeleton RouteLoader + mobile contests skeleton (.pl-skeleton); pexels URLs without params get compressed w=1200; logo.png 254KB->83KB; mobile pl-glass no backdrop blur; mobile tabs no blur
 - Home mobile API calls 29 -> 11
 - BannerVideo now always starts muted; clear white "Tap for sound" speaker pill when muted
+- Banner video limit raised to 60s / 120MB

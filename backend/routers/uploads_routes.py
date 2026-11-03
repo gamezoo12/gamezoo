@@ -242,9 +242,9 @@ async def upload_contest_image(
 # =====================================================================
 # Banner video upload — chunked (proxy-safe), max 60 MB / 30 seconds
 # =====================================================================
-VIDEO_MAX_BYTES = 60 * 1024 * 1024
+VIDEO_MAX_BYTES = 120 * 1024 * 1024
 VIDEO_CHUNK_MAX = 6 * 1024 * 1024
-VIDEO_MAX_SECONDS = 30.5
+VIDEO_MAX_SECONDS = 60.5
 VIDEO_TMP = Path("/tmp/pl_video_uploads")
 VIDEO_TYPES = {"video/mp4": ".mp4", "video/webm": ".webm"}
 
@@ -267,9 +267,9 @@ async def start_video_upload(request: Request):
     if ctype not in VIDEO_TYPES:
         raise HTTPException(415, "Unsupported video. Use MP4 or WebM.")
     if not 0 < size <= VIDEO_MAX_BYTES:
-        raise HTTPException(413, "Video too large (max 60 MB)")
+        raise HTTPException(413, "Video too large (max 120 MB)")
     if not 0 < duration <= VIDEO_MAX_SECONDS:
-        raise HTTPException(400, "Video must be 30 seconds or shorter")
+        raise HTTPException(400, "Video must be 1 minute or shorter")
     upload_id = uuid.uuid4().hex
     path = VIDEO_TMP / upload_id
     path.mkdir(parents=True, exist_ok=True)
@@ -282,7 +282,7 @@ async def upload_video_chunk(upload_id: str, index: int, request: Request):
     await require_admin(request)
     path = _video_dir(upload_id)
     data = await request.body()
-    if not data or len(data) > VIDEO_CHUNK_MAX or not 0 <= index < 20:
+    if not data or len(data) > VIDEO_CHUNK_MAX or not 0 <= index < 30:
         raise HTTPException(400, "Invalid chunk")
     (path / f"{index:03d}.part").write_bytes(data)
     return {"ok": True}

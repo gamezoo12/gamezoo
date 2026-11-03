@@ -66,9 +66,9 @@ export default function SettingsPage() {
     try {
       let result;
       if (isVideo) {
-        if (file.size > 60 * 1024 * 1024) throw new Error('Video too large (max 60 MB).');
+        if (file.size > 120 * 1024 * 1024) throw new Error('Video too large (max 120 MB).');
         const duration = await videoDuration(file);
-        if (!(duration > 0 && duration <= 30.5)) throw new Error('Video must be 30 seconds or shorter.');
+        if (!(duration > 0 && duration <= 60.5)) throw new Error('Video must be 1 minute or shorter.');
         toast({ title: `Uploading video for slide ${index + 1}…` });
         result = await uploadsAPI.video(file, duration);
       } else {
