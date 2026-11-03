@@ -684,3 +684,6 @@ Root causes fixed:
 
 ## 2026-06 Every-Level Hybrid catch-up attempts
 - _hybrid_level_playable (world_routes.py): unlimited free attempts during active window, and after expiry until user has the level in completed_levels. Leaderboard bests still only recorded inside active window (record_hybrid_level_best). Unopened levels still 0.
+
+## 2026-06 Every-Level catch-up (standalone engine)
+- world_gc_competition_routes: expired normal levels playable/openable until passed; bests only written inside window. Awaiting prod diagnosis for legacy_hybrid path.

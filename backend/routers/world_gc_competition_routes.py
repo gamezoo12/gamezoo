@@ -172,13 +172,14 @@ async def _assert_level_open(db, config: dict, user_id: str, level_key: str, now
     if opens_at is None or now < opens_at:
         raise HTTPException(status_code=409, detail="This level has not opened")
     closes_at = _level_close_time(config, level_key)
-    if closes_at is not None and now >= closes_at:
-        raise HTTPException(status_code=409, detail="This level is closed")
     progress = await db.world_gc_progress.find_one(
         {"season_id": SEASON_ID, "gc_number": int(config["gc_number"]), "user_id": user_id},
         {"_id": 0},
     ) or {"passed_levels": []}
     passed = {str(value) for value in progress.get("passed_levels", [])}
+    # Expired normal levels stay open (progression only) until the player passes them.
+    if closes_at is not None and now >= closes_at and (level_key == "champion" or level_key in passed):
+        raise HTTPException(status_code=409, detail="This level is closed")
     if level_key == "champion":
         if not all(f"L{level}" in passed for level in range(1, 11)):
             raise HTTPException(status_code=403, detail="Complete Levels 1–10 before Champion Level")
@@ -333,7 +334,8 @@ async def future_gc_progress(gc_number: int, request: Request):
             "opened": bool(opens_at and now >= opens_at), "opens_at": opens_at.isoformat() if opens_at else None,
             "closes_at": _level_close_time(config, key).isoformat() if _level_close_time(config, key) else None,
             "playable": bool(opens_at and now >= opens_at and prerequisite and
-                              (not _level_close_time(config, key) or now < _level_close_time(config, key))),
+                              (not _level_close_time(config, key) or now < _level_close_time(config, key)
+                               or key not in passed)),
             "action": "next_level" if key in passed and (
                 level < 10 and
                 (next_open := _schedule_time(_level_schedule(config, f"L{level + 1}"), "opens_at")) and now >= next_open
@@ -490,11 +492,14 @@ async def click_future_memory_match_card(session_id: str, body: MemoryMatchClick
                 "user_name": user.get("name") or user.get("email") or "Player",
             "duration_ms": duration_ms, "click_count": click_count, "completed_at": now,
             "champion_stage_snapshot": session.get("champion_stage_snapshot")}
+        close_at = _level_close_time(config, session["level_key"])
+        in_window = session["level_key"] == "champion" or close_at is None or now < close_at
         try:
-            await db.world_gc_level_bests.update_one(
-                {**best_key, "$or": [{"duration_ms": {"$gt": duration_ms}}, {"duration_ms": {"$exists": False}}]},
-                {"$set": best}, upsert=True,
-            )
+            if in_window:
+                await db.world_gc_level_bests.update_one(
+                    {**best_key, "$or": [{"duration_ms": {"$gt": duration_ms}}, {"duration_ms": {"$exists": False}}]},
+                    {"$set": best}, upsert=True,
+                )
         except DuplicateKeyError:
             current = await db.world_gc_level_bests.find_one(best_key, {"_id": 0, "duration_ms": 1})
             if current and int(current.get("duration_ms", duration_ms)) > duration_ms:
