@@ -681,3 +681,6 @@ Root causes fixed:
 ## 2026-06 Draw Studio queue + hall publish
 - /admin/draw-studio/contests returns awaiting_draw (live/closed, ended, tickets>0, no completed plan); badge + [ENDED · AWAITING DRAW] list marker
 - POST /admin/draw-studio/plans/{id}/publish-hall (after announce-all) turns on winners+leaderboard+gallery; HallPublishButton in DrawStudio + DrawTheatre finale
+
+## 2026-06 Every-Level Hybrid catch-up attempts
+- _hybrid_level_playable (world_routes.py): unlimited free attempts during active window, and after expiry until user has the level in completed_levels. Leaderboard bests still only recorded inside active window (record_hybrid_level_best). Unopened levels still 0.

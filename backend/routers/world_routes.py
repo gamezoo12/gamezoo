@@ -5306,19 +5306,33 @@ async def _free_world_progress(
     return await _reconcile_verified_level_history(db, user_id, progress)
 
 
+async def _hybrid_level_playable(db, user_id: str, level: int) -> bool:
+    """Open during the active window; after it, still open (progression only) until the player passes it."""
+    from routers.world_gc_live_routes import live_schedule
+    active = await _active_contest(db)
+    schedule = await live_schedule(db, int(active["contest_number"]))
+    if not schedule:
+        return False
+    now = _utcnow()
+    opens = schedule["levels"][level - 1]
+    closes = schedule["levels"][level] if level < 10 else schedule["champion_opens_at"]
+    if now < opens:
+        return False
+    if now < closes:
+        return True
+    progress = await db.world_progress.find_one(
+        {"season_id": WORLD_SEASON_ID, "user_id": user_id}, {"_id": 0, "completed_levels": 1},
+    ) or {}
+    return int(level) not in {int(x) for x in progress.get("completed_levels") or []}
+
+
 async def _free_attempt_counter(
     db,
     user_id: str,
     level: int,
 ):
     if await _hybrid_every_level_enabled(db, level):
-        from routers.world_gc_live_routes import live_schedule
-        active = await _active_contest(db)
-        schedule = await live_schedule(db, int(active["contest_number"]))
-        now = _utcnow()
-        if schedule and schedule["levels"][level - 1] <= now < (
-            schedule["levels"][level] if level < 10 else schedule["champion_opens_at"]
-        ):
+        if await _hybrid_level_playable(db, user_id, level):
             return _unlimited_level_attempts()
         return {**_unlimited_level_attempts(), "free_attempts_available": 0,
                 "total_attempts_available": 0, "attempt_source": None}
@@ -5572,12 +5586,7 @@ async def _free_attempt_status(
     """
 
     if await _hybrid_every_level_enabled(db, level):
-        from routers.world_gc_live_routes import live_schedule
-        active = await _active_contest(db)
-        schedule = await live_schedule(db, int(active["contest_number"]))
-        now = _utcnow()
-        opened = bool(schedule and schedule["levels"][level - 1] <= now <
-                      (schedule["levels"][level] if level < 10 else schedule["champion_opens_at"]))
+        opened = await _hybrid_level_playable(db, user_id, level)
         return {**_unlimited_level_attempts(),
                 "free_attempts_available": 1 if opened else 0,
                 "total_attempts_available": 1 if opened else 0,
