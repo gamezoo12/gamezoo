@@ -35,7 +35,7 @@ export default function MobileHome() {
     const p = new URLSearchParams(window.location.search).get('m');
     return TABS.find(t => t.id === p && !t.href) ? p : 'contests';
   });
-  const [contests, setContests] = useState([]);
+  const [contests, setContests] = useState(null);
   useEffect(() => {
     contestsAPI.list({ limit: 100 }).then(r => setContests(r?.contests || r || [])).catch(() => setContests([]));
   }, []);
@@ -49,7 +49,7 @@ export default function MobileHome() {
   return (
     <div className="min-h-screen bg-[#0b0716] text-white pb-24" data-testid="mobile-home-root">
       {/* Tab bar sits directly under the header and scrolls away with it. */}
-      <div className="relative z-30 bg-[#0b0716]/95 backdrop-blur border-b border-white/5" data-testid="mobile-tabs">
+      <div className="relative z-30 bg-[#0b0716] border-b border-white/5" data-testid="mobile-tabs">
         <div className="flex">
           {TABS.map(({ id, label, Icon, href }) => {
             const active = tab === id;
@@ -69,7 +69,7 @@ export default function MobileHome() {
       </div>
 
       {tab === 'contests' && <ContestsPanel contests={contests} />}
-      {tab === 'leaderboard' && <UnifiedLeaderboard contests={contests} />}
+      {tab === 'leaderboard' && <UnifiedLeaderboard contests={contests || []} />}
       {tab === 'games' && <GamesPanel />}
     </div>
   );
@@ -77,11 +77,11 @@ export default function MobileHome() {
 
 /* --------------------------------- CONTESTS -------------------------------- */
 function ContestsPanel({ contests }) {
-  const liveContests = contests
+  const liveContests = (contests || [])
     .filter(c => c.public_coming_soon !== true)
     .slice(0, 10);
 
-  const futureContests = contests
+  const futureContests = (contests || [])
     .filter(c => c.public_coming_soon === true)
     .slice(0, 10);
 
@@ -123,7 +123,11 @@ function ContestsPanel({ contests }) {
           Live Contests
         </h2>
 
-        {liveContests.length === 0 ? (
+        {contests === null ? (
+          <div className="space-y-4" data-testid="mobile-live-contests-loading">
+            {[0, 1].map((i) => <div key={i} className="pl-skeleton h-64 rounded-2xl" />)}
+          </div>
+        ) : liveContests.length === 0 ? (
           <div className="text-center py-10 text-slate-600 text-sm">
             No live contests right now. Check back soon.
           </div>

@@ -57,6 +57,9 @@ h1, h2, h3, h4, h5, h6, .font-display { font-family: 'Poppins', sans-serif; lett
 
 /* Prevent accidental horizontal page overflow on small screens */
 html, body { overflow-x: clip; }
+.pl-skeleton { background: linear-gradient(90deg, rgba(148,163,184,.16) 25%, rgba(148,163,184,.30) 37%, rgba(148,163,184,.16) 63%); background-size: 400% 100%; animation: pl-shimmer 1.4s ease-in-out infinite; }
+@keyframes pl-shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+@media (prefers-reduced-motion: reduce) { .pl-skeleton { animation: none; } }
 
 /* Prize card hover kept subtle on touch */
 @media (hover: none) {
@@ -106,12 +109,15 @@ html, body { overflow-x: clip; }
 }
 .pl-marquee:hover .pl-marquee-track { animation-play-state: paused; }
 
-/* Glass card */
+/* Glass card (frosted blur is expensive while scrolling on phones; use a solid tint there) */
 .pl-glass {
   background: rgba(22, 20, 51, 0.55);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border: 1px solid rgba(255,255,255,0.08);
+}
+@media (max-width: 767px) {
+  .pl-glass { background: rgba(22, 20, 51, 0.88); backdrop-filter: none; -webkit-backdrop-filter: none; }
 }
 
 /* Soft float animation */

@@ -108,17 +108,11 @@ const DrawSettingsPage = lazy(() => import('./pages/production/DrawSettings'));
 
 function RouteLoader() {
   return (
-    <div
-      data-testid="route-loader"
-      style={{
-        minHeight: '60vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'transparent',
-      }}
-    >
-      <div className="pl-route-spinner" aria-label="Loading" role="status" />
+    <div data-testid="route-loader" className="mx-auto w-full max-w-7xl px-4 py-6 lg:px-8" role="status" aria-label="Loading">
+      <div className="pl-skeleton h-40 w-full rounded-2xl md:h-64" />
+      <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {[0, 1, 2].map((i) => <div key={i} className="pl-skeleton h-48 rounded-2xl" />)}
+      </div>
     </div>
   );
 }

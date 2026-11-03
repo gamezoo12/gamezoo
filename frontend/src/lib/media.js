@@ -33,6 +33,8 @@ export function resolveMediaUrl(value) {
     raw.startsWith('data:') ||
     raw.startsWith('blob:')
   ) {
+    // Stock photos saved without size params are full-resolution (1MB+); request a web-sized copy.
+    if (raw.startsWith('https://images.pexels.com/') && !raw.includes('?')) return `${raw}?auto=compress&cs=tinysrgb&w=1200`;
     return raw;
   }
 

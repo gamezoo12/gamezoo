@@ -8,8 +8,27 @@ export const api = axios.create({ baseURL: API, withCredentials: true });
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('gz_token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  if ((config.method || 'get').toLowerCase() !== 'get') getCache.clear();
   return config;
 });
+
+// Short-lived shared cache for public, read-only GETs that many components request on the same page.
+const getCache = new Map();
+const CACHE_TTL_MS = 15000;
+const CACHEABLE_GET = [/^\/settings$/, /^\/promotion\/config$/, /^\/games\/types/, /^\/contests\/?$/, /^\/announcements(\/promotion-badge)?$/, /^\/world\/public\/champion-winners/, /^\/offers\/active$/];
+// Balances and notifications: only de-duplicate simultaneous requests (very short window).
+const DEDUPE_GET = [/^\/wallet\/me$/, /^\/users\/notifications/];
+const rawGet = api.get.bind(api);
+api.get = (url, config) => {
+  const dedupeOnly = DEDUPE_GET.some((re) => re.test(url));
+  if (!dedupeOnly && !CACHEABLE_GET.some((re) => re.test(url))) return rawGet(url, config);
+  const key = `${localStorage.getItem('gz_token') || ''}|${url}|${JSON.stringify(config?.params || {})}`;
+  const hit = getCache.get(key);
+  if (hit && Date.now() - hit.at < (dedupeOnly ? 1500 : CACHE_TTL_MS)) return hit.promise;
+  const promise = rawGet(url, config).catch((err) => { getCache.delete(key); throw err; });
+  getCache.set(key, { at: Date.now(), promise });
+  return promise;
+};
 
 // Backend refuses gameplay/payments until mobile OTP is verified; let the UI prompt for it.
 api.interceptors.response.use(

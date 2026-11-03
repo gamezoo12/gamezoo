@@ -716,3 +716,8 @@ Root causes fixed:
 ## 2026-06 Paid World video banners
 - Chunked admin video upload /api/admin/uploads/video/{start,chunk,complete} -> R2 (mp4/webm, <=60MB, <=30s client-measured)
 - settings promotion_slides[].type image|video; PromotionBanner uses BannerVideo (plays only when >=98% visible, tries sound then muted fallback + unmute on first tap, Mute/Pause buttons, carousel waits for video end)
+
+## 2026-06 Smoothness pass
+- api.js: 15s shared cache for public GETs (settings, promotion/config, games/types, contests, announcements, champion-winners, offers/active) + 1.5s dedupe for wallet/me & notifications; cleared on any non-GET
+- Skeleton RouteLoader + mobile contests skeleton (.pl-skeleton); pexels URLs without params get compressed w=1200; logo.png 254KB->83KB; mobile pl-glass no backdrop blur; mobile tabs no blur
+- Home mobile API calls 29 -> 11
