@@ -125,14 +125,14 @@ export default function CompetitionCard({ c }) {
             </div>
 
             <div
-              className={`inline-flex min-w-0 items-center gap-1 rounded-sm px-1.5 py-0.5 text-[9px] font-extrabold ${
+              className={`inline-flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-sm font-black ${
                 ended
                   ? 'bg-rose-500 text-white'
-                  : 'bg-black/45 text-white'
+                  : 'bg-black/80 text-[#FFD54A]'
               }`}
               data-testid={`card-timer-${c.slug}`}
             >
-              <Clock className="h-3 w-3 shrink-0" />
+              <Clock className="h-4 w-4 shrink-0" />
               <span className="truncate">
                 {ended
                   ? 'Ended'

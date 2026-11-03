@@ -118,13 +118,13 @@ function ContestsPanel({ contests }) {
       <GamePreviewSection mobile />
 
       {/* 3 - LIVE CONTESTS */}
-      <div className="px-4 pt-6">
-        <h2 className="font-display font-extrabold text-xl text-white mb-3">
+      <div className="px-4 pt-6 pb-4 mt-4 bg-white" data-testid="mobile-live-contests-section">
+        <h2 className="font-display font-extrabold text-xl text-[#1e3a8a] mb-3">
           Live Contests
         </h2>
 
         {liveContests.length === 0 ? (
-          <div className="text-center py-10 text-white text-sm">
+          <div className="text-center py-10 text-slate-600 text-sm">
             No live contests right now. Check back soon.
           </div>
         ) : (
