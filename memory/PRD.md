@@ -700,3 +700,6 @@ Root causes fixed:
 
 ## 2026-06 Mobile Paid World header
 - On mobile (<768px) Home/paid-leagues: header (incl. ticker) + MobileHome tabs are non-sticky and scroll away together. Desktop/other pages unchanged.
+
+## 2026-06 Free World leaderboard default
+- FreeWorldLeaderboard opens on Level Leaderboard when active GC has level boards (every-level), preselecting the Open level (else latest opened); Championship tab + level buttons still available for past levels

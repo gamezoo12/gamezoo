@@ -30,7 +30,10 @@ export function LevelLeaderboardPanel({ gcNumber, boards, isMine }) {
   const enabled = (boards || []).filter((b) => b?.enabled && b.status !== 'Upcoming');
   const upcoming = (boards || []).filter((b) => b?.enabled && b.status === 'Upcoming').length;
   const [level, setLevel] = useState(null);
-  useEffect(() => { setLevel(enabled[0]?.level || null); }, [boards]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const open = enabled.find((b) => b.status === 'Open');
+    setLevel((open || enabled[enabled.length - 1])?.level || null);
+  }, [boards]); // eslint-disable-line react-hooks/exhaustive-deps
   const board = enabled.find((b) => b.level === level);
   if (!boards) return <div className="pl-global-lb-card pl-global-lb-state" data-testid="lb-level-loading"><span className="pl-global-lb-spin" /><p>Loading level rankings…</p></div>;
   return (

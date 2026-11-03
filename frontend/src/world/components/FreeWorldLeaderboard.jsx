@@ -3,7 +3,7 @@ import { VerifiedReviewerBadge } from '../../components/VerifiedReviewerBadge';
 import {
   Trophy, X, Clock, RefreshCw, Radio, Crown, User, ChevronDown, Coins, ChevronRight,
 } from 'lucide-react';
-import { worldAPI } from '../../lib/api';
+import { worldAPI, worldGcCompetitionAPI } from '../../lib/api';
 import { LevelLeaderboardPanel, useHybridLevelBoards } from './HybridLevelBoards';
 import { useAuth } from '../../context/AuthContext';
 import '../styles/pl-global-lb.css';
@@ -61,13 +61,26 @@ function parseUtcMs(s) {
   return Number.isNaN(t) ? null : t;
 }
 
-export default function FreeWorldLeaderboard({ open, onClose, activeGc }) {
+export default function FreeWorldLeaderboard({ open, onClose, activeGc: activeGcProp }) {
   const auth = useAuth();
   const myId = auth?.user?.user_id || auth?.user?.id || null;
   const myName = auth?.user?.name || auth?.user?.user_name || null;
 
   const [champN, setChampN] = useState('all');
   const [view, setView] = useState('championship');
+  const [model, setModel] = useState(null);
+  const modelLoaded = useRef(false);
+  useEffect(() => {
+    if (!open || modelLoaded.current) return;
+    modelLoaded.current = true;
+    worldGcCompetitionAPI.activeModel().then(async (r) => {
+      setModel(r || {});
+      const gc = activeGcProp || r?.gc_number;
+      const first = gc ? await worldGcCompetitionAPI.levelBoard(gc, 1).catch(() => null) : null;
+      if (first?.enabled) setView('level');
+    }).catch(() => setModel({}));
+  }, [open, activeGcProp]);
+  const activeGc = activeGcProp || model?.gc_number;
   const [levelRefresh, setLevelRefresh] = useState(0);
   const levelGc = champN === 'all' ? Number(activeGc) || null : Number(champN);
   const levelBoards = useHybridLevelBoards(open && view === 'level' ? levelGc : null, levelRefresh);
