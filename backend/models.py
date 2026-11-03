@@ -252,6 +252,7 @@ class UserPublic(BaseModel):
     terms_accepted_at: Optional[datetime] = None
     must_change_password: bool = False
     phone_verification_required: bool = False
+    verified_reviewer: bool = False
 
 
 class RegisterInput(BaseModel):

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ShoppingCart, User, Menu, X, LogOut, Wallet as WalletIcon, ChevronDown, Trophy } from 'lucide-react';
+import { BadgeCheck, ShoppingCart, User, Menu, X, LogOut, Wallet as WalletIcon, ChevronDown, Trophy } from 'lucide-react';
+import { VerifiedReviewerBadge } from '../VerifiedReviewerBadge';
 import { Button } from '../ui/button';
 import {
  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -363,8 +364,9 @@ const minimalWorldHeader =
  aria-label="My account"
  data-testid="mobile-profile-icon"
  >
- <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#8B5CFF] to-[#6C2BFF] text-white text-xs font-bold flex items-center justify-center ring-2 ring-white/20">
+ <div className="relative w-8 h-8 rounded-full bg-gradient-to-br from-[#8B5CFF] to-[#6C2BFF] text-white text-xs font-bold flex items-center justify-center ring-2 ring-white/20">
  {(user.name || user.email || 'U').slice(0, 1).toUpperCase()}
+ {user.verified_reviewer && <BadgeCheck className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-white text-sky-600" aria-label="Verified" />}
  </div>
  </Link>
 
@@ -374,8 +376,9 @@ const minimalWorldHeader =
  data-testid="header-profile-btn"
  className="inline-flex items-center gap-2 pl-1 pr-2 py-1 rounded-full hover:bg-white/10 transition"
  >
- <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#8B5CFF] to-[#6C2BFF] text-white text-xs font-bold flex items-center justify-center ring-2 ring-white/20">
+ <div className="relative w-8 h-8 rounded-full bg-gradient-to-br from-[#8B5CFF] to-[#6C2BFF] text-white text-xs font-bold flex items-center justify-center ring-2 ring-white/20">
  {(user.name || user.email || 'U').slice(0, 1).toUpperCase()}
+ {user.verified_reviewer && <BadgeCheck className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-white text-sky-600" aria-label="Verified" />}
  </div>
  <span className="text-sm font-semibold text-white max-w-[8rem] truncate hidden md:inline">Hi, {(user.name || user.email || 'You').split(' ')[0]}</span>
  <ChevronDown className={`w-4 h-4 text-white/70 transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
@@ -388,7 +391,7 @@ const minimalWorldHeader =
  style={{ background: '#161433' }}
  >
  <div className="px-4 py-3 border-b border-white/10">
- <div className="text-white font-bold text-sm truncate">{user.name || user.email}</div>
+ <div className="text-white font-bold text-sm truncate">{user.name || user.email} <VerifiedReviewerBadge show={user.verified_reviewer} testid="dropdown-verified-badge" /></div>
  <div className="text-white/60 text-xs truncate">{user.email}</div>
  </div>
  <div className="py-1">

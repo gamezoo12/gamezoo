@@ -1,4 +1,5 @@
 import SetPasswordCard from '../components/account/SetPasswordCard';
+import { VerifiedReviewerBadge } from '../components/VerifiedReviewerBadge';
 import { useEffect, useState } from 'react';
 import { ordersAPI, userAPI, walletAPI, referralAPI, paymentsAPI, pushAPI } from '../lib/api';
 import PhoneOtpModal from '../components/auth/PhoneOtpModal';
@@ -402,7 +403,7 @@ export default function MyAccount() {
                   {isProfile ? (
                     <>
                       <div className="font-display font-extrabold text-lg sm:text-2xl leading-tight truncate">
-                        {profile.name || user.name || 'Player'}
+                        {profile.name || user.name || 'Player'} <VerifiedReviewerBadge show={user.verified_reviewer} testid="profile-verified-badge" />
                       </div>
                       <div className="text-white/90 text-sm sm:text-base font-mono truncate">
                         @{profile.username || '—'}
