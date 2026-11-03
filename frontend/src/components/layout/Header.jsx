@@ -256,7 +256,7 @@ const minimalWorldHeader =
  className={
   isFreeWorldHeader
    ? "!fixed !top-0 !left-0 !right-0 !z-[10060]"
-   : "sticky top-0 z-40"
+   : (pathname === '/' || pathname === '/paid-leagues') ? "sticky top-0 z-40 max-md:relative" : "sticky top-0 z-40"
  }
  data-testid="site-header"
 >

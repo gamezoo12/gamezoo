@@ -697,3 +697,6 @@ Root causes fixed:
 ## 2026-06 Promotion results + push fix
 - /promotion/campaigns returns completed promotions the user entered with results_available when Hall row exists (announced+approved); Results section/badge + View winners deep link to /my-account/contest-winners?contest=ID
 - push_delivery: cutoff from Mongo coerced via _as_utc (naive/aware crash fixed)
+
+## 2026-06 Mobile Paid World header
+- On mobile (<768px) Home/paid-leagues: header (incl. ticker) + MobileHome tabs are non-sticky and scroll away together. Desktop/other pages unchanged.
