@@ -48,6 +48,8 @@ GAME_TYPES = [
     {'id': 'maze_solver',        'label': 'Maze Solver (7×7 randomized)',   'category': 'spatial',  'target_time_s': 60,  'max_attempts': 3},
     {'id': 'spot_pattern',       'label': 'Spot the Pattern (Raven-style)', 'category': 'reasoning','target_time_s': 45,  'max_attempts': 3},
 ]
+from services.arcade_catalog import ARCADE_GAME_TYPES  # noqa: E402
+GAME_TYPES += ARCADE_GAME_TYPES
 
 
 class SubmitScoreInput(BaseModel):

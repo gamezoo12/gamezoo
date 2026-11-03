@@ -723,3 +723,7 @@ Root causes fixed:
 - Home mobile API calls 29 -> 11
 - BannerVideo now always starts muted; clear white "Tap for sound" speaker pill when muted
 - Banner video limit raised to 60s / 120MB
+
+## 2026-06 Arcade games (+100)
+- 20 styles x 5 themes (fruit/space/football/ocean/party) in frontend/src/components/games/arcade/{kit,stylesA,stylesB,index}.jsx, meta in lib/arcadeMeta.js; backend services/arcade_catalog.py appended to GAME_TYPES + world SUPPORTED_GAMES
+- Arcade games always listed in Games section (/games) when game_preview_enabled; ids arc_<style>_<theme>

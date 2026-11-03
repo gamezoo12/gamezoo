@@ -41,9 +41,9 @@ export default function GamePreview() {
     [games, gameId]
   );
 
-  const selected = Array.isArray(settings?.game_preview_games)
+  const selected = gameId.startsWith('arc_') || (Array.isArray(settings?.game_preview_games)
     ? settings.game_preview_games.includes(gameId)
-    : false;
+    : false);
 
   const renderGame = GAME_MAP[gameId];
 

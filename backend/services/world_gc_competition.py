@@ -16,6 +16,8 @@ SUPPORTED_GAMES = {"number_sequence", "colour_match", "memory_match"} | {
     "lights_out", "minesweeper_mini", "nonogram_mini", "tf2048_mini", "cryptogram", "anagram_finder",
     "maze_solver", "spot_pattern",
 }
+from services.arcade_catalog import ARCADE_GAME_TYPES  # noqa: E402
+SUPPORTED_GAMES |= {g["id"] for g in ARCADE_GAME_TYPES}
 DEFAULT_LEVEL_BONUS_REWARDS = {1: 5, 2: 4, 3: 3, 4: 2, 5: 1}
 MAX_LEVEL_BONUS_TOKENS = 500
 

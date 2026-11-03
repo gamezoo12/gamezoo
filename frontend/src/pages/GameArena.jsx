@@ -30,7 +30,7 @@ export default function GameArena() {
       : [];
 
     return games.filter(
-      game => selected.includes(game.id) && GAME_MAP[game.id]
+      game => (selected.includes(game.id) || game.family === 'arcade') && GAME_MAP[game.id]
     );
   }, [games, settings]);
 

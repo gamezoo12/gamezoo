@@ -1,4 +1,5 @@
 // Mirrors backend routers/game_routes.py GAME_TYPES (authoritative 30-game registry).
+import { ARCADE_CATALOG } from './arcadeMeta';
 export const GAME_CATALOG = [
   { id: 'jigsaw_3x3', label: 'Image Jigsaw (3×3)', category: 'Puzzles' },
   { id: 'jigsaw_4x4', label: 'Image Jigsaw (4×4)', category: 'Puzzles' },
@@ -30,6 +31,7 @@ export const GAME_CATALOG = [
   { id: 'tf2048_mini', label: '2048 Mini (reach 32)', category: 'Strategy' },
   { id: 'minesweeper_mini', label: 'Minesweeper Mini (5×5)', category: 'Strategy' },
   { id: 'maze_solver', label: 'Maze Solver (7×7)', category: 'Strategy' },
+  ...ARCADE_CATALOG,
 ];
 
 export const GAME_CATEGORIES = [...new Set(GAME_CATALOG.map((g) => g.category))];

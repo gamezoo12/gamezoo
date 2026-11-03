@@ -1,3 +1,5 @@
+import { ARCADE_GAMES } from './arcade';
+
 /*
   Compact library of skill-based mini-games.
   Each game exports a component that receives:
@@ -686,4 +688,5 @@ export const GAME_MAP = {
   colour_match: (config, onComplete) => <PremiumColorMatch config={config} onComplete={onComplete} />,
   pattern_repeat: (config, onComplete) => <PremiumPatternRepeat config={config} onComplete={onComplete} />,
   ...GAMES_V2,
+  ...ARCADE_GAMES,
 };
