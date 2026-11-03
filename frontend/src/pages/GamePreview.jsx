@@ -54,7 +54,7 @@ export default function GamePreview() {
   return (
     <div className="min-h-screen bg-slate-950">
       <div className="mx-auto max-w-4xl px-3 py-5 sm:px-6 md:py-10">
-        <button type="button" onClick={() => (stage === 'levels' ? navigate(-1) : setStage('levels'))} aria-label="Back" data-page-back-control="true" className="inline-flex items-center gap-1 text-sm text-white/60 hover:text-white" data-testid="practice-page-back">
+        <button type="button" onClick={() => (stage !== 'levels' ? setStage('levels') : window.history.length > 1 ? navigate(-1) : navigate('/games'))} aria-label="Back" data-page-back-control="true" className="inline-flex items-center gap-1 text-sm text-white/60 hover:text-white" data-testid="practice-page-back">
           <ArrowLeft className="h-4 w-4" />Back
         </button>
 

@@ -14,6 +14,12 @@ from pydantic import BaseModel, Field
 from auth import require_super_admin
 from deps import get_db
 from routers.draw_studio_routes import AUDIO_SLOTS, AUDIT, PLANS, _audit
+from services.draw_commentary import clean_commentary, commentary_settings
+
+
+def _backdrop_meta(cfg: dict):
+    b = cfg.get("backdrop") or {}
+    return {"original_filename": b.get("original_filename"), "uploaded_at": b.get("uploaded_at")} if b.get("storage_path") else None
 
 router = APIRouter(prefix="/api/admin/draw-studio", tags=["draw-studio-ops"])
 REC_DIR = "/tmp/draw_studio_recordings"
@@ -171,6 +177,7 @@ class SettingsIn(BaseModel):
     bonus_expiry_enabled: Optional[bool] = None
     bonus_expiry_days: Optional[int] = Field(default=None, ge=1, le=3650)
     volumes: Optional[dict[str, float]] = None
+    commentary: Optional[dict] = None
 
 
 async def _settings(db) -> dict:
@@ -182,6 +189,7 @@ async def _settings(db) -> dict:
     return {"bonus_expiry_enabled": bool(rs.get("draw_prize_bonus_expiry_enabled")),
             "bonus_expiry_days": int(rs.get("draw_prize_bonus_expiry_days") or 30),
             "volumes": cfg.get("volumes") or {}, "slots": AUDIO_SLOTS,
+            "commentary": commentary_settings(cfg), "backdrop": _backdrop_meta(cfg),
             "official_draws_enabled": bool(flags.get("random_draw_engine_enabled"))}
 
 
@@ -205,8 +213,10 @@ async def put_settings(body: SettingsIn, request: Request):
 
         await save_reward_settings(db, reward)
     if body.volumes is not None:
-        vols = {k: round(min(1.0, max(0.0, float(v))), 2) for k, v in body.volumes.items() if k in AUDIO_SLOTS}
+        vols = {k: round(min(1.0, max(0.0, float(v))), 2) for k, v in body.volumes.items() if k in AUDIO_SLOTS or k == "commentary"}
         await db.settings.update_one({"_id": "draw_studio"}, {"$set": {"volumes": vols, "updated_at": _now()}}, upsert=True)
+    if body.commentary is not None:
+        await db.settings.update_one({"_id": "draw_studio"}, {"$set": {"commentary": clean_commentary(body.commentary), "updated_at": _now()}}, upsert=True)
     await _audit(db, "settings_updated", admin, changes=body.model_dump(exclude_none=True))
     return await _settings(db)
 

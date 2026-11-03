@@ -1,0 +1,33 @@
+{
+  "summary": "Tested the free-play games with 10 levels each (backend and UI). Backend: 12/12 pytest passed against the public URL. UI: every requested flow passed. /games shows exactly 50 unique cards (30 classic + 20 arc_<style>) with no themed duplicates. All 50 cover images load, none broken. The 13 category chips filter correctly and their counts add up to 50. The desktop and mobile home sections (at /paid-leagues) show 8 cover cards linking to /games/<id>. A fresh guest sees only level 1 unlocked. The instructions screen shows objective, time limit and level goal. Start runs the 3-2-1 countdown, then the timer and Quit appear. Number Sequence uses N*10 numbers (verified levels 1, 2 and 10: 10, 20 and 100 tiles). Passing shows Congratulations, 3 stars and Play Level 2, and level 2 unlocks. Letting the level 1 timer (15s) run out shows Time's up! with Retry, which restarts the countdown. Level 10 shows 'Champion! All 10 levels done' with no next button. The themed URL arc_balloon_pop_fruit redirects to arc_balloon_pop. Arcade themes change per level. Unknown ids redirect to /games. For a logged-in user, guest progress in localStorage is merged into the account on login and the key is cleared. Progress persists across reload. Render smoke: all 50 games render at level 1 with no page errors, and 12 games render at level 10. At 390px there is no horizontal overflow on hub, intro, result, arena or 7 level-10 boards.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Floating support/assistant bot button (mobile 390px)", "issue": "The fixed bubble at bottom-right covers game tiles during play: number_sequence L10 tiles 7/16/91, the right column of the minesweeper grid, and part of the Replay button on the result screen. Players can mis-tap or be unable to tap the covered cells.", "selector": "floating assistant button on /games/<id>", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Practice time limits", "issues": ["Non-sequence time limits are very generous because they are target*3.2 at level 1 and target*1.58 at level 10. Examples: Nonogram L1 576s (L10 284s), Sudoku/Minesweeper/2048/Cryptogram L1 384s (L10 190s), Safe Cracker L1 288s. That is a 6–10 minute clock on easy levels, which conflicts with the 'make it difficult / not boring' ask. Consider a tighter curve (e.g. ~1.5x target at L1 down to ~0.7x at L10)."]},
+      {"screen": "GameCoverCard", "issues": ["Unplayed games show a Lock icon next to '10 levels' even though level 1 is open. This reads as 'locked'."]},
+      {"screen": "Home desktop GamePreviewSection", "issues": ["The copy still says 'Practice selected Prize League skill games…' and does not mention the 10 levels. The mobile copy does mention them."]},
+      {"screen": "Practice hub Back", "issues": ["Back uses navigate(-1). After landing directly on /games/<id> from an external link it leaves the site. Fall back to /games when there is no history."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_practice_progress.py", "/app/test_reports/pytest/practice_results.xml"],
+  "action_items": [
+    "Hide or move the floating assistant button while stage is play/result on /games/<id> (at least on mobile), so it does not cover game tiles or the result buttons",
+    "Optional: tighten the timeLimit curve for non-sequence games so the levels feel challenging",
+    "Optional: replace the Lock icon on GameCoverCard when no levels are cleared, update the desktop home copy, and add a fallback for the hub Back button"
+  ],
+  "critical_code_review_comments": [
+    "practice_routes: an unknown game_id raises 400 partway through the loop, but writes only happen after the loop, so nothing is partially saved. Good.",
+    "practiceProgress.loadProgress is called by GameArena, GamePreviewSection and GamePreview. Each one can POST the same guest entries at the same time just after login. The server takes the max, so this is harmless, but the merge could be centralised in AuthContext.",
+    "Official play is unaffected: PremiumNumberSequence uses config.count || 20, and no official path passes 'count' (winnings uses 'size')."
+  ],
+  "updated_files": ["/app/backend/tests/test_practice_progress.py"],
+  "success_rate": {"backend": "100%", "frontend": "100% functional (1 medium overlay UX issue)"},
+  "seed_data_creation": "Data was written to practice_progress for player1@example.com (no new records elsewhere). number_sequence: unlocked 10 with stars on levels 1-10. arc_balloon_pop, memory_match, sudoku_mini, tf2048_mini, minesweeper_mini: unlocked 10, levels 1-9 at 1 star. target_tap: level 1 at 2 stars (from the guest-merge test). No other collections were touched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "The /app/backend/tests conftest forces an isolated loopback backend. To run against the public URL: cp test_practice_progress.py to /tmp/t56, touch /tmp/t56/pytest.ini, and run with REACT_APP_BACKEND_URL set. The home free-game section is on /paid-leagues ('/' is the WorldSelector). To unlock levels for a guest, set localStorage pl-practice-progress = {gid:{unlocked:10,stars:{}}}. Number Sequence tiles are seq-num-<n>. player1 already has number_sequence fully cleared."
+}

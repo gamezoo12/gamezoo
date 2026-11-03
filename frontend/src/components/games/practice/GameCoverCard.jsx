@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Gamepad2, Lock, Play, Star } from 'lucide-react';
+import { Gamepad2, Play, Star } from 'lucide-react';
 import { LEVELS } from '../../../lib/practiceGames';
 import { levelsCleared, totalStars } from '../../../lib/practiceProgress';
 
@@ -18,7 +18,7 @@ export function GameCoverCard({ game, cover, state, dark = false, compact = fals
       <div className={compact ? 'p-3' : 'p-4'}>
         <div className={`font-display font-extrabold leading-tight line-clamp-1 ${compact ? 'text-sm' : 'text-lg'} ${dark ? 'text-white' : 'text-slate-900'}`}>{game.label}</div>
         <div className={`mt-1.5 flex items-center justify-between text-[11px] font-bold ${dark ? 'text-white/60' : 'text-slate-500'}`}>
-          <span className="inline-flex items-center gap-1">{cleared ? `${cleared}/${LEVELS} levels` : <><Lock className="h-3 w-3" />{LEVELS} levels</>}</span>
+          <span className="inline-flex items-center gap-1">{cleared ? `${cleared}/${LEVELS} levels` : <><Gamepad2 className="h-3 w-3" />{LEVELS} levels</>}</span>
           <span className="inline-flex items-center gap-0.5 text-amber-500"><Star className="h-3 w-3 fill-amber-400" />{totalStars(state)}</span>
         </div>
         <div className={`mt-2 h-1.5 overflow-hidden rounded-full ${dark ? 'bg-white/10' : 'bg-slate-100'}`}><div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-emerald-400" style={{ width: `${(cleared / LEVELS) * 100}%` }} /></div>

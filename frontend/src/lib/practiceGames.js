@@ -30,7 +30,7 @@ export const sequenceCount = (level) => level * 10;
 
 export function timeLimit(game, level) {
   if (game.id === 'number_sequence') return Math.round(sequenceCount(level) * (1.5 - 0.06 * (level - 1)));
-  return Math.max(15, Math.round(game.target * (3.2 - 0.18 * (level - 1))));
+  return Math.max(15, Math.round(game.target * (2.2 - 0.13 * (level - 1))));
 }
 
 export function starsFor(limitS, result) {

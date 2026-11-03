@@ -30,6 +30,12 @@ export default function GlobalSupportAssistant() {
   const [configError, setConfigError] = useState(false);
   const [fullscreen, setFullscreen] = useState(Boolean(document.fullscreenElement));
   const [focusCaseId, setFocusCaseId] = useState(null);
+  const [signupMode, setSignupMode] = useState(Boolean(window.__plSignupMode));
+  useEffect(() => {
+    const sync = () => setSignupMode(Boolean(window.__plSignupMode));
+    window.addEventListener('pl-signup-mode', sync);
+    return () => window.removeEventListener('pl-signup-mode', sync);
+  }, []);
   const dragRef = useRef(null);
   const suppressClickRef = useRef(false);
   const buttonRef = useRef(null);
@@ -164,7 +170,10 @@ export default function GlobalSupportAssistant() {
   })();
 
   const staffArea = location.pathname.startsWith('/admin') || location.pathname.startsWith('/production');
-  if (!position || fullscreen || staffArea) return null;
+  // Launcher only on the main Paid World / Free World screens and the signup page (an opened ticket view stays open).
+  const path = location.pathname.replace(/\/+$/, '') || '/';
+  const allowedHere = ['/paid-leagues', '/world', '/free-world'].includes(path) || (path === '/login' && signupMode);
+  if (!position || fullscreen || staffArea || (!allowedHere && !open)) return null;
 
   return (
     <>

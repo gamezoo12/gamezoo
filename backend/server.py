@@ -351,6 +351,8 @@ app.include_router(world_gc_public_router)
 app.include_router(world_gc_router)
 app.include_router(draw_studio_router)
 app.include_router(draw_studio_ops_router)
+from routers.draw_media_routes import router as draw_media_router  # noqa: E402
+app.include_router(draw_media_router)
 app.include_router(draw_media_public_router)
 app.include_router(paid_winners_admin_router)
 app.include_router(admin_winners_all_router)

@@ -3,6 +3,8 @@ import { Save, ShieldAlert, Timer } from 'lucide-react';
 import { drawStudioAPI } from '../../lib/api';
 import { DrawAudio } from '../../components/drawstudio/drawAudio';
 import { SoundPanel } from '../../components/drawstudio/SoundPanel';
+import { BackdropPanel } from '../../components/drawstudio/BackdropPanel';
+import { CommentaryPanel } from '../../components/drawstudio/CommentaryPanel';
 
 const errText = (e) => { const d = e?.response?.data?.detail; return typeof d === 'string' ? d : 'Request failed'; };
 
@@ -44,11 +46,15 @@ export default function DrawSettings() {
   return (
     <div className="-m-4 min-h-screen bg-[#07041a] p-4 pb-32 text-white sm:-m-6 sm:p-8 sm:pb-32" data-testid="draw-settings-page">
       <h1 className="text-4xl font-black tracking-tight">Draw Settings &amp; Audio</h1>
-      <p className="mt-2 text-sm text-indigo-200/70">Studio sounds, volumes and the reward rules used when you approve draw winners.</p>
+      <p className="mt-2 text-sm text-indigo-200/70">Studio backdrop, voice commentary, sounds, volumes and the reward rules used when you approve draw winners.</p>
       {msg[0] && <div role="alert" className="mt-4 rounded-xl border border-rose-400/40 bg-rose-500/10 p-3 text-sm text-rose-200" data-testid="draw-settings-error">{msg[0]}</div>}
       {msg[1] && <div role="status" className="mt-4 rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-3 text-sm text-emerald-200" data-testid="draw-settings-notice">{msg[1]}</div>}
       <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_380px]">
-        <SoundPanel uploaded={uploaded} audio={audio} volumes={volumes} onVolumes={persistVolumes} onUploaded={() => loadAudio(audio)} onError={(e) => setMsg([e, ''])} />
+        <div className="min-w-0 space-y-6">
+          {settings && <BackdropPanel backdrop={settings.backdrop} onChange={(b) => { setSettings({ ...settings, backdrop: b }); setMsg(['', b ? 'Studio backdrop saved. It shows behind the machine in every draw.' : 'Studio backdrop removed.']); }} onError={(e) => setMsg([e, ''])} />}
+          {settings && <CommentaryPanel value={settings.commentary} audio={audio} volume={volumes.commentary ?? 1} onVolume={(v) => { const next = { ...volumes, commentary: v }; audio?.setVolumes(next); persistVolumes(next); }} onSaved={() => setMsg(['', 'Commentary settings saved.'])} onError={(e) => setMsg([e, ''])} />}
+          <SoundPanel uploaded={uploaded} audio={audio} volumes={volumes} onVolumes={persistVolumes} onUploaded={() => loadAudio(audio)} onError={(e) => setMsg([e, ''])} />
+        </div>
         {settings && <aside className="space-y-6">
           <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-5" data-testid="draw-bonus-rules">
             <h2 className="flex items-center gap-2 text-lg font-black text-amber-300"><Timer className="h-5 w-5" /> Bonus Token rewards</h2>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { MeshReflectorMaterial, SpotLight, Text } from '@react-three/drei';
 import * as THREE from 'three';
@@ -66,27 +66,7 @@ function Bulbs() {
   );
 }
 
-function Backdrop({ slides }) {
-  const [i, setI] = useState(0);
-  const textures = useMemo(() => slides.map((s) => s.texture), [slides]);
-  useEffect(() => {
-    if (slides.length < 2) return undefined;
-    const t = setInterval(() => setI((x) => (x + 1) % slides.length), 7000);
-    return () => clearInterval(t);
-  }, [slides.length]);
-  const slide = slides[i % Math.max(1, slides.length)];
-  return (
-    <group position={[0, 2.45, -6.2]} scale={0.85}>
-      <mesh position={[0, 0, -0.05]}><planeGeometry args={[11.6, 5.4]} /><meshStandardMaterial color="#120a33" emissive="#2a1470" emissiveIntensity={0.4} /></mesh>
-      {slide && <mesh><planeGeometry args={[11.2, 5.0]} /><meshBasicMaterial map={textures[i % textures.length]} toneMapped={false} transparent opacity={0.55} /></mesh>}
-      {[[0, 2.72, 11.8, 0.08], [0, -2.72, 11.8, 0.08], [-5.9, 0, 0.08, 5.5], [5.9, 0, 0.08, 5.5]].map(([x, y, w, h]) => (
-        <mesh key={`${x}${y}`} position={[x, y, 0.02]}><boxGeometry args={[w, h, 0.06]} /><meshStandardMaterial {...GOLD} emissiveIntensity={1.4} /></mesh>
-      ))}
-    </group>
-  );
-}
-
-export function Scenery({ slides }) {
+export function Scenery() {
   return (
     <>
       <color attach="background" args={['#050211']} />
@@ -98,7 +78,6 @@ export function Scenery({ slides }) {
       <MovingSpot position={[-4, 8, 2]} color="#b06bff" speed={0.45} phase={0} />
       <MovingSpot position={[4, 8, 2]} color="#6b9bff" speed={0.38} phase={2} />
       <MovingSpot position={[0, 9, 3.5]} color="#ffe2a0" speed={0.3} phase={4} />
-      <Backdrop slides={slides} />
       <LedPillars />
       <Bulbs />
       <Crown position={[0, 6.25, -1]} />

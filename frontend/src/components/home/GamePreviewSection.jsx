@@ -124,8 +124,8 @@ export default function GamePreviewSection({ mobile = false }) {
             </h2>
 
             <p className="text-sm md:text-base text-slate-500 mt-2 max-w-2xl">
-              Practice selected Prize League skill games without logging in,
-              using tickets or submitting an official leaderboard score.
+              Every game has 10 levels, from easy to brutal. Beat one to unlock
+              the next, free, with no tickets and no official score.
             </p>
           </div>
 

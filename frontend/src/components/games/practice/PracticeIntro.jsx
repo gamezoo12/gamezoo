@@ -16,7 +16,7 @@ export function PracticeIntro({ game, level, onStart, onBack }) {
       </ul>
       {goal && <div className="mt-4 rounded-xl border border-amber-300/30 bg-amber-300/10 px-4 py-2.5 text-sm font-bold text-amber-200" data-testid="practice-level-goal">{goal}</div>}
       <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-        <button type="button" onClick={onStart} className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-amber-400 font-black text-slate-900 shadow-lg transition-transform hover:-translate-y-0.5 active:translate-y-0" data-testid="practice-start">
+        <button type="button" onClick={onStart} className="inline-flex h-12 w-full shrink-0 items-center sm:w-auto sm:flex-1 justify-center gap-2 rounded-xl bg-amber-400 font-black text-slate-900 shadow-lg transition-transform hover:-translate-y-0.5 active:translate-y-0" data-testid="practice-start">
           <Play className="h-4 w-4" />Start Level {level}
         </button>
         <button type="button" onClick={onBack} className="h-12 rounded-xl bg-white/10 px-5 font-bold text-white transition-colors hover:bg-white/15" data-testid="practice-back-levels">All levels</button>

@@ -1,4 +1,5 @@
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import * as THREE from 'three';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Environment, Lightformer } from '@react-three/drei';
 import { Bloom, EffectComposer, Vignette } from '@react-three/postprocessing';
@@ -6,7 +7,6 @@ import { drawStudioAPI } from '../../../lib/api';
 import { Scenery } from './Scenery';
 import { CENTER, Machine } from './Machine';
 import { StudioHud } from './StudioHud';
-import { loadCanvasFonts, makeSlide } from './textures';
 
 function CameraRig({ S }) {
   const { camera, size } = useThree();
@@ -24,21 +24,29 @@ function CameraRig({ S }) {
   return null;
 }
 
-async function buildSlides() {
-  await loadCanvasFonts();
-  const data = await drawStudioAPI.backdrops().catch(() => ({ items: [] }));
-  return Promise.all(data.items.map(async (item) => {
-    let image = null;
-    if (item.image_url) {
-      try { image = await createImageBitmap(await drawStudioAPI.backdropImage(item.image_url)); } catch { image = null; }
-    }
-    return { ...item, texture: makeSlide(item, image) };
-  }));
+// Admin-uploaded full-screen backdrop (Draw Settings), cropped to cover the canvas like CSS background-size: cover.
+function Backdrop({ image }) {
+  const { scene, size } = useThree();
+  const tex = useMemo(() => { const t = new THREE.Texture(image); t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true; return t; }, [image]);
+  useEffect(() => {
+    const ca = size.width / size.height;
+    const ia = image.width / image.height;
+    if (ca > ia) { tex.repeat.set(1, ia / ca); tex.offset.set(0, (1 - ia / ca) / 2); } else { tex.repeat.set(ca / ia, 1); tex.offset.set((1 - ca / ia) / 2, 0); }
+    const prev = scene.background;
+    scene.background = tex;
+    return () => { scene.background = prev; };
+  }, [tex, image, size, scene]);
+  useEffect(() => () => tex.dispose(), [tex]);
+  return null;
 }
 
 export function Studio3D({ S, view, numbers, onCanvas }) {
-  const [slides, setSlides] = useState([]);
-  useEffect(() => { let live = true; buildSlides().then((s) => live && setSlides(s)); return () => { live = false; }; }, []);
+  const [image, setImage] = useState(null);
+  useEffect(() => {
+    let live = true;
+    drawStudioAPI.backdropBlob().then((b) => createImageBitmap(b, { imageOrientation: 'flipY' })).then((img) => live && setImage(img)).catch(() => {});
+    return () => { live = false; };
+  }, []);
   return (
     <Canvas dpr={[1, 1.6]} camera={{ position: [0, 2.6, 11], fov: 40 }} gl={{ antialias: true, preserveDrawingBuffer: true, alpha: false }}
       onCreated={({ gl }) => onCanvas?.(gl.domElement)} data-testid="draw-stage-canvas">
@@ -49,7 +57,8 @@ export function Studio3D({ S, view, numbers, onCanvas }) {
           <Lightformer form="rect" intensity={3} color="#4f8bff" position={[6, 2, 2]} rotation-y={-Math.PI / 2} scale={[6, 3, 1]} />
           <Lightformer form="ring" intensity={2.5} color="#ffd36b" position={[0, 2, -5]} scale={3} />
         </Environment>
-        <Scenery slides={slides} />
+        <Scenery />
+        {image && <Backdrop image={image} />}
         <Machine S={S} numbers={numbers} roundIndex={view.round} />
         <CameraRig S={S} />
         <EffectComposer multisampling={0}>

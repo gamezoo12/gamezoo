@@ -117,6 +117,11 @@ export default function Login() {
    }
    return () => window.removeEventListener('pageshow', resetGoogle);
  }, []);
+ useEffect(() => {
+   const announce = (on) => { window.__plSignupMode = on; window.dispatchEvent(new Event('pl-signup-mode')); };
+   announce(mode === 'register');
+   return () => announce(false);
+ }, [mode]);
  const nav = useNavigate();
  const { toast } = useToast();
  const { login, setGoogleUser } = useAuth();

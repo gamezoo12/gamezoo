@@ -8,6 +8,7 @@ import { useRoundCapture } from './useRoundCapture';
 import { drawPhase, eligibleFor, elapsed, now, sampleNumbers, simulateWinners } from './timeline';
 import { loadCanvasFonts } from './textures';
 import { HallPublishButton } from '../HallPublishButton';
+import { createCommentator, roundFacts, winnerFacts } from './commentary';
 
 const errText = (e) => { const d = e?.response?.data?.detail; return typeof d === 'string' ? d : 'Request failed'; };
 const primary = 'inline-flex h-12 items-center gap-2 rounded-full bg-gradient-to-r from-amber-300 to-amber-500 px-7 text-sm font-black tracking-wider text-[#1a1033] shadow-[0_0_28px_rgba(255,213,74,0.45)] transition-transform hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-40';
@@ -41,6 +42,13 @@ export function DrawTheatre({ mode, contest, rounds, tickets, plan, results = []
   const numbers = useMemo(() => sampleNumbers(pool), [pool]);
   const go = useCallback((next) => { Object.assign(S.current, { stage: next, t0: now() }); setStage(next); }, []);
   useEffect(() => { loadCanvasFonts(); }, []);
+  const [voice, setVoice] = useState(null);
+  useEffect(() => { drawStudioAPI.settings().then((s) => setVoice(createCommentator(Boolean(s.commentary?.enabled), mode))).catch(() => setVoice(createCommentator(false, mode))); }, [mode]);
+  const facts = useCallback((r = round) => roundFacts(contest, rounds, r, pool.length), [contest, rounds, round, pool.length]);
+  const openKey = `r${round}-${round === 0 ? 'intro' : 'round'}`;
+  const openLine = () => [openKey, { stage: round === 0 ? 'intro' : 'round', ...facts() }];
+  useEffect(() => { if (voice && stage === 'ready') voice.prefetch(...openLine()); }, [voice, stage, openKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const allWinners = (list) => rounds.flatMap((r, i) => winnerFacts(list[i] || []).map((w) => ({ ...w, round_name: r.name })));
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -72,14 +80,17 @@ export function DrawTheatre({ mode, contest, rounds, tickets, plan, results = []
     setError(''); setNotice('');
     Object.assign(S.current, { cfg: rounds[round], allNumbers: pool.map((t) => t.ticket_number), winners: null, drawT0: null, revealSound: -1, beeped: null });
     audio?.play('music', { loop: true });
+    voice?.say(...openLine(), audio);
+    voice?.prefetch(`r${round}-mix`, { stage: 'mixing', ...facts() });
     go('loading');
   };
-  const mix = () => { audio?.startHeartbeat(72); go('mixing'); };
+  const mix = () => { audio?.startHeartbeat(72); voice?.say(`r${round}-mix`, { stage: 'mixing', ...facts() }, audio); go('mixing'); };
   const draw = async () => {
     setBusy(true); setError('');
     audio?.play('drumroll', { loop: true });
     audio?.setHeartbeatBpm(115);
     if (mode === 'official' && canvasRef.current) capture.start(canvasRef.current, audio);
+    voice?.say(`r${round}-draw`, { stage: 'drawing', ...facts() }, audio);
     go('drawing');
     try {
       let winners;
@@ -93,7 +104,8 @@ export function DrawTheatre({ mode, contest, rounds, tickets, plan, results = []
       }
       S.current.winners = winners;
       S.current.drawT0 = now();
-      setOutcomes((o) => { const c = [...o]; c[round] = winners; return c; });
+      voice?.prefetch(`r${round}-reveal`, { stage: 'reveal', ...facts(), winners: winnerFacts(winners) });
+      setOutcomes((o) => { const c = [...o]; c[round] = winners; if (round === rounds.length - 1) voice?.prefetch('finale', { stage: 'finale', ...facts(), all_winners: allWinners(c) }); return c; });
     } catch (e) {
       audio?.stop('drumroll');
       capture.cancel();
@@ -106,6 +118,7 @@ export function DrawTheatre({ mode, contest, rounds, tickets, plan, results = []
     audio?.play('announcement');
     setTimeout(() => audio?.play('celebration'), 900);
     S.current.confettiAt = now();
+    voice?.say(`r${round}-reveal`, { stage: 'reveal', ...facts(), winners: winnerFacts(S.current.winners || []) }, audio);
     go('revealed');
     if (mode === 'official') {
       drawStudioAPI.markRevealed(plan.plan_id, round).then(() => onChanged?.()).catch(() => {});
@@ -113,8 +126,8 @@ export function DrawTheatre({ mode, contest, rounds, tickets, plan, results = []
     }
   };
   const next = () => { const r = round + 1; S.current.cfg = rounds[r]; setRound(r); go('ready'); };
-  const finale = () => { audio?.play('celebration'); S.current.confettiAt = now(); go('complete'); };
-  const again = () => { audio?.stopAll(); setOutcomes([]); setRound(0); S.current.cfg = rounds[0]; go('ready'); };
+  const finale = () => { audio?.play('celebration'); voice?.say('finale', { stage: 'finale', ...facts(), all_winners: allWinners(outcomes) }, audio); S.current.confettiAt = now(); go('complete'); };
+  const again = () => { audio?.stopAll(); voice?.reset(); setOutcomes([]); setRound(0); S.current.cfg = rounds[0]; go('ready'); };
   const publishAll = async () => {
     setBusy(true); setError('');
     try { await drawStudioAPI.announceAll(plan.plan_id); setPublished(true); setNotice('All winners announced on the site and added to the public winners page.'); onChanged?.(); } catch (e) { setError(errText(e)); } finally { setBusy(false); }

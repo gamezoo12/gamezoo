@@ -1,7 +1,7 @@
 import { drawStudioAPI } from '../../lib/api';
 
 export const SOUND_SLOTS = ['entry', 'music', 'heartbeat', 'countdown', 'drumroll', 'reveal', 'announcement', 'celebration'];
-export const DEFAULT_VOLUMES = { entry: 0.5, music: 0.45, heartbeat: 0.9, countdown: 0.9, drumroll: 0.7, reveal: 1, announcement: 1, celebration: 0.8 };
+export const DEFAULT_VOLUMES = { entry: 0.5, music: 0.45, heartbeat: 0.9, countdown: 0.9, drumroll: 0.7, reveal: 1, announcement: 1, celebration: 0.8, commentary: 1 };
 
 // Built-in fallback tones (used only for slots without an uploaded file).
 function synth(ctx, slot) {
@@ -102,6 +102,18 @@ export class DrawAudio {
   stop(slot) {
     const s = this.sources[slot];
     if (s) { try { s.src.stop(); } catch { /* already stopped */ } delete this.sources[slot]; }
+  }
+
+  // Voice commentary: plays through the same mix (so recordings include it) and ducks the music while speaking.
+  async speak(arrayBuffer) {
+    const buf = await this.ctx.decodeAudioData(arrayBuffer.slice(0));
+    this.stop('commentary');
+    const duck = Object.entries(this.sources).filter(([k]) => k !== 'commentary');
+    duck.forEach(([, s]) => s.gain.gain.setTargetAtTime(s.gain.gain.value * 0.35, this.ctx.currentTime, 0.15));
+    this.buffers.commentary = buf;
+    this.play('commentary', { volume: 1.15 });
+    const src = this.sources.commentary?.src;
+    if (src) src.onended = () => duck.forEach(([k, s]) => { if (this.sources[k] === s) s.gain.gain.setTargetAtTime(s.base * (this.volumes[k] ?? 1), this.ctx.currentTime, 0.3); });
   }
 
   stopAll() { this.stopHeartbeat(); Object.keys(this.sources).forEach((k) => this.stop(k)); }
