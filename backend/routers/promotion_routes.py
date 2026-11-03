@@ -213,12 +213,13 @@ async def promotion_event(inp:EventInput,request:Request):
 @router.get('/config')
 async def promotion_config():
  db=get_db();legacy=await _config(db)
- docs=await db.promotion_campaigns.find({'active':True,**LIVE_CAMPAIGNS},{'_id':0}).sort('updated_at',-1).to_list(200)
- for doc in docs:
-  campaign=_public_campaign(doc)
-  if campaign.get('is_live'):return campaign
  if legacy.get('deleted'):legacy['is_live']=False
- return legacy
+ live=[legacy] if legacy.get('is_live') else []
+ docs=await db.promotion_campaigns.find({'active':True,**LIVE_CAMPAIGNS},{'_id':0}).to_list(200)
+ live+=[c for c in (_public_campaign(doc) for doc in docs) if c.get('is_live')]
+ if not live:return legacy
+ # The most recently launched/saved live promotion wins the pop-up.
+ return max(live,key=lambda c:str(c.get('updated_at') or ''))
 @router.get('/me')
 async def promotion_me(request:Request):
  user=await get_current_user(request);db=get_db();cfg=await _config(db);pid=cfg['promotion_id'];uid=user['user_id']
@@ -263,7 +264,10 @@ async def admin_save_config(inp:ConfigInput,request:Request):
    end=datetime.fromisoformat(data['end_at'].replace('Z','+00:00')) if data['end_at'] else None
    if (start and not start.tzinfo) or (end and not end.tzinfo) or (start and end and end<=start):raise ValueError()
   except ValueError:raise HTTPException(422,'Dates must include a timezone and end after start.')
- data.update({'key':'freeworld','updated_at':datetime.now(timezone.utc)});await db.promotion_config.update_one({'key':'freeworld'},{'$set':data},upsert=True);return await _config(db)
+ data.update({'key':'freeworld','updated_at':datetime.now(timezone.utc)})
+ update={'$set':data}
+ if data.get('active'):update['$unset']={'closed_at':'','deleted':'','deleted_at':''}
+ await db.promotion_config.update_one({'key':'freeworld'},update,upsert=True);return await _config(db)
 
 
 async def _save_campaign(inp:CampaignInput,request:Request,create:bool):
@@ -279,7 +283,9 @@ async def _save_campaign(inp:CampaignInput,request:Request,create:bool):
  if not create and (not existing or existing.get('deleted')):raise HTTPException(404,'Promotion campaign not found.')
  data=inp.model_dump();data.update({'updated_at':now,'updated_by':admin.get('user_id')})
  if create:data['created_at']=now
- await db.promotion_campaigns.update_one({'promotion_id':inp.promotion_id},{'$set':data},upsert=create)
+ update={'$set':data}
+ if data.get('active') and not create:update['$unset']={'closed_at':'','closed_by':''}
+ await db.promotion_campaigns.update_one({'promotion_id':inp.promotion_id},update,upsert=create)
  return _public_campaign(await db.promotion_campaigns.find_one({'promotion_id':inp.promotion_id},{'_id':0}))
 
 

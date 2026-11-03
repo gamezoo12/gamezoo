@@ -707,3 +707,8 @@ Root causes fixed:
 ## 2026-06 Contest create/skill fixes
 - Create contest now persists extended details (descriptions, rules, prizes, max tickets, dates, SEO etc.) so Edit shows them
 - Random-draw contests with skill_question_type show the skill question (public requires_skill_question) and checkout enforces it
+
+## 2026-06 Promotions one section
+- Admin nav: single "Promotions" (/admin/promotion) with tabs Pop-up & Offers (PromotionAdmin+analytics) and Campaigns & Draws (?tab=campaigns)
+- Launch/save with active clears closed_at/deleted (legacy + campaigns); /promotion/config picks most recently updated live promotion
+- Campaign form hides prize/winner fields unless Needs a winner draw

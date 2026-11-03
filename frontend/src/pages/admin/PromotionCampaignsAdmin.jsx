@@ -168,7 +168,7 @@ export default function PromotionCampaignsAdmin() {
             <Field label="Expires at" type="datetime-local" value={form.end_at || ''} onChange={(value) => setForm({ ...form, end_at: value })} />
             {form.campaign_type === 'token_credit' ? (
               <Field label="Token reward" type="number" min="1" max="1000" value={form.reward_tokens} onChange={(value) => setForm({ ...form, reward_tokens: value })} />
-            ) : (
+            ) : form.requires_draw && (
               <>
                 <Field label="Total prize (£)" type="number" min="0" value={form.prize_total_gbp} onChange={(value) => setForm({ ...form, prize_total_gbp: value })} />
                 <Field label="Number of winners" type="number" min="1" value={form.winner_count} onChange={(value) => setForm({ ...form, winner_count: value })} />
@@ -205,7 +205,7 @@ export default function PromotionCampaignsAdmin() {
                 <td className="px-4 py-3"><div className="font-bold text-slate-900">{campaign.name}</div><div className="font-mono text-xs text-slate-500">{campaign.promotion_id}{campaign.legacy ? ' · legacy' : ''}</div></td>
                 <td className="px-4 py-3 capitalize">{campaign.campaign_type?.replace(/_/g, ' ') || 'referral draw'}</td>
                 <td className="px-4 py-3 text-xs text-slate-600">{campaign.start_at ? new Date(campaign.start_at).toLocaleString() : 'Any time'}<br />until {campaign.end_at ? new Date(campaign.end_at).toLocaleString() : 'No expiry'}</td>
-                <td className="px-4 py-3">{campaign.campaign_type === 'token_credit' ? `${campaign.reward_tokens} tokens` : `${campaign.winner_count || 1} winner(s)`}</td>
+                <td className="px-4 py-3">{campaign.campaign_type === 'token_credit' ? `${campaign.reward_tokens} tokens` : campaign.requires_draw ? `${campaign.winner_count || 1} winner(s)` : 'Offer'}</td>
                 <td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-xs font-bold ${statusOf(campaign) === 'Live' ? 'bg-emerald-100 text-emerald-800' : statusOf(campaign) === 'Scheduled' ? 'bg-sky-100 text-sky-800' : statusOf(campaign) === 'Completed' ? 'bg-slate-100 text-slate-600' : 'bg-amber-100 text-amber-800'}`}>{statusOf(campaign)}</span></td>
                 <td className="px-4 py-3 text-right"><div className="flex justify-end gap-2">
                   {!campaign.legacy && <Button variant="outline" size="sm" onClick={() => edit({ ...campaign, existing: true })} data-testid={`promo-edit-${campaign.promotion_id}`}>Edit</Button>}
