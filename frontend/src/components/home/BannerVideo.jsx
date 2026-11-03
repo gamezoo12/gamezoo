@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pause, Play, Volume2, VolumeX } from 'lucide-react';
 
-// Plays only while the whole banner is on screen; tries sound first, falls back to muted if the browser blocks it.
+// Plays muted only while the whole banner is on screen; players tap the speaker for sound.
 export const BannerVideo = ({ src, active, onEnded, testid }) => {
   const ref = useRef(null);
   const [visible, setVisible] = useState(false);
-  const [muted, setMuted] = useState(false);
+  const [muted, setMuted] = useState(true);
   const [userPaused, setUserPaused] = useState(false);
   const [playing, setPlaying] = useState(false);
 
@@ -23,19 +23,8 @@ export const BannerVideo = ({ src, active, onEnded, testid }) => {
     if (!active) { el.pause(); el.currentTime = 0; setUserPaused(false); return; }
     if (!visible || userPaused) { el.pause(); return; }
     el.muted = muted;
-    el.play().catch(() => {
-      el.muted = true;
-      setMuted(true);
-      el.play().catch(() => {});
-    });
+    el.play().catch(() => {});
   }, [active, visible, userPaused]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!muted || !active) return undefined;
-    const unmute = () => { if (ref.current && !ref.current.paused) { ref.current.muted = false; setMuted(false); } };
-    document.addEventListener('pointerdown', unmute, { once: true });
-    return () => document.removeEventListener('pointerdown', unmute);
-  }, [muted, active]);
 
   const toggleMute = (e) => {
     e.stopPropagation();
@@ -48,7 +37,7 @@ export const BannerVideo = ({ src, active, onEnded, testid }) => {
 
   return (
     <>
-      <video ref={ref} src={src} playsInline preload="metadata" onEnded={onEnded}
+      <video ref={ref} src={src} muted playsInline preload="metadata" onEnded={onEnded}
         onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)}
         className="absolute inset-0 block w-full h-full object-cover object-center" data-testid={testid} />
       {active && (
@@ -56,8 +45,10 @@ export const BannerVideo = ({ src, active, onEnded, testid }) => {
           <button type="button" onClick={togglePause} aria-label={playing ? 'Pause video' : 'Play video'} className={btn} data-testid={`${testid}-pause`}>
             {playing ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
           </button>
-          <button type="button" onClick={toggleMute} aria-label={muted ? 'Unmute video' : 'Mute video'} className={btn} data-testid={`${testid}-mute`}>
-            {muted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+          <button type="button" onClick={toggleMute} aria-label={muted ? 'Unmute video' : 'Mute video'}
+            className={muted ? 'h-10 rounded-full bg-white text-slate-900 px-4 flex items-center gap-2 text-sm font-extrabold shadow-lg hover:bg-amber-300 transition-colors' : btn}
+            data-testid={`${testid}-mute`}>
+            {muted ? <><VolumeX className="w-5 h-5" />Tap for sound</> : <Volume2 className="w-5 h-5" />}
           </button>
         </div>
       )}
