@@ -18,6 +18,15 @@ export const ARCADE_THEMES = {
   party: { label: 'Party Night', from: '#4a1060', to: '#12031a', accent: '#f0abfc', bad: '💣',
     items: [['🎉', 'Popper'], ['🎈', 'Balloon'], ['🎁', 'Gift'], ['🎂', 'Cake'], ['🍕', 'Pizza'], ['🎵', 'Music'], ['🪩', 'Disco'], ['🍭', 'Candy']],
     words: ['DANCE', 'MUSIC', 'CANDY', 'PARTY', 'DISCO', 'CONFETTI'] },
+  christmas: { label: 'Christmas Magic', from: '#7a0f1f', to: '#0b2b16', accent: '#fca5a5', bad: '🧊',
+    items: [['🎄', 'Tree'], ['🎅', 'Santa'], ['🦌', 'Reindeer'], ['⛄', 'Snowman'], ['🔔', 'Bell'], ['🍪', 'Cookie'], ['🧦', 'Stocking'], ['🎁', 'Present']],
+    words: ['SANTA', 'SNOW', 'SLEIGH', 'TINSEL', 'ELVES', 'REINDEER'] },
+  halloween: { label: 'Halloween Night', from: '#4a1d05', to: '#0d0414', accent: '#fb923c', bad: '🕷️',
+    items: [['🎃', 'Pumpkin'], ['👻', 'Ghost'], ['🦇', 'Bat'], ['🧙', 'Witch'], ['🍬', 'Sweet'], ['💀', 'Skull'], ['🕸️', 'Web'], ['🌕', 'Moon']],
+    words: ['SPOOKY', 'GHOST', 'WITCH', 'PUMPKIN', 'MAGIC', 'COSTUME'] },
+  summer: { label: 'Summer Splash', from: '#0e7490', to: '#7c2d12', accent: '#fde047', bad: '🐝',
+    items: [['🏖️', 'Beach'], ['🍦', 'Ice cream'], ['🕶️', 'Sunglasses'], ['🌴', 'Palm'], ['🏄', 'Surfer'], ['🍹', 'Drink'], ['⛱️', 'Umbrella'], ['🩴', 'Flip-flops']],
+    words: ['BEACH', 'SUNNY', 'WAVES', 'HOLIDAY', 'SANDY', 'SPLASH'] },
 };
 
 export const levelOf = difficultyOf;

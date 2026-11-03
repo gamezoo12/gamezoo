@@ -10,7 +10,7 @@ import {
 } from './ContestEngineControls';
 import { useToast } from '../hooks/use-toast';
 import { Upload, X, Loader2 } from 'lucide-react';
-import { GAME_CATALOG, GAME_CATEGORIES } from '../lib/gameCatalog';
+import { GamePicker } from './admin/GamePicker';
 import { DIFFICULTY_LEVELS } from '../lib/difficulty';
 import { GamePreviewDialog } from './games/GamePreviewDialog';
 
@@ -832,19 +832,12 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                   </p>
                 </div>
 
-                <select
+                <GamePicker
                   value={form.game_type || ''}
-                  onChange={e => upd('game_type', e.target.value || null)}
-                  data-testid="contest-game-select"
+                  onChange={(v) => upd('game_type', v)}
+                  testid="contest-game-select"
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                >
-                  <option value="">Select a game</option>
-                  {GAME_CATEGORIES.map((category) => (
-                    <optgroup key={category} label={category}>
-                      {GAME_CATALOG.filter((g) => g.category === category).map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}
-                    </optgroup>
-                  ))}
-                </select>
+                />
                 {form.game_type && <div className="mt-3 flex flex-wrap items-end gap-3">
                   <label className="text-xs font-bold text-slate-600">Difficulty
                     <select value={form.game_config?.difficulty || 3} onChange={(e) => upd('game_config', { ...(form.game_config || {}), difficulty: Number(e.target.value) })}

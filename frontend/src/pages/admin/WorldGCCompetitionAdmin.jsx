@@ -3,6 +3,7 @@ import { AlertTriangle, CheckCircle2, CircleDot, FlaskConical, Lock, Save } from
 import { worldGcCompetitionAdminAPI } from '../../lib/api';
 import { GCPreviewPanel } from '../../components/admin/GCPreviewPanel';
 import { GAME_CATALOG } from '../../lib/gameCatalog';
+import { GamePicker } from '../../components/admin/GamePicker';
 import { DIFFICULTY_LEVELS } from '../../lib/difficulty';
 import { GAME_MAP } from '../../components/games';
 import { GamePreviewDialog } from '../../components/games/GamePreviewDialog';
@@ -39,9 +40,7 @@ function GameFields({ row, onChange, disabled, options, onPreview }) {
   const cfg = row.game_config || {};
   const setCfg = (patch) => onChange({ game_config: { ...cfg, ...patch } });
   return <>
-    <label><span className={labelClass}>Game</span><select className={fieldClass} disabled={disabled} value={row.game_id || ''} onChange={(e) => onChange({ game_id: e.target.value || null, game_config: {} })} data-testid={`gc-game-${row.level ?? 'champion'}`}>
-      <option value="">Choose game</option>{(row.game_id && !options.includes(row.game_id) ? [row.game_id, ...options] : options).map((g) => <option key={g} value={g}>{gameNames[g] || g}</option>)}
-    </select></label>
+    <label><span className={labelClass}>Game</span><GamePicker className={fieldClass} disabled={disabled} value={row.game_id || ''} options={options} labels={gameNames} placeholder="Choose game" onChange={(v) => onChange({ game_id: v, game_config: {} })} testid={`gc-game-${row.level ?? 'champion'}`} /></label>
     {row.game_id === 'memory_match' && <label><span className={labelClass}>Card pairs</span><input className={fieldClass} disabled={disabled} type="number" min="2" max="16" value={cfg.pair_count ?? 6} onChange={(e) => setCfg({ pair_count: Number(e.target.value) })} /></label>}
     {row.game_id === 'colour_match' && <>
       <label><span className={labelClass}>Colours</span><input className={fieldClass} disabled={disabled} type="number" min="2" max="11" value={cfg.colours ?? 6} onChange={(e) => setCfg({ colours: Number(e.target.value) })} /></label>

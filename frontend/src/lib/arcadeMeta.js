@@ -1,5 +1,5 @@
 // Labels + how-to-play text for the 100 arcade games (20 styles x 5 themes). Mirrors backend arcade_catalog.py.
-export const ARCADE_THEME_LABELS = { fruit: 'Fruit Fiesta', space: 'Cosmic Quest', football: 'Stadium Stars', ocean: 'Ocean Treasure', party: 'Party Night' };
+export const ARCADE_THEME_LABELS = { fruit: 'Fruit Fiesta', space: 'Cosmic Quest', football: 'Stadium Stars', ocean: 'Ocean Treasure', party: 'Party Night', christmas: 'Christmas Magic', halloween: 'Halloween Night', summer: 'Summer Splash' };
 
 export const ARCADE_STYLE_META = {
   balloon_pop: ['Balloon Pop', 'Arcade', 'Pop the rising balloons.', 'Tap each balloon before it floats away.'],
@@ -28,7 +28,7 @@ export const ARCADE_CATALOG = Object.entries(ARCADE_STYLE_META).flatMap(([style,
   Object.entries(ARCADE_THEME_LABELS).map(([theme, tl]) => ({ id: `arc_${style}_${theme}`, label: `${label} · ${tl}`, category: `Arcade: ${category}` })));
 
 export function arcadeExperience(gameId) {
-  const m = /^arc_([a-z_]+)_(fruit|space|football|ocean|party)$/.exec(gameId || '');
+  const m = /^arc_([a-z_]+?)_(fruit|space|football|ocean|party|christmas|halloween|summer)$/.exec(gameId || '');
   const meta = m && ARCADE_STYLE_META[m[1]];
   return meta ? { objective: meta[2], controls: meta[3], win: 'Finish the challenge as fast and accurately as you can.' } : null;
 }

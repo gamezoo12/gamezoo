@@ -61,7 +61,7 @@ export default function SettingsPage() {
 
   const uploadPromotionSlide = async (index, file) => {
     if (!file) return;
-    const isVideo = file.type.startsWith('video/');
+    const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|m4v|webm)$/i.test(file.name || '');
 
     try {
       let result;
@@ -246,7 +246,7 @@ export default function SettingsPage() {
 
                   <input
                     type="file"
-                    accept="image/jpeg,image/png,image/webp,video/mp4,video/webm"
+                    accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime,.mov,.m4v"
                     className="hidden"
                     onChange={e => {
                       const file = e.target.files?.[0];

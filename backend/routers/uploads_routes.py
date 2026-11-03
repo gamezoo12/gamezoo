@@ -243,68 +243,76 @@ async def upload_contest_image(
 # Banner video upload — chunked (proxy-safe), max 60 MB / 30 seconds
 # =====================================================================
 VIDEO_MAX_BYTES = 120 * 1024 * 1024
-VIDEO_CHUNK_MAX = 6 * 1024 * 1024
+VIDEO_CHUNK = 2 * 1024 * 1024
 VIDEO_MAX_SECONDS = 60.5
-VIDEO_TMP = Path("/tmp/pl_video_uploads")
-VIDEO_TYPES = {"video/mp4": ".mp4", "video/webm": ".webm"}
+VIDEO_TYPES = {"video/mp4", "video/webm", "video/quicktime", "video/x-m4v", ""}
 
 
-def _video_dir(upload_id: str) -> Path:
-    if not upload_id.isalnum() or len(upload_id) != 32:
-        raise HTTPException(404, "Upload not found")
-    path = VIDEO_TMP / upload_id
-    if not path.is_dir():
-        raise HTTPException(404, "Upload not found")
-    return path
+# Chunks live in MongoDB so the upload works when requests hit different server instances.
+async def _video_session(db, upload_id: str) -> dict:
+    session = await db.video_upload_sessions.find_one({"upload_id": upload_id}, {"_id": 0})
+    if not session:
+        raise HTTPException(404, "Upload expired. Please try again.")
+    return session
 
 
 @uploads_router.post('/video/start')
 async def start_video_upload(request: Request):
+    from datetime import datetime, timezone
+    from deps import get_db
     await require_admin(request)
     body = await request.json()
-    size, ctype = int(body.get("size") or 0), str(body.get("content_type") or "").split(";")[0]
+    size, ctype = int(body.get("size") or 0), str(body.get("content_type") or "").split(";")[0].lower()
     duration = float(body.get("duration") or 0)
     if ctype not in VIDEO_TYPES:
-        raise HTTPException(415, "Unsupported video. Use MP4 or WebM.")
+        raise HTTPException(415, "Unsupported video. Use MP4, MOV or WebM.")
     if not 0 < size <= VIDEO_MAX_BYTES:
         raise HTTPException(413, "Video too large (max 120 MB)")
     if not 0 < duration <= VIDEO_MAX_SECONDS:
         raise HTTPException(400, "Video must be 1 minute or shorter")
     upload_id = uuid.uuid4().hex
-    path = VIDEO_TMP / upload_id
-    path.mkdir(parents=True, exist_ok=True)
-    (path / "meta").write_text(f"{size}|{ctype}")
-    return {"upload_id": upload_id, "chunk_size": 5 * 1024 * 1024}
+    await get_db().video_upload_sessions.insert_one({"upload_id": upload_id, "size": size, "created_at": datetime.now(timezone.utc)})
+    return {"upload_id": upload_id, "chunk_size": VIDEO_CHUNK}
 
 
 @uploads_router.put('/video/{upload_id}/chunk/{index}')
 async def upload_video_chunk(upload_id: str, index: int, request: Request):
+    from bson import Binary
+    from deps import get_db
     await require_admin(request)
-    path = _video_dir(upload_id)
+    db = get_db()
+    await _video_session(db, upload_id)
     data = await request.body()
-    if not data or len(data) > VIDEO_CHUNK_MAX or not 0 <= index < 30:
+    if not data or len(data) > VIDEO_CHUNK or not 0 <= index < 64:
         raise HTTPException(400, "Invalid chunk")
-    (path / f"{index:03d}.part").write_bytes(data)
+    await db.video_upload_chunks.update_one({"upload_id": upload_id, "index": index},
+                                            {"$set": {"data": Binary(data)}}, upsert=True)
     return {"ok": True}
 
 
 @uploads_router.post('/video/{upload_id}/complete')
 async def complete_video_upload(upload_id: str, request: Request):
+    from deps import get_db
     await require_admin(request)
-    path = _video_dir(upload_id)
+    db = get_db()
+    session = await _video_session(db, upload_id)
     try:
-        size, ctype = (path / "meta").read_text().split("|")
-        data = b"".join(p.read_bytes() for p in sorted(path.glob("*.part")))
-        if len(data) != int(size) or len(data) > VIDEO_MAX_BYTES:
+        chunks = await db.video_upload_chunks.find({"upload_id": upload_id}, {"_id": 0}).sort("index", 1).to_list(64)
+        data = b"".join(bytes(c["data"]) for c in chunks)
+        if len(data) != int(session["size"]):
             raise HTTPException(400, "Upload incomplete. Please try again.")
         is_mp4 = data[4:8] == b"ftyp"
         is_webm = data[:4] == b"\x1a\x45\xdf\xa3"
         if not (is_mp4 or is_webm):
-            raise HTTPException(415, "Unsupported video. Use MP4 or WebM.")
-        mime = "video/mp4" if is_mp4 else "video/webm"
-        url = _upload_to_r2(key=f"promotions/videos/{upload_id}{VIDEO_TYPES[mime]}", body=data, content_type=mime)
+            raise HTTPException(415, "Unsupported video. Use MP4, MOV or WebM.")
+        mime, ext = ("video/mp4", ".mp4") if is_mp4 else ("video/webm", ".webm")
+        try:
+            url = _upload_to_r2(key=f"promotions/videos/{upload_id}{ext}", body=data, content_type=mime)
+        except HTTPException:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(502, "Video storage failed. Please try again.") from exc
     finally:
-        for p in path.glob("*"):
-            p.unlink(missing_ok=True)
-        path.rmdir()
+        await db.video_upload_chunks.delete_many({"upload_id": upload_id})
+        await db.video_upload_sessions.delete_one({"upload_id": upload_id})
     return {"url": url, "mime": mime, "size": len(data), "storage": "r2"}

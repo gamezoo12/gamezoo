@@ -727,3 +727,8 @@ Root causes fixed:
 ## 2026-06 Arcade games (+100)
 - 20 styles x 5 themes (fruit/space/football/ocean/party) in frontend/src/components/games/arcade/{kit,stylesA,stylesB,index}.jsx, meta in lib/arcadeMeta.js; backend services/arcade_catalog.py appended to GAME_TYPES + world SUPPORTED_GAMES
 - Arcade games always listed in Games section (/games) when game_preview_enabled; ids arc_<style>_<theme>
+
+## 2026-06 Video upload fix + game picker + seasonal themes
+- Video chunks now stored in Mongo (video_upload_sessions/video_upload_chunks), 2MB chunks, MOV/quicktime accepted (multi-instance safe)
+- GamePicker (components/admin/GamePicker.jsx): search + style + theme filters used in EditContestDialog and WorldGCCompetitionAdmin
+- Arcade themes +christmas/halloween/summer -> 160 arcade games (190 total)

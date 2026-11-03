@@ -16,7 +16,8 @@ STYLES = [
     ('treasure_dig', 'Treasure Dig', 'luck', 45), ('safe_cracker', 'Safe Cracker', 'logic', 90),
 ]
 THEMES = [('fruit', 'Fruit Fiesta'), ('space', 'Cosmic Quest'), ('football', 'Stadium Stars'),
-          ('ocean', 'Ocean Treasure'), ('party', 'Party Night')]
+          ('ocean', 'Ocean Treasure'), ('party', 'Party Night'), ('christmas', 'Christmas Magic'),
+          ('halloween', 'Halloween Night'), ('summer', 'Summer Splash')]
 
 ARCADE_GAME_TYPES = [
     {'id': f'arc_{sid}_{tid}', 'label': f'{label} · {tlabel}', 'category': category,
