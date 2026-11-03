@@ -25,6 +25,7 @@ export default function SettingsPage() {
     { length: promotionCount },
     (_, index) => ({
       url: String(s?.promotion_slides?.[index]?.url || ''),
+      type: s?.promotion_slides?.[index]?.type === 'video' ? 'video' : 'image',
     })
   );
 
@@ -43,17 +44,36 @@ export default function SettingsPage() {
           { length: count },
           (_, index) => ({
             url: String(existing[index]?.url || ''),
+            type: existing[index]?.type === 'video' ? 'video' : 'image',
           })
         ),
       };
     });
   };
 
+  const videoDuration = (file) => new Promise((resolve, reject) => {
+    const v = document.createElement('video');
+    v.preload = 'metadata';
+    v.onloadedmetadata = () => { URL.revokeObjectURL(v.src); resolve(v.duration); };
+    v.onerror = () => reject(new Error('Could not read this video.'));
+    v.src = URL.createObjectURL(file);
+  });
+
   const uploadPromotionSlide = async (index, file) => {
     if (!file) return;
+    const isVideo = file.type.startsWith('video/');
 
     try {
-      const result = await uploadsAPI.image(file);
+      let result;
+      if (isVideo) {
+        if (file.size > 60 * 1024 * 1024) throw new Error('Video too large (max 60 MB).');
+        const duration = await videoDuration(file);
+        if (!(duration > 0 && duration <= 30.5)) throw new Error('Video must be 30 seconds or shorter.');
+        toast({ title: `Uploading video for slide ${index + 1}…` });
+        result = await uploadsAPI.video(file, duration);
+      } else {
+        result = await uploadsAPI.image(file);
+      }
 
       setS(prev => {
         const count = Math.max(
@@ -65,11 +85,13 @@ export default function SettingsPage() {
           { length: count },
           (_, position) => ({
             url: String(prev?.promotion_slides?.[position]?.url || ''),
+            type: prev?.promotion_slides?.[position]?.type === 'video' ? 'video' : 'image',
           })
         );
 
         slides[index] = {
           url: result?.url || '',
+          type: isVideo ? 'video' : 'image',
         };
 
         return {
@@ -87,6 +109,7 @@ export default function SettingsPage() {
         title: 'Upload failed',
         description:
           e?.response?.data?.detail ||
+          e?.message ||
           'Could not upload promotion image.',
       });
     }
@@ -106,7 +129,7 @@ export default function SettingsPage() {
         })
       );
 
-      slides[index] = { url: '' };
+      slides[index] = { url: '', type: 'image' };
 
       return {
         ...prev,
@@ -199,7 +222,9 @@ export default function SettingsPage() {
 
               <div className="p-4">
                 <div className="relative aspect-[2/1] rounded-xl overflow-hidden bg-slate-100 border border-slate-200">
-                  {slide.url ? (
+                  {slide.url && slide.type === 'video' ? (
+                    <video src={slide.url} controls muted playsInline className="w-full h-full object-cover object-center" data-testid={`promotion-video-preview-${index}`} />
+                  ) : slide.url ? (
                     <img
                       src={slide.url}
                       alt={`Promotion ${index + 1}`}
@@ -217,11 +242,11 @@ export default function SettingsPage() {
 
                 <label className="mt-3 inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-[#6C2BFF] hover:bg-[#4A15D9] text-white text-sm font-bold cursor-pointer">
                   <Upload className="w-4 h-4" />
-                  {slide.url ? 'Replace image' : 'Upload image'}
+                  {slide.url ? 'Replace image / video' : 'Upload image or video'}
 
                   <input
                     type="file"
-                    accept="image/jpeg,image/png,image/webp"
+                    accept="image/jpeg,image/png,image/webp,video/mp4,video/webm"
                     className="hidden"
                     onChange={e => {
                       const file = e.target.files?.[0];

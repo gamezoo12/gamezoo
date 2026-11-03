@@ -303,6 +303,16 @@ adminReject: (id, reason, notification_message) =>
 };
 
 export const uploadsAPI = {
+  video: async (file, duration, onProgress) => {
+    const start = await api.post('/admin/uploads/video/start', { size: file.size, content_type: file.type, duration }).then(r => r.data);
+    const total = Math.ceil(file.size / start.chunk_size);
+    for (let i = 0; i < total; i += 1) {
+      const chunk = file.slice(i * start.chunk_size, (i + 1) * start.chunk_size);
+      await api.put(`/admin/uploads/video/${start.upload_id}/chunk/${i}`, chunk, { headers: { 'Content-Type': 'application/octet-stream' } });
+      onProgress?.(Math.round(((i + 1) / total) * 100));
+    }
+    return api.post(`/admin/uploads/video/${start.upload_id}/complete`).then(r => r.data);
+  },
   image: (file) => {
     const fd = new FormData();
     fd.append('file', file);

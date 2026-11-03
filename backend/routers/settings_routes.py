@@ -100,7 +100,7 @@ async def update_settings(payload: dict, request: Request):
                     detail='Invalid promotion image URL',
                 )
 
-            clean_slides.append({'url': url})
+            clean_slides.append({'url': url, 'type': 'video' if item.get('type') == 'video' else 'image'})
 
         updates['promotion_slides'] = clean_slides
 

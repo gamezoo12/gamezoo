@@ -236,3 +236,75 @@ async def upload_contest_image(
         "recommended_image_url": urls["card"],
         "recommended_mobile_image_url": urls["mobile"],
     }
+
+
+
+# =====================================================================
+# Banner video upload — chunked (proxy-safe), max 60 MB / 30 seconds
+# =====================================================================
+VIDEO_MAX_BYTES = 60 * 1024 * 1024
+VIDEO_CHUNK_MAX = 6 * 1024 * 1024
+VIDEO_MAX_SECONDS = 30.5
+VIDEO_TMP = Path("/tmp/pl_video_uploads")
+VIDEO_TYPES = {"video/mp4": ".mp4", "video/webm": ".webm"}
+
+
+def _video_dir(upload_id: str) -> Path:
+    if not upload_id.isalnum() or len(upload_id) != 32:
+        raise HTTPException(404, "Upload not found")
+    path = VIDEO_TMP / upload_id
+    if not path.is_dir():
+        raise HTTPException(404, "Upload not found")
+    return path
+
+
+@uploads_router.post('/video/start')
+async def start_video_upload(request: Request):
+    await require_admin(request)
+    body = await request.json()
+    size, ctype = int(body.get("size") or 0), str(body.get("content_type") or "").split(";")[0]
+    duration = float(body.get("duration") or 0)
+    if ctype not in VIDEO_TYPES:
+        raise HTTPException(415, "Unsupported video. Use MP4 or WebM.")
+    if not 0 < size <= VIDEO_MAX_BYTES:
+        raise HTTPException(413, "Video too large (max 60 MB)")
+    if not 0 < duration <= VIDEO_MAX_SECONDS:
+        raise HTTPException(400, "Video must be 30 seconds or shorter")
+    upload_id = uuid.uuid4().hex
+    path = VIDEO_TMP / upload_id
+    path.mkdir(parents=True, exist_ok=True)
+    (path / "meta").write_text(f"{size}|{ctype}")
+    return {"upload_id": upload_id, "chunk_size": 5 * 1024 * 1024}
+
+
+@uploads_router.put('/video/{upload_id}/chunk/{index}')
+async def upload_video_chunk(upload_id: str, index: int, request: Request):
+    await require_admin(request)
+    path = _video_dir(upload_id)
+    data = await request.body()
+    if not data or len(data) > VIDEO_CHUNK_MAX or not 0 <= index < 20:
+        raise HTTPException(400, "Invalid chunk")
+    (path / f"{index:03d}.part").write_bytes(data)
+    return {"ok": True}
+
+
+@uploads_router.post('/video/{upload_id}/complete')
+async def complete_video_upload(upload_id: str, request: Request):
+    await require_admin(request)
+    path = _video_dir(upload_id)
+    try:
+        size, ctype = (path / "meta").read_text().split("|")
+        data = b"".join(p.read_bytes() for p in sorted(path.glob("*.part")))
+        if len(data) != int(size) or len(data) > VIDEO_MAX_BYTES:
+            raise HTTPException(400, "Upload incomplete. Please try again.")
+        is_mp4 = data[4:8] == b"ftyp"
+        is_webm = data[:4] == b"\x1a\x45\xdf\xa3"
+        if not (is_mp4 or is_webm):
+            raise HTTPException(415, "Unsupported video. Use MP4 or WebM.")
+        mime = "video/mp4" if is_mp4 else "video/webm"
+        url = _upload_to_r2(key=f"promotions/videos/{upload_id}{VIDEO_TYPES[mime]}", body=data, content_type=mime)
+    finally:
+        for p in path.glob("*"):
+            p.unlink(missing_ok=True)
+        path.rmdir()
+    return {"url": url, "mime": mime, "size": len(data), "storage": "r2"}

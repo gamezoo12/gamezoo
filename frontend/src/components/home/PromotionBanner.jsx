@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { api } from '../../lib/api';
 import { resolveMediaUrl } from '../../lib/media';
+import { BannerVideo } from './BannerVideo';
 
 const ROTATE_MS = 5000;
 
@@ -41,6 +42,7 @@ export default function PromotionBanner() {
       .map((slide, position) => ({
         id: `promotion-${position}`,
         url: String(slide?.url || '').trim(),
+        type: slide?.type === 'video' ? 'video' : 'image',
       }))
       .filter(slide => slide.url);
   }, [settings]);
@@ -51,15 +53,16 @@ export default function PromotionBanner() {
     }
   }, [slides.length, index]);
 
+  const currentIsVideo = slides[index]?.type === 'video';
   useEffect(() => {
-    if (paused || slides.length <= 1) return undefined;
+    if (paused || slides.length <= 1 || currentIsVideo) return undefined;
 
     const timer = setInterval(() => {
       setIndex(current => (current + 1) % slides.length);
     }, ROTATE_MS);
 
     return () => clearInterval(timer);
-  }, [paused, slides.length]);
+  }, [paused, slides.length, currentIsVideo]);
 
   const previous = () => {
     if (slides.length <= 1) return;
@@ -94,7 +97,13 @@ export default function PromotionBanner() {
               data-testid="promotion-empty-state"
             />
           ) : (
-            slides.map((slide, slideIndex) => (
+            slides.map((slide, slideIndex) => slide.type === 'video' ? (
+              <div key={slide.id} className={`absolute inset-0 transition-opacity duration-500 ${slideIndex === index ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                <BannerVideo src={resolveMediaUrl(slide.url)} active={slideIndex === index}
+                  onEnded={() => slides.length > 1 && setIndex((current) => (current + 1) % slides.length)}
+                  testid={`promotion-video-${slideIndex}`} />
+              </div>
+            ) : (
               <img
                 key={slide.id}
                 src={resolveMediaUrl(slide.url)}
