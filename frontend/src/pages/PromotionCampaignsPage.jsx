@@ -16,7 +16,7 @@ function campaignState(campaign) {
   return campaign.is_live ? 'live' : 'paused';
 }
 
-function CampaignCard({ campaign, busy, onClaim, onDetails }) {
+function CampaignCard({ campaign, busy, onClaim, onDetails, onResults }) {
   const state = campaignState(campaign);
   const Icon = campaign.campaign_type === 'token_credit' ? Wallet : campaign.campaign_type === 'ticket_draw' ? Ticket : Gift;
   const reward = campaign.campaign_type === 'token_credit'
@@ -45,7 +45,9 @@ function CampaignCard({ campaign, busy, onClaim, onDetails }) {
             </div>
             <h2 className="text-xl font-black leading-tight sm:text-2xl">{campaign.name}</h2>
           </div>
-          <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase ${statusStyles[state]}`}>{state}</span>
+          {campaign.results_available
+            ? <span className="shrink-0 rounded-full bg-amber-300 px-2.5 py-1 text-[10px] font-extrabold uppercase text-slate-900" data-testid={`promotion-results-badge-${campaign.promotion_id}`}>Results</span>
+            : <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase ${statusStyles[state]}`}>{state}</span>}
         </div>
       </div>
       <div className="flex flex-1 flex-col p-5">
@@ -62,7 +64,9 @@ function CampaignCard({ campaign, busy, onClaim, onDetails }) {
         </div>
         <div className="mt-auto space-y-2 pt-4">
           <Button type="button" variant="outline" onClick={() => onDetails(campaign)} className="w-full font-bold" data-testid={`promotion-details-${campaign.promotion_id}`}>View details</Button>
-          {campaign.joined ? (
+          {campaign.results_available ? (
+            <Button onClick={() => onResults(campaign)} className="w-full bg-amber-400 font-extrabold text-slate-900 hover:bg-amber-300" data-testid={`promotion-view-results-${campaign.promotion_id}`}>View winners</Button>
+          ) : campaign.joined ? (
             <Button disabled className="w-full bg-emerald-700 font-extrabold text-white">Claimed</Button>
           ) : state === 'live' ? (
             <Button onClick={() => onClaim(campaign)} disabled={busy} className="w-full bg-emerald-700 font-extrabold text-white hover:bg-emerald-600" data-testid={`claim-promotion-${campaign.promotion_id}`}>
@@ -124,9 +128,10 @@ export default function PromotionCampaignsPage() {
     }
   };
 
-  const live = campaigns.filter((campaign) => campaignState(campaign) === 'live');
-  const upcoming = campaigns.filter((campaign) => campaignState(campaign) === 'upcoming');
-  const past = campaigns.filter((campaign) => ['expired', 'paused'].includes(campaignState(campaign)));
+  const results = campaigns.filter((campaign) => campaign.results_available);
+  const live = campaigns.filter((campaign) => !campaign.results_available && campaignState(campaign) === 'live');
+  const upcoming = campaigns.filter((campaign) => !campaign.results_available && campaignState(campaign) === 'upcoming');
+  const past = campaigns.filter((campaign) => !campaign.results_available && ['expired', 'paused'].includes(campaignState(campaign)));
 
   return (
     <main className="mx-auto w-full max-w-[1600px] space-y-8 px-4 py-6 sm:px-6 lg:px-8" data-testid="promotion-campaigns-page">
@@ -140,11 +145,11 @@ export default function PromotionCampaignsPage() {
       {error && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">{error}</p>}
       {loading ? <p className="py-10 text-center text-sm text-slate-500" role="status">Loading promotions…</p> : campaigns.length === 0 ? <p className="rounded-xl border border-dashed border-slate-300 p-10 text-center text-slate-500">There are no promotions available right now.</p> : (
         <div className="space-y-9">
-          {[['Open now', live], ['Coming up', upcoming], ['Past promotions', past]].map(([title, rows]) => rows.length > 0 && (
+          {[['Results', results], ['Open now', live], ['Coming up', upcoming], ['Past promotions', past]].map(([title, rows]) => rows.length > 0 && (
             <section key={title}>
               <h2 className="mb-4 text-xl font-black text-slate-900">{title}</h2>
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {rows.map((campaign) => <CampaignCard key={campaign.promotion_id} campaign={campaign} busy={busyId === campaign.promotion_id} onClaim={claim} onDetails={setSelected} />)}
+                {rows.map((campaign) => <CampaignCard key={campaign.promotion_id} campaign={campaign} busy={busyId === campaign.promotion_id} onClaim={claim} onDetails={setSelected} onResults={(c) => navigate(`/my-account/contest-winners?contest=${encodeURIComponent(c.promotion_id)}`)} />)}
               </div>
             </section>
           ))}

@@ -138,8 +138,11 @@ async def list_promotion_campaigns(request:Request):
  campaigns=[]
  for doc in docs:
   campaign=_public_campaign(doc);pid=campaign['promotion_id']
-  if campaign['status']=='completed':continue
   entry=await db.promotion_entries.find_one({'promotion_id':pid,'user_id':user['user_id']},{'_id':0,'joined_at':1})
+  if campaign['status']=='completed':
+   from routers.paid_winners_routes import _promotion_contests
+   if not entry or not await _promotion_contests(db,pid):continue
+   campaign['results_available']=True
   claim=await db.promotion_claims.find_one({'promotion_id':pid,'user_id':user['user_id']},{'_id':0,'claimed_at':1,'reward_tokens':1})
   tickets=await db.promotion_tickets.find({'promotion_id':pid,'user_id':user['user_id']},{'_id':0,'ticket_number':1,'source':1,'created_at':1}).sort('created_at',1).to_list(500)
   campaign.update({'joined':bool(entry or claim),'joined_at':(entry or claim or {}).get('joined_at') or (claim or {}).get('claimed_at'),'tickets':tickets,'ticket_count':len(tickets),'claimed_tokens':(claim or {}).get('reward_tokens',0)})

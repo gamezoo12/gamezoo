@@ -693,3 +693,7 @@ Root causes fixed:
 - Old promotion draw/manual-winner endpoints 403; Draw Studio lists only completed promotions with requires_draw (legacy: prize_draw)
 - Reject endpoint /admin/paid-winners/winners/{id}/reject; Hall includes promotion draws with approved+announced winners
 - MobileHome tabs sticky top = measured header height
+
+## 2026-06 Promotion results + push fix
+- /promotion/campaigns returns completed promotions the user entered with results_available when Hall row exists (announced+approved); Results section/badge + View winners deep link to /my-account/contest-winners?contest=ID
+- push_delivery: cutoff from Mongo coerced via _as_utc (naive/aware crash fixed)

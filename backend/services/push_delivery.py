@@ -296,7 +296,8 @@ async def process_contest_lifecycle_alerts(db, current_time=None) -> int:
         upsert=True,
     )
     cutoff_doc = await db.app_settings.find_one({'key': 'web_push_lifecycle_cutoff'}, {'_id': 0, 'value': 1})
-    cutoff = cutoff_doc.get('value', current_time) if cutoff_doc else current_time
+    cutoff = _as_utc(cutoff_doc.get('value')) if cutoff_doc else None
+    cutoff = cutoff or current_time
     queued = 0
     paid_due = await db.contests.find({
         'status': 'live',
