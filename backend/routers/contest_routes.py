@@ -29,6 +29,7 @@ def _to_public(c: dict) -> dict:
         'skill_question_options': sq.get('options', []),
         'game_type': c.get('game_type'),
         'entry_mode': c.get('entry_mode', 'skill_game' if c.get('game_type') else 'random_tickets'),
+        'requires_skill_question': bool(c.get('skill_question_type')) or (c.get('entry_mode', 'skill_game' if c.get('game_type') else 'random_tickets') == 'skill_game'),
         'max_attempts': int(c.get('max_attempts', c.get('attempts_per_ticket', 3))),
         'attempts_per_ticket': int(c.get('attempts_per_ticket', c.get('max_attempts', 3))),
         'leaderboard_visibility': c.get('leaderboard_visibility', 'live'),

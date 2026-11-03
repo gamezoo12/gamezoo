@@ -62,7 +62,7 @@ export default function CompetitionDetail() {
       setChallengeLoading(false);
     }
   };
-  useEffect(() => { if (c && !c.public_coming_soon && (c.entry_mode || 'skill_game') === 'skill_game') loadChallenge(); /* eslint-disable-next-line */ }, [slug, c?.entry_mode, c?.public_coming_soon]);
+  useEffect(() => { if (c && !c.public_coming_soon && (c.requires_skill_question || (c.entry_mode || 'skill_game') === 'skill_game')) loadChallenge(); /* eslint-disable-next-line */ }, [slug, c?.entry_mode, c?.requires_skill_question, c?.public_coming_soon]);
 
   useEffect(() => {
     if (!user) { setWallet(null); return; }
@@ -95,6 +95,7 @@ export default function CompetitionDetail() {
   const options = challenge?.options || c.skill_question_options || [];
   const entryMode = c.entry_mode || 'skill_game';
   const isSkillGame = entryMode === 'skill_game';
+  const needsSkill = isSkillGame || !!c.requires_skill_question;
   const subtotal = c.price * tickets;
   const balanceAfter = wallet ? Math.max(0, wallet.balance - subtotal) : null;
 
@@ -120,7 +121,7 @@ export default function CompetitionDetail() {
       return;
     }
 
-    if (isSkillGame && !verified) { toast({ title: 'Answer the skill question correctly first' }); return; }
+    if (needsSkill && !verified) { toast({ title: 'Answer the skill question correctly first' }); return; }
     const raw = localStorage.getItem('gamezoo_cart');
     const cart = raw ? JSON.parse(raw) : [];
     const idx = cart.findIndex(x => x.contest_id === c.contest_id);
@@ -221,7 +222,7 @@ export default function CompetitionDetail() {
           ) : (
             <>
           {/* Skill Question or Random Draw notice */}
-          {isSkillGame ? (
+          {needsSkill ? (
             <div className="mt-6 p-4 md:p-5 rounded-2xl border-2 border-[#6C2BFF]/20 bg-[#6C2BFF]/5" data-testid="skill-question-block">
               <div className="flex items-center gap-2 mb-3 flex-wrap">
                 <Brain className="w-5 h-5 text-[#6C2BFF]" />
@@ -344,10 +345,10 @@ export default function CompetitionDetail() {
 
             <Button
               onClick={addToCart}
-              disabled={(isSkillGame && !verified) || !confirmed}
+              disabled={(needsSkill && !verified) || !confirmed}
               data-testid="buy-tickets-btn"
               className="w-full h-12 pl-btn-gold text-slate-900 text-base font-extrabold disabled:opacity-50 disabled:cursor-not-allowed">
-              <ShoppingBag className="w-4 h-4 mr-2" /> {isSkillGame && !verified
+              <ShoppingBag className="w-4 h-4 mr-2" /> {needsSkill && !verified
                 ? 'Answer skill question first'
                 : (!confirmed ? 'Tick the confirmation to buy' : `Buy ${tickets} ticket${tickets > 1 ? 's' : ''} > Basket`)}
             </Button>

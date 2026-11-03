@@ -703,3 +703,7 @@ Root causes fixed:
 
 ## 2026-06 Free World leaderboard default
 - FreeWorldLeaderboard opens on Level Leaderboard when active GC has level boards (every-level), preselecting the Open level (else latest opened); Championship tab + level buttons still available for past levels
+
+## 2026-06 Contest create/skill fixes
+- Create contest now persists extended details (descriptions, rules, prizes, max tickets, dates, SEO etc.) so Edit shows them
+- Random-draw contests with skill_question_type show the skill question (public requires_skill_question) and checkout enforces it

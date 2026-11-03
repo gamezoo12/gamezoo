@@ -1484,6 +1484,29 @@ async def create_contest_api(payload: dict, request: Request):
                 'leaderboard_visibility', 'winner_selection_method', 'engine_type'):
         if payload.get(key) is not None:
             doc[key] = payload[key]
+    # Extended detail fields from the Create dialog must persist so Edit shows them.
+    for key in ('short_description', 'full_description', 'how_to_enter', 'skill_instructions', 'eligibility',
+                'prize_details', 'prize_values', 'winner_method', 'scoring_method', 'tiebreak_method',
+                'verification_method', 'prize_credit_timeframe', 'refund_conditions', 'important_info',
+                'contest_rules', 'terms_acknowledgement', 'country_restrictions', 'age_restriction',
+                'mobile_image', 'seo_title', 'seo_description', 'publication_status',
+                'free_postal_entry_instructions'):
+        if payload.get(key) is not None:
+            doc[key] = payload[key]
+    for key in ('max_tickets_per_user', 'num_prizes'):
+        try:
+            if payload.get(key) is not None:
+                doc[key] = int(payload[key])
+        except (TypeError, ValueError):
+            pass
+    for key in ('open_date', 'draw_date'):
+        if isinstance(payload.get(key), str) and payload[key]:
+            try:
+                doc[key] = datetime.fromisoformat(payload[key].replace('Z', '+00:00'))
+            except ValueError:
+                pass
+    if 'free_postal_entry_available' in payload:
+        doc['free_postal_entry_available'] = bool(payload['free_postal_entry_available'])
     if doc.get('game_type'):
         from routers.game_routes import GAME_TYPES
         if doc['game_type'] not in {g['id'] for g in GAME_TYPES}:

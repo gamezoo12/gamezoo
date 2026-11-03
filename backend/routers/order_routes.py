@@ -21,7 +21,7 @@ def _validate_skill(c: dict, item) -> None:
       3. Legacy static question — string-match the user's answer against the
          stored `skill_question.answer`.
     """
-    if c.get('entry_mode', 'skill_game') != 'skill_game':
+    if c.get('entry_mode', 'skill_game') != 'skill_game' and not c.get('skill_question_type'):
         return
     if c.get('skill_question_type'):
         r = verify_challenge(c['contest_id'], (item.skill_answer or '').strip(), item.challenge_token or '')
