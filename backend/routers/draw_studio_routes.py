@@ -54,22 +54,25 @@ async def _audit(db, action: str, admin: dict, **fields):
 
 
 async def _promotion(db, pid: str) -> Optional[dict]:
-    from routers.promotion_draw_routes import _cfg
-
-    try:
-        cfg = await _cfg(db, pid)
-    except HTTPException:
+    campaign = await db.promotion_campaigns.find_one({"promotion_id": pid}, {"_id": 0})
+    legacy = None if campaign else await db.promotion_config.find_one({"key": "freeworld", "promotion_id": pid}, {"_id": 0})
+    doc = campaign or legacy
+    has_plan = bool(doc) and bool(await db.draw_studio_plans.find_one({"contest_id": pid}, {"_id": 1}))
+    if not doc or (doc.get("deleted") and not has_plan):
         return None
-    if cfg.get("promotion_id") != pid or cfg.get("promotion_type") != "prize_draw":
+    if not has_plan and not (doc.get("requires_draw") if campaign else doc.get("promotion_type") == "prize_draw"):
         return None
-    end = cfg.get("end_at")
+    end = doc.get("end_at")
     try:
         ended = bool(end) and datetime.fromisoformat(str(end).replace("Z", "+00:00")) <= _now()
     except ValueError:
         ended = False
-    return {"contest_id": pid, "title": f"[Promotion] {cfg.get('name') or 'Prize draw'}", "kind": "promotion",
-            "prize_amount": round(float(cfg.get("prize_per_winner_gbp") or 0) * int(cfg.get("winner_count") or 1), 2),
-            "status": "live" if cfg.get("active") and not ended else "closed"}
+    completed = ended or bool(doc.get("closed_at"))
+    winners = max(1, int(doc.get("winner_count") or 1))
+    return {"contest_id": pid, "title": f"[Promotion] {doc.get('name') or 'Prize draw'}", "kind": "promotion",
+            "prize_amount": round(float(doc.get("prize_per_winner_gbp") or 0) * winners, 2),
+            "status": "closed" if completed else "live", "end_date": doc.get("closed_at") or end,
+            "image": doc.get("desktop_image_url") or doc.get("mobile_image_url")}
 
 
 async def _contest(db, cid: str) -> dict:
@@ -215,11 +218,14 @@ async def list_contests(request: Request):
             end = end.replace(tzinfo=timezone.utc)
         c["awaiting_draw"] = (c.get("status") in ("live", "closed") and isinstance(end, datetime) and end <= now
                               and c["contest_id"] not in done and c["eligible_tickets"] > 0)
-    pids = set(await db.promotion_campaigns.distinct("promotion_id")) | set(await db.promotion_config.distinct("promotion_id"))
+    pids = set(await db.promotion_campaigns.distinct("promotion_id", {"deleted": {"$ne": True}})) | set(
+        await db.promotion_config.distinct("promotion_id", {"deleted": {"$ne": True}}))
     for pid in sorted(p for p in pids if p):
         promo = await _promotion(db, pid)
-        if promo:
+        if promo and promo["status"] == "closed":
             promo["eligible_tickets"] = await db.promotion_tickets.count_documents({"promotion_id": pid, "ticket_number": {"$ne": None}})
+            promo["awaiting_draw"] = pid not in done and promo["eligible_tickets"] > 0
+            promo.pop("image", None)
             contests.append(promo)
     return {"contests": contests}
 

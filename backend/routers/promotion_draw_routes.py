@@ -56,6 +56,7 @@ async def manual_winner_eligible(request:Request,promotion_id:str|None=None):
 
 @router.put('/manual-winner')
 async def select_manual_winner(payload:ManualWinnerInput,request:Request,promotion_id:str|None=None):
+ await require_super_admin(request);raise HTTPException(403,'Draws are run only from Production Panel > Draw Studio')
  admin=await require_super_admin(request);db=get_db();cfg=await _cfg(db,promotion_id);pid=cfg['promotion_id'];now=datetime.now(timezone.utc);end_at=_utc(cfg.get('end_at'))
  if cfg.get('promotion_type') != 'prize_draw' or cfg.get('campaign_type') not in ('ticket_draw','referral_draw'):raise HTTPException(400,'Only prize draw promotions allow winner selection.')
  if not end_at or now>=end_at:raise HTTPException(409,'Select a winner before the promotion ends.')
@@ -75,6 +76,7 @@ async def draw_status(request:Request,promotion_id:str|None=None):
  await require_admin(request);db=get_db();cfg=await _cfg(db,promotion_id);pid=cfg['promotion_id'];existing=await db.promotion_draws.find_one({'promotion_id':pid},{'_id':0});manual=await db.promotion_manual_winners.find_one({'_id':pid},{'_id':1});tickets=await _eligible_snapshot(db,pid);unique_users=len({t['user_id'] for t in tickets});end_at=_utc(cfg.get('end_at'));now=datetime.now(timezone.utc);ticket_campaign=cfg.get('campaign_type') in ('ticket_draw','referral_draw');return {'promotion':cfg,'drawn':bool(existing),'draw':existing,'rng_algorithm':RNG_ALGORITHM,'eligible_ticket_count':len(tickets),'eligible_user_count':unique_users,'can_draw':bool(ticket_campaign and not existing and not manual and end_at and now>=end_at and unique_users>=cfg['winner_count']),'blocked_reason':('This promotion does not use a ticket draw.' if not ticket_campaign else 'A manual winner is already selected.' if manual else 'Draw already completed.' if existing else 'Promotion end date is not configured.' if not end_at else 'Promotion has not ended yet.' if now<end_at else 'Not enough unique eligible users.' if unique_users<cfg['winner_count'] else None)}
 @router.post('/draw')
 async def run_draw(request:Request,promotion_id:str|None=None):
+ await require_admin(request);raise HTTPException(403,'Draws are run only from Production Panel > Draw Studio')
  admin=await require_admin(request);db=get_db();cfg=await _cfg(db,promotion_id);pid=cfg['promotion_id'];now=datetime.now(timezone.utc)
  if cfg.get('promotion_type') != 'prize_draw':raise HTTPException(400,'Only prize draw promotions allow a draw.')
  if await db.draw_studio_plans.find_one({'contest_id':pid,'status':{'$in':['locked','in_progress','completed']}},{'_id':1}):raise HTTPException(409,'This promotion is being drawn in the Visual Draw Studio.')

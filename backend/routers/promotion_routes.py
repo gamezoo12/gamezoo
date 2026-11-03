@@ -12,15 +12,17 @@ router=APIRouter(prefix='/api/promotion',tags=['promotion']);admin_router=APIRou
 DEFAULT_CONFIG={'promotion_id':'freeworld-2026-01','name':'Free World Promotion','active':False,'mobile_image_url':'','tablet_image_url':'','desktop_image_url':'','prize_total_gbp':1000,'winner_count':2,'prize_per_winner_gbp':500,'start_at':None,'end_at':None,'promotion_type':'offer','description':'','signup_offer_text':'','topup_offer_text':'','show_join':False,'show_refer':True,'show_topup':True,'join_url':'/my-account/promotions','refer_url':'/refer','topup_url':'/my-account/wallet?topup=1'}
 CAMPAIGN_TYPES={'ticket_draw','referral_draw','token_credit'}
 def _public_config(doc):
- d={**DEFAULT_CONFIG,**(doc or {})};d.pop('_id',None);now=datetime.now(timezone.utc);active=bool(d.get('active'))
+ d={**DEFAULT_CONFIG,**(doc or {})};d.pop('_id',None);now=datetime.now(timezone.utc);active=bool(d.get('active'));ended=bool(d.get('closed_at') or d.get('deleted'));scheduled=False
  for key,is_start in [('start_at',True),('end_at',False)]:
   value=d.get(key)
   if value:
    try:
     dt=datetime.fromisoformat(str(value).replace('Z','+00:00'));dt=dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
-    if (is_start and now<dt) or (not is_start and now>=dt):active=False
+    if is_start and now<dt:active=False;scheduled=True
+    if not is_start and now>=dt:active=False;ended=True
    except ValueError:active=False
- d['is_live']=active;return d
+ if ended:active=False
+ d['is_live']=active;d['status']='completed' if ended else 'live' if active else 'scheduled' if scheduled and d.get('active') else 'paused';return d
 async def _config(db):return _public_config(await db.promotion_config.find_one({'key':'freeworld'},{'_id':0}))
 def _public_campaign(doc):
  d=_public_config(doc);d.setdefault('campaign_type','referral_draw');d.setdefault('description','');d.setdefault('reward_tokens',0);d.setdefault('legacy',False)
@@ -28,12 +30,14 @@ def _public_campaign(doc):
  if 'show_join' not in doc:d['show_join']=False
  if 'show_refer' not in doc:d['show_refer']=d['campaign_type']=='referral_draw'
  if 'show_topup' not in doc:d['show_topup']=False
+ d.setdefault('requires_draw',False)
  return d
+LIVE_CAMPAIGNS={'deleted':{'$ne':True}}
 async def _get_campaign(db,promotion_id):
- doc=await db.promotion_campaigns.find_one({'promotion_id':promotion_id},{'_id':0})
+ doc=await db.promotion_campaigns.find_one({'promotion_id':promotion_id,**LIVE_CAMPAIGNS},{'_id':0})
  if doc:return _public_campaign(doc)
  legacy=await _config(db)
- if legacy.get('promotion_id')==promotion_id:
+ if legacy.get('promotion_id')==promotion_id and not legacy.get('deleted'):
   legacy.update({'campaign_type':'referral_draw','description':'Join the Free World promotion and earn tickets for eligible referrals.','legacy':True})
   return legacy
  return None
@@ -114,6 +118,7 @@ class CampaignInput(BaseModel):
  signup_offer_text:str=Field(default='',max_length=200)
  topup_offer_text:str=Field(default='',max_length=200)
  show_join:bool=True;show_refer:bool=False;show_topup:bool=False
+ requires_draw:bool=False
  join_url:str='/my-account/promotions';refer_url:str='/refer';topup_url:str='/my-account/wallet?topup=1'
 
  @field_validator('join_url','refer_url','topup_url')
@@ -126,13 +131,15 @@ class CampaignInput(BaseModel):
 @router.get('/campaigns')
 async def list_promotion_campaigns(request:Request):
  user=await get_current_user(request);db=get_db();legacy=await _config(db)
- docs=await db.promotion_campaigns.find({}, {'_id':0}).sort('created_at',-1).to_list(200)
- if not any(d.get('promotion_id')==legacy.get('promotion_id') for d in docs):
+ docs=await db.promotion_campaigns.find(LIVE_CAMPAIGNS, {'_id':0}).sort('created_at',-1).to_list(200)
+ if not legacy.get('deleted') and not any(d.get('promotion_id')==legacy.get('promotion_id') for d in docs):
   legacy.update({'campaign_type':'referral_draw','description':'Join the Free World promotion and earn tickets for eligible referrals.','legacy':True})
   docs.append(legacy)
  campaigns=[]
  for doc in docs:
-  campaign=_public_campaign(doc);pid=campaign['promotion_id'];entry=await db.promotion_entries.find_one({'promotion_id':pid,'user_id':user['user_id']},{'_id':0,'joined_at':1})
+  campaign=_public_campaign(doc);pid=campaign['promotion_id']
+  if campaign['status']=='completed':continue
+  entry=await db.promotion_entries.find_one({'promotion_id':pid,'user_id':user['user_id']},{'_id':0,'joined_at':1})
   claim=await db.promotion_claims.find_one({'promotion_id':pid,'user_id':user['user_id']},{'_id':0,'claimed_at':1,'reward_tokens':1})
   tickets=await db.promotion_tickets.find({'promotion_id':pid,'user_id':user['user_id']},{'_id':0,'ticket_number':1,'source':1,'created_at':1}).sort('created_at',1).to_list(500)
   campaign.update({'joined':bool(entry or claim),'joined_at':(entry or claim or {}).get('joined_at') or (claim or {}).get('claimed_at'),'tickets':tickets,'ticket_count':len(tickets),'claimed_tokens':(claim or {}).get('reward_tokens',0)})
@@ -203,11 +210,11 @@ async def promotion_event(inp:EventInput,request:Request):
 @router.get('/config')
 async def promotion_config():
  db=get_db();legacy=await _config(db)
- if legacy.get('is_live'):return legacy
- docs=await db.promotion_campaigns.find({'active':True},{'_id':0}).sort('start_at',1).to_list(200)
+ docs=await db.promotion_campaigns.find({'active':True,**LIVE_CAMPAIGNS},{'_id':0}).sort('updated_at',-1).to_list(200)
  for doc in docs:
   campaign=_public_campaign(doc)
   if campaign.get('is_live'):return campaign
+ if legacy.get('deleted'):legacy['is_live']=False
  return legacy
 @router.get('/me')
 async def promotion_me(request:Request):
@@ -266,7 +273,7 @@ async def _save_campaign(inp:CampaignInput,request:Request,create:bool):
   if end<=start:raise HTTPException(400,'Expiry must be after the start time.')
  existing=await db.promotion_campaigns.find_one({'promotion_id':inp.promotion_id},{'_id':0})
  if create and existing:raise HTTPException(409,'Promotion ID already exists.')
- if not create and not existing:raise HTTPException(404,'Promotion campaign not found.')
+ if not create and (not existing or existing.get('deleted')):raise HTTPException(404,'Promotion campaign not found.')
  data=inp.model_dump();data.update({'updated_at':now,'updated_by':admin.get('user_id')})
  if create:data['created_at']=now
  await db.promotion_campaigns.update_one({'promotion_id':inp.promotion_id},{'$set':data},upsert=create)
@@ -276,10 +283,33 @@ async def _save_campaign(inp:CampaignInput,request:Request,create:bool):
 @admin_router.get('/campaigns')
 async def admin_list_campaigns(request:Request):
  await require_admin(request);db=get_db();legacy=await _config(db)
- docs=await db.promotion_campaigns.find({}, {'_id':0}).sort('created_at',-1).to_list(500)
- if not any(doc.get('promotion_id')==legacy.get('promotion_id') for doc in docs):
-  legacy.update({'campaign_type':'referral_draw','description':'Legacy Free World referral promotion.','legacy':True});docs.append(legacy)
+ docs=await db.promotion_campaigns.find(LIVE_CAMPAIGNS, {'_id':0}).sort('created_at',-1).to_list(500)
+ if not legacy.get('deleted') and not any(doc.get('promotion_id')==legacy.get('promotion_id') for doc in docs):
+  legacy.update({'campaign_type':'referral_draw','description':'Legacy Free World referral promotion.','legacy':True,'requires_draw':legacy.get('promotion_type')=='prize_draw'});docs.append(legacy)
  return {'campaigns':[_public_campaign(doc) for doc in docs]}
+
+
+@admin_router.post('/campaigns/{promotion_id}/close')
+async def admin_close_campaign(promotion_id:str,request:Request):
+ admin=await require_super_admin(request);db=get_db();now=datetime.now(timezone.utc)
+ r=await db.promotion_campaigns.update_one({'promotion_id':promotion_id,**LIVE_CAMPAIGNS},{'$set':{'active':False,'closed_at':now,'closed_by':admin.get('user_id'),'updated_at':now}})
+ if not r.matched_count:
+  r=await db.promotion_config.update_one({'key':'freeworld','promotion_id':promotion_id},{'$set':{'active':False,'closed_at':now,'updated_at':now}})
+  if not r.matched_count:raise HTTPException(404,'Promotion not found.')
+ return {'ok':True,'status':'completed'}
+
+
+@admin_router.delete('/campaigns/{promotion_id}')
+async def admin_delete_campaign(promotion_id:str,request:Request):
+ # Soft delete: hidden everywhere; entries, tickets and winner records are kept.
+ admin=await require_super_admin(request);db=get_db();now=datetime.now(timezone.utc)
+ if await db.draw_studio_plans.find_one({'contest_id':promotion_id,'status':{'$in':['locked','in_progress']}},{'_id':1}):raise HTTPException(409,'This promotion is being drawn in Draw Studio. Finish the draw first.')
+ patch={'$set':{'deleted':True,'active':False,'deleted_at':now,'deleted_by':admin.get('user_id')}}
+ r=await db.promotion_campaigns.update_one({'promotion_id':promotion_id,**LIVE_CAMPAIGNS},patch)
+ if not r.matched_count:
+  r=await db.promotion_config.update_one({'key':'freeworld','promotion_id':promotion_id},patch)
+  if not r.matched_count:raise HTTPException(404,'Promotion not found.')
+ return {'ok':True}
 
 
 @admin_router.post('/campaigns')

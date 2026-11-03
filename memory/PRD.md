@@ -687,3 +687,9 @@ Root causes fixed:
 
 ## 2026-06 Every-Level catch-up (standalone engine)
 - world_gc_competition_routes: expired normal levels playable/openable until passed; bests only written inside window. Awaiting prod diagnosis for legacy_hybrid path.
+
+## 2026-06 Promotions lifecycle + draws
+- promotion_routes: status (live/scheduled/paused/completed), requires_draw flag, POST close, DELETE (soft delete, entries kept), /promotion/config prefers newest live campaign; completed/deleted hidden from players
+- Old promotion draw/manual-winner endpoints 403; Draw Studio lists only completed promotions with requires_draw (legacy: prize_draw)
+- Reject endpoint /admin/paid-winners/winners/{id}/reject; Hall includes promotion draws with approved+announced winners
+- MobileHome tabs sticky top = measured header height

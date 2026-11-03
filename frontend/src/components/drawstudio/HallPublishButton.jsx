@@ -5,7 +5,7 @@ import { drawStudioAPI } from '../../lib/api';
 export const HallPublishButton = ({ plan, className, onDone, onError }) => {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(Boolean(plan?.hall_published));
-  if (!plan?.announcement_id || String(plan.contest_id || '').startsWith('promo_')) return null;
+  if (!plan?.announcement_id || plan.contest_kind === 'promotion') return null;
   const publish = async () => {
     if (!window.confirm('Publish this contest to the Hall of Winners? Winners, leaderboard and gallery will become public.')) return;
     setBusy(true);

@@ -54,7 +54,33 @@ async def _contests(db, cid: Optional[str] = None) -> list[dict]:
         c["publication"] = {k: p.get(k, False) for k in ("show_winners", "show_leaderboard", "show_gallery")}
         c["publication"].update({"display_order": p.get("display_order", 100), "cover": p.get("cover"), "media": p.get("media", []),
                                  "hidden_round_media": p.get("hidden_round_media", [])})
+    cs += await _promotion_contests(db, cid)
     return sorted(cs, key=lambda c: (c["publication"]["display_order"], -datetime.timestamp(c["end_date"]) if isinstance(c.get("end_date"), datetime) else 0))
+
+
+async def _promotion_contests(db, cid: Optional[str] = None) -> list[dict]:
+    """Promotion draws join the Hall of Winners only once at least one winner is announced and approved."""
+    from routers.draw_studio_routes import _promotion
+
+    q = {"contest_kind": "promotion", "status": "completed", **({"contest_id": cid} if cid else {})}
+    out = []
+    for pid in await db.draw_studio_plans.distinct("contest_id", q):
+        ws = await db.winners.find({"contest_id": pid}, {"_id": 0, "approval_status": 1, "published": 1, "source": 1,
+                                                          "credited_at": 1, "public_hidden": 1}).to_list(500)
+        promo = await _promotion(db, pid)
+        if not promo or not any(_official(w) for w in ws):
+            continue
+        end = promo.get("end_date")
+        if isinstance(end, str):
+            try:
+                end = datetime.fromisoformat(end.replace("Z", "+00:00"))
+            except ValueError:
+                end = None
+        out.append({"contest_id": pid, "title": promo["title"].replace("[Promotion] ", ""), "image": promo.get("image"),
+                    "prize_amount": promo.get("prize_amount"), "end_date": end, "status": "drawn", "kind": "draw",
+                    "publication": {"show_winners": True, "show_leaderboard": False, "show_gallery": False,
+                                    "display_order": 100, "cover": None, "media": [], "hidden_round_media": []}})
+    return out
 
 
 async def _audit(db, admin, action, **fields):
@@ -146,6 +172,20 @@ async def _credit_approved(db, w, winner_id, body, admin, amount, extra, studio,
 
 class VisibilityIn(BaseModel):
     visible: bool
+
+
+@admin_router.post("/winners/{winner_id}/reject")
+async def reject(winner_id: str, request: Request):
+    admin = await require_super_admin(request)
+    db = get_db()
+    r = await db.winners.update_one(
+        {"winner_id": winner_id, "source": "draw_studio", "approval_status": "pending", "paid_out": {"$ne": True},
+         "credit_lock": {"$ne": True}},
+        {"$set": {"approval_status": "rejected", "public_hidden": True, "rejected_at": _now(), "rejected_by_email": admin.get("email")}})
+    if r.modified_count != 1:
+        raise HTTPException(status_code=409, detail="Only pending draw results can be rejected")
+    await _audit(db, admin, "reject", winner_id=winner_id)
+    return {"ok": True}
 
 
 @admin_router.put("/winners/{winner_id}/visibility")

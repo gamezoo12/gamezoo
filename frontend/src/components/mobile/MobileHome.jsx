@@ -46,10 +46,21 @@ export default function MobileHome() {
     window.history.replaceState({}, '', url.toString());
   }, [tab]);
 
+  const [tabsTop, setTabsTop] = useState(56);
+  useEffect(() => {
+    const header = document.querySelector('[data-testid="site-header"]');
+    if (!header) return undefined;
+    const update = () => setTabsTop(header.offsetHeight);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#0b0716] text-white pb-24" data-testid="mobile-home-root">
       {/* Sticky tab bar directly under the mobile header (site header injected outside). */}
-      <div className="sticky top-14 z-30 bg-[#0b0716]/95 backdrop-blur border-b border-white/5" data-testid="mobile-tabs">
+      <div className="sticky z-30 bg-[#0b0716]/95 backdrop-blur border-b border-white/5" style={{ top: tabsTop }} data-testid="mobile-tabs">
         <div className="flex">
           {TABS.map(({ id, label, Icon, href }) => {
             const active = tab === id;

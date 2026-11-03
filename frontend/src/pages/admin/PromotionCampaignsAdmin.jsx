@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CalendarClock, Plus, Save, Ticket, Wallet } from 'lucide-react';
+import { Plus, Save } from 'lucide-react';
 import { api, promotionCampaignAPI } from '../../lib/api';
 import { Button } from '../../components/ui/button';
 
@@ -23,6 +23,7 @@ const emptyCampaign = () => ({
   show_join: true,
   show_refer: false,
   show_topup: false,
+  requires_draw: false,
   join_url: '/my-account/promotions',
   refer_url: '/refer',
   topup_url: '/my-account/wallet?topup=1',
@@ -36,12 +37,8 @@ const toLocal = (value) => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
-const statusOf = (campaign) => {
-  const now = Date.now();
-  if (campaign.end_at && new Date(campaign.end_at).getTime() <= now) return 'Expired';
-  if (campaign.start_at && new Date(campaign.start_at).getTime() > now) return 'Scheduled';
-  return campaign.active ? 'Live' : 'Paused';
-};
+const STATUS_LABEL = { live: 'Live', scheduled: 'Scheduled', completed: 'Completed', paused: 'Paused' };
+const statusOf = (campaign) => STATUS_LABEL[campaign.status] || 'Paused';
 
 export default function PromotionCampaignsAdmin() {
   const [campaigns, setCampaigns] = useState([]);
@@ -117,18 +114,16 @@ export default function PromotionCampaignsAdmin() {
     }
   };
 
-  const runCampaignDraw = async (campaign) => {
-    if (!window.confirm(`Run the random draw for ${campaign.name}? This records the selected winners.`)) return;
-    setDrawBusy(campaign.promotion_id);
-    try {
-      await promotionCampaignAPI.runDraw(campaign.promotion_id);
-      await loadDraw(campaign);
-      setNotice(`Draw completed for ${campaign.name}.`);
-    } catch (requestError) {
-      setError(requestError?.response?.data?.detail || 'Could not run this draw.');
-    } finally {
-      setDrawBusy('');
-    }
+  const closeCampaign = async (campaign) => {
+    if (!window.confirm(`Close "${campaign.name}" now? It disappears from players immediately and is marked Completed.`)) return;
+    try { await api.post(`/admin/promotion/campaigns/${encodeURIComponent(campaign.promotion_id)}/close`); setNotice(`${campaign.name} closed.`); await load(); }
+    catch (requestError) { setError(requestError?.response?.data?.detail || 'Could not close this promotion.'); }
+  };
+
+  const deleteCampaign = async (campaign) => {
+    if (!window.confirm(`Permanently delete "${campaign.name}"? It will be removed from the admin list and every player page. Entries and winner records are kept.`)) return;
+    try { await api.delete(`/admin/promotion/campaigns/${encodeURIComponent(campaign.promotion_id)}`); setNotice(`${campaign.name} deleted.`); await load(); }
+    catch (requestError) { setError(requestError?.response?.data?.detail || 'Could not delete this promotion.'); }
   };
 
   const winnerAction = async (campaign, winner, action) => {
@@ -194,6 +189,7 @@ export default function PromotionCampaignsAdmin() {
             </div>)}
           </div>
           <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" checked={!!form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} /> Enabled during the scheduled window</label>
+          {form.campaign_type !== 'token_credit' && <label className="ml-6 inline-flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" checked={!!form.requires_draw} onChange={(event) => setForm({ ...form, requires_draw: event.target.checked })} data-testid="promo-requires-draw" /> Needs a winner draw (goes to Draw Studio when completed)</label>}
           <div className="flex justify-end">
             <Button disabled={saving} type="submit" className="gap-2 bg-slate-900 text-white"><Save className="h-4 w-4" />{saving ? 'Saving…' : 'Save promotion'}</Button>
           </div>
@@ -210,8 +206,12 @@ export default function PromotionCampaignsAdmin() {
                 <td className="px-4 py-3 capitalize">{campaign.campaign_type?.replace(/_/g, ' ') || 'referral draw'}</td>
                 <td className="px-4 py-3 text-xs text-slate-600">{campaign.start_at ? new Date(campaign.start_at).toLocaleString() : 'Any time'}<br />until {campaign.end_at ? new Date(campaign.end_at).toLocaleString() : 'No expiry'}</td>
                 <td className="px-4 py-3">{campaign.campaign_type === 'token_credit' ? `${campaign.reward_tokens} tokens` : `${campaign.winner_count || 1} winner(s)`}</td>
-                <td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-xs font-bold ${statusOf(campaign) === 'Live' ? 'bg-emerald-100 text-emerald-800' : statusOf(campaign) === 'Scheduled' ? 'bg-sky-100 text-sky-800' : statusOf(campaign) === 'Expired' ? 'bg-slate-100 text-slate-600' : 'bg-amber-100 text-amber-800'}`}>{statusOf(campaign)}</span></td>
-                <td className="px-4 py-3 text-right">{!campaign.legacy && <Button variant="outline" size="sm" onClick={() => edit({ ...campaign, existing: true })}>Edit</Button>}</td>
+                <td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-xs font-bold ${statusOf(campaign) === 'Live' ? 'bg-emerald-100 text-emerald-800' : statusOf(campaign) === 'Scheduled' ? 'bg-sky-100 text-sky-800' : statusOf(campaign) === 'Completed' ? 'bg-slate-100 text-slate-600' : 'bg-amber-100 text-amber-800'}`}>{statusOf(campaign)}</span></td>
+                <td className="px-4 py-3 text-right"><div className="flex justify-end gap-2">
+                  {!campaign.legacy && <Button variant="outline" size="sm" onClick={() => edit({ ...campaign, existing: true })} data-testid={`promo-edit-${campaign.promotion_id}`}>Edit</Button>}
+                  {campaign.status !== 'completed' && <Button variant="outline" size="sm" onClick={() => closeCampaign(campaign)} data-testid={`promo-close-${campaign.promotion_id}`}>Close</Button>}
+                  <Button variant="outline" size="sm" onClick={() => deleteCampaign(campaign)} className="border-rose-200 text-rose-700 hover:bg-rose-50" data-testid={`promo-delete-${campaign.promotion_id}`}>Delete</Button>
+                </div></td>
               </tr>)}
             </tbody>
           </table>
@@ -230,7 +230,7 @@ export default function PromotionCampaignsAdmin() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div><div className="font-bold text-slate-900">{campaign.name}</div><div className="text-xs text-slate-500">{campaign.promotion_id}</div></div>
                 {!drawState ? <Button type="button" variant="outline" disabled={drawBusy === campaign.promotion_id} onClick={() => loadDraw(campaign)}>{drawBusy === campaign.promotion_id ? 'Loading…' : 'Load draw status'}</Button>
-                  : drawState.can_draw ? <Button type="button" disabled={!!drawBusy} onClick={() => runCampaignDraw(campaign)}>{drawBusy === campaign.promotion_id ? 'Drawing…' : 'Run secure random draw'}</Button>
+                  : drawState.can_draw ? <span className="text-xs font-semibold text-slate-500">Ready — run it in Production Panel → Draw Studio</span>
                     : <span className="text-xs font-semibold text-slate-500">{drawState.drawn ? 'Draw complete' : drawState.blocked_reason}</span>}
               </div>
               {drawState && <div className="mt-3 text-xs text-slate-500">{drawState.eligible_ticket_count} entries · {drawState.eligible_user_count} unique users</div>}

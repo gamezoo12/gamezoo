@@ -587,6 +587,7 @@ export const paidWinnersAPI = {
   winners: (params) => api.get('/admin/paid-winners/winners', { params }).then(r => r.data),
   approve: (id, wallet) => api.post(`/admin/paid-winners/winners/${id}/approve`, { wallet }).then(r => r.data),
   setWinnerVisible: (id, visible) => api.put(`/admin/paid-winners/winners/${id}/visibility`, { visible }).then(r => r.data),
+  reject: (id) => api.post(`/admin/paid-winners/winners/${id}/reject`).then(r => r.data),
   contests: () => api.get('/admin/paid-winners/contests').then(r => r.data),
   setPublication: (cid, body) => api.put(`/admin/paid-winners/contests/${cid}/publication`, body).then(r => r.data),
   upload: (cid, kind, file, caption = '', onProgress) => { const fd = new FormData(); fd.append('kind', kind); fd.append('caption', caption); fd.append('file', file); return api.post(`/admin/paid-winners/contests/${cid}/media`, fd, { onUploadProgress: (e) => onProgress?.(e.total ? e.loaded / e.total : 0) }).then(r => r.data); },

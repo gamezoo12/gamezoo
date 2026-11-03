@@ -7,7 +7,7 @@ import PaidWinnersPublishing from '../../components/production/PaidWinnersPublis
 const errText = (e) => { const d = e?.response?.data?.detail; return typeof d === 'string' ? d : Array.isArray(d) ? d.map((x) => x.msg).join('; ') : 'Request failed'; };
 const money = (v) => `£${Number(v || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const TYPE = { winnings: 'Winnings Tokens', bonus: 'Bonus Tokens', winning_bonus: 'Winning Bonus Tokens', topup: 'Top-Up Tokens' };
-const BADGE = { pending: 'bg-amber-400/15 text-amber-200', approved: 'bg-sky-400/15 text-sky-200', credited: 'bg-emerald-400/15 text-emerald-200' };
+const BADGE = { pending: 'bg-amber-400/15 text-amber-200', approved: 'bg-sky-400/15 text-sky-200', credited: 'bg-emerald-400/15 text-emerald-200', rejected: 'bg-rose-400/15 text-rose-200' };
 const field = 'mt-1 h-10 w-full rounded-lg border border-white/15 bg-[#0b0724] px-3 text-sm text-white';
 const pill = (on) => `rounded-full px-4 py-2 text-sm font-black capitalize transition-colors ${on ? 'bg-amber-400 text-[#1a1033]' : 'bg-white/5 text-white/70 hover:bg-white/10'}`;
 
@@ -59,7 +59,7 @@ function WalletCell({ w, wallet, setWallet }) {
   );
 }
 
-function WinnerRow({ w, onEdit, onHistory, onApprove, onVisible, busy }) {
+function WinnerRow({ w, onEdit, onHistory, onApprove, onVisible, onReject, busy }) {
   const studio = w.kind === 'draw';
   const [wallet, setWallet] = useState('winnings');
   return (
@@ -74,7 +74,8 @@ function WinnerRow({ w, onEdit, onHistory, onApprove, onVisible, busy }) {
         {studio && w.status === 'pending' && <button type="button" onClick={() => onEdit(w)} className="rounded-full bg-white/10 p-2 hover:bg-white/20" aria-label="Edit reward" data-testid={`winner-edit-${w.winner_id}`}><Pencil className="h-4 w-4" /></button>}
         {studio && <button type="button" onClick={() => onHistory(w)} className="rounded-full bg-white/10 p-2 hover:bg-white/20" aria-label="Audit trail" data-testid={`winner-history-${w.winner_id}`}><History className="h-4 w-4" /></button>}
         <button type="button" onClick={() => onVisible(w)} className="rounded-full bg-white/10 p-2 hover:bg-white/20" title={w.public_visible ? 'Shown on public Winners page once published' : 'Hidden from public Winners page'} aria-label="Toggle public visibility" data-testid={`winner-visible-${w.winner_id}`}>{w.public_visible ? <Eye className="h-4 w-4 text-emerald-300" /> : <EyeOff className="h-4 w-4 text-rose-300" />}</button>
-        {w.status !== 'credited' && <button type="button" disabled={busy} onClick={() => onApprove(w, wallet)} className="inline-flex items-center gap-1 rounded-full bg-emerald-500 px-3 py-1.5 text-xs font-black text-[#04210f] disabled:opacity-40" data-testid={`winner-approve-${w.winner_id}`}><CheckCircle2 className="h-3.5 w-3.5" />{w.status === 'approved' ? 'Finish credit' : 'Approve & credit'}</button>}
+        {studio && w.status === 'pending' && <button type="button" disabled={busy} onClick={() => onReject(w)} className="rounded-full border border-rose-400/50 px-3 py-1.5 text-xs font-black text-rose-200 disabled:opacity-40" data-testid={`winner-reject-${w.winner_id}`}>Reject</button>}
+        {!['credited', 'rejected'].includes(w.status) && <button type="button" disabled={busy} onClick={() => onApprove(w, wallet)} className="inline-flex items-center gap-1 rounded-full bg-emerald-500 px-3 py-1.5 text-xs font-black text-[#04210f] disabled:opacity-40" data-testid={`winner-approve-${w.winner_id}`}><CheckCircle2 className="h-3.5 w-3.5" />{w.status === 'approved' ? 'Finish credit' : 'Approve & credit'}</button>}
       </div></td>
     </tr>
   );
@@ -100,6 +101,12 @@ function Approvals() {
       await load();
     } catch (e) { setMsg([errText(e), '']); } finally { setBusy(false); }
   };
+  const reject = async (w) => {
+    if (!window.confirm(`Reject this draw result for ${w.user_full_name || w.user_name}? It will never be credited or published.`)) return;
+    setBusy(true); setMsg(['', '']);
+    try { await paidWinnersAPI.reject(w.winner_id); setMsg(['', 'Result rejected.']); await load(); }
+    catch (e) { setMsg([errText(e), '']); } finally { setBusy(false); }
+  };
   const setVisible = async (w) => {
     try { await paidWinnersAPI.setWinnerVisible(w.winner_id, !w.public_visible); setMsg(['', w.public_visible ? 'Winner hidden from the public Winners page.' : 'Winner shown on the public Winners page.']); await load(); } catch (e) { setMsg([errText(e), '']); }
   };
@@ -117,7 +124,7 @@ function Approvals() {
       <div className="mt-4 overflow-x-auto rounded-2xl border border-white/10 bg-white/[0.03]">
         <table className="w-full min-w-[960px] text-left">
           <thead className="text-[10px] font-black uppercase tracking-wider text-indigo-200/60"><tr>{['Contest & round', 'Ticket', 'Winner', 'Amount', 'Wallet', 'Status', ''].map((h) => <th key={h} className="px-3 py-3">{h}</th>)}</tr></thead>
-          <tbody>{data.winners.map((w) => <WinnerRow key={w.winner_id} w={w} busy={busy} onEdit={setEdit} onHistory={setHist} onApprove={approve} onVisible={setVisible} />)}</tbody>
+          <tbody>{data.winners.map((w) => <WinnerRow key={w.winner_id} w={w} busy={busy} onEdit={setEdit} onHistory={setHist} onApprove={approve} onReject={reject} onVisible={setVisible} />)}</tbody>
         </table>
         {!data.winners.length && <p className="py-14 text-center text-sm text-indigo-200/60" data-testid="winners-empty">No {tab === 'all' ? '' : tab} rewards.</p>}
       </div>
