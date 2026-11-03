@@ -11,17 +11,19 @@ const tile3d = 'rounded-xl border-b-[6px] shadow-lg transition-transform hover:-
 // ---------- Number Sequence: new look, same 1→20 rules the server expects ----------
 export function PremiumNumberSequence({ config, onComplete }) {
   const level = difficultyOf(config);
-  const nums = useMemo(() => seededShuffle(Array.from({ length: 20 }, (_, i) => i + 1), Math.floor(Math.random() * 1e6)), []);
+  const count = Number(config?.count) || 20; // free-play levels pass a bigger count; official play stays 1→20
+  const nums = useMemo(() => seededShuffle(Array.from({ length: count }, (_, i) => i + 1), Math.floor(Math.random() * 1e6)), [count]);
   const [next, setNext] = useState(1);
   const [misses, setMisses] = useState(0);
   const [start] = useState(Date.now);
   const tap = (n) => {
     if (n !== next) { playGameSound('failure'); setMisses((m) => m + 1); return; }
-    playGameSound(n === 20 ? 'success' : 'tap');
-    if (n === 20) onComplete({ solved: true, accuracy: Math.max(0.1, 1 - misses * 0.05), duration_ms: Date.now() - start });
+    playGameSound(n === count ? 'success' : 'tap');
+    if (n === count) onComplete({ solved: true, accuracy: Math.max(0.1, 1 - misses * (1 / count)), duration_ms: Date.now() - start });
     setNext(n + 1);
   };
-  return <SequenceBoard numbers={nums} next={next} target={20} onTap={tap} level={level} misses={misses} />;
+  const columns = count <= 20 ? 5 : count <= 40 ? 6 : count <= 60 ? 8 : 10;
+  return <SequenceBoard numbers={nums} next={next} target={count} columns={columns} onTap={tap} level={level} misses={misses} />;
 }
 
 // ---------- Emoji Riddle: more riddles, harder answers, hints vanish ----------

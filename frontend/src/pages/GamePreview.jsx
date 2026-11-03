@@ -1,215 +1,92 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import {
-  ArrowLeft,
-  ArrowRight,
-  RotateCcw,
-  ShieldCheck,
-  Trophy,
-} from 'lucide-react';
+import { ArrowLeft, ShieldCheck, Star } from 'lucide-react';
 
 import { api, gamesAPI } from '../lib/api';
-import { GAME_MAP } from '../components/games';
-import { Button } from '../components/ui/button';
 import { resolveMediaUrl } from '../lib/media';
+import { useAuth } from '../context/AuthContext';
+import { LEVELS, starsFor, timeLimit, uniqueGames, uniqueIdFor } from '../lib/practiceGames';
+import { levelState, loadProgress, saveLevel, totalStars } from '../lib/practiceProgress';
+import { LevelPath } from '../components/games/practice/LevelPath';
+import { PracticeIntro } from '../components/games/practice/PracticeIntro';
+import { PracticeRun } from '../components/games/practice/PracticeRun';
+import { PracticeResult } from '../components/games/practice/PracticeResult';
 
 export default function GamePreview() {
   const { gameId } = useParams();
   const navigate = useNavigate();
-
+  const { user, loading: authLoading } = useAuth() || {};
   const [settings, setSettings] = useState(null);
-  const [games, setGames] = useState([]);
-  const [result, setResult] = useState(null);
-  const [gameKey, setGameKey] = useState(0);
+  const [types, setTypes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [progress, setProgress] = useState({});
+  const [stage, setStage] = useState('levels');
+  const [level, setLevel] = useState(1);
+  const [result, setResult] = useState(null);
+  const [runKey, setRunKey] = useState(0);
 
   useEffect(() => {
-    Promise.all([
-      api.get('/settings').then(r => r.data),
-      gamesAPI.types(),
-    ])
-      .then(([publicSettings, gameResponse]) => {
-        setSettings(publicSettings || {});
-        setGames(gameResponse?.games || []);
-      })
+    Promise.all([api.get('/settings').then((r) => r.data), gamesAPI.types()])
+      .then(([s, g]) => { setSettings(s || {}); setTypes(g?.games || []); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+  useEffect(() => { if (!authLoading) loadProgress(user).then(setProgress); }, [user, authLoading]);
 
-  const game = useMemo(
-    () => games.find(item => item.id === gameId),
-    [games, gameId]
-  );
+  const game = useMemo(() => uniqueGames(types).find((g) => g.id === gameId), [types, gameId]);
+  const state = levelState(progress, gameId);
 
-  const selected = gameId.startsWith('arc_') || (Array.isArray(settings?.game_preview_games)
-    ? settings.game_preview_games.includes(gameId)
-    : false);
+  if (uniqueIdFor(gameId) !== gameId) return <Navigate to={`/games/${uniqueIdFor(gameId)}`} replace />;
+  if (loading) return <div className="mx-auto max-w-5xl px-4 py-16 text-center text-slate-500">Loading game…</div>;
+  if (!settings?.game_preview_enabled) return <Navigate to="/" replace />;
+  const allowed = gameId.startsWith('arc_') || (settings.game_preview_games || []).includes(gameId);
+  if (!allowed || !game) return <Navigate to="/games" replace />;
 
-  const renderGame = GAME_MAP[gameId];
-
-  if (loading) {
-    return (
-      <div className="max-w-5xl mx-auto px-4 py-16 text-center text-slate-500">
-        Loading game…
-      </div>
-    );
-  }
-
-  if (!settings?.game_preview_enabled) {
-    return <Navigate to="/" replace />;
-  }
-
-  if (!selected || !game || !renderGame) {
-    return <Navigate to="/games" replace />;
-  }
-
-  const promotionImage = settings?.game_preview_images?.[gameId];
-
-  // Preview marketing flow:
-  // play free -> signup -> browse real competitions.
-  const signupUrl =
-    '/login?tab=signup&next=' + encodeURIComponent('/competitions');
-
-  const playAgain = () => {
-    setResult(null);
-    setGameKey(value => value + 1);
+  const cover = settings?.game_preview_images?.[gameId] ? resolveMediaUrl(settings.game_preview_images[gameId]) : game.cover;
+  const go = (lv, s = 'intro') => { setLevel(lv); setResult(null); setRunKey((k) => k + 1); setStage(s); };
+  const finish = async (r) => {
+    setResult(r);
+    setStage('result');
+    if (r.solved && !r.timeout) setProgress(await saveLevel(user, progress, gameId, level, starsFor(timeLimit(game, level), r)));
   };
+  const earned = result && result.solved && !result.timeout ? starsFor(timeLimit(game, level), result) : 0;
 
   return (
-    <div className="bg-slate-50 min-h-screen">
-      <div className="max-w-5xl mx-auto px-4 lg:px-8 py-8 md:py-12">
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          aria-label="Back to previous page"
-          data-page-back-control="true"
-          className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-900"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back
+    <div className="min-h-screen bg-slate-950">
+      <div className="mx-auto max-w-4xl px-3 py-5 sm:px-6 md:py-10">
+        <button type="button" onClick={() => (stage === 'levels' ? navigate(-1) : setStage('levels'))} aria-label="Back" data-page-back-control="true" className="inline-flex items-center gap-1 text-sm text-white/60 hover:text-white" data-testid="practice-page-back">
+          <ArrowLeft className="h-4 w-4" />Back
         </button>
 
-        <div className="mt-5 overflow-hidden rounded-3xl bg-slate-950 text-white">
-          {promotionImage && (
-            <div className="aspect-[16/6] overflow-hidden">
-              <img
-                src={resolveMediaUrl(promotionImage)}
-                alt={game.label}
-                className="w-full h-full object-cover"
-              />
+        {stage === 'levels' && (
+          <div className="pl-practice-pop mt-4 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03]" data-testid="practice-game-hub">
+            <div className="relative aspect-[16/8] sm:aspect-[16/6]">
+              {cover && <img src={cover} alt={game.label} className="h-full w-full object-cover" data-testid="practice-cover" />}
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent" />
+              <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6">
+                <div className="text-[11px] font-black uppercase tracking-[0.2em] text-amber-300">{game.category} · {LEVELS} levels</div>
+                <h1 className="mt-1 font-display text-3xl font-black text-white sm:text-5xl" data-testid="practice-game-title">{game.label}</h1>
+              </div>
             </div>
-          )}
-
-          <div className="p-6 md:p-8">
-            <div className="text-xs uppercase tracking-[0.2em] text-[#FFD54A] font-bold">
-              Free Skill Game
-            </div>
-
-            <h1 className="font-display text-3xl md:text-4xl font-black mt-2">
-              {game.label}
-            </h1>
-
-            <p className="text-white/65 mt-2 text-sm">
-              Test your skill before joining Prize League.
-            </p>
-
-            <div className="mt-4 inline-flex items-center gap-2 text-xs bg-white/10 border border-white/10 rounded-full px-3 py-2">
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              Free play · No ticket · No official leaderboard score
+            <div className="p-4 sm:p-6">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-white/70">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5"><ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />Free play · no ticket · no official score</span>
+                <span className="inline-flex items-center gap-1 font-bold text-amber-300" data-testid="practice-total-stars"><Star className="h-3.5 w-3.5 fill-amber-400" />{totalStars(state)}/{LEVELS * 3}</span>
+              </div>
+              <p className="mb-3 text-sm text-white/70">Beat each level to unlock the next. It starts easy and gets brutal by level 10.</p>
+              <LevelPath state={state} onPick={(lv) => go(lv)} />
             </div>
           </div>
-        </div>
+        )}
 
-        <div className="mt-6 bg-white rounded-2xl border border-slate-100 p-5 md:p-7">
-          {!result ? (
-            <div key={gameKey}>
-              {renderGame(
-                {
-                  practice_mode: true,
-                  public_preview: true,
-                },
-                setResult
-              )}
-            </div>
-          ) : (
-            <div className="text-center py-6">
-              <Trophy className="w-14 h-14 text-amber-500 mx-auto" />
-
-              <div className="font-display text-3xl font-black text-slate-900 mt-4">
-                Great attempt
-              </div>
-
-              <div className="grid sm:grid-cols-3 gap-3 mt-6 max-w-2xl mx-auto">
-                <div className="rounded-xl bg-slate-50 p-4">
-                  <div className="text-xs uppercase text-slate-400">
-                    Time
-                  </div>
-                  <div className="font-bold mt-1">
-                    {(Number(result.duration_ms || 0) / 1000).toFixed(2)}s
-                  </div>
-                </div>
-
-                <div className="rounded-xl bg-slate-50 p-4">
-                  <div className="text-xs uppercase text-slate-400">
-                    Accuracy
-                  </div>
-                  <div className="font-bold mt-1">
-                    {(Number(result.accuracy || 0) * 100).toFixed(0)}%
-                  </div>
-                </div>
-
-                <div className="rounded-xl bg-slate-50 p-4">
-                  <div className="text-xs uppercase text-slate-400">
-                    Result
-                  </div>
-                  <div className="font-bold mt-1">
-                    {result.solved ? 'Completed' : 'Finished'}
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-7 rounded-2xl bg-gradient-to-br from-slate-950 via-indigo-950 to-fuchsia-950 text-white p-6 max-w-2xl mx-auto">
-                <div className="text-xs uppercase tracking-widest text-[#FFD54A] font-bold">
-                  Ready for the real challenge?
-                </div>
-
-                <h2 className="font-display text-2xl md:text-3xl font-black mt-2">
-                  Create your account and compete for real prizes
-                </h2>
-
-                <p className="text-white/65 text-sm mt-2">
-                  Join Prize League to enter live skill competitions and put
-                  your skills to the test.
-                </p>
-
-                <Link to={signupUrl}>
-                  <Button
-                    className="mt-5 w-full h-12 pl-btn-gold text-slate-900 font-extrabold"
-                    data-testid="preview-signup-compete"
-                  >
-                    Create Account & Compete
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Button>
-                </Link>
-              </div>
-
-              <Button
-                type="button"
-                variant="outline"
-                onClick={playAgain}
-                className="mt-4"
-              >
-                <RotateCcw className="w-4 h-4 mr-2" />
-                Play Again
-              </Button>
-
-              <p className="text-xs text-slate-400 mt-4">
-                This free result is not submitted to an official Prize League
-                leaderboard.
-              </p>
-            </div>
-          )}
-        </div>
+        {stage !== 'levels' && (
+          <div className="mt-4 rounded-3xl border border-white/10 bg-gradient-to-b from-[#17104a] to-[#07041a] p-3 sm:p-6" data-testid="practice-stage">
+            <div className="mb-3 text-center text-xs font-bold uppercase tracking-widest text-white/50">{game.label}</div>
+            {stage === 'intro' && <PracticeIntro game={game} level={level} onStart={() => go(level, 'play')} onBack={() => setStage('levels')} />}
+            {stage === 'play' && <PracticeRun key={runKey} game={game} level={level} onFinish={finish} onQuit={() => setStage('intro')} />}
+            {stage === 'result' && result && <PracticeResult result={result} level={level} stars={earned} guest={!user} onNext={() => go(level + 1)} onRetry={() => go(level, 'play')} onLevels={() => setStage('levels')} />}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,126 +1,56 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
-import { ArrowRight, Gamepad2, Play, ShieldCheck } from 'lucide-react';
+import { Navigate } from 'react-router-dom';
+import { Gamepad2, ShieldCheck } from 'lucide-react';
 
 import { gamesAPI, api } from '../lib/api';
-import { GAME_MAP } from '../components/games';
 import { resolveMediaUrl } from '../lib/media';
+import { useAuth } from '../context/AuthContext';
+import { uniqueGames } from '../lib/practiceGames';
+import { levelState, loadProgress } from '../lib/practiceProgress';
+import { GameCoverCard } from '../components/games/practice/GameCoverCard';
 
 export default function GameArena() {
+  const { user, loading: authLoading } = useAuth() || {};
   const [settings, setSettings] = useState(null);
-  const [games, setGames] = useState([]);
+  const [types, setTypes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [progress, setProgress] = useState({});
+  const [cat, setCat] = useState('All');
 
   useEffect(() => {
-    Promise.all([
-      api.get('/settings').then(r => r.data),
-      gamesAPI.types(),
-    ])
-      .then(([publicSettings, gameResponse]) => {
-        setSettings(publicSettings || {});
-        setGames(gameResponse?.games || []);
-      })
+    Promise.all([api.get('/settings').then((r) => r.data), gamesAPI.types()])
+      .then(([s, g]) => { setSettings(s || {}); setTypes(g?.games || []); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+  useEffect(() => { if (!authLoading) loadProgress(user).then(setProgress); }, [user, authLoading]);
 
-  const selectedGames = useMemo(() => {
-    const selected = Array.isArray(settings?.game_preview_games)
-      ? settings.game_preview_games
-      : [];
+  const games = useMemo(() => uniqueGames(types, Array.isArray(settings?.game_preview_games) ? settings.game_preview_games : []), [types, settings]);
+  const cats = useMemo(() => ['All', ...new Set(games.map((g) => g.category))], [games]);
+  const shown = cat === 'All' ? games : games.filter((g) => g.category === cat);
 
-    return games.filter(
-      game => (selected.includes(game.id) || game.family === 'arcade') && GAME_MAP[game.id]
-    );
-  }, [games, settings]);
-
-  if (loading) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 py-16 text-center text-slate-500">
-        Loading games…
-      </div>
-    );
-  }
-
-  if (!settings?.game_preview_enabled) {
-    return <Navigate to="/" replace />;
-  }
+  if (loading) return <div className="mx-auto max-w-7xl px-4 py-16 text-center text-slate-500">Loading games…</div>;
+  if (!settings?.game_preview_enabled) return <Navigate to="/" replace />;
 
   return (
-    <div className="bg-slate-50 min-h-screen">
+    <div className="min-h-screen bg-slate-950">
       <section className="bg-gradient-to-br from-slate-950 via-indigo-950 to-fuchsia-950 text-white">
-        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-14 md:py-20">
-          <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[#FFD54A] font-extrabold">
-              <Gamepad2 className="w-4 h-4" />
-              Prize League Game Arena
-            </div>
-
-            <h1 className="font-display text-4xl md:text-6xl font-black mt-3 leading-tight">
-              Try the game. Then compete for real.
-            </h1>
-
-            <p className="text-white/70 mt-4 text-base md:text-lg max-w-2xl">
-              Play selected skill games free before creating an account.
-            </p>
-
-            <div className="mt-6 inline-flex items-center gap-2 bg-white/10 border border-white/10 rounded-full px-4 py-2 text-sm">
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              No login · No ticket · No official score
-            </div>
-          </div>
+        <div className="mx-auto max-w-7xl px-4 py-10 md:py-16 lg:px-8">
+          <div className="inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.2em] text-[#FFD54A]"><Gamepad2 className="h-4 w-4" />Prize League Game Arena</div>
+          <h1 className="mt-3 font-display text-4xl font-black leading-tight sm:text-5xl lg:text-6xl">{games.length} games. 10 levels each.</h1>
+          <p className="mt-3 max-w-2xl text-sm text-white/70 md:text-lg">Start easy, unlock level after level, and see how far your skill can take you.</p>
+          <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs sm:text-sm"><ShieldCheck className="h-4 w-4 text-emerald-400" />Free · No ticket · No official score</div>
         </div>
       </section>
-
-      <section className="max-w-7xl mx-auto px-4 lg:px-8 py-10 md:py-14">
-        {selectedGames.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-100 p-10 text-center">
-            No preview games are currently available.
-          </div>
-        ) : (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {selectedGames.map(game => {
-              const image = settings?.game_preview_images?.[game.id];
-
-              return (
-                <Link
-                  key={game.id}
-                  to={`/games/${game.id}`}
-                  className="group bg-white border border-slate-100 rounded-2xl overflow-hidden hover:shadow-xl hover:-translate-y-0.5 transition"
-                  data-testid={`public-game-${game.id}`}
-                >
-                  <div className="aspect-[16/9] bg-slate-100 overflow-hidden">
-                    {image ? (
-                      <img
-                        src={resolveMediaUrl(image)}
-                        alt={game.label}
-                        className="w-full h-full object-cover group-hover:scale-[1.02] transition"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#6C2BFF] to-fuchsia-700 text-white">
-                        <Gamepad2 className="w-14 h-14" />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="p-5">
-                    <h2 className="font-display font-extrabold text-xl text-slate-900">
-                      {game.label}
-                    </h2>
-
-                    <div className="mt-2 text-sm text-slate-500 capitalize">
-                      {game.category} · Target {game.target_time_s}s
-                    </div>
-
-                    <div className="mt-5 inline-flex items-center gap-1 text-[#6C2BFF] font-bold text-sm">
-                      <Play className="w-4 h-4" />
-                      Play Free
-                      <ArrowRight className="w-4 h-4" />
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
+      <section className="mx-auto max-w-7xl px-3 py-6 sm:px-4 md:py-10 lg:px-8">
+        <div className="-mx-3 mb-5 flex gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:flex-wrap sm:px-0" data-testid="arena-category-filters">
+          {cats.map((c) => <button key={c} type="button" onClick={() => setCat(c)} data-testid={`arena-cat-${c.toLowerCase().replace(/[^a-z]+/g, '-')}`}
+            className={`shrink-0 rounded-full px-4 py-2 text-xs font-black transition-colors ${cat === c ? 'bg-amber-400 text-slate-900' : 'bg-white/10 text-white/80 hover:bg-white/15'}`}>{c}</button>)}
+        </div>
+        {shown.length === 0 ? <div className="rounded-2xl border border-white/10 p-10 text-center text-white/70">No games are currently available.</div> : (
+          <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
+            {shown.map((g) => <GameCoverCard key={g.id} dark game={g} compact state={levelState(progress, g.id)} testId={`public-game-${g.id}`}
+              cover={settings?.game_preview_images?.[g.id] ? resolveMediaUrl(settings.game_preview_images[g.id]) : g.cover} />)}
           </div>
         )}
       </section>

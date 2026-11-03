@@ -1,56 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  ArrowRight,
-  Brain,
-  Gamepad2,
-  Play,
-  Puzzle,
-  Sparkles,
-  Target,
-  Zap,
-} from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 
 import { api, gamesAPI } from '../../lib/api';
-import { GAME_MAP } from '../games';
 import { resolveMediaUrl } from '../../lib/media';
-
-const ICONS = {
-  memory_match: Brain,
-  number_sequence: Target,
-  target_tap: Target,
-  word_unscramble: Sparkles,
-  emoji_riddle: Sparkles,
-  jigsaw_3x3: Puzzle,
-  jigsaw_4x4: Puzzle,
-  slider_puzzle: Puzzle,
-  math_sprint: Brain,
-  reaction_time: Zap,
-  trivia_quiz: Sparkles,
-  simon_says: Brain,
-  whack_a_mole: Target,
-  odd_one_out: Puzzle,
-  color_match: Sparkles,
-  pattern_repeat: Brain,
-  sudoku_mini: Puzzle,
-  sequence_predict: Brain,
-  countdown_numbers: Brain,
-  word_ladder: Sparkles,
-  chess_mate_in_one: Brain,
-  tower_of_hanoi: Puzzle,
-  lights_out: Puzzle,
-  minesweeper_mini: Puzzle,
-  nonogram_mini: Puzzle,
-  tf2048_mini: Puzzle,
-  cryptogram: Brain,
-  anagram_finder: Sparkles,
-  maze_solver: Puzzle,
-  spot_pattern: Brain,
-};
+import { useAuth } from '../../context/AuthContext';
+import { uniqueGames, uniqueIdFor } from '../../lib/practiceGames';
+import { levelState, loadProgress } from '../../lib/practiceProgress';
+import { GameCoverCard } from '../games/practice/GameCoverCard';
 
 export default function GamePreviewSection({ mobile = false }) {
   const [settings, setSettings] = useState(null);
   const [games, setGames] = useState([]);
+  const [progress, setProgress] = useState({});
+  const { user, loading: authLoading } = useAuth() || {};
+  useEffect(() => { if (!authLoading) loadProgress(user).then(setProgress); }, [user, authLoading]);
 
   useEffect(() => {
     let active = true;
@@ -93,9 +57,9 @@ export default function GamePreviewSection({ mobile = false }) {
       Math.min(12, Number(settings?.game_preview_home_count) || 4)
     );
 
-    return games
-      .filter(game => selected.includes(game.id) && GAME_MAP[game.id])
-      .slice(0, count);
+    const ids = [...new Set(selected.map(uniqueIdFor))];
+    const all = uniqueGames(games);
+    return ids.map(id => all.find(g => g.id === id)).filter(Boolean).slice(0, count);
   }, [games, settings]);
 
   // Critical feature-flag behaviour:
@@ -103,6 +67,8 @@ export default function GamePreviewSection({ mobile = false }) {
   if (visibleGames.length === 0) {
     return null;
   }
+
+  const coverOf = game => (settings?.game_preview_images?.[game.id] ? resolveMediaUrl(settings.game_preview_images[game.id]) : game.cover);
 
   if (mobile) {
     return (
@@ -131,50 +97,11 @@ export default function GamePreviewSection({ mobile = false }) {
         </div>
 
         <p className="text-xs text-white/60 mb-4">
-          Practice selected games without using tickets or submitting an
-          official score.
+          10 levels per game. Beat one to unlock the next, free.
         </p>
 
         <div className="grid grid-cols-2 gap-3">
-          {visibleGames.map(game => {
-            const Icon = ICONS[game.id] || Gamepad2;
-
-            const image = settings?.game_preview_images?.[game.id];
-
-            return (
-              <Link
-                key={game.id}
-                to={`/games/${game.id}`}
-                className="rounded-2xl bg-white/5 border border-white/10 p-4 hover:border-[#FFD54A]/40 transition"
-                data-testid={`mobile-preview-game-${game.id}`}
-              >
-                {image ? (
-                  <img
-                    src={resolveMediaUrl(image)}
-                    alt=""
-                    className="w-full aspect-[16/9] rounded-xl object-cover"
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded-xl bg-[#FFD54A] text-slate-950 flex items-center justify-center">
-                    <Icon className="w-5 h-5" />
-                  </div>
-                )}
-
-                <div className="font-display font-bold text-sm text-white mt-3 line-clamp-2">
-                  {game.label}
-                </div>
-
-                <div className="text-[10px] text-white/50 mt-1 capitalize">
-                  {game.category} · {game.target_time_s}s target
-                </div>
-
-                <div className="mt-3 text-xs font-extrabold text-[#FFD54A] inline-flex items-center gap-1">
-                  <Play className="w-3 h-3" />
-                  Play Free
-                </div>
-              </Link>
-            );
-          })}
+          {visibleGames.map(game => <GameCoverCard key={game.id} dark compact game={game} state={levelState(progress, game.id)} testId={`mobile-preview-game-${game.id}`} cover={coverOf(game)} />)}
         </div>
       </section>
     );
@@ -213,45 +140,7 @@ export default function GamePreviewSection({ mobile = false }) {
         </div>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {visibleGames.map(game => {
-            const Icon = ICONS[game.id] || Gamepad2;
-
-            const image = settings?.game_preview_images?.[game.id];
-
-            return (
-              <Link
-                key={game.id}
-                to={`/games/${game.id}`}
-                className="group bg-white rounded-2xl border border-slate-100 p-5 shadow-sm hover:shadow-xl hover:-translate-y-0.5 transition"
-                data-testid={`home-preview-game-${game.id}`}
-              >
-                {image ? (
-                  <img
-                    src={resolveMediaUrl(image)}
-                    alt=""
-                    className="w-full aspect-[16/9] rounded-xl object-cover"
-                  />
-                ) : (
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#6C2BFF] to-fuchsia-600 text-white flex items-center justify-center shadow-md">
-                    <Icon className="w-6 h-6" />
-                  </div>
-                )}
-
-                <div className="font-display font-extrabold text-lg text-slate-900 mt-4 line-clamp-2">
-                  {game.label}
-                </div>
-
-                <div className="text-xs text-slate-500 mt-2 capitalize">
-                  {game.category} · Target {game.target_time_s}s
-                </div>
-
-                <div className="mt-5 inline-flex items-center gap-1.5 text-[#6C2BFF] font-extrabold text-sm">
-                  <Play className="w-4 h-4" />
-                  Play Free
-                </div>
-              </Link>
-            );
-          })}
+          {visibleGames.map(game => <GameCoverCard key={game.id} game={game} state={levelState(progress, game.id)} testId={`home-preview-game-${game.id}`} cover={coverOf(game)} />)}
         </div>
       </div>
     </section>

@@ -341,6 +341,8 @@ app.include_router(promo_consent_admin_router)
 app.include_router(admin_wallet_router)
 app.include_router(referral_router)
 app.include_router(game_router)
+from routers.practice_routes import router as practice_router  # noqa: E402
+app.include_router(practice_router)
 app.include_router(game_public_router)
 app.include_router(world_router)
 app.include_router(world_public_router)

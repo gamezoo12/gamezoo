@@ -19,9 +19,9 @@ export function SequenceBoard({ numbers, next, target, columns = 5, onTap, disab
   if (misses != null) stats.push(['Misses', misses]);
   return (
     <Board3D theme="math" title="Sequence Grid" level={level} flash={flash} stats={stats}>
-      <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }} data-testid="sequence-board">
+      <div className={`grid ${columns > 6 ? 'gap-1' : 'gap-2'}`} style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }} data-testid="sequence-board">
         {numbers.map((n) => <button key={n} type="button" disabled={disabled || n < next} onClick={() => tap(n)} data-testid={`seq-num-${n}`}
-          className={`${tile3d} aspect-square text-[clamp(0.95rem,2.4vw,1.35rem)] font-black ${n < next ? 'border-emerald-800 bg-emerald-500/40 text-white/40' : 'border-sky-800 bg-gradient-to-b from-sky-200 to-sky-400 text-sky-950'}`}>{n}</button>)}
+          className={`${tile3d} aspect-square ${columns > 6 ? '!rounded-md !border-b-[3px] text-[clamp(0.7rem,2.6vw,1rem)]' : 'text-[clamp(0.95rem,2.4vw,1.35rem)]'} font-black ${n < next ? 'border-emerald-800 bg-emerald-500/40 text-white/40' : 'border-sky-800 bg-gradient-to-b from-sky-200 to-sky-400 text-sky-950'}`}>{n}</button>)}
       </div>
     </Board3D>
   );
