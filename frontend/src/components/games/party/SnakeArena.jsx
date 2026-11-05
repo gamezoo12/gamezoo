@@ -169,7 +169,7 @@ export function SnakeArena({ config, onComplete }) {
       <div className="mx-auto max-w-[440px] rounded-[22px] p-2" style={{ background: theme.frame, boxShadow: `0 0 0 2px ${theme.accent}99, 0 25px 60px rgba(0,0,0,0.55)` }}>
         <canvas ref={cv} width={720} height={720} className="block aspect-square w-full touch-none rounded-xl" onTouchStart={(e) => { touch.current = [e.touches[0].clientX, e.touches[0].clientY]; }} onTouchEnd={onTouchEnd} data-testid="snake-board" />
       </div>
-      <div className="mt-3 grid grid-cols-3 justify-items-center gap-1.5">
+      <div className="mx-auto mt-3 grid w-44 grid-cols-3 justify-items-center gap-1.5">
         <span /><Pad d="up" Icon={ArrowUp} /><span />
         <Pad d="left" Icon={ArrowLeft} /><Pad d="down" Icon={ArrowDown} /><Pad d="right" Icon={ArrowRight} />
       </div>

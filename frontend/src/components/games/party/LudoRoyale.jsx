@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Star } from 'lucide-react';
 import { difficultyOf } from '../../../lib/difficulty';
-import { BOTS, YOU, sfx, themeFor, useBanter } from './kit';
+import { BOTS, YOU, rivalsFor, sfx, themeFor, useBanter } from './kit';
 import { Dice3D, PartyStage } from './stage';
 
 // Classic Ludo on a real 15x15 cross board: 52-square track, safe stars, coloured home runs, 6 to leave base,
@@ -29,9 +29,9 @@ function centerOf(seat, s, t) {
   return [r + 0.5, c + 0.5];
 }
 
-function setup(level) {
-  const seats = level <= 2 ? [0, 2] : level <= 5 ? [0, 1, 2] : [0, 1, 2, 3];
-  const n = level <= 1 ? 2 : level <= 3 ? 3 : 4;
+function setup(rivals, lv) {
+  const seats = [[0, 2], [0, 1, 2], [0, 1, 2, 3]][rivals - 1];
+  const n = lv <= 3 ? 2 : lv <= 10 ? 3 : 4;
   return { seats, pos: [0, 1, 2, 3].map((s) => (seats.includes(s) ? Array(n).fill(-1) : [])), turn: 0, phase: 'roll', roll: 6, spin: 0, sixes: 0, opts: [], anim: null, ev: { kind: 'start', id: 0 }, msg: 'Tap the dice to roll' };
 }
 const movable = (pos, seat, r) => pos[seat].map((s, t) => ((s === -1 && r === 6) || (s >= 0 && s + r <= END) ? t : -1)).filter((t) => t >= 0);
@@ -139,7 +139,7 @@ function Board({ g, theme, onPick }) {
 export function LudoRoyale({ config, onComplete }) {
   const level = difficultyOf(config);
   const theme = themeFor(config);
-  const [g, setG] = useState(() => setup(level));
+  const [g, setG] = useState(() => setup(rivalsFor(config, 3), theme.lv));
   const [start] = useState(Date.now);
   const bots = useMemo(() => BOTS.slice(0, g.seats.length - 1), [g.seats.length]);
   const banter = useBanter('Ludo', bots);

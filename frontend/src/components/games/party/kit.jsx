@@ -22,6 +22,8 @@ export function themeFor(config) {
   return { ...t, lv, step, hue: step * 7 + Math.floor((lv - 1) / 40) * 25, sparks: 6 + step * 3, pan: ['50% 50%', '30% 60%', '70% 40%', '40% 30%', '60% 70%'][step] };
 }
 
+// Rivals grow with the real level: 1 rival for levels 1-5, 2 for 6-15, then 3.
+export const rivalsFor = (config, max) => { const lv = Number(config?.stage_level) || 1; return Math.min(max, lv <= 5 ? 1 : lv <= 15 ? 2 : 3); };
 export const YOU = { name: 'You', img: `${IMG}bb736dae19f777db839aa7565128418e483a8cbdb827de37bc6fce03ce24f865.jpeg` };
 export const BOTS = [
   { name: 'Rex', img: `${IMG}c8fcf5370774ad1512e566ca73db208b345dcc5b8043ba0d582d07802dc93dd3.jpeg`, persona: 'cocky show-off who thinks he is unbeatable' },
@@ -120,7 +122,7 @@ export function useClocks({ turnSec, matchSec, turnKey, running, onTurnOut, onMa
   const fired = useRef({ turn: null, match: false });
   const cb = useRef({ onTurnOut, onMatchOut });
   cb.current = { onTurnOut, onMatchOut };
-  useEffect(() => { turnStart.current = Date.now(); fired.current.turn = null; }, [turnKey]);
+  useEffect(() => { turnStart.current = Date.now(); fired.current.turn = null; setNow(Date.now()); }, [turnKey]);
   useEffect(() => {
     if (!running) return undefined;
     const id = setInterval(() => {

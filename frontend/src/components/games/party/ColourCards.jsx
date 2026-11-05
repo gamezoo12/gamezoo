@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Ban, Repeat } from 'lucide-react';
 import { difficultyOf } from '../../../lib/difficulty';
-import { BOTS, YOU, sfx, useBanter, useClocks } from './kit';
+import { BOTS, YOU, rivalsFor, sfx, useBanter, useClocks } from './kit';
 import { PartyStage } from './stage';
 
 // Colour Clash Cards (classic shedding game): match colour or symbol; Skip, Reverse, +2, Wild and Wild +4.
@@ -48,8 +48,7 @@ export function CardBack() {
   return <div className="relative h-[5.6rem] w-[3.9rem] shrink-0 rounded-[10px] border-[3px] border-white bg-slate-950 shadow-lg sm:h-[6.6rem] sm:w-[4.6rem]"><span className="absolute inset-[15%] flex -rotate-[28deg] items-center justify-center rounded-[50%] bg-rose-600 font-display text-[10px] font-black text-amber-300">CLASH</span></div>;
 }
 
-function deal(level) {
-  const bots = level <= 2 ? 1 : level <= 5 ? 2 : 3;
+function deal(level, bots) {
   const size = level <= 2 ? 5 : level <= 4 ? 6 : 7;
   let deck = makeDeck(); const hands = [];
   for (let i = 0; i <= bots; i += 1) { const [h, d] = take(deck, size); hands.push(h); deck = d; }
@@ -90,7 +89,7 @@ function botChoice(s, level) {
 
 export function ColourCards({ config, onComplete }) {
   const level = difficultyOf(config);
-  const [g, setG] = useState(() => deal(level));
+  const [g, setG] = useState(() => deal(level, rivalsFor(config, 3)));
   const [start] = useState(Date.now);
   const bots = useMemo(() => BOTS.slice(0, g.hands.length - 1), [g.hands.length]);
   const banter = useBanter('Colour Clash Cards (a colour-matching card game like Uno)', bots);
@@ -106,7 +105,7 @@ export function ColourCards({ config, onComplete }) {
     setTimeout(() => onComplete({ solved: won, accuracy: won ? Math.max(0.5, 1 - g.hands[0].length * 0.1) : 0.3, duration_ms: Date.now() - start }), 2000);
   };
   const { turnLeft, matchLeft } = useClocks({ turnSec, matchSec, turnKey: g.turnNo, running: g.phase !== 'over',
-    onTurnOut: () => { if (g.turn === 0 && g.phase !== 'over') { sfx('bad'); setG((s) => (s.turn !== 0 ? s : s.drawn ? pass(s) : drawOne({ ...s, phase: 'play', pending: null }, 0))); banter.say(0, 'taunt', { force: true }); } },
+    onTurnOut: () => { if (g.turn === 0 && g.phase !== 'over') { sfx('bad'); setG((s) => { if (s.turn !== 0) return s; if (s.drawn) return pass(s); const d = drawOne({ ...s, phase: 'play', pending: null }, 0); return d.drawn ? pass(d) : d; }); banter.say(0, 'taunt', { force: true }); } },
     onMatchOut: () => { const mine = g.hands[0].length; finish(g.hands.slice(1).every((h) => mine <= h.length), 'time ran out, fewest cards won'); } });
 
   useEffect(() => {

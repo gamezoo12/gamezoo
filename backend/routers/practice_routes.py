@@ -169,8 +169,11 @@ async def party_banter(body: BanterInput, request: Request):
     import uuid
     from emergentintegrations.llm.chat import LlmChat, UserMessage
 
-    ip = (request.headers.get('x-forwarded-for') or (request.client.host if request.client else '')).split(',')[0].strip()
+    ip = (request.headers.get('x-forwarded-for') or (request.client.host if request.client else '')).split(',')[-1].strip()
     now = time.time()
+    if len(_banter_hits) > 5000:
+        for k in [k for k, v in _banter_hits.items() if not v or now - v[-1] > 60]:
+            _banter_hits.pop(k, None)
     hits = [t for t in _banter_hits.get(ip, []) if now - t < 60]
     if len(hits) >= 20:
         raise HTTPException(429, 'Slow down')
@@ -183,5 +186,8 @@ async def party_banter(body: BanterInput, request: Request):
     if body.player_said:
         prompt += f' The human player just typed to you: "{body.player_said}". Reply to them directly.'
     chat = LlmChat(api_key=os.environ['EMERGENT_LLM_KEY'], session_id=f'banter-{uuid.uuid4().hex}', system_message=system).with_model('openai', 'gpt-5.4-mini')
-    text = str(await chat.send_message(UserMessage(text=prompt))).strip().strip('"').splitlines()[0][:140]
+    try:
+        text = str(await chat.send_message(UserMessage(text=prompt))).strip().strip('"').splitlines()[0][:140]
+    except Exception:  # noqa: BLE001
+        text = 'Ha! Nice try. My move now 😏'
     return {'text': text}

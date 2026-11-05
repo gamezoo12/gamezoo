@@ -7,7 +7,7 @@ import requests
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL').rstrip('/')
 P = f"{BASE_URL}/api/games/practice"
 DS = f"{BASE_URL}/api/admin/draw-studio"
-PTY = ["pty_colour_cards", "pty_ludo_royale", "pty_sweet_swap", "pty_four_in_row", "pty_snakes_ladders"]
+PTY = ["pty_colour_cards", "pty_ludo_royale", "pty_sweet_swap", "pty_four_in_row", "pty_snakes_ladders", "pty_snake_arena"]
 MOODS = {"excited", "laughing", "teasing", "suspense", "warm", "shocked"}
 ACTIONS = {"talk", "laugh", "celebrate", "wave", "point", "suspense"}
 GREET = re.compile(r"\b(welcome|good evening|hello everyone|hi everyone)\b", re.I)

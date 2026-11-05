@@ -46,7 +46,7 @@ export function PartyStage({ config, title, players, active, turnLeft, turnSec, 
         <div className="mb-3 mt-10 flex items-start justify-around gap-1">
           {players.map((p, i) => <Avatar key={p.name} p={p} idx={i} active={active === i} turnPct={active === i ? turnPct : null} bubble={latest[i - 1]} edge={players.length > 1 && i === 0 ? 'l' : players.length > 1 && i === players.length - 1 ? 'r' : null} />)}
         </div>
-        {turnLeft != null && active === 0 && <div className={`mb-2 text-center text-[11px] font-black ${turnLeft < 4 ? 'animate-pulse text-rose-300' : 'text-white/80'}`} data-testid="party-turn-clock">Your move · {Math.ceil(turnLeft)}s</div>}
+        {turnLeft != null && active === 0 && <div className={`mx-auto mb-2 w-fit rounded-full bg-black/55 px-3 py-0.5 text-center text-[11px] font-black backdrop-blur ${turnLeft < 4 ? 'animate-pulse text-rose-300' : 'text-white'}`} data-testid="party-turn-clock">Your move · {Math.ceil(turnLeft)}s</div>}
         <div className="relative">{children}</div>
         {banter && <ChatBar banter={banter} accent={th.accent} />}
       </div>

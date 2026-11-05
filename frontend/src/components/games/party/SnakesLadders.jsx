@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { difficultyOf } from '../../../lib/difficulty';
-import { BOTS, YOU, sfx, themeFor, useBanter } from './kit';
+import { BOTS, YOU, rivalsFor, sfx, themeFor, useBanter } from './kit';
 import { Dice3D, PartyStage } from './stage';
 
 // Snakes & Ladders: classic single die, exact roll to land on 100, a 6 rolls again. Harder levels add snakes and rivals.
@@ -49,7 +49,7 @@ function Snake({ a, b, i }) {
 export function SnakesLadders({ config, onComplete }) {
   const level = difficultyOf(config);
   const theme = themeFor(config);
-  const n = level <= 3 ? 2 : level <= 6 ? 3 : 4;
+  const n = rivalsFor(config, 3) + 1;
   const { ladders, snakes } = useMemo(() => makeBoard(level), [level]);
   const bots = useMemo(() => BOTS.slice(0, n - 1), [n]);
   const banter = useBanter('Snakes and Ladders', bots);

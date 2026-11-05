@@ -740,3 +740,16 @@ Root causes fixed:
 - Tests: iteration_56/57/58 all passing.
 ## Backlog
 - Daily challenge level, per-game leaderboards for free play, commentary subtitles on stream.
+
+## 2026-06 Party games rebuilt (batch 1 polished + Snake Arena)
+- Shared kit `components/games/party/{kit,stage}.jsx` + `party.css`: 8 AI-painted worlds (Neon City, Jungle Temple, Cosmic Space, Lava Cave, Coral Reef, Candy Land, Frozen Peaks, Royal Palace) — new world every 5 levels, small hue/camera/sparkle change each level; synth SFX (dice, steps, capture, cards, drops, fanfare…); 3D CSS dice; AI-portrait bot avatars (Rex, Nova, Grandpa Pip, Zara) with speech bubbles; chat feed + quick replies.
+- Bot banter = canned lines + AI lines at big moments / when player replies: `POST /api/games/practice/banter` (gpt-5.4-mini, Emergent key, 20/min per IP, fallback line on error).
+- Clocks (`useClocks`): turn + match clock for Colour Clash Cards, Four in a Row, Sweet Swap; match clock for Snake Arena; NO clock for Ludo and Snakes & Ladders (user request). PracticeRun hides its timer for Party games; intro shows per-game clock rule.
+- Ludo Royale: real 15x15 board, 52-square track, stars, home runs, 6 to leave, extra roll on 6/capture/home, three 6s forfeit; state-machine bot loop (freeze fixed). Snakes & Ladders: SVG snakes/ladders, step animation. Colour Clash Cards: full Uno-style deck with wild/+4, colour picker, Shout ONE!, pass. Sweet Swap: race vs rival, striped + colour bomb. Four in a Row: drop animation. NEW Snake Arena (pty_snake_arena) canvas snake vs bot snake, 3 lives.
+- Rivals grow with level (1 rival L1-5, 2 L6-15, 3 after) via `rivalsFor`.
+- Draw Studio commentary: prompt reworded + `_clean` sanitizer strips leaked stage directions.
+- Tests: iteration 62 (backend 11/11, all 6 games playable; turn-clock stall fixed after).
+
+## Backlog
+- P1: Remaining party games in batches toward 100 total (user wants at least 100), each with world themes, bot banter and clocks.
+- P2: Daily challenge level; online multiplayer with real friends.

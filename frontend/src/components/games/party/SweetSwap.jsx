@@ -80,7 +80,7 @@ export function SweetSwap({ config, onComplete }) {
   const level = difficultyOf(config);
   const theme = themeFor(config);
   const kinds = Math.min(7, 4 + Math.floor(level / 3));
-  const goal = 300 + level * 120;
+  const goal = 600 + level * 150 + ((Number(config?.stage_level) || 1) - 1) % 10 * 30;
   const movesMax = Math.max(12, 26 - level);
   const turnSec = Math.max(6, 14 - Math.floor(level / 2));
   const matchSec = Math.max(90, 150 - level * 4);
@@ -153,7 +153,7 @@ export function SweetSwap({ config, onComplete }) {
         {[[score, 'from-sky-400 to-cyan-300', 'You', 'sweet-you-bar'], [rival, 'from-pink-500 to-rose-400', RIVAL.name, 'sweet-rival-bar']].map(([v, grad, name, id]) => (
           <div key={name} className="flex items-center gap-2 text-[10px] font-black text-white"><span className="w-12 truncate">{name}</span><div className="h-2.5 flex-1 overflow-hidden rounded-full bg-black/40"><div className={`h-full rounded-full bg-gradient-to-r ${grad} transition-[width] duration-500`} style={{ width: `${Math.min(100, (v / goal) * 100)}%` }} data-testid={id} /></div></div>
         ))}
-        <div className="text-center text-[10px] font-bold text-white/70" data-testid="sweet-moves">Moves left: {moves}</div>
+        <div className="mx-auto w-fit rounded-full bg-black/55 px-3 py-0.5 text-center text-[11px] font-black text-white" data-testid="sweet-moves">Moves left: {moves}</div>
       </div>
       <div className="relative mx-auto max-w-[440px] rounded-[22px] p-2" style={{ background: theme.frame, boxShadow: `0 0 0 2px ${theme.accent}99, 0 25px 60px rgba(0,0,0,0.55)` }}>
         <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${N}, minmax(0, 1fr))` }} data-testid="sweet-swap-board">
