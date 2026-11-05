@@ -1,11 +1,11 @@
 """Draw Studio: full-screen backdrop image + AI voice commentary (Super Admin only)."""
 from __future__ import annotations
 
+import base64
 import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Literal, Optional
-from urllib.parse import quote
 
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import Response
@@ -106,4 +106,4 @@ async def commentary(body: CommentaryIn, request: Request):
     except Exception as exc:  # provider failure must never break the draw
         log.warning("commentary failed: %s", exc)
         raise HTTPException(status_code=502, detail="Commentary is unavailable right now") from exc
-    return Response(content=audio, media_type="audio/mpeg", headers={"X-Commentary-Text": quote(text[:300])})
+    return {"text": text, "audio_b64": base64.b64encode(audio).decode()}

@@ -5,6 +5,7 @@ import { DrawAudio } from '../../components/drawstudio/drawAudio';
 import { SoundPanel } from '../../components/drawstudio/SoundPanel';
 import { BackdropPanel } from '../../components/drawstudio/BackdropPanel';
 import { CommentaryPanel } from '../../components/drawstudio/CommentaryPanel';
+import { SampleShow } from '../../components/drawstudio/SampleShow';
 
 const errText = (e) => { const d = e?.response?.data?.detail; return typeof d === 'string' ? d : 'Request failed'; };
 
@@ -14,6 +15,7 @@ export default function DrawSettings() {
   const [volumes, setVolumes] = useState({});
   const [msg, setMsg] = useState(['', '']);
   const [audio, setAudio] = useState(null);
+  const [sample, setSample] = useState(null);
   const saveTimer = useRef(null);
 
   const loadAudio = useCallback(async (engine) => {
@@ -52,7 +54,7 @@ export default function DrawSettings() {
       <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_380px]">
         <div className="min-w-0 space-y-6">
           {settings && <BackdropPanel backdrop={settings.backdrop} onChange={(b) => { setSettings({ ...settings, backdrop: b }); setMsg(['', b ? 'Studio backdrop saved. It shows behind the machine in every draw.' : 'Studio backdrop removed.']); }} onError={(e) => setMsg([e, ''])} />}
-          {settings && <CommentaryPanel value={settings.commentary} audio={audio} volume={volumes.commentary ?? 1} onVolume={(v) => { const next = { ...volumes, commentary: v }; audio?.setVolumes(next); persistVolumes(next); }} onSaved={() => setMsg(['', 'Commentary settings saved.'])} onError={(e) => setMsg([e, ''])} />}
+          {settings && <CommentaryPanel value={settings.commentary} audio={audio} volume={volumes.commentary ?? 1} onVolume={(v) => { const next = { ...volumes, commentary: v }; audio?.setVolumes(next); persistVolumes(next); }} onSaved={() => setMsg(['', 'Commentary settings saved.'])} onSample={setSample} onError={(e) => setMsg([e, ''])} />}
           <SoundPanel uploaded={uploaded} audio={audio} volumes={volumes} onVolumes={persistVolumes} onUploaded={() => loadAudio(audio)} onError={(e) => setMsg([e, ''])} />
         </div>
         {settings && <aside className="space-y-6">
@@ -69,6 +71,7 @@ export default function DrawSettings() {
           </section>
         </aside>}
       </div>
+      {sample && <SampleShow commentary={sample} audio={audio} onClose={() => setSample(null)} />}
     </div>
   );
 }

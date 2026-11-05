@@ -8,7 +8,7 @@ const writeLocal = (p) => { try { localStorage.setItem(KEY, JSON.stringify(p)); 
 const applyLocal = (p, gameId, level, stars) => {
   const cur = p[gameId] || { unlocked: 1, stars: {} };
   if (level > cur.unlocked) return p;
-  return { ...p, [gameId]: { unlocked: Math.min(100, Math.max(cur.unlocked, level + 1)), stars: { ...cur.stars, [level]: Math.max(cur.stars[level] || 0, stars) } } };
+  return { ...p, [gameId]: { unlocked: Math.max(cur.unlocked, level + 1), stars: { ...cur.stars, [level]: Math.max(cur.stars[level] || 0, stars) } } };
 };
 
 export async function loadProgress(user) {

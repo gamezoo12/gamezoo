@@ -1,7 +1,9 @@
-"""Free home-preview games: per-account 100-level progress (fun only — no rewards, no wallet writes)."""
+"""Free home-preview games: endless level progress, leaderboards and play stats (fun only — no rewards, no wallet writes)."""
 from __future__ import annotations
+
+import time
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Literal
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -14,8 +16,9 @@ from services.arcade_catalog import STYLES
 router = APIRouter(prefix='/api/games/practice', tags=['games-practice'])
 
 ALLOWED = {g['id'] for g in GAME_TYPES if g.get('family') != 'arcade'} | {f'arc_{s[0]}' for s in STYLES}
-MAX_LEVEL = 100
+MAX_LEVEL = 100_000  # levels are generated endlessly; this only bounds bad input
 _indexed = False
+_lb_cache: dict = {}
 
 
 class LevelEntry(BaseModel):
@@ -28,11 +31,32 @@ class ProgressInput(BaseModel):
     entries: List[LevelEntry] = Field(..., min_length=1, max_length=6000)
 
 
+class EventInput(BaseModel):
+    game_id: str = Field(..., min_length=1, max_length=60)
+    level: int = Field(..., ge=1, le=MAX_LEVEL)
+    outcome: Literal['start', 'pass', 'fail']
+
+
+def mask_name(name) -> str:
+    parts = [p for p in str(name or '').replace('@', ' ').split() if p]
+    if not parts:
+        return 'Player'
+    return parts[0][:1].upper() + parts[0][1:12] + (f" {parts[-1][0].upper()}." if len(parts) > 1 else '')
+
+
 async def _col():
     global _indexed
     db = get_db()
     if not _indexed:
         await db.practice_progress.create_index([('user_id', 1), ('game_id', 1)], unique=True)
+        await db.practice_progress.create_index([('game_id', 1), ('best', -1), ('stars_total', -1)])
+        await db.practice_daily.create_index([('date', 1), ('game_id', 1)], unique=True)
+        async for d in db.practice_progress.find({'best': {'$exists': False}}, {'_id': 1, 'stars': 1}):
+            st = d.get('stars') or {}
+            await db.practice_progress.update_one({'_id': d['_id']}, {'$set': {'best': max([int(k) for k in st] or [0]), 'stars_total': sum(int(v) for v in st.values())}})
+        async for d in db.practice_progress.find({'name': {'$exists': False}}, {'_id': 1, 'user_id': 1}):
+            u = await db.users.find_one({'user_id': d['user_id']}, {'_id': 0, 'display_name': 1, 'name': 1, 'first_name': 1}) or {}
+            await db.practice_progress.update_one({'_id': d['_id']}, {'$set': {'name': mask_name(u.get('display_name') or u.get('name') or u.get('first_name'))}})
         _indexed = True
     return db.practice_progress
 
@@ -66,7 +90,61 @@ async def save_progress(inp: ProgressInput, request: Request):
         state['unlocked'] = min(MAX_LEVEL, max(state['unlocked'], e.level + 1))
         out[e.game_id] = state
     now = datetime.now(timezone.utc)
+    name = mask_name(user.get('display_name') or user.get('name') or user.get('first_name'))
     for gid, state in out.items():
+        best = max(int(k) for k in state['stars'])
         await col.update_one({'user_id': user['user_id'], 'game_id': gid},
-                             {'$set': {**state, 'updated_at': now}, '$setOnInsert': {'created_at': now}}, upsert=True)
+                             {'$set': {**state, 'best': best, 'stars_total': sum(state['stars'].values()), 'name': name, 'updated_at': now},
+                              '$setOnInsert': {'created_at': now}}, upsert=True)
+    _lb_cache.clear()
     return {'progress': out}
+
+
+@router.post('/event')
+async def play_event(inp: EventInput):
+    if inp.game_id not in ALLOWED:
+        raise HTTPException(status_code=400, detail='Unknown game')
+    await _col()
+    day = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+    inc = {{'start': 'starts', 'pass': 'passes', 'fail': 'fails'}[inp.outcome]: 1}
+    if inp.outcome == 'pass':
+        inc['levels_sum'] = inp.level
+    await get_db().practice_daily.update_one({'date': day, 'game_id': inp.game_id}, {'$inc': inc, '$max': {'top_level': inp.level}}, upsert=True)
+    return {'ok': True}
+
+
+async def _board(game_id: str | None) -> list:
+    key = game_id or '*'
+    hit = _lb_cache.get(key)
+    if hit and time.time() - hit[0] < 30:
+        return hit[1]
+    col = await _col()
+    if game_id:
+        docs = await col.find({'game_id': game_id, 'best': {'$gte': 1}}, {'_id': 0, 'user_id': 1, 'name': 1, 'best': 1, 'stars_total': 1}) \
+            .sort([('best', -1), ('stars_total', -1), ('updated_at', 1)]).limit(500).to_list(500)
+        rows = [{'user_id': d['user_id'], 'name': d.get('name') or 'Player', 'level': d['best'], 'stars': d.get('stars_total', 0)} for d in docs]
+    else:
+        docs = await col.aggregate([
+            {'$match': {'best': {'$gte': 1}}},
+            {'$group': {'_id': '$user_id', 'name': {'$last': '$name'}, 'level': {'$sum': '$best'}, 'stars': {'$sum': '$stars_total'}, 'games': {'$sum': 1}}},
+            {'$sort': {'level': -1, 'stars': -1}}, {'$limit': 500}]).to_list(500)
+        rows = [{'user_id': d['_id'], 'name': d.get('name') or 'Player', 'level': d['level'], 'stars': d['stars'], 'games': d['games']} for d in docs]
+    for i, r in enumerate(rows):
+        r['rank'] = i + 1
+    _lb_cache[key] = (time.time(), rows)
+    return rows
+
+
+@router.get('/leaderboard')
+async def leaderboard(request: Request, game_id: str | None = None, limit: int = 20):
+    if game_id and game_id not in ALLOWED:
+        raise HTTPException(status_code=400, detail='Unknown game')
+    rows = await _board(game_id)
+    me = None
+    try:
+        user = await get_current_user(request)
+        me = next(({k: v for k, v in r.items() if k != 'user_id'} for r in rows if r['user_id'] == user['user_id']), None)
+    except HTTPException:
+        pass
+    top = [{k: v for k, v in r.items() if k != 'user_id'} for r in rows[:max(1, min(limit, 100))]]
+    return {'game_id': game_id, 'top': top, 'me': me, 'players': len(rows)}

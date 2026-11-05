@@ -4,6 +4,7 @@ import { Hud, OrthographicCamera, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { FONTS, makeCard, makePanel, pad, tierOf } from './textures';
 import { REWARD_LABEL, STAGE_CAPTION, drawPhase, elapsed, gbp } from './timeline';
+import { captionAt } from './commentary';
 
 function LiveText({ S, get, fps = 14, ...props }) {
   const ref = useRef();
@@ -151,6 +152,26 @@ function Finale({ view, u, w }) {
   );
 }
 
+// Live captions of the voice commentary; rendered in the HUD so they are part of every recording.
+function Subtitle({ S, u, w, h }) {
+  const plate = useRef();
+  const text = useRef();
+  const last = useRef('');
+  useFrame(() => {
+    const c = captionAt(S.current.caption);
+    if (plate.current) plate.current.visible = Boolean(c);
+    if (!text.current) return;
+    text.current.visible = Boolean(c);
+    if (c && c !== last.current) { last.current = c; text.current.text = c; text.current.sync(); }
+  });
+  return (
+    <group position={[0, -h / 2 + 52 * u, 6]}>
+      <mesh ref={plate} visible={false}><planeGeometry args={[Math.min(w * 0.86, 1240 * u), 74 * u]} /><meshBasicMaterial color="#000000" transparent opacity={0.62} toneMapped={false} /></mesh>
+      <Text ref={text} visible={false} font={FONTS.semi} fontSize={25 * u} maxWidth={Math.min(w * 0.82, 1200 * u)} textAlign="center" anchorX="center" anchorY="middle" color="#ffffff" outlineWidth={1.2 * u} outlineColor="#000" position={[0, 0, 0.5]}>{' '}</Text>
+    </group>
+  );
+}
+
 function Overlay({ S, view }) {
   const { size } = useThree();
   const w = size.width;
@@ -171,7 +192,7 @@ function Overlay({ S, view }) {
         <LiveText S={S} font={FONTS.num} fontSize={50 * u} position={[-L, T + 4 * u, 0]} anchorX="right" anchorY="top" color="#ffd54a"
           get={(s) => (s.stage === 'ready' ? null : Math.floor(s.stage === 'loading' ? Math.min(1, elapsed(s) / s.cfg.load_duration_s) * view.eligible : view.eligible).toLocaleString('en-GB'))} />
         {view.stage !== 'ready' && <Text font={FONTS.bold} fontSize={14 * u} position={[-L, T - 56 * u, 0]} anchorX="right" anchorY="top" color="#ffffff" letterSpacing={0.2}>{`OF ${view.eligible.toLocaleString('en-GB')} TICKETS IN THE POOL`}</Text>}
-        <Text font={FONTS.bold} fontSize={22 * u} position={[0, -h / 2 + 44 * u, 0]} color="#ffffff" letterSpacing={0.35}>{STAGE_CAPTION[view.stage]}</Text>
+        <LiveText S={S} font={FONTS.bold} fontSize={22 * u} position={[0, -h / 2 + 44 * u, 0]} color="#ffffff" letterSpacing={0.35} get={(s) => (captionAt(s.caption) ? null : STAGE_CAPTION[view.stage] || null)} />
       </>}
       {view.preview && <Text font={FONTS.bold} fontSize={13 * u} position={[0, tagY, 0]} anchorY="bottom" color="#ff8fa3" letterSpacing={0.25}>PREVIEW · SIMULATED RESULT · NOT OFFICIAL</Text>}
       {view.replay && <Text font={FONTS.bold} fontSize={13 * u} position={[0, tagY, 0]} anchorY="bottom" color="#9fe8c4" letterSpacing={0.25}>REPLAY OF OFFICIAL RESULT</Text>}
@@ -182,13 +203,14 @@ function Overlay({ S, view }) {
         <LiveText S={S} font={FONTS.num} fontSize={300 * u} position={[0, 0, 2]} color="#ffd54a" outlineWidth={6 * u} outlineColor="#6b3d00"
           get={(s) => { const left = Math.ceil(s.cfg.mix_duration_s - elapsed(s)); return left <= 3 && left > 0 ? String(left) : null; }} />
       </>}
-      {(view.stage === 'drawing' || view.stage === 'drawn') && <group position={[0, -h / 2 + 130 * u, 0]}>
+      {(view.stage === 'drawing' || view.stage === 'drawn') && <group position={[0, -h / 2 + 200 * u, 0]}>
         <mesh position={[0, 0, -1]}><planeGeometry args={[460 * u, 112 * u]} /><meshBasicMaterial color="#0d0626" transparent opacity={0.85} /></mesh>
         <mesh position={[0, 0, -1.2]}><planeGeometry args={[472 * u, 124 * u]} /><meshBasicMaterial color="#ffcf3a" /></mesh>
         <LiveText S={S} fps={30} font={FONTS.num} fontSize={84 * u} color="#ffd54a" get={cycleNumber} />
       </group>}
       {view.stage === 'revealed' && <WinnerCards view={view} u={u} w={w} />}
       {view.stage === 'complete' && <Finale view={view} u={u} w={w} />}
+      <Subtitle S={S} u={u} w={w} h={h} />
       <Confetti S={S} w={w} h={h} />
     </>
   );

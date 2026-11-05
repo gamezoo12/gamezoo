@@ -343,6 +343,9 @@ app.include_router(referral_router)
 app.include_router(game_router)
 from routers.practice_routes import router as practice_router  # noqa: E402
 app.include_router(practice_router)
+from routers.free_games_routes import admin_router as free_games_admin_router, public_router as free_games_ads_router  # noqa: E402
+app.include_router(free_games_admin_router)
+app.include_router(free_games_ads_router)
 app.include_router(game_public_router)
 app.include_router(world_router)
 app.include_router(world_public_router)

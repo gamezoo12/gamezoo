@@ -5,12 +5,15 @@ import { ArrowLeft, ShieldCheck, Star } from 'lucide-react';
 import { api, gamesAPI } from '../lib/api';
 import { resolveMediaUrl } from '../lib/media';
 import { useAuth } from '../context/AuthContext';
-import { LEVELS, starsFor, timeLimit, uniqueGames, uniqueIdFor } from '../lib/practiceGames';
+import { starsFor, timeLimit, uniqueGames, uniqueIdFor } from '../lib/practiceGames';
 import { levelState, loadProgress, saveLevel, totalStars } from '../lib/practiceProgress';
 import { LevelPath } from '../components/games/practice/LevelPath';
 import { PracticeIntro } from '../components/games/practice/PracticeIntro';
 import { PracticeRun } from '../components/games/practice/PracticeRun';
 import { PracticeResult } from '../components/games/practice/PracticeResult';
+import { PracticeLeaderboard } from '../components/games/practice/PracticeLeaderboard';
+import { AdInterstitial, adForThisStart } from '../components/games/practice/AdInterstitial';
+import { practiceAPI } from '../lib/api';
 
 export default function GamePreview() {
   const { gameId } = useParams();
@@ -25,6 +28,8 @@ export default function GamePreview() {
   const [level, setLevel] = useState(1);
   const [result, setResult] = useState(null);
   const [runKey, setRunKey] = useState(0);
+  const [ad, setAd] = useState(null);
+  const [lbKey, setLbKey] = useState(0);
 
   useEffect(() => {
     Promise.all([api.get('/settings').then((r) => r.data), gamesAPI.types()])
@@ -45,10 +50,17 @@ export default function GamePreview() {
 
   const cover = settings?.game_preview_images?.[gameId] ? resolveMediaUrl(settings.game_preview_images[gameId]) : game.cover;
   const go = (lv, s = 'intro') => { setLevel(lv); setResult(null); setRunKey((k) => k + 1); setStage(s); window.scrollTo({ top: 0, behavior: 'auto' }); };
+  const play = (lv) => { practiceAPI.event(gameId, lv, 'start'); go(lv, 'play'); };
+  const start = async (lv) => {
+    const cfg = await adForThisStart();
+    if (cfg) setAd({ cfg, lv }); else play(lv);
+  };
   const finish = async (r) => {
+    const passed = r.solved && !r.timeout;
     setResult(r);
     setStage('result');
-    if (r.solved && !r.timeout) setProgress(await saveLevel(user, progress, gameId, level, starsFor(timeLimit(game, level), r)));
+    practiceAPI.event(gameId, level, passed ? 'pass' : 'fail');
+    if (passed) { setProgress(await saveLevel(user, progress, gameId, level, starsFor(timeLimit(game, level), r))); setLbKey((k) => k + 1); }
   };
   const earned = result && result.solved && !result.timeout ? starsFor(timeLimit(game, level), result) : 0;
 
@@ -65,27 +77,29 @@ export default function GamePreview() {
               {cover && <img src={cover} alt={game.label} className="h-full w-full object-cover" data-testid="practice-cover" />}
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent" />
               <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6">
-                <div className="text-[11px] font-black uppercase tracking-[0.2em] text-amber-300">{game.category} · {LEVELS} levels</div>
+                <div className="text-[11px] font-black uppercase tracking-[0.2em] text-amber-300">{game.category} · endless levels</div>
                 <h1 className="mt-1 font-display text-3xl font-black text-white sm:text-5xl" data-testid="practice-game-title">{game.label}</h1>
               </div>
             </div>
             <div className="p-4 sm:p-6">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-white/70">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5"><ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />Free play · no ticket · no official score</span>
-                <span className="inline-flex items-center gap-1 font-bold text-amber-300" data-testid="practice-total-stars"><Star className="h-3.5 w-3.5 fill-amber-400" />{totalStars(state)}/{LEVELS * 3}</span>
+                <span className="inline-flex items-center gap-1 font-bold text-amber-300" data-testid="practice-total-stars"><Star className="h-3.5 w-3.5 fill-amber-400" />{totalStars(state)} stars</span>
               </div>
-              <p className="mb-3 text-sm text-white/70">Beat each level to unlock the next. It starts easy and gets brutal by level 100.</p>
+              <p className="mb-3 text-sm text-white/70">Beat each level to unlock the next. Levels never run out: it starts easy, and every level after 100 is a Legend level.</p>
               <LevelPath state={state} onPick={(lv) => go(lv)} />
             </div>
           </div>
         )}
+        {stage === 'levels' && <div className="mt-5"><PracticeLeaderboard gameId={gameId} title={`${game.label} leaderboard`} refreshKey={lbKey} /></div>}
+        {ad && <AdInterstitial cfg={ad.cfg} onDone={() => { const lv = ad.lv; setAd(null); play(lv); }} />}
 
         {stage !== 'levels' && (
           <div className="mt-4 rounded-3xl border border-white/10 bg-gradient-to-b from-[#17104a] to-[#07041a] p-3 sm:p-6" data-testid="practice-stage">
             <div className="mb-3 text-center text-xs font-bold uppercase tracking-widest text-white/50">{game.label}</div>
-            {stage === 'intro' && <PracticeIntro game={game} level={level} onStart={() => go(level, 'play')} onBack={() => setStage('levels')} />}
+            {stage === 'intro' && <PracticeIntro game={game} level={level} onStart={() => start(level)} onBack={() => setStage('levels')} />}
             {stage === 'play' && <PracticeRun key={runKey} game={game} level={level} onFinish={finish} onQuit={() => setStage('intro')} />}
-            {stage === 'result' && result && <PracticeResult result={result} level={level} stars={earned} guest={!user} onNext={() => go(level + 1)} onRetry={() => go(level, 'play')} onLevels={() => setStage('levels')} />}
+            {stage === 'result' && result && <PracticeResult result={result} level={level} stars={earned} guest={!user} onNext={() => go(level + 1)} onRetry={() => start(level)} onLevels={() => setStage('levels')} />}
           </div>
         )}
       </div>

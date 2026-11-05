@@ -114,6 +114,7 @@ export class DrawAudio {
     this.play('commentary', { volume: 1.15 });
     const src = this.sources.commentary?.src;
     if (src) src.onended = () => duck.forEach(([k, s]) => { if (this.sources[k] === s) s.gain.gain.setTargetAtTime(s.base * (this.volumes[k] ?? 1), this.ctx.currentTime, 0.3); });
+    return buf.duration;
   }
 
   stopAll() { this.stopHeartbeat(); Object.keys(this.sources).forEach((k) => this.stop(k)); }

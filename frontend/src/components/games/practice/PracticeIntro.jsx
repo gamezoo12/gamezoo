@@ -1,13 +1,12 @@
 import { Clock, Gamepad2, Play, Target } from 'lucide-react';
-import { difficultyName } from '../../../lib/difficulty';
-import { howToPlay, levelGoal, tierOf, timeLimit } from '../../../lib/practiceGames';
+import { howToPlay, levelGoal, tierName, tierOf, timeLimit } from '../../../lib/practiceGames';
 
 export function PracticeIntro({ game, level, onStart, onBack }) {
   const guide = howToPlay(game);
   const goal = levelGoal(game, level);
   return (
     <div className="pl-practice-pop mx-auto max-w-lg" data-testid="practice-instructions">
-      <div className="text-[11px] font-black uppercase tracking-[0.2em] text-amber-300">Level {level} · {difficultyName(tierOf(level))}</div>
+      <div className="text-[11px] font-black uppercase tracking-[0.2em] text-amber-300">Level {level} · {tierName(tierOf(level))}</div>
       <h2 className="mt-1 font-display text-2xl font-black text-white sm:text-3xl">How to play</h2>
       <ul className="mt-4 space-y-3 text-sm text-white/80">
         {guide.objective && <li className="flex gap-3"><Target className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" /><span data-testid="practice-objective">{guide.objective}</span></li>}

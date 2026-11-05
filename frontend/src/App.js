@@ -57,6 +57,7 @@ const AdminSettings = lazy(() => import('./pages/admin/SettingsPage'));
 const AdminRoles = lazy(() => import('./pages/admin/RolesPage'));
 const AdminWallets = lazy(() => import('./pages/admin/WalletAdmin'));
 const AdminGames = lazy(() => import('./pages/admin/GamesAdmin'));
+const AdminFreeGames = lazy(() => import('./pages/admin/FreeGamesAdmin'));
 const AdminLeaderboards = lazy(() => import('./pages/admin/AdminLeaderboards'));
 const AdminAuditLogs = lazy(() => import('./pages/admin/AuditLogsPage'));
 const AdminLegalDocs = lazy(() => import('./pages/admin/LegalDocsAdmin'));
@@ -506,6 +507,11 @@ function AppRouter() {
         <Route
           path="games"
           element={<AdminGames />}
+        />
+
+        <Route
+          path="free-games"
+          element={<AdminFreeGames />}
         />
 
         <Route

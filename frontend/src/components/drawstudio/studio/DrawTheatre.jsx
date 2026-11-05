@@ -20,7 +20,7 @@ function startState(mode, rounds, results) {
 }
 
 /* Manually staged broadcast: Enter Pool → Mix → Draw → Winner Reveal per round, then a finale. The winner is never decided here in official mode. */
-export function DrawTheatre({ mode, contest, rounds, tickets, plan, results = [], replayWinners, audio, onClose, onChanged }) {
+export function DrawTheatre({ mode, contest, rounds, tickets, plan, results = [], replayWinners, audio, voiceOverride, onClose, onChanged }) {
   const init = useMemo(() => startState(mode, rounds, results), []); // eslint-disable-line react-hooks/exhaustive-deps
   const [round, setRound] = useState(init.round);
   const [outcomes, setOutcomes] = useState(init.outcomes);
@@ -45,9 +45,11 @@ export function DrawTheatre({ mode, contest, rounds, tickets, plan, results = []
   const [voice, setVoice] = useState(null);
   useEffect(() => {
     let live = true;
-    drawStudioAPI.settings().then((s) => live && setVoice(createCommentator(Boolean(s.commentary?.enabled), mode))).catch(() => live && setVoice(createCommentator(false, mode)));
+    const opts = { override: voiceOverride, onCaption: (cue) => { S.current.caption = cue; } };
+    if (voiceOverride) { setVoice(createCommentator(true, mode, opts)); return undefined; }
+    drawStudioAPI.settings().then((s) => live && setVoice(createCommentator(Boolean(s.commentary?.enabled), mode, opts))).catch(() => live && setVoice(createCommentator(false, mode, opts)));
     return () => { live = false; };
-  }, [mode]);
+  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
   const facts = useCallback((r = round) => roundFacts(contest, rounds, r, pool.length), [contest, rounds, round, pool.length]);
   const openKey = `r${round}-${round === 0 ? 'intro' : 'round'}`;
   const openLine = () => [openKey, { stage: round === 0 ? 'intro' : 'round', ...facts() }];
