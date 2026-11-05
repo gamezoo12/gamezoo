@@ -1,19 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ARCADE_THEMES, Stage, btn, levelOf, pick, scale, shuffle, tile, useRun } from './kit';
 
+const BAL = ['#ef4444', '#3b82f6', '#22c55e', '#eab308', '#a855f7', '#ec4899', '#f97316'];
+
 // 1. Balloon Pop — tap the rising themed balloons before they float away.
 export function BalloonPop({ theme, config, onComplete }) {
   const t = ARCADE_THEMES[theme]; const level = levelOf(config); const goal = scale(level, 8, 20);
-  const run = useRun(onComplete); const [score, setScore] = useState(0); const [items, setItems] = useState([]);
+  const run = useRun(onComplete); const [score, setScore] = useState(0); const [items, setItems] = useState([]); const [pops, setPops] = useState([]);
   useEffect(() => {
-    const id = setInterval(() => setItems((cur) => [...cur.filter((b) => Date.now() - b.at < 3200), { id: Math.random(), x: 5 + Math.random() * 80, at: Date.now(), e: pick(t.items)[0] }]), Math.max(350, 900 - level * 50));
+    const id = setInterval(() => setItems((cur) => [...cur.filter((b) => Date.now() - b.at < 3200), { id: Math.random(), x: 5 + Math.random() * 78, at: Date.now(), e: pick(t.items)[0], c: Math.floor(Math.random() * BAL.length) }]), Math.max(350, 900 - level * 50));
     return () => clearInterval(id);
   }, [level, t]);
-  const pop = (b) => { setItems((cur) => cur.filter((x) => x.id !== b.id)); run.ping('good'); setScore((s) => { if (s + 1 >= goal) run.finish(goal); return s + 1; }); };
+  const pop = (b) => { const y = Math.min(300, ((Date.now() - b.at) / (Math.max(1.6, 3.2 - level * 0.15) * 1000)) * 420 - 60); const id = Math.random(); setPops((p) => [...p.slice(-4), { id, x: b.x, y }]); setTimeout(() => setPops((p) => p.filter((q) => q.id !== id)), 350); setItems((cur) => cur.filter((x) => x.id !== b.id)); run.ping('good'); setScore((s) => { if (s + 1 >= goal) run.finish(goal); return s + 1; }); };
   return <Stage theme={theme} title="Balloon Pop" flash={run.flash} stats={[['Popped', `${score}/${goal}`]]}>
-    <style>{'@keyframes arcRise{from{transform:translateY(0)}to{transform:translateY(-330px)}}'}</style>
+    <style>{'@keyframes arcRise{from{transform:translateY(0)}to{transform:translateY(-440px)}}'}</style>
     <div className="relative h-80 overflow-hidden rounded-2xl bg-black/20">
-      {items.map((b) => <button key={b.id} type="button" onClick={() => pop(b)} className="absolute bottom-0 text-5xl" style={{ left: `${b.x}%`, animation: `arcRise ${Math.max(1.6, 3.2 - level * 0.15)}s linear forwards` }} data-testid="arcade-balloon">{b.e}</button>)}
+      {items.map((b) => <button key={b.id} type="button" onClick={() => pop(b)} className="absolute bottom-[-90px] flex flex-col items-center" style={{ left: `${b.x}%`, animation: `arcRise ${Math.max(1.6, 3.2 - level * 0.15)}s linear forwards` }} data-testid="arcade-balloon"><span className="flex h-20 w-16 items-center justify-center rounded-[50%_50%_46%_54%/58%_58%_42%_42%] text-3xl shadow-[inset_-8px_-10px_16px_rgba(0,0,0,0.25)]" style={{ background: `radial-gradient(circle at 30% 25%, #fff9, ${BAL[b.c]} 40%, ${BAL[b.c]})` }}>{b.e}</span><span className="h-2 w-2 rotate-45" style={{ background: BAL[b.c] }} /><span className="h-8 w-px bg-white/60" /></button>)}
+      {pops.map((p) => <span key={p.id} className="pty-new pointer-events-none absolute text-4xl" style={{ left: `${p.x}%`, bottom: `${p.y}px` }}>💥</span>)}
     </div>
   </Stage>;
 }
@@ -99,7 +102,7 @@ export function StackTower({ theme, config, onComplete }) {
 // 6. Dodge Runner — switch lanes to dodge incoming hazards until the finish.
 export function DodgeRunner({ theme, config, onComplete }) {
   const t = ARCADE_THEMES[theme]; const level = levelOf(config); const goal = scale(level, 10, 25);
-  const run = useRun(onComplete); const [lane, setLane] = useState(1); const [obs, setObs] = useState([]); const [dodged, setDodged] = useState(0);
+  const run = useRun(onComplete); const [lane, setLane] = useState(1); const [obs, setObs] = useState([]); const [dodged, setDodged] = useState(0); const [runner] = useState(() => pick(t.items)[0]);
   const laneRef = useRef(1); laneRef.current = lane;
   useEffect(() => {
     const id = setInterval(() => setObs((cur) => {
@@ -110,7 +113,6 @@ export function DodgeRunner({ theme, config, onComplete }) {
     }), Math.max(220, 520 - level * 28));
     return () => clearInterval(id);
   }, [level]); // eslint-disable-line react-hooks/exhaustive-deps
-  const runner = pick(t.items)[0];
   return <Stage theme={theme} title="Dodge Runner" flash={run.flash} stats={[['Dodged', `${dodged}/${goal}`]]}>
     <div className="relative grid h-72 grid-cols-3 overflow-hidden rounded-2xl bg-black/25">
       {obs.map((o) => <span key={o.id} className="absolute text-3xl transition-[top] duration-200" style={{ left: `${o.lane * 33.3 + 12}%`, top: `${o.y * 15}%` }}>{t.bad}</span>)}
@@ -140,7 +142,7 @@ export function BubbleBurst({ theme, config, onComplete }) {
     const seen = new Set([k]); const queue = [k];
     while (queue.length) { const c = queue.pop(); const r = Math.floor(c / n); [[r, c % n - 1], [r, c % n + 1], [r - 1, c % n], [r + 1, c % n]].forEach(([y, x]) => { const j = y * n + x; if (y >= 0 && y < n && x >= 0 && x < n && !seen.has(j) && grid[j] === grid[k]) { seen.add(j); queue.push(j); } }); }
     if (seen.size < 2) { run.ping('bad'); return; }
-    run.ping('good'); setGrid((g) => g.map((v, j) => (seen.has(j) ? pick(syms) : v)));
+    run.ping('good'); setGrid((g) => { const out = [...g]; for (let c = 0; c < n; c += 1) { const col = []; for (let r = n - 1; r >= 0; r -= 1) if (!seen.has(r * n + c)) col.push(g[r * n + c]); while (col.length < n) col.push(pick(syms)); col.forEach((v, k) => { out[(n - 1 - k) * n + c] = v; }); } return out; });
     setCleared((c) => { if (c + seen.size >= goal) run.finish(goal / 2); return c + seen.size; });
   };
   return <Stage theme={theme} title="Bubble Burst" flash={run.flash} stats={[['Burst', `${Math.min(cleared, goal)}/${goal}`]]}>

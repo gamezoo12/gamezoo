@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { playGameSound } from '../../../lib/gameExperience';
 import { renderLevel, timeLimit } from '../../../lib/practiceGames';
+import { startMusic, stopMusic, worldOfLevel } from '../../../lib/music';
+import { SoundControls } from '../SoundControls';
 
 function Countdown({ onDone }) {
   const [n, setN] = useState(3);
@@ -32,6 +34,7 @@ export function PracticeRun({ game, level, onFinish, onQuit }) {
     }, 200);
     return () => clearInterval(id);
   }, [started, limit]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!started) return undefined; startMusic(worldOfLevel(level)); return () => stopMusic(); }, [started, level]);
   if (!started) return <Countdown onDone={() => setStarted(true)} />;
   const pct = limit ? Math.max(0, left / (limit * 1000)) : 1;
   const sec = limit ? Math.max(0, Math.ceil(left / 1000)) : Math.floor(left / 1000);
@@ -41,7 +44,7 @@ export function PracticeRun({ game, level, onFinish, onQuit }) {
         <div className="flex items-center justify-between gap-3">
           <span className="text-xs font-black uppercase tracking-widest text-white/60">Level {level}</span>
           {game.category !== 'Party' && <span className={`font-display text-2xl font-black tabular-nums ${pct < 0.25 ? 'animate-pulse text-rose-400' : 'text-white'}`} data-testid="practice-timer">{sec}s</span>}
-          <button type="button" onClick={onQuit} className="inline-flex h-8 items-center gap-1 rounded-lg bg-white/10 px-2.5 text-xs font-bold text-white/80" data-testid="practice-quit"><X className="h-3.5 w-3.5" />Quit</button>
+          <div className="flex items-center gap-2">{game.category !== 'Party' && <SoundControls />}<button type="button" onClick={onQuit} className="inline-flex h-8 items-center gap-1 rounded-lg bg-white/10 px-2.5 text-xs font-bold text-white/80" data-testid="practice-quit"><X className="h-3.5 w-3.5" />Quit</button></div>
         </div>
         {game.category !== 'Party' && <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10"><div className={`h-full rounded-full transition-[width] duration-200 ${pct < 0.25 ? 'bg-rose-500' : pct < 0.5 ? 'bg-amber-400' : 'bg-emerald-400'}`} style={{ width: `${pct * 100}%` }} /></div>}
       </div>

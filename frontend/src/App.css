@@ -91,4 +91,6 @@
 .pl-practice-pop { animation: plPracticePop .35s cubic-bezier(.2,.9,.3,1.2) both; }
 @keyframes plPracticeConfetti { from { transform: translateY(-20px) rotate(0); opacity: 1; } to { transform: translateY(420px) rotate(540deg); opacity: 0; } }
 .pl-practice-confetti { animation: plPracticeConfetti 1.8s ease-in forwards; }
+@keyframes plCelebrate { from { transform: translateY(-20px) rotate(0); opacity: 1; } to { transform: translateY(105vh) rotate(720deg); opacity: 0.2; } }
+.pl-celebrate { animation: plCelebrate 2.6s ease-in forwards; }
 @media (prefers-reduced-motion: reduce) { .pl-practice-pop, .pl-practice-confetti { animation: none; } }

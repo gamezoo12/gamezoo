@@ -1,3 +1,4 @@
+import { puzzleImage } from '../../lib/puzzleImages';
 import { ARCADE_GAMES } from './arcade';
 
 /*
@@ -233,7 +234,7 @@ export function EmojiRiddle({ onComplete }) {
 
 // ---------- Image Jigsaw (3x3 or 4x4) ----------
 export function ImageJigsaw({ size = 3, config, onComplete }) {
-  const image = config?.image || 'https://images.pexels.com/photos/928187/pexels-photo-928187.jpeg?auto=compress&cs=tinysrgb&w=600';
+  const image = config?.image || puzzleImage(config?.stage_level || config?.level || 1);
   const total = size * size;
   const [tiles, setTiles] = useState(() => {
     let s;

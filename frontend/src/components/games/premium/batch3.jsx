@@ -1,3 +1,4 @@
+import { puzzleImage } from '../../../lib/puzzleImages';
 import { useEffect, useMemo, useState } from 'react';
 import { Eye, EyeOff, Shuffle } from 'lucide-react';
 import { difficultyOf, lerpLevel, seeded, seededShuffle } from '../../../lib/difficulty';
@@ -66,7 +67,7 @@ export function PremiumEmojiRiddle({ config, onComplete }) {
 // ---------- Image Jigsaw: preview disappears and swaps become adjacent-only at high levels ----------
 export function PremiumJigsaw({ size = 3, config, onComplete }) {
   const level = difficultyOf(config);
-  const image = config?.image || 'https://images.pexels.com/photos/928187/pexels-photo-928187.jpeg?auto=compress&cs=tinysrgb&w=600';
+  const image = config?.image || puzzleImage(config?.stage_level || config?.level || 1);
   const total = size * size;
   const adjacentOnly = level >= 8;
   const [tiles, setTiles] = useState(() => { let s; do { s = seededShuffle([...Array(total).keys()], 1300 + level + Math.floor(Math.random() * 1e5)); } while (s.every((v, k) => v === k)); return s; });

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ARCADE_THEMES, Stage, btn, levelOf, pick, scale, shuffle, tile, useRun } from './kit';
+import { playGameSound } from '../../../lib/gameExperience';
 
 // 11. Memory Flip — find all the matching pairs.
 export function MemoryFlip({ theme, config, onComplete }) {
@@ -31,26 +32,48 @@ export function TapOrder({ theme, config, onComplete }) {
   </Stage>;
 }
 
-// 13. Shell Game — follow the prize while the cups shuffle.
+// 13. Shell Game — watch the prize go under a cup, follow the real shuffle, pick the right cup.
+const CUP = 'polygon(20% 0, 80% 0, 100% 100%, 0 100%)';
 export function ShellGame({ theme, config, onComplete }) {
-  const t = ARCADE_THEMES[theme]; const level = levelOf(config); const goal = scale(level, 3, 6); const swaps = scale(level, 4, 12);
-  const run = useRun(onComplete); const [order, setOrder] = useState([0, 1, 2]); const [ball, setBall] = useState(0); const [phase, setPhase] = useState('show'); const [wins, setWins] = useState(0); const [prize] = useState(() => pick(t.items)[0]);
+  const t = ARCADE_THEMES[theme]; const level = levelOf(config); const cups = level <= 3 ? 3 : level <= 7 ? 4 : 5;
+  const goal = scale(level, 3, 5); const swaps = scale(level, 5, 14); const speed = Math.max(280, 640 - level * 38);
+  const run = useRun(onComplete); const [prize] = useState(() => pick(t.items)[0]);
+  const [round, setRound] = useState(0); const [slot, setSlot] = useState(() => [...Array(cups).keys()]); const [ball, setBall] = useState(0);
+  const [phase, setPhase] = useState('show'); const [swap, setSwap] = useState(null); const [picked, setPicked] = useState(null); const [wins, setWins] = useState(0);
   useEffect(() => {
-    if (phase !== 'show') return undefined;
-    const b = Math.floor(Math.random() * 3); setBall(b);
-    let i = 0; let id;
-    const timer = setTimeout(() => { setPhase('shuffle'); id = setInterval(() => { setOrder((o) => { const a = Math.floor(Math.random() * 3); const c = (a + 1 + Math.floor(Math.random() * 2)) % 3; const n = [...o]; [n[a], n[c]] = [n[c], n[a]]; return n; }); i += 1; if (i >= swaps) { clearInterval(id); setPhase('pick'); } }, Math.max(220, 600 - level * 35)); }, 1100);
-    return () => { clearTimeout(timer); clearInterval(id); };
-  }, [phase, swaps, level]);
-  const choose = (cup) => { if (phase !== 'pick') return; if (cup === ball) { run.ping('good'); setWins((w) => { if (w + 1 >= goal) run.finish(goal); return w + 1; }); } else run.ping('bad'); setPhase('reveal'); setTimeout(() => setPhase('show'), 900); };
-  return <Stage theme={theme} title="Shell Game" flash={run.flash} stats={[['Wins', `${wins}/${goal}`]]}>
-    <div className="relative mx-auto h-44 w-full max-w-sm">
-      {[0, 1, 2].map((cup) => <button key={cup} type="button" onClick={() => choose(cup)} className="absolute top-8 flex h-28 w-24 flex-col items-center justify-end transition-[left] duration-200" style={{ left: `${order.indexOf(cup) * 34 + 2}%` }} data-testid={`arcade-cup-${cup}`}>
-        <span className="text-6xl transition-transform" style={{ transform: (phase === 'show' || phase === 'reveal') && cup === ball ? 'translateY(-40px)' : 'none' }}>🥤</span>
-        {(phase === 'show' || phase === 'reveal') && cup === ball && <span className="absolute bottom-0 text-3xl">{prize}</span>}
-      </button>)}
+    const ts = []; const at = (ms, f) => ts.push(setTimeout(f, ms));
+    setBall(Math.floor(Math.random() * cups)); setPicked(null); setPhase('show'); playGameSound('whoosh');
+    at(1400, () => { setPhase('hide'); playGameSound('thud'); });
+    for (let k = 0; k < swaps; k += 1) at(1900 + k * speed, () => {
+      const a = Math.floor(Math.random() * cups); let c = Math.floor(Math.random() * (cups - 1)); if (c >= a) c += 1;
+      setSlot((sl) => sl.map((p) => (p === a ? c : p === c ? a : p))); setSwap([a, c]); setPhase('shuffle'); playGameSound('slide');
+    });
+    at(1900 + swaps * speed, () => { setSwap(null); setPhase('pick'); });
+    return () => ts.forEach(clearTimeout);
+  }, [round, cups, swaps, speed]);
+  const choose = (cup) => {
+    if (phase !== 'pick') return; setPicked(cup); setPhase('reveal');
+    const win = cup === ball; run.ping(win ? 'good' : 'bad');
+    const w = wins + (win ? 1 : 0); setWins(w);
+    if (w >= goal) setTimeout(() => run.finish(goal + (run.misses.current || 0)), 900); else setTimeout(() => setRound((r) => r + 1), 1500);
+  };
+  const lifted = (cup) => (phase === 'show' && cup === ball) || (phase === 'reveal' && (cup === ball || cup === picked));
+  return <Stage theme={theme} title="Shell Game" flash={run.flash} stats={[['Wins', `${wins}/${goal}`], ['Cups', cups]]}>
+    <div className="relative mx-auto h-52 w-full max-w-md overflow-hidden rounded-2xl" style={{ background: 'radial-gradient(120% 80% at 50% 100%, #14532d, #052e16)' }}>
+      <div className="absolute inset-x-4 bottom-6 h-4 rounded-full bg-black/40 blur-md" />
+      {[...Array(cups).keys()].map((cup) => { const pos = slot[cup]; const moving = swap && (pos === swap[0] || pos === swap[1]); const dy = moving ? (pos === swap[0] ? -22 : 14) : 0;
+        return <button key={cup} type="button" onClick={() => choose(cup)} disabled={phase !== 'pick'} className="absolute bottom-6 h-32 w-[19%] max-w-[92px]" style={{ left: `${((pos + 0.5) / cups) * 100}%`, transform: `translate(-50%, ${dy}px) scale(${moving && pos === swap[0] ? 1.06 : 1})`, zIndex: moving && pos === swap[0] ? 5 : 1, transition: `left ${speed * 0.85}ms cubic-bezier(.5,0,.3,1), transform ${speed * 0.45}ms ease-in-out` }} data-testid={`arcade-cup-${cup}`}>
+          {cup === ball && (phase === 'show' || phase === 'reveal') && <span className="pty-new absolute bottom-0 left-1/2 -translate-x-1/2 text-4xl drop-shadow-[0_0_10px_#fde047]">{prize}</span>}
+          <span className="absolute inset-x-0 bottom-0 block h-24 transition-transform duration-500" style={{ transform: lifted(cup) ? 'translateY(-64px) rotate(-8deg)' : 'none' }}>
+            <span className="absolute left-1/2 top-[-10px] h-4 w-6 -translate-x-1/2 rounded-full" style={{ background: 'linear-gradient(90deg,#7f1d1d,#f87171,#7f1d1d)' }} />
+            <span className="absolute inset-0" style={{ clipPath: CUP, background: 'linear-gradient(90deg,#7f1d1d 0%,#dc2626 25%,#fecaca 45%,#ef4444 60%,#7f1d1d 100%)' }} />
+            <span className="absolute inset-x-[12%] top-[35%] h-1.5 rounded-full bg-amber-300/80" /><span className="absolute inset-x-[6%] top-[62%] h-1.5 rounded-full bg-amber-300/80" />
+            <span className="absolute -bottom-1 left-[-4%] right-[-4%] h-3 rounded-full bg-red-950" />
+            {phase === 'reveal' && cup === picked && <span className="absolute -top-8 left-1/2 -translate-x-1/2 text-2xl">{cup === ball ? '✅' : '❌'}</span>}
+          </span>
+        </button>; })}
     </div>
-    <p className="text-center text-xs text-white/60">{phase === 'pick' ? 'Where is it? Tap a cup' : 'Watch closely…'}</p>
+    <p className="mt-2 text-center text-sm font-black" data-testid="arcade-shell-phase">{phase === 'show' ? `Watch the ${prize}…` : phase === 'pick' ? 'Where is it? Tap a cup!' : phase === 'reveal' ? (picked === ball ? 'Found it!' : 'Not there!') : 'Follow the cup…'}</p>
   </Stage>;
 }
 
@@ -96,12 +119,12 @@ export function PairLink({ theme, config, onComplete }) {
 // 17. Rhythm Tap — tap as the marker crosses the glowing zone.
 export function RhythmTap({ theme, config, onComplete }) {
   const t = ARCADE_THEMES[theme]; const level = levelOf(config); const goal = scale(level, 6, 12);
-  const run = useRun(onComplete); const [pos, setPos] = useState(0); const [hits, setHits] = useState(0); const dir = useRef(1); const zone = Math.max(10, 22 - level);
+  const run = useRun(onComplete); const [pos, setPos] = useState(0); const [hits, setHits] = useState(0); const dir = useRef(1); const zone = Math.max(10, 22 - level); const [icon] = useState(() => pick(t.items)[0]);
   useEffect(() => { const id = setInterval(() => setPos((p) => { let n = p + dir.current * (1.5 + level * 0.35); if (n >= 100 || n <= 0) { dir.current *= -1; n = Math.max(0, Math.min(100, n)); } return n; }), 16); return () => clearInterval(id); }, [level]);
   const tap = () => { if (Math.abs(pos - 50) <= zone / 2) { run.ping('good'); setHits((h) => { if (h + 1 >= goal) run.finish(goal); return h + 1; }); } else run.ping('bad'); };
   return <Stage theme={theme} title="Rhythm Tap" flash={run.flash} stats={[['Beats', `${hits}/${goal}`]]}>
     <div className="relative my-8 h-6 rounded-full bg-black/40"><div className="absolute inset-y-0 rounded-full" style={{ left: `${50 - zone / 2}%`, width: `${zone}%`, background: t.accent, opacity: 0.6 }} /><div className="absolute -top-3 h-12 w-3 -translate-x-1/2 rounded bg-white shadow-lg" style={{ left: `${pos}%` }} /></div>
-    <div className="text-center"><button type="button" onClick={tap} className={`${btn} bg-white px-10 text-3xl text-slate-900`} data-testid="arcade-rhythm-tap">{pick(t.items)[0]} TAP</button></div>
+    <div className="text-center"><button type="button" onClick={tap} className={`${btn} bg-white px-10 text-3xl text-slate-900`} data-testid="arcade-rhythm-tap">{icon} TAP</button></div>
   </Stage>;
 }
 

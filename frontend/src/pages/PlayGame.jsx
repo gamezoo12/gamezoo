@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import TurnstileGate from '../components/games/TurnstileGate';
 import GameSoundToggle from '../components/games/GameSoundToggle';
+import { GameMusic, MusicToggle } from '../components/games/SoundControls';
 import { gameExperienceFor, pickResultQuote, playGameSound } from '../lib/gameExperience';
 
 const formatDuration = (milliseconds = 0) => {
@@ -320,6 +321,7 @@ export default function PlayGame() {
           <ArrowRight className="w-4 h-4" />
         </Link>
         <GameSoundToggle />
+        <MusicToggle />
       </div>
 
       <div className="bg-gradient-to-br from-slate-900 via-indigo-900 to-fuchsia-900 text-white rounded-3xl p-6 mb-6 relative overflow-hidden">
@@ -478,6 +480,7 @@ export default function PlayGame() {
             </div>
           ) : (
             <div key={`demo-${gameKey}`}>
+              <GameMusic world={0} />
               {renderGame(
                 {
                   ...(contest.game_config || {}),
@@ -595,6 +598,7 @@ export default function PlayGame() {
           </div>
 
           <div className="p-6" key={`official-${gameKey}`} onPointerDownCapture={() => playGameSound('tap')}>
+            <GameMusic world={2} />
             {renderGame(contest.game_config || {}, submitOfficialResult)}
           </div>
         </div>

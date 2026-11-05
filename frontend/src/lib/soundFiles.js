@@ -4,7 +4,7 @@ const FILES = {
   dice: ['dice1', 'dice2', 'dice3'], step: ['step1', 'step2', 'step3'], capture: ['capture1', 'capture2'], card: ['card1', 'card2', 'card3'],
   drop: ['drop1', 'drop2'], pop: ['pop1', 'pop2', 'pop3'], combo: ['combo1'], home: ['home1'], chat: ['chat1'], tick: ['tick1'], bad: ['bad1'],
   ladder: ['ladder1'], six: ['six1'], coin: ['coin1', 'coin2'], slide: ['slide1', 'slide2'], flip: ['flip1', 'flip2'], chime: ['chime1'],
-  thud: ['thud1'], whoosh: ['whoosh1'], snake: ['snake1'], open: ['open1'], win: ['win1'], lose: ['lose1'], click: ['click1'],
+  thud: ['thud1'], whoosh: ['whoosh1'], snake: ['snake1'], open: ['open1'], win: ['win1'], cheer: ['cheer1', 'cheer2'], lose: ['lose1'], click: ['click1'],
 };
 const VOL = { tick: 0.6, chat: 0.7, step: 1.2, pop: 1.1, dice: 1.2 };
 let ctx; let out; let loading = false;

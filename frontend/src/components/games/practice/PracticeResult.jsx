@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Crown, LayoutGrid, RotateCcw, Trophy } from 'lucide-react';
-import { pickResultQuote } from '../../../lib/gameExperience';
+import { pickResultQuote, playGameSound } from '../../../lib/gameExperience';
 import { StarRow } from './LevelPath';
 
 const btn = 'inline-flex h-12 items-center justify-center gap-2 rounded-xl px-5 font-black transition-transform hover:-translate-y-0.5 active:translate-y-0';
@@ -15,6 +15,17 @@ function Confetti() {
   );
 }
 
+// Full-screen celebration for a perfect 3-star clear.
+function Celebration() {
+  useEffect(() => { playGameSound('cheer'); const t = setTimeout(() => playGameSound('win'), 350); return () => clearTimeout(t); }, []);
+  return (
+    <div className="pointer-events-none fixed inset-0 z-50 overflow-hidden" aria-hidden data-testid="practice-celebration">
+      {Array.from({ length: 110 }, (_, i) => <span key={i} className="pl-celebrate absolute top-[-20px] rounded-sm" style={{ left: `${(i * 53) % 100}%`, width: 6 + (i % 4) * 3, height: 10 + (i % 3) * 5, background: CONFETTI[i % 5], animationDelay: `${(i % 14) * 0.09}s`, animationDuration: `${2.2 + (i % 5) * 0.4}s` }} />)}
+      <div className="absolute inset-x-0 top-1/4 text-center"><span className="pl-practice-pop inline-block rounded-full bg-amber-400 px-6 py-2 font-display text-2xl font-black text-slate-900 shadow-2xl">PERFECT! ⭐⭐⭐</span></div>
+    </div>
+  );
+}
+
 export function PracticeResult({ result, level, stars, guest, onNext, onRetry, onLevels }) {
   const passed = Boolean(result.solved) && !result.timeout;
   const champion = passed && level % 10 === 0;
@@ -22,6 +33,7 @@ export function PracticeResult({ result, level, stars, guest, onNext, onRetry, o
   return (
     <div className="relative mx-auto max-w-lg py-4 text-center" data-testid={passed ? 'practice-pass' : 'practice-fail'}>
       {passed && <Confetti />}
+      {passed && stars >= 3 && <Celebration />}
       <div className="pl-practice-pop relative">
         {champion ? <Crown className="mx-auto h-16 w-16 text-amber-400" /> : passed ? <Trophy className="mx-auto h-14 w-14 text-amber-400" /> : <RotateCcw className="mx-auto h-12 w-12 text-rose-400" />}
         <h2 className="mt-3 font-display text-3xl font-black text-white sm:text-4xl" data-testid="practice-result-title">

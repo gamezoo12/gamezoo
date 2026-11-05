@@ -1,0 +1,3 @@
+// Sharp, clear-subject photos for picture puzzles, rotated by level (square 2048px crops).
+const IDS = ['photo-1506277640-66f9b04bd2f1', 'photo-1497531551184-06b252e1bee1', 'photo-1475754073691-4423e1368422', 'photo-1630693344578-13605bf27d10', 'photo-1448518340475-e3c680e9b4be', 'photo-1609097172762-1faf6cc8a0d2', 'photo-1581262177000-8139a463e531', 'photo-1768809118422-3ef65c210b29', 'photo-1602557089158-f91c696af5fd', 'photo-1517520267752-34bfde704a0f'];
+export const puzzleImage = (level = 1) => `https://images.unsplash.com/${IDS[(Math.max(1, level) - 1) % IDS.length]}?auto=format&fit=crop&crop=entropy&w=2048&h=2048&q=90`;
