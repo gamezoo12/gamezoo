@@ -14,7 +14,7 @@ from deps import get_db
 
 router = APIRouter(prefix='/api/party/rooms', tags=['party-rooms'])
 
-ONLINE_GAMES = {'pty_ludo_royale': 4, 'pty_colour_cards': 4, 'pty_four_in_row': 2, 'pty_snakes_ladders': 4, 'pty_dots_boxes': 4, 'pty_checkers': 2}
+ONLINE_GAMES = {'pty_ludo_royale': 4, 'pty_colour_cards': 4, 'pty_four_in_row': 2, 'pty_snakes_ladders': 4, 'pty_dots_boxes': 4, 'pty_checkers': 2, 'pty_memory_duel': 4, 'pty_reversi': 2, 'pty_gomoku': 2, 'pty_tictactoe': 2, 'pty_mancala': 2, 'pty_isolation': 2, 'pty_breakthrough': 2, 'pty_domineering': 2, 'pty_clobber': 2, 'pty_nim': 2, 'pty_hex': 2, 'pty_treblecross': 2, 'pty_morris': 2, 'pty_fox_hounds': 2, 'pty_sim': 2, 'pty_chomp': 2, 'pty_kayles': 2, 'pty_notakto': 2}
 ROOM_TTL = timedelta(hours=6)
 
 

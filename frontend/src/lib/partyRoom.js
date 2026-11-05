@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from './api';
 
-export const ONLINE_GAMES = ['pty_ludo_royale', 'pty_colour_cards', 'pty_four_in_row', 'pty_snakes_ladders', 'pty_dots_boxes', 'pty_checkers'];
+export const ONLINE_GAMES = ['pty_ludo_royale', 'pty_colour_cards', 'pty_four_in_row', 'pty_snakes_ladders', 'pty_dots_boxes', 'pty_checkers', 'pty_memory_duel', 'pty_reversi', 'pty_gomoku', 'pty_tictactoe', 'pty_mancala', 'pty_isolation', 'pty_breakthrough', 'pty_domineering', 'pty_clobber', 'pty_nim', 'pty_hex', 'pty_treblecross', 'pty_morris', 'pty_fox_hounds', 'pty_sim', 'pty_chomp', 'pty_kayles', 'pty_notakto'];
 export const roomAPI = {
   create: (gameId) => api.post('/party/rooms', { game_id: gameId }).then((r) => r.data),
   join: (code) => api.post(`/party/rooms/${code}/join`).then((r) => r.data),

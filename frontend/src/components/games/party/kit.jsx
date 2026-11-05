@@ -66,6 +66,18 @@ const SFX = {
   laugh: (a) => [0, 0.13, 0.26, 0.39].forEach((at, i) => tone(a, 620 - i * 40, 0.1, { at, type: 'triangle', vol: 0.07, to: 480 - i * 40 })),
   clap: (a) => [0, 0.12, 0.24, 0.36, 0.48].forEach((at) => noise(a, 0.06, { at, freq: 1400, vol: 0.3 })),
   cry: (a) => tone(a, 520, 0.7, { type: 'sine', vol: 0.06, to: 260 }),
+  coin: (a) => { tone(a, 1320, 0.08, { type: 'square', vol: 0.04 }); tone(a, 1760, 0.18, { at: 0.06, type: 'square', vol: 0.04 }); },
+  slide: (a) => { noise(a, 0.12, { freq: 900, vol: 0.12 }); tone(a, 300, 0.12, { to: 520, vol: 0.04 }); },
+  flip: (a) => { noise(a, 0.05, { freq: 3000, vol: 0.15 }); tone(a, 600, 0.06, { to: 900, type: 'triangle', vol: 0.05 }); },
+  chime: (a) => [784, 1175, 1568].forEach((f, i) => tone(a, f, 0.25, { at: i * 0.07, type: 'triangle', vol: 0.05 })),
+  thud: (a) => { tone(a, 120, 0.2, { to: 60, vol: 0.12 }); noise(a, 0.08, { freq: 150, vol: 0.25 }); },
+  whoosh: (a) => noise(a, 0.3, { freq: 1200, vol: 0.1 }),
+  pad0: (a) => tone(a, 330, 0.35, { type: 'triangle', vol: 0.09 }),
+  pad1: (a) => tone(a, 392, 0.35, { type: 'triangle', vol: 0.09 }),
+  pad2: (a) => tone(a, 440, 0.35, { type: 'triangle', vol: 0.09 }),
+  pad3: (a) => tone(a, 523, 0.35, { type: 'triangle', vol: 0.09 }),
+  pad4: (a) => tone(a, 587, 0.35, { type: 'triangle', vol: 0.09 }),
+  pad5: (a) => tone(a, 659, 0.35, { type: 'triangle', vol: 0.09 }),
   snake: (a) => { noise(a, 0.5, { freq: 5000, vol: 0.1 }); tone(a, 600, 0.6, { to: 150, vol: 0.05, type: 'sawtooth' }); },
 };
 export function sfx(kind) { if (!gameSoundEnabled()) return; try { const a = ac(); if (a) SFX[kind]?.(a); } catch { /* audio unavailable */ } }
