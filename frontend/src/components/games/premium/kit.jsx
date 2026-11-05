@@ -40,7 +40,7 @@ export function Board3D({ theme, title, level, stats = [], children, flash, bg, 
 export function useFeedback() {
   const [flash, setFlash] = useState(null);
   const fire = useCallback((kind) => {
-    playGameSound(kind === 'good' ? 'success' : kind === 'bad' ? 'failure' : 'tap');
+    playGameSound(kind === 'good' ? 'correct' : kind === 'bad' ? 'incorrect' : 'tap');
     setFlash(kind);
     setTimeout(() => setFlash(null), 380);
   }, []);

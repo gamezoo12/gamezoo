@@ -1,3 +1,4 @@
+import { playFile } from './soundFiles';
 import { arcadeExperience } from './arcadeMeta';
 
 export const RESULT_QUOTES = {
@@ -70,8 +71,10 @@ export function setGameSoundEnabled(enabled) {
   try { localStorage.setItem(SOUND_KEY, enabled ? 'on' : 'off'); } catch {}
   window.dispatchEvent(new Event('pl-game-sound-change'));
 }
+const FILE_KIND = { tap: 'click', correct: 'combo', incorrect: 'bad', countdown: 'tick', start: 'open', success: 'win', failure: 'lose' };
 export function playGameSound(kind = 'tap') {
   if (!gameSoundEnabled()) return;
+  if (playFile(FILE_KIND[kind] || kind)) return;
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
   if (!AudioContextClass) return;
   try {

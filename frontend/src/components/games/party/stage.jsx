@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Clock, MessageCircle, Volume2, VolumeX } from 'lucide-react';
 import { QUICK_REPLIES, REACTIONS, sfx, themeFor } from './kit';
 import { gameSoundEnabled, setGameSoundEnabled } from '../../../lib/gameExperience';
+import { preloadSounds } from '../../../lib/soundFiles';
 
 function SoundToggle() {
   const [on, setOn] = useState(gameSoundEnabled());
@@ -35,6 +36,7 @@ export function Avatar({ p, active, turnPct, bubble, idx, edge }) {
 // Full-bleed themed stage: AI backdrop per world, HUD with live avatars + speech bubbles, clocks, chat and quick replies.
 export function PartyStage({ config, title, players, active, turnLeft, turnSec, matchLeft, banter, children, flash, meIdx = 0 }) {
   const th = themeFor(config);
+  useEffect(() => { preloadSounds(); const t = setTimeout(() => sfx('open'), 150); return () => clearTimeout(t); }, []);
   const latest = {};
   const now = Date.now();
   (banter?.msgs || []).forEach((m) => { if (now - m.at < 4500) latest[m.who] = m; });

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../../../lib/api';
 import { gameSoundEnabled } from '../../../lib/gameExperience';
+import { audioCtx, masterOut, playFile } from '../../../lib/soundFiles';
 import './party.css';
 
 const IMG = 'https://static.prod-images.emergentagent.com/jobs/bed71dc8-b9d4-4162-83af-25036da88173/images/';
@@ -33,25 +34,9 @@ export const BOTS = [
 ];
 
 // ---------- Sound: small synth so every game has real effects without audio files ----------
-let ctx;
 let out;
-// Louder master bus with a limiter so phone speakers can hear the effects.
-function ac() {
-  const C = window.AudioContext || window.webkitAudioContext; if (!C) return null;
-  if (!ctx) { ctx = new C(); const comp = ctx.createDynamicsCompressor(); out = ctx.createGain(); out.gain.value = 3.2; out.connect(comp); comp.connect(ctx.destination); }
-  if (ctx.state !== 'running') ctx.resume().catch(() => {});
-  return ctx;
-}
-// iPhone: play web audio even with the silent switch on, and unlock audio on the first tap.
-const SILENT = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
-function unlockAudio() {
-  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* unsupported */ }
-  try { const el = new Audio(SILENT); el.setAttribute('playsinline', ''); el.play().catch(() => {}); } catch { /* unsupported */ }
-  const a = ac(); if (!a) return;
-  try { const b = a.createBuffer(1, 1, 22050); const src = a.createBufferSource(); src.buffer = b; src.connect(a.destination); src.start(0); } catch { /* ignore */ }
-  if (a.state === 'running') ['pointerdown', 'touchend', 'keydown'].forEach((e) => window.removeEventListener(e, unlockAudio, true));
-}
-if (typeof window !== 'undefined') ['pointerdown', 'touchend', 'keydown'].forEach((e) => window.addEventListener(e, unlockAudio, true));
+// Synth tones go through a louder bus on the shared master (recorded sounds are preferred, see lib/soundFiles).
+function ac() { const a = audioCtx(); if (a && !out) { out = a.createGain(); out.gain.value = 3.2; out.connect(masterOut()); } return a; }
 function tone(a, f, d, { type = 'sine', at = 0, vol = 0.08, to } = {}) {
   const o = a.createOscillator(); const g = a.createGain(); const t = a.currentTime + at;
   o.type = type; o.frequency.setValueAtTime(f, t); if (to) o.frequency.exponentialRampToValueAtTime(to, t + d);
@@ -97,7 +82,7 @@ const SFX = {
   pad5: (a) => tone(a, 659, 0.35, { type: 'triangle', vol: 0.09 }),
   snake: (a) => { noise(a, 0.5, { freq: 5000, vol: 0.1 }); tone(a, 600, 0.6, { to: 150, vol: 0.05, type: 'sawtooth' }); },
 };
-export function sfx(kind) { if (!gameSoundEnabled()) return; try { const a = ac(); if (a) SFX[kind]?.(a); } catch { /* audio unavailable */ } }
+export function sfx(kind) { if (!gameSoundEnabled()) return; try { if (playFile(kind)) return; const a = ac(); if (a) SFX[kind]?.(a); } catch { /* audio unavailable */ } }
 
 // ---------- Bot banter: instant ready-made lines, AI-written lines at big moments ----------
 const LINES = {

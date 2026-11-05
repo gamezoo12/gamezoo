@@ -41,7 +41,7 @@ export function useRun(onComplete) {
   const ended = useRef(false);
   const [flash, setFlash] = useState(null);
   const ping = (kind) => {
-    playGameSound(kind === 'good' ? 'success' : kind === 'bad' ? 'failure' : 'tap');
+    playGameSound(kind === 'good' ? 'pop' : kind === 'bad' ? 'incorrect' : 'tap');
     if (kind === 'bad') misses.current += 1;
     setFlash(kind); setTimeout(() => setFlash(null), 300);
   };
