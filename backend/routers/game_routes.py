@@ -50,6 +50,13 @@ GAME_TYPES = [
 ]
 from services.arcade_catalog import ARCADE_GAME_TYPES  # noqa: E402
 GAME_TYPES += ARCADE_GAME_TYPES
+GAME_TYPES += [
+    {'id': 'pty_colour_cards', 'label': 'Colour Clash Cards', 'category': 'strategy', 'target_time_s': 150, 'max_attempts': 3, 'family': 'party'},
+    {'id': 'pty_ludo_royale', 'label': 'Ludo Royale', 'category': 'strategy', 'target_time_s': 240, 'max_attempts': 3, 'family': 'party'},
+    {'id': 'pty_sweet_swap', 'label': 'Sweet Swap', 'category': 'puzzle', 'target_time_s': 150, 'max_attempts': 3, 'family': 'party'},
+    {'id': 'pty_four_in_row', 'label': 'Four in a Row', 'category': 'strategy', 'target_time_s': 150, 'max_attempts': 3, 'family': 'party'},
+    {'id': 'pty_snakes_ladders', 'label': 'Snakes & Ladders Duel', 'category': 'strategy', 'target_time_s': 200, 'max_attempts': 3, 'family': 'party'},
+]
 
 
 class SubmitScoreInput(BaseModel):

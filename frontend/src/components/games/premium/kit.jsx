@@ -8,6 +8,8 @@ export const THEMES = {
   words: { from: '#0b3a2c', to: '#04140f', accent: '#34d399', glow: 'rgba(52,211,153,0.45)' },
   math: { from: '#0b2350', to: '#040b1f', accent: '#60a5fa', glow: 'rgba(96,165,250,0.45)' },
   reaction: { from: '#3d2a05', to: '#130c01', accent: '#fbbf24', glow: 'rgba(251,191,36,0.5)' },
+  party: { from: '#4a0d5e', to: '#14031f', accent: '#f472b6', glow: 'rgba(244,114,182,0.5)' },
+  sweet: { from: '#7a1d4a', to: '#2a0618', accent: '#fda4af', glow: 'rgba(253,164,175,0.55)' },
 };
 
 // Shared premium stage: tilted 3D board with lighting, reflections and a floor shadow.

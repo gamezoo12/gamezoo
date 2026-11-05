@@ -665,6 +665,7 @@ export function PatternRepeat({ onComplete }) {
 
 // ---------- Registry ----------
 import { GAMES_V2 } from './games_v2';
+import { PARTY_GAMES } from './party';
 import { PremiumEmojiRiddle, PremiumJigsaw, PremiumNumberSequence, PremiumPatternRepeat, PremiumSlider } from './premium/batch3';
 import { PremiumColorMatch, PremiumOddOne, PremiumSimon, PremiumTrivia, PremiumWhack } from './premium/batch2';
 import { PremiumMathSprint, PremiumMemory, PremiumReaction, PremiumTargetTap, PremiumWordUnscramble } from './premium/batch1';
@@ -689,4 +690,5 @@ export const GAME_MAP = {
   pattern_repeat: (config, onComplete) => <PremiumPatternRepeat config={config} onComplete={onComplete} />,
   ...GAMES_V2,
   ...ARCADE_GAMES,
+  ...PARTY_GAMES,
 };

@@ -46,7 +46,7 @@ export default function GamePreview() {
   if (uniqueIdFor(gameId) !== gameId) return <Navigate to={`/games/${uniqueIdFor(gameId)}`} replace />;
   if (loading) return <div className="mx-auto max-w-5xl px-4 py-16 text-center text-slate-500">Loading game…</div>;
   if (!settings?.game_preview_enabled) return <Navigate to="/" replace />;
-  const allowed = gameId.startsWith('arc_') || (settings.game_preview_games || []).includes(gameId);
+  const allowed = gameId.startsWith('arc_') || gameId.startsWith('pty_') || (settings.game_preview_games || []).includes(gameId);
   if (!allowed || !game) return <Navigate to="/games" replace />;
 
   const cover = settings?.game_preview_images?.[gameId] ? resolveMediaUrl(settings.game_preview_images[gameId]) : game.cover;

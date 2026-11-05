@@ -4,6 +4,7 @@ import { ARCADE_STYLE_META, ARCADE_THEME_LABELS } from './arcadeMeta';
 import { gameExperienceFor } from './gameExperience';
 import { gameCover } from './gameCovers';
 import { difficultyName } from './difficulty';
+import { PARTY_HOW_TO } from '../components/games/party';
 
 export const tierName = (t) => (t <= 10 ? difficultyName(t) : `Legend ${t - 10}`);
 
@@ -29,11 +30,12 @@ export const uniqueIdFor = (id) => { const s = arcadeStyle(id || ''); return s ?
 // types: /api/games/types list. selected: admin-picked premium ids (null = all).
 export function uniqueGames(types, selected = null) {
   const byId = Object.fromEntries((types || []).map((g) => [g.id, g]));
-  const premium = (types || []).filter((g) => g.family !== 'arcade' && GAME_MAP[g.id] && (!selected || selected.includes(g.id)))
+  const party = (types || []).filter((g) => g.family === 'party' && GAME_MAP[g.id]).map((g) => ({ id: g.id, label: g.label, category: 'Party', target: g.target_time_s || 150 }));
+  const premium = (types || []).filter((g) => !['arcade', 'party'].includes(g.family) && GAME_MAP[g.id] && (!selected || selected.includes(g.id)))
     .map((g) => ({ id: g.id, label: NAMES[g.id] || g.label.replace(/\s*\(.*\)\s*$/, ''), category: CATS[g.category] || 'Skill', target: g.target_time_s || 60 }));
   const arcade = Object.entries(ARCADE_STYLE_META).filter(([s]) => byId[`arc_${s}_fruit`])
     .map(([s, m]) => ({ id: `arc_${s}`, label: m[0], category: m[1], target: byId[`arc_${s}_fruit`].target_time_s || 45, style: s }));
-  return [...premium, ...arcade].map((g) => ({ ...g, cover: gameCover(g.id) }));
+  return [...party, ...premium, ...arcade].map((g) => ({ ...g, cover: gameCover(g.id) }));
 }
 
 export const sequenceCount = (level) => difficultyFor(level) * 10;
@@ -60,6 +62,7 @@ export function renderLevel(game, level, onComplete) {
 
 export function howToPlay(game) {
   if (game.style) { const m = ARCADE_STYLE_META[game.style]; return { objective: m[2], controls: m[3] }; }
+  if (PARTY_HOW_TO[game.id]) return PARTY_HOW_TO[game.id];
   if (game.id === 'number_sequence') return { objective: 'Tap every number in order, starting from 1.', controls: 'Find the next number on the board and tap it. Wrong taps cost accuracy.' };
   const g = gameExperienceFor(game.id) || {};
   return { objective: g.objective, controls: g.controls, mistakes: g.mistakes };
