@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Star } from 'lucide-react';
 import { difficultyOf } from '../../../lib/difficulty';
-import { BOTS, YOU, rivalsFor, sfx, themeFor, useBanter } from './kit';
+import { BOTS, YOU, onlinePlayers, rivalsFor, sfx, themeFor, useBanter, useGameState } from './kit';
 import { Dice3D, PartyStage } from './stage';
 
 // Classic Ludo on a real 15x15 cross board: 52-square track, safe stars, coloured home runs, 6 to leave base,
@@ -63,11 +63,14 @@ function stepAnim(s) {
   const victims = [];
   if (a !== null && !SAFE.has(a)) s.seats.forEach((q) => { if (q !== seat) pos[q].forEach((st, k) => { if (absOf(q, st) === a) { pos[q][k] = -1; victims.push(q); } }); });
   const home = target === END;
-  if (pos[seat].every((x) => x === END)) return { ...s, pos, phase: 'over', winner: seat, anim: null, msg: seat === 0 ? 'You win!' : `${BOTS[s.seats.indexOf(seat) - 1].name} wins!`, ev: ev(s, 'over', { seat }) };
+  if (pos[seat].every((x) => x === END)) return { ...s, pos, phase: 'over', winner: seat, roomWinner: s.seats.indexOf(seat), anim: null, msg: seat === 0 ? 'You win!' : `${BOTS[s.seats.indexOf(seat) - 1].name} wins!`, ev: ev(s, 'over', { seat }) };
   const kind = victims.length ? 'capture' : home ? 'home' : 'moved';
   const out = { ...s, pos, anim: null, ev: ev(s, kind, { seat, victim: victims[0] }), msg: victims.length ? 'Captured! Bonus roll' : home ? 'Token home! Bonus roll' : s.roll === 6 ? 'Rolled a 6: roll again' : '' };
   return victims.length || home || s.roll === 6 ? { ...out, phase: 'roll', sixes: victims.length || home ? 0 : s.sixes } : nextTurn(out);
 }
+export const ludoInit = (n) => setup(n - 1, 11);
+const resolveAll = (s) => { let x = s; while (x.phase === 'anim') x = stepAnim(x); return x; };
+
 function botPick(s, level) {
   const seat = s.seats[s.turn];
   if (Math.random() < 0.5 - level * 0.05) return s.opts[Math.floor(Math.random() * s.opts.length)];
@@ -100,7 +103,7 @@ function Pawn({ seat, at, offset, glow, onClick, testId, size }) {
   );
 }
 
-function Board({ g, theme, onPick }) {
+function Board({ g, theme, onPick, mySeat }) {
   const cells = [];
   TRACK.forEach(([r, c], i) => {
     const startSeat = START.indexOf(i);
@@ -113,12 +116,12 @@ function Board({ g, theme, onPick }) {
   const pawns = [];
   Object.values(groups).forEach((list) => list.forEach(({ seat, t, s }, k) => {
     const spread = list.length > 1 ? [(k % 2 ? 0.18 : -0.18), (k > 1 ? 0.18 : -0.18)] : [0, 0];
-    const glow = seat === 0 && g.phase === 'pick' && g.seats[g.turn] === 0 && g.opts.includes(t);
-    pawns.push(<Pawn key={`${seat}-${t}`} seat={seat} at={centerOf(seat, s, t)} offset={spread} glow={glow} onClick={() => onPick(t)} testId={seat === 0 ? `ludo-token-${t}` : undefined} size={list.length > 1 ? 4.6 : 5.8} />);
+    const glow = seat === mySeat && g.phase === 'pick' && g.seats[g.turn] === mySeat && g.opts.includes(t);
+    pawns.push(<Pawn key={`${seat}-${t}`} seat={seat} at={centerOf(seat, s, t)} offset={spread} glow={glow} onClick={() => onPick(t)} testId={seat === mySeat ? `ludo-token-${t}` : undefined} size={list.length > 1 ? 4.6 : 5.8} />);
   }));
   return (
     <div className="mx-auto w-full max-w-[460px] rounded-[22px] p-2 sm:p-3" style={{ background: theme.frame, boxShadow: `0 0 0 2px ${theme.accent}88, 0 25px 60px rgba(0,0,0,0.6), inset 0 2px 0 rgba(255,255,255,0.25)` }}>
-      <div className="relative aspect-square overflow-hidden rounded-xl" style={{ transform: 'rotate(-90deg)' }} data-testid="ludo-board">
+      <div className="relative aspect-square overflow-hidden rounded-xl" style={{ transform: `rotate(${-90 - 90 * mySeat}deg)` }} data-testid="ludo-board">
         <div className="absolute inset-0 grid" style={{ gridTemplateColumns: 'repeat(15,1fr)', gridTemplateRows: 'repeat(15,1fr)', background: '#f8fafc' }}>
           {BASE_ORIGIN.map(([r, c], seat) => (
             <div key={seat} className="relative p-[12%]" style={{ gridRow: `${r + 1} / span 6`, gridColumn: `${c + 1} / span 6`, background: g.seats.includes(seat) ? `linear-gradient(135deg, ${SEAT_COLORS[seat]}, ${SEAT_DARK[seat]})` : '#94a3b8' }}>
@@ -136,26 +139,32 @@ function Board({ g, theme, onPick }) {
   );
 }
 
-export function LudoRoyale({ config, onComplete }) {
+export function LudoRoyale({ config, onComplete, online }) {
   const level = difficultyOf(config);
   const theme = themeFor(config);
-  const [g, setG] = useState(() => setup(rivalsFor(config, 3), theme.lv));
+  const [g, setG] = useGameState(() => setup(rivalsFor(config, 3), theme.lv), online);
   const [start] = useState(Date.now);
-  const bots = useMemo(() => BOTS.slice(0, g.seats.length - 1), [g.seats.length]);
-  const banter = useBanter('Ludo', bots);
+  const bots = useMemo(() => (online ? [] : BOTS.slice(0, g.seats.length - 1)), [g.seats.length, online]);
+  const botChat = useBanter('Ludo', bots);
+  const banter = online ? online.chat : botChat;
+  const mySeat = online ? g.seats[online.seat] : 0;
+  const isBot = (s) => !online && s !== 0;
+  const nameOf = (s) => (s === mySeat ? 'You' : online ? online.names[g.seats.indexOf(s)] : bots[g.seats.indexOf(s) - 1]?.name);
   const done = useRef(false);
   const seat = g.seats[g.turn];
+  const pickT = (s, t) => (online ? resolveAll(choose(s, t)) : choose(s, t));
   const who = (s) => g.seats.indexOf(s) - 1;
 
   useEffect(() => {
     if (g.phase === 'over') return undefined;
     let t;
-    if (g.phase === 'anim') t = setTimeout(() => setG(stepAnim), 170);
-    else if (g.phase === 'next') t = setTimeout(() => setG(nextTurn), 1000);
-    else if (g.phase === 'roll' && seat !== 0) t = setTimeout(() => setG(rollDice), 900);
-    else if (g.phase === 'pick' && seat !== 0) t = setTimeout(() => setG((s) => choose(s, botPick(s, level))), 650);
-    else if (g.phase === 'pick' && g.opts.length === 1) t = setTimeout(() => setG((s) => (s.phase === 'pick' && s.opts.length === 1 ? choose(s, s.opts[0]) : s)), 700);
-    else if (g.phase === 'roll' && seat === 0) t = setTimeout(() => banter.say(Math.floor(Math.random() * bots.length), 'taunt'), 9000);
+    const driver = !online || seat === mySeat;
+    if (g.phase === 'anim' && driver) t = setTimeout(() => setG(stepAnim), 170);
+    else if (g.phase === 'next' && driver) t = setTimeout(() => setG(nextTurn), 1000);
+    else if (g.phase === 'roll' && isBot(seat)) t = setTimeout(() => setG(rollDice), 900);
+    else if (g.phase === 'pick' && isBot(seat)) t = setTimeout(() => setG((s) => choose(s, botPick(s, level))), 650);
+    else if (g.phase === 'pick' && seat === mySeat && g.opts.length === 1) t = setTimeout(() => setG((s) => (s.phase === 'pick' && s.opts.length === 1 ? pickT(s, s.opts[0]) : s)), 700);
+    else if (g.phase === 'roll' && seat === mySeat && !online) t = setTimeout(() => banter.say(Math.floor(Math.random() * bots.length), 'taunt'), 9000);
     return () => clearTimeout(t);
   }, [g]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -163,37 +172,38 @@ export function LudoRoyale({ config, onComplete }) {
     const e = g.ev;
     if (!e) return;
     if (e.kind === 'start') banter.say(0, 'start', { force: true });
-    if (e.kind === 'roll' || e.kind === 'six') { sfx('dice'); if (e.kind === 'six') setTimeout(() => sfx('six'), 650); if (e.none && e.seat !== 0 && Math.random() < 0.4) banter.say(who(e.seat), 'bot_bad'); }
+    if (e.kind === 'roll' || e.kind === 'six') { sfx('dice'); if (e.kind === 'six') setTimeout(() => sfx('six'), 650); if (e.none && isBot(e.seat) && Math.random() < 0.4) banter.say(who(e.seat), 'bot_bad'); }
     if (e.kind === 'step') sfx('step');
-    if (e.kind === 'three6') { sfx('bad'); if (e.seat === 0) banter.say(0, 'taunt', { force: true }); }
-    if (e.kind === 'home') { sfx('home'); banter.say(e.seat === 0 ? Math.floor(Math.random() * bots.length) : who(e.seat), e.seat === 0 ? 'you_good' : 'bot_good'); }
+    if (e.kind === 'three6') { sfx('bad'); if (e.seat === mySeat) banter.say(0, 'taunt', { force: true }); }
+    if (e.kind === 'home') { sfx('home'); banter.say(e.seat === mySeat ? Math.floor(Math.random() * bots.length) : who(e.seat), e.seat === mySeat ? 'you_good' : 'bot_good'); }
     if (e.kind === 'capture') {
       sfx('capture');
-      if (e.victim === 0) banter.say(who(e.seat), 'bot_hit', { big: true, event: 'you just captured the human player\'s Ludo token and sent it back to base' });
-      else if (e.seat === 0) banter.say(who(e.victim), 'you_hit', { big: true, event: 'the human player just captured your Ludo token and sent it home' });
+      if (e.victim === mySeat) banter.say(who(e.seat), 'bot_hit', { big: true, event: 'you just captured the human player\'s Ludo token and sent it back to base' });
+      else if (e.seat === mySeat) banter.say(who(e.victim), 'you_hit', { big: true, event: 'the human player just captured your Ludo token and sent it home' });
     }
     if (e.kind === 'over' && !done.current) {
       done.current = true;
-      const won = e.seat === 0;
+      const won = e.seat === mySeat;
       sfx(won ? 'win' : 'lose');
       banter.say(won ? 0 : who(e.seat), won ? 'you_win' : 'bot_win', { big: true, force: true, event: won ? 'the human player beat you at Ludo' : 'you just won the Ludo game against the human' });
-      const total = g.pos[0].length;
-      const rivalsHome = Math.max(...g.seats.filter((s) => s !== 0).map((s) => g.pos[s].filter((x) => x === END).length));
-      setTimeout(() => onComplete({ solved: won, accuracy: won ? 1 - (rivalsHome / total) * 0.5 : g.pos[0].filter((x) => x === END).length / total, duration_ms: Date.now() - start }), 2200);
+      const total = g.pos[mySeat].length;
+      const rivalsHome = Math.max(...g.seats.filter((s) => s !== mySeat).map((s) => g.pos[s].filter((x) => x === END).length));
+      setTimeout(() => onComplete({ solved: won, accuracy: won ? 1 - (rivalsHome / total) * 0.5 : g.pos[mySeat].filter((x) => x === END).length / total, duration_ms: Date.now() - start }), 2200);
     }
   }, [g.ev?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const players = g.seats.map((s, i) => ({ ...(i === 0 ? YOU : bots[i - 1]), color: SEAT_COLORS[s], info: `${g.pos[s].filter((x) => x === END).length}/${g.pos[s].length} home` }));
-  const myRoll = seat === 0 && g.phase === 'roll';
+  const homeInfo = (i) => `${g.pos[g.seats[i]].filter((x) => x === END).length}/${g.pos[g.seats[i]].length} home`;
+  const players = online ? onlinePlayers(online, g.seats.map((s) => SEAT_COLORS[s]), homeInfo) : g.seats.map((s, i) => ({ ...(i === 0 ? YOU : bots[i - 1]), color: SEAT_COLORS[s], info: homeInfo(i) }));
+  const myRoll = seat === mySeat && g.phase === 'roll';
   return (
-    <PartyStage config={config} title="Ludo Royale" players={players} active={g.turn} banter={banter}>
-      <Board g={g} theme={theme} onPick={(t) => { if (g.phase === 'pick' && seat === 0 && g.opts.includes(t)) setG((s) => choose(s, t)); }} />
+    <PartyStage config={config} title="Ludo Royale" players={players} active={g.turn} banter={banter} meIdx={online ? online.seat : 0}>
+      <Board g={g} theme={theme} mySeat={mySeat} onPick={(t) => { if (g.phase === 'pick' && seat === mySeat && g.opts.includes(t)) setG((s) => pickT(s, t)); }} />
       <div className="mt-3 flex items-center justify-center gap-4">
         <div className="rounded-2xl p-2.5" style={{ background: `${SEAT_COLORS[seat]}33`, boxShadow: myRoll ? `0 0 0 2px ${SEAT_COLORS[seat]}, 0 0 30px ${SEAT_COLORS[seat]}` : 'none' }}>
-          <Dice3D value={g.roll} spin={g.spin} size={54} color={seat === 0 ? '#e0e7ff' : '#f1f5f9'} onClick={() => myRoll && setG(rollDice)} disabled={!myRoll} testId="ludo-roll" />
+          <Dice3D value={g.roll} spin={g.spin} size={54} color={seat === mySeat ? '#e0e7ff' : '#f1f5f9'} onClick={() => myRoll && setG(rollDice)} disabled={!myRoll} testId="ludo-roll" />
         </div>
         <div className="min-w-0 text-left">
-          <div className="text-sm font-black text-white" data-testid="ludo-status">{g.phase === 'over' ? g.msg : seat === 0 ? (myRoll ? 'Your turn: tap the dice' : g.msg) : `${bots[g.turn - 1]?.name} is playing…`}</div>
+          <div className="text-sm font-black text-white" data-testid="ludo-status">{g.phase === 'over' ? (g.winner === mySeat ? 'You win!' : `${nameOf(g.winner)} wins!`) : seat === mySeat ? (myRoll ? 'Your turn: tap the dice' : g.msg) : `${nameOf(seat)} is playing…`}</div>
           <div className="text-[10px] font-semibold text-white/60">Roll a 6 to leave base · stars are safe · 6, capture or home = extra roll</div>
         </div>
       </div>

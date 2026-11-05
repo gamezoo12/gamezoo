@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Clock, MessageCircle } from 'lucide-react';
-import { QUICK_REPLIES, themeFor } from './kit';
+import { QUICK_REPLIES, REACTIONS, themeFor } from './kit';
 
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
@@ -15,7 +15,7 @@ export function Avatar({ p, active, turnPct, bubble, idx, edge }) {
     <div className="relative flex min-w-0 flex-col items-center" data-testid={`party-player-${idx}`}>
       {bubble && <div key={bubble.id} className={`pty-bubble absolute bottom-full z-20 mb-1 w-max max-w-[150px] ${pos} rounded-2xl bg-white px-2.5 py-1.5 text-[11px] font-bold leading-tight text-slate-900 shadow-xl`} data-testid={`party-bubble-${idx}`}>{bubble.text}</div>}
       <div className="relative h-12 w-12 rounded-full p-[3px] sm:h-14 sm:w-14" style={{ background: active && turnPct != null ? `conic-gradient(${p.color} ${turnPct * 360}deg, rgba(255,255,255,0.15) 0)` : p.color, boxShadow: active ? `0 0 22px ${p.color}` : 'none' }}>
-        <img src={p.img} alt={p.name} className={`h-full w-full rounded-full object-cover ${active ? '' : 'opacity-80 saturate-50'}`} />
+        {p.img ? <img src={p.img} alt={p.name} className={`h-full w-full rounded-full object-cover ${active ? '' : 'opacity-80 saturate-50'}`} /> : <span className="flex h-full w-full items-center justify-center rounded-full bg-slate-900 font-display text-lg font-black text-white">{p.name.slice(0, 1).toUpperCase()}</span>}
         {active && <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full bg-white px-1.5 text-[8px] font-black uppercase text-slate-900">turn</span>}
       </div>
       <div className="mt-1 max-w-[72px] truncate text-[10px] font-black text-white">{p.name}</div>
@@ -25,10 +25,12 @@ export function Avatar({ p, active, turnPct, bubble, idx, edge }) {
 }
 
 // Full-bleed themed stage: AI backdrop per world, HUD with live avatars + speech bubbles, clocks, chat and quick replies.
-export function PartyStage({ config, title, players, active, turnLeft, turnSec, matchLeft, banter, children, flash }) {
+export function PartyStage({ config, title, players, active, turnLeft, turnSec, matchLeft, banter, children, flash, meIdx = 0 }) {
   const th = themeFor(config);
   const latest = {};
-  (banter?.msgs || []).forEach((m) => { if (Date.now() - m.at < 4500) latest[m.who] = m; });
+  const now = Date.now();
+  (banter?.msgs || []).forEach((m) => { if (now - m.at < 4500) latest[m.who] = m; });
+  const flying = (banter?.msgs || []).filter((m) => m.emoji && now - m.at < 2500);
   const turnPct = turnSec && turnLeft != null ? turnLeft / turnSec : null;
   return (
     <div className={`relative mx-auto w-full max-w-2xl overflow-hidden rounded-[28px] border border-white/15 shadow-2xl ${flash === 'bad' ? 'pty-shake' : ''}`} style={{ boxShadow: `0 30px 90px ${th.glow}55` }} data-testid="party-stage" data-theme={th.id}>
@@ -44,9 +46,10 @@ export function PartyStage({ config, title, players, active, turnLeft, turnSec, 
           {matchLeft != null && <div className={`flex items-center gap-1 rounded-full bg-black/50 px-3 py-1 font-display text-sm font-black tabular-nums backdrop-blur ${matchLeft < 20 ? 'animate-pulse text-rose-300' : 'text-white'}`} data-testid="party-match-clock"><Clock className="h-3.5 w-3.5" />{fmt(matchLeft)}</div>}
         </div>
         <div className="mb-3 mt-10 flex items-start justify-around gap-1">
-          {players.map((p, i) => <Avatar key={p.name} p={p} idx={i} active={active === i} turnPct={active === i ? turnPct : null} bubble={latest[i - 1]} edge={players.length > 1 && i === 0 ? 'l' : players.length > 1 && i === players.length - 1 ? 'r' : null} />)}
+          {players.map((p, i) => <Avatar key={p.name} p={p} idx={i} active={active === i} turnPct={active === i ? turnPct : null} bubble={latest[i - 1] && (latest[i - 1].text || latest[i - 1].emoji) ? { ...latest[i - 1], text: latest[i - 1].text || latest[i - 1].emoji } : null} edge={players.length > 1 && i === 0 ? 'l' : players.length > 1 && i === players.length - 1 ? 'r' : null} />)}
         </div>
-        {turnLeft != null && active === 0 && <div className={`mx-auto mb-2 w-fit rounded-full bg-black/55 px-3 py-0.5 text-center text-[11px] font-black backdrop-blur ${turnLeft < 4 ? 'animate-pulse text-rose-300' : 'text-white'}`} data-testid="party-turn-clock">Your move · {Math.ceil(turnLeft)}s</div>}
+        {flying.map((m) => <span key={m.id} className="pty-float pointer-events-none absolute z-30 text-5xl" style={{ left: `${((m.who + 1.5) / Math.max(1, players.length)) * 100}%`, top: '120px' }}>{m.emoji}</span>)}
+        {turnLeft != null && active === meIdx && <div className={`mx-auto mb-2 w-fit rounded-full bg-black/55 px-3 py-0.5 text-center text-[11px] font-black backdrop-blur ${turnLeft < 4 ? 'animate-pulse text-rose-300' : 'text-white'}`} data-testid="party-turn-clock">Your move · {Math.ceil(turnLeft)}s</div>}
         <div className="relative">{children}</div>
         {banter && <ChatBar banter={banter} accent={th.accent} />}
       </div>
@@ -55,16 +58,25 @@ export function PartyStage({ config, title, players, active, turnLeft, turnSec, 
 }
 
 function ChatBar({ banter, accent }) {
-  const last = banter.msgs.slice(-2);
+  const last = banter.msgs.filter((m) => m.text).slice(-2);
+  const [text, setText] = useState('');
+  const send = (e) => { e.preventDefault(); if (text.trim()) { banter.reply(text.trim().slice(0, 120)); setText(''); } };
   return (
     <div className="mt-3" data-testid="party-chat">
       <div className="min-h-[38px] space-y-1">
-        {last.map((m) => <div key={m.id} className={`pty-bubble flex ${m.who < 0 ? 'justify-end' : ''}`}><span className={`max-w-[85%] rounded-2xl px-2.5 py-1 text-[11px] font-semibold ${m.who < 0 ? 'bg-white text-slate-900' : 'bg-black/55 text-white backdrop-blur'}`}>{m.who >= 0 && <b style={{ color: accent }}>{m.name || ''}</b>}{m.text}</span></div>)}
+        {last.map((m) => <div key={m.id} className={`pty-bubble flex ${m.mine ? 'justify-end' : ''}`}><span className={`max-w-[85%] rounded-2xl px-2.5 py-1 text-[11px] font-semibold ${m.mine ? 'bg-white text-slate-900' : 'bg-black/55 text-white backdrop-blur'}`}>{!m.mine && <b style={{ color: accent }}>{m.name || ''}</b>}{m.text}</span></div>)}
       </div>
-      <div className="mt-2 flex items-center gap-1.5 overflow-x-auto pb-1">
+      <div className="mt-2 flex items-center justify-between gap-1" data-testid="party-reactions">
+        {REACTIONS.map(([e], i) => <button key={e} type="button" onClick={() => banter.react(e)} className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-xl backdrop-blur transition-transform hover:scale-110 active:scale-90" data-testid={`party-react-${i}`}>{e}</button>)}
+      </div>
+      <form onSubmit={send} className="mt-2 flex items-center gap-1.5">
         <MessageCircle className="h-4 w-4 shrink-0 text-white/60" />
+        <input value={text} onChange={(e) => setText(e.target.value)} maxLength={120} placeholder="Type a message…" className="h-9 min-w-0 flex-1 rounded-full border border-white/20 bg-black/40 px-3 text-xs text-white placeholder:text-white/40 focus:outline-none" data-testid="party-chat-input" />
+        <button type="submit" className="h-9 shrink-0 rounded-full px-3 text-xs font-black text-slate-900" style={{ background: accent }} data-testid="party-chat-send">Send</button>
+      </form>
+      {banter.quick && <div className="mt-2 flex items-center gap-1.5 overflow-x-auto pb-1">
         {QUICK_REPLIES.map((q, i) => <button key={q} type="button" onClick={() => banter.reply(q)} className="shrink-0 rounded-full border border-white/25 bg-white/10 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur transition-colors hover:bg-white/25" data-testid={`party-reply-${i}`}>{q}</button>)}
-      </div>
+      </div>}
     </div>
   );
 }

@@ -19,3 +19,5 @@
 @keyframes pty-new { from { transform: translateY(-40px) scale(0.5); opacity: 0; } to { transform: none; opacity: 1; } }
 .pty-banner { animation: pty-banner 1.4s ease-out both; }
 @keyframes pty-banner { 0% { transform: scale(0.4); opacity: 0; } 20% { transform: scale(1.1); opacity: 1; } 80% { opacity: 1; } 100% { transform: scale(1); opacity: 0; } }
+.pty-float { animation: pty-float 2.4s ease-out both; translate: -50% 0; }
+@keyframes pty-float { 0% { transform: translateY(40px) scale(0.4); opacity: 0; } 15% { transform: translateY(0) scale(1.3); opacity: 1; } 100% { transform: translateY(-140px) scale(1) rotate(12deg); opacity: 0; } }

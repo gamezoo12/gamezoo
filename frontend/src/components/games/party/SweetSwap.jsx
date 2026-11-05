@@ -3,7 +3,7 @@ import { difficultyOf } from '../../../lib/difficulty';
 import { BOTS, YOU, sfx, themeFor, useBanter, useClocks } from './kit';
 import { PartyStage } from './stage';
 
-// Sweet Swap duel: match 3+ sweets, race a rival bot to the target. Match 4 = striped sweet (clears a line), match 5 = colour bomb.
+// Sweet Swap (solo): match 3+ sweets to hit the level target, a host cheers you on. Match 4 = striped sweet (clears a line), match 5 = colour bomb.
 // Turn clock (idle costs a move) + match clock (higher score wins).
 const N = 7;
 const KINDS = [
@@ -75,7 +75,7 @@ function Candy({ cell }) {
   );
 }
 
-const RIVAL = BOTS[3];
+const HOST = { ...BOTS[3], persona: 'over-the-top cheerful game show host who hypes the player up' };
 export function SweetSwap({ config, onComplete }) {
   const level = difficultyOf(config);
   const theme = themeFor(config);
@@ -87,39 +87,26 @@ export function SweetSwap({ config, onComplete }) {
   const [board, setBoard] = useState(() => settle(Array.from({ length: N * N }, () => fresh(kinds)), kinds).b);
   const [sel, setSel] = useState(null);
   const [score, setScore] = useState(0);
-  const [rival, setRival] = useState(0);
   const [moves, setMoves] = useState(movesMax);
   const [moveNo, setMoveNo] = useState(0);
   const [pop, setPop] = useState(null);
   const [flash, setFlash] = useState(null);
   const [over, setOver] = useState(false);
   const [start] = useState(Date.now);
-  const banter = useBanter('Sweet Swap (a candy matching race)', [RIVAL]);
+  const banter = useBanter('Sweet Swap (a solo candy matching puzzle; you are the cheering host, never a rival)', [HOST]);
   const done = useRef(false);
 
   const end = (won, why) => {
     if (done.current) return; done.current = true; setOver(true);
     sfx(won ? 'win' : 'lose');
-    banter.say(0, won ? 'you_win' : 'bot_win', { big: true, force: true, event: won ? 'the human beat you in the candy race' : 'you beat the human in the candy race', detail: why });
+    banter.say(0, won ? 'cheer' : 'cheer_sad', { big: true, force: true, event: won ? 'the player just cleared the candy level, celebrate them' : 'the player just failed the candy level, comfort them kindly', detail: why });
     setTimeout(() => onComplete({ solved: won, accuracy: won ? Math.min(1, 0.5 + moves / movesMax) : Math.min(0.9, score / goal), duration_ms: Date.now() - start }), 1800);
   };
   const { turnLeft, matchLeft } = useClocks({ turnSec, matchSec, turnKey: moveNo, running: !over,
-    onTurnOut: () => { sfx('bad'); setSel(null); setMoveNo((m) => m + 1); setMoves((m) => { if (m - 1 <= 0) end(score > rival, 'out of moves'); return m - 1; }); banter.say(0, 'taunt', { force: true }); },
-    onMatchOut: () => end(score > rival, 'match clock ran out, higher score won') });
+    onTurnOut: () => { sfx('bad'); setSel(null); setMoveNo((m) => m + 1); setMoves((m) => { if (m - 1 <= 0) end(false, 'out of moves'); return m - 1; }); banter.say(0, 'cheer_sad', { force: true }); },
+    onMatchOut: () => end(score >= goal, 'level clock ran out') });
 
-  useEffect(() => { banter.say(0, 'start', { force: true }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (over) return undefined;
-    const rate = (goal / (matchSec * 0.9)) * (0.6 + level * 0.05);
-    const t = setInterval(() => setRival((v) => {
-      const nv = Math.round(v + rate * 3 * (0.5 + Math.random()));
-      if (v < score && nv >= score && score > 0) banter.say(0, 'bot_good', { big: true, event: 'you just overtook the human in the candy race' });
-      if (nv >= goal) setTimeout(() => end(false, 'rival hit the target first'), 0);
-      return Math.min(goal, nv);
-    }), 3000);
-    return () => clearInterval(t);
-  }, [over, score]); // eslint-disable-line react-hooks/exhaustive-deps
-
+  useEffect(() => { banter.say(0, 'cheer_start', { force: true }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const tap = (i) => {
     if (over || moves <= 0) return;
     if (sel == null) { setSel(i); sfx('step'); return; }
@@ -134,23 +121,23 @@ export function SweetSwap({ config, onComplete }) {
       const after = settle(collapse(sw.map((x, j) => (clear.has(j) ? null : x)), kinds), kinds);
       res = { b: after.b, gained: clear.size * 20 + after.gained, combo: after.combo + 2, specials: 1 };
     } else {
-      if (!runs(sw).length) { sfx('bad'); setFlash('bad'); setTimeout(() => setFlash(null), 350); return; }
+      if (!runs(sw).length) { sfx('bad'); if (Math.random() < 0.3) banter.say(0, 'cheer_sad'); setFlash('bad'); setTimeout(() => setFlash(null), 350); return; }
       res = settle(sw, kinds, [i, sel]);
     }
     const total = score + res.gained; const left = moves - 1;
     sfx(res.combo > 1 ? 'combo' : 'pop');
     setBoard(res.b); setScore(total); setMoves(left); setMoveNo((m) => m + 1);
     setPop({ id: Date.now(), text: res.combo > 2 ? `SWEET! x${res.combo}` : res.combo > 1 ? `Combo x${res.combo}` : `+${res.gained}`, gained: res.gained });
-    if (res.combo >= 3 || res.specials) banter.say(0, 'you_good', { big: res.combo >= 4, event: `the human just made a ${res.combo}x combo` });
+    if (res.combo >= 2 || res.specials) banter.say(0, 'cheer', { big: res.combo >= 4, event: `the player just made a ${res.combo}x combo, hype them up` });
     if (total >= goal) end(true, 'hit the target');
-    else if (left <= 0) end(total > rival, 'out of moves');
+    else if (left <= 0) end(false, 'out of moves');
   };
 
-  const players = [{ ...YOU, color: '#38bdf8', info: `${score}/${goal}` }, { ...RIVAL, color: '#ec4899', info: `${rival}/${goal}` }];
+  const players = [{ ...YOU, color: '#38bdf8', info: `${score}/${goal}` }, { ...HOST, name: `Host ${HOST.name}`, color: '#ec4899', info: 'cheering' }];
   return (
     <PartyStage config={config} title="Sweet Swap" players={players} active={over ? -1 : 0} turnLeft={turnLeft} turnSec={turnSec} matchLeft={matchLeft} banter={banter} flash={flash}>
       <div className="mb-2 space-y-1">
-        {[[score, 'from-sky-400 to-cyan-300', 'You', 'sweet-you-bar'], [rival, 'from-pink-500 to-rose-400', RIVAL.name, 'sweet-rival-bar']].map(([v, grad, name, id]) => (
+        {[[score, 'from-sky-400 to-cyan-300', 'Target', 'sweet-you-bar']].map(([v, grad, name, id]) => (
           <div key={name} className="flex items-center gap-2 text-[10px] font-black text-white"><span className="w-12 truncate">{name}</span><div className="h-2.5 flex-1 overflow-hidden rounded-full bg-black/40"><div className={`h-full rounded-full bg-gradient-to-r ${grad} transition-[width] duration-500`} style={{ width: `${Math.min(100, (v / goal) * 100)}%` }} data-testid={id} /></div></div>
         ))}
         <div className="mx-auto w-fit rounded-full bg-black/55 px-3 py-0.5 text-center text-[11px] font-black text-white" data-testid="sweet-moves">Moves left: {moves}</div>
@@ -166,7 +153,7 @@ export function SweetSwap({ config, onComplete }) {
         </div>
         {pop && <div key={pop.id} className="pty-banner pointer-events-none absolute inset-x-0 top-1/3 text-center font-display text-4xl font-black text-amber-300 drop-shadow-[0_4px_0_#7a1d4a]">{pop.text}</div>}
       </div>
-      <p className="mt-2 text-center text-[11px] text-white/70">Swap neighbours to line up 3+. Match 4 for a striped sweet, 5 for a colour bomb. Beat {RIVAL.name} to {goal}!</p>
+      <p className="mt-2 text-center text-[11px] text-white/70">Swap neighbours to line up 3+. Match 4 for a striped sweet, 5 for a colour bomb. Reach {goal} points to clear the level!</p>
     </PartyStage>
   );
 }

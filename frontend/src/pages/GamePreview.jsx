@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ShieldCheck, Star } from 'lucide-react';
+import { ArrowLeft, ShieldCheck, Star, Users } from 'lucide-react';
+import { ONLINE_GAMES, roomAPI } from '../lib/partyRoom';
 
 import { api, gamesAPI } from '../lib/api';
 import { resolveMediaUrl } from '../lib/media';
@@ -90,6 +91,13 @@ export default function GamePreview() {
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5"><ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />Free play · no ticket · no official score</span>
                 <span className="inline-flex items-center gap-1 font-bold text-amber-300" data-testid="practice-total-stars"><Star className="h-3.5 w-3.5 fill-amber-400" />{totalStars(state)} stars</span>
               </div>
+              {ONLINE_GAMES.includes(gameId) && (
+                <button type="button" onClick={async () => { if (!user) { navigate(`/login?next=/games/${gameId}`); return; } try { const r = await roomAPI.create(gameId); navigate(`/play/${r.code}`); } catch { /* ignore */ } }}
+                  className="mb-4 flex w-full items-center gap-3 rounded-2xl bg-gradient-to-r from-sky-500 to-indigo-600 p-3 text-left shadow-lg transition-transform hover:-translate-y-0.5" data-testid="practice-play-friends">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/20"><Users className="h-5 w-5 text-white" /></span>
+                  <span className="min-w-0"><span className="block font-display text-base font-black text-white">Play with friends</span><span className="block text-xs text-white/80">{user ? 'Create a room and send the invite link' : 'Sign in to invite friends to a live game'}</span></span>
+                </button>
+              )}
               <p className="mb-3 text-sm text-white/70">Beat each level to unlock the next. Levels never run out: it starts easy, and every level after 100 is a Legend level.</p>
               <LevelPath state={state} onPick={(lv) => go(lv)} />
             </div>
@@ -101,7 +109,7 @@ export default function GamePreview() {
         {stage !== 'levels' && (
           <div className="mt-4 rounded-3xl border border-white/10 bg-gradient-to-b from-[#17104a] to-[#07041a] p-3 sm:p-6" data-testid="practice-stage">
             <div className="mb-3 text-center text-xs font-bold uppercase tracking-widest text-white/50">{game.label}</div>
-            {stage === 'intro' && <PracticeIntro game={game} level={level} onStart={() => start(level)} onBack={() => setStage('levels')} />}
+            {stage === 'intro' && <PracticeIntro game={game} cover={cover} level={level} onStart={() => start(level)} onBack={() => setStage('levels')} />}
             {stage === 'play' && <PracticeRun key={runKey} game={game} level={level} onFinish={finish} onQuit={() => setStage('intro')} />}
             {stage === 'result' && result && <PracticeResult result={result} level={level} stars={earned} guest={!user} onNext={() => go(level + 1)} onRetry={() => start(level)} onLevels={() => setStage('levels')} />}
           </div>

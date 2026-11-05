@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Ban, Repeat } from 'lucide-react';
 import { difficultyOf } from '../../../lib/difficulty';
-import { BOTS, YOU, rivalsFor, sfx, useBanter, useClocks } from './kit';
+import { BOTS, YOU, onlinePlayers, rivalsFor, sfx, useBanter, useClocks, useGameState } from './kit';
 import { PartyStage } from './stage';
 
 // Colour Clash Cards (classic shedding game): match colour or symbol; Skip, Reverse, +2, Wild and Wild +4.
@@ -64,9 +64,9 @@ function play(s, who, card, chosen) {
   if (card.v === 'skip') skip = true;
   if (card.v === '+2' || card.v === '+4') { victim = idx(n, who + dir); k = card.v === '+2' ? 2 : 4; const [c, d] = take(deck, k); hands[victim] = [...hands[victim], ...c]; deck = d; skip = true; }
   let caught = false;
-  if (who === 0 && hands[0].length === 1 && !s.called) { const [c, d] = take(deck, 2); hands[0] = [...hands[0], ...c]; deck = d; caught = true; }
+  if ((s.humans || [0]).includes(who) && hands[who].length === 1 && !s.called) { const [c, d] = take(deck, 2); hands[who] = [...hands[who], ...c]; deck = d; caught = true; }
   const ev = { kind: hands[who].length === 0 ? 'over' : caught ? 'caught' : victim != null ? 'hit' : 'play', who, victim, card, k, id: s.ev.id + 1, one: hands[who].length === 1 };
-  return { ...s, deck, hands, top: card, color: card.c === 'w' ? chosen : card.c, dir, turn: idx(n, who + dir * (skip ? 2 : 1)), phase: ev.kind === 'over' ? 'over' : 'play', drawn: null, called: false, pending: null, turnNo: s.turnNo + 1, ev, winner: ev.kind === 'over' ? who : null };
+  return { ...s, deck, hands, top: card, color: card.c === 'w' ? chosen : card.c, dir, turn: idx(n, who + dir * (skip ? 2 : 1)), phase: ev.kind === 'over' ? 'over' : 'play', drawn: null, called: false, pending: null, turnNo: s.turnNo + 1, ev, winner: ev.kind === 'over' ? who : null, roomWinner: ev.kind === 'over' ? who : null };
 }
 function drawOne(s, who) {
   const [[card], deck] = take(s.deck, 1);
@@ -75,6 +75,7 @@ function drawOne(s, who) {
   if (fits(card, s.top, s.color)) return { ...s, deck, hands, drawn: card.id, ev };
   return { ...s, deck, hands, drawn: null, turn: idx(hands.length, who + s.dir), turnNo: s.turnNo + 1, ev };
 }
+export const colourInit = (n) => ({ ...deal(5, n - 1), humans: Array.from({ length: n }, (_, i) => i) });
 const pass = (s) => ({ ...s, drawn: null, turn: idx(s.hands.length, s.turn + s.dir), turnNo: s.turnNo + 1 });
 function bestColor(hand) { const c = { r: 0, b: 0, g: 0, y: 0 }; hand.forEach((x) => { if (x.c !== 'w') c[x.c] += 1; }); return Object.keys(c).sort((a, b) => c[b] - c[a])[0]; }
 function botChoice(s, level) {
@@ -87,29 +88,32 @@ function botChoice(s, level) {
   return opts.sort((a, b) => rank(b) - rank(a))[0];
 }
 
-export function ColourCards({ config, onComplete }) {
+export function ColourCards({ config, onComplete, online }) {
   const level = difficultyOf(config);
-  const [g, setG] = useState(() => deal(level, rivalsFor(config, 3)));
+  const [g, setG] = useGameState(() => deal(level, rivalsFor(config, 3)), online);
+  const me = online ? online.seat : 0;
   const [start] = useState(Date.now);
-  const bots = useMemo(() => BOTS.slice(0, g.hands.length - 1), [g.hands.length]);
-  const banter = useBanter('Colour Clash Cards (a colour-matching card game like Uno)', bots);
+  const bots = useMemo(() => (online ? [] : BOTS.slice(0, g.hands.length - 1)), [g.hands.length, online]);
+  const botChat = useBanter('Colour Clash Cards (a colour-matching card game like Uno)', bots);
+  const banter = online ? online.chat : botChat;
+  const nameOf = (i) => (i === me ? 'You' : online ? online.names[i] : bots[i - 1]?.name);
   const done = useRef(false);
   const turnSec = Math.max(8, 22 - level);
-  const matchSec = Math.max(150, 300 - level * 12);
+  const matchSec = online ? null : Math.max(150, 300 - level * 12);
   const finish = (won, why) => {
     if (done.current) return; done.current = true;
     sfx(won ? 'win' : 'lose');
-    setG((s) => ({ ...s, phase: 'over', winner: won ? 0 : 1 }));
+    if (!online) setG((s) => ({ ...s, phase: 'over', winner: won ? 0 : 1 }));
     const leader = g.hands.slice(1).reduce((b, h, i, a) => (h.length < a[b].length ? i : b), 0);
     banter.say(won ? 0 : leader, won ? 'you_win' : 'bot_win', { big: true, force: true, event: won ? 'the human won the card game' : 'you won the card game', detail: why || '' });
-    setTimeout(() => onComplete({ solved: won, accuracy: won ? Math.max(0.5, 1 - g.hands[0].length * 0.1) : 0.3, duration_ms: Date.now() - start }), 2000);
+    setTimeout(() => onComplete({ solved: won, accuracy: won ? Math.max(0.5, 1 - g.hands[me].length * 0.1) : 0.3, duration_ms: Date.now() - start }), 2000);
   };
   const { turnLeft, matchLeft } = useClocks({ turnSec, matchSec, turnKey: g.turnNo, running: g.phase !== 'over',
-    onTurnOut: () => { if (g.turn === 0 && g.phase !== 'over') { sfx('bad'); setG((s) => { if (s.turn !== 0) return s; if (s.drawn) return pass(s); const d = drawOne({ ...s, phase: 'play', pending: null }, 0); return d.drawn ? pass(d) : d; }); banter.say(0, 'taunt', { force: true }); } },
+    onTurnOut: () => { if (g.turn === me && g.phase !== 'over') { sfx('bad'); setG((s) => { if (s.turn !== me) return s; if (s.drawn) return pass(s); const d = drawOne({ ...s, phase: 'play', pending: null }, me); return d.drawn ? pass(d) : d; }); banter.say(0, 'taunt', { force: true }); } },
     onMatchOut: () => { const mine = g.hands[0].length; finish(g.hands.slice(1).every((h) => mine <= h.length), 'time ran out, fewest cards won'); } });
 
   useEffect(() => {
-    if (g.phase === 'over' || g.turn === 0) return undefined;
+    if (online || g.phase === 'over' || g.turn === 0) return undefined;
     const t = setTimeout(() => setG((s) => {
       if (s.turn === 0 || s.phase === 'over') return s;
       const card = botChoice(s, level);
@@ -125,28 +129,30 @@ export function ColourCards({ config, onComplete }) {
     if (e.kind === 'draw') sfx('card');
     if (['play', 'hit', 'caught', 'over'].includes(e.kind)) sfx(e.card?.c === 'w' ? 'combo' : 'card');
     if (e.kind === 'hit') {
-      if (e.victim === 0) banter.say(e.who - 1, 'bot_hit', { big: true, event: `you just made the human draw ${e.k} cards`, detail: `you played ${e.card.v}` });
-      else if (e.who === 0) banter.say(e.victim - 1, 'you_hit', { big: e.k === 4, event: `the human just made you draw ${e.k} cards` });
+      if (e.victim === me) banter.say(e.who - 1, 'bot_hit', { big: true, event: `you just made the human draw ${e.k} cards`, detail: `you played ${e.card.v}` });
+      else if (e.who === me) banter.say(e.victim - 1, 'you_hit', { big: e.k === 4, event: `the human just made you draw ${e.k} cards` });
     }
     if (e.kind === 'caught') { sfx('bad'); banter.line(Math.floor(Math.random() * bots.length), 'Caught you! You forgot to shout ONE! Draw 2 😂'); }
-    if (e.one && e.who > 0 && e.kind !== 'over') banter.line(e.who - 1, 'ONE! 🔥 Say goodbye.');
-    if (e.kind === 'over') finish(e.who === 0);
+    if (e.one && e.who !== me && e.kind !== 'over') banter.line(e.who - 1, 'ONE! 🔥 Say goodbye.');
+    if (e.kind === 'caught' && online) sfx('bad');
+    if (e.kind === 'over') finish(e.who === me);
   }, [g.ev.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const mine = g.turn === 0 && g.phase === 'play';
+  const mine = g.turn === me && g.phase === 'play';
   const canPlay = (c) => mine && (g.drawn ? c.id === g.drawn : fits(c, g.top, g.color));
   const tapCard = (c) => {
     if (!canPlay(c)) { sfx('bad'); return; }
     if (c.c === 'w') { setG((s) => ({ ...s, phase: 'color', pending: c })); return; }
-    setG((s) => play(s, 0, c));
+    setG((s) => play(s, me, c));
   };
-  const hand = g.hands[0];
-  const players = [YOU, ...bots].map((p, i) => ({ ...p, color: SEAT[i], info: `${g.hands[i].length} card${g.hands[i].length === 1 ? '' : 's'}` }));
+  const hand = g.hands[me];
+  const cardInfo = (i) => `${g.hands[i].length} card${g.hands[i].length === 1 ? '' : 's'}`;
+  const players = online ? onlinePlayers(online, SEAT, cardInfo) : [YOU, ...bots].map((p, i) => ({ ...p, color: SEAT[i], info: cardInfo(i) }));
   return (
-    <PartyStage config={config} title="Colour Clash Cards" players={players} active={g.phase === 'over' ? -1 : g.turn} turnLeft={turnLeft} turnSec={turnSec} matchLeft={matchLeft} banter={banter}>
+    <PartyStage config={config} title="Colour Clash Cards" players={players} active={g.phase === 'over' ? -1 : g.turn} turnLeft={turnLeft} turnSec={turnSec} matchLeft={matchLeft} banter={banter} meIdx={me}>
       <div className="flex flex-col items-center gap-3" data-testid="colour-cards-board">
         <div className="relative flex items-center gap-5 rounded-[26px] px-6 py-4" style={{ background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.25), rgba(0,0,0,0.55))', boxShadow: `inset 0 0 0 3px ${COLS[g.color]}aa, 0 0 40px ${COLS[g.color]}55` }}>
-          <button type="button" disabled={!mine || !!g.drawn} onClick={() => setG((s) => drawOne(s, 0))} className="relative disabled:opacity-60" data-testid="colour-cards-draw">
+          <button type="button" disabled={!mine || !!g.drawn} onClick={() => setG((s) => drawOne(s, me))} className="relative disabled:opacity-60" data-testid="colour-cards-draw">
             <span className="absolute left-1 top-1"><CardBack /></span><span className="absolute left-0.5 top-0.5"><CardBack /></span><CardBack />
             {mine && !g.drawn && !hand.some((c) => fits(c, g.top, g.color)) && <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 animate-pulse rounded-full bg-amber-400 px-2 text-[10px] font-black text-slate-900">DRAW</span>}
           </button>
@@ -154,7 +160,7 @@ export function ColourCards({ config, onComplete }) {
           <div className="flex flex-col items-center gap-1 text-[10px] font-black text-white"><span className="h-5 w-5 rounded-full border-2 border-white" style={{ background: COLS[g.color] }} data-testid="colour-cards-color" />{NAMES[g.color]}<span className={`text-lg ${g.dir < 0 ? '-scale-x-100' : ''}`}>⟳</span></div>
         </div>
         <div className="flex min-h-[28px] flex-wrap items-center justify-center gap-2">
-          <span className="text-xs font-bold text-white/85" data-testid="colour-cards-log">{g.phase === 'over' ? (g.winner === 0 ? 'You emptied your hand! 🎉' : 'A rival won this round') : mine ? (g.drawn ? 'You drew a playable card: play it or pass' : 'Your turn: tap a glowing card') : `${bots[g.turn - 1]?.name} is thinking…`}</span>
+          <span className="text-xs font-bold text-white/85" data-testid="colour-cards-log">{g.phase === 'over' ? (g.winner === me ? 'You emptied your hand! 🎉' : `${nameOf(g.winner)} won this round`) : mine ? (g.drawn ? 'You drew a playable card: play it or pass' : 'Your turn: tap a glowing card') : `${nameOf(g.turn)} is thinking…`}</span>
           {mine && g.drawn && <button type="button" onClick={() => setG(pass)} className="rounded-full bg-white/20 px-3 py-1 text-[11px] font-black text-white" data-testid="colour-cards-pass">Pass</button>}
           {mine && hand.length === 2 && <button type="button" onClick={() => { setG((s) => ({ ...s, called: true })); sfx('six'); banter.line(-1, 'ONE! 😎'); }} disabled={g.called} className="animate-pulse rounded-full bg-gradient-to-r from-rose-500 to-amber-400 px-4 py-1.5 font-display text-sm font-black text-white shadow-lg disabled:animate-none disabled:opacity-60" data-testid="colour-cards-one">{g.called ? 'ONE! ✓' : 'Shout ONE!'}</button>}
         </div>
@@ -165,7 +171,7 @@ export function ColourCards({ config, onComplete }) {
       {g.phase === 'color' && (
         <div className="absolute inset-0 z-30 flex items-center justify-center rounded-3xl bg-black/60 backdrop-blur-sm" data-testid="colour-picker">
           <div className="rounded-3xl bg-slate-900/90 p-4 text-center"><div className="mb-3 text-sm font-black text-white">Pick the new colour</div>
-            <div className="grid grid-cols-2 gap-3">{Object.keys(COLS).map((c) => <button key={c} type="button" onClick={() => setG((s) => play(s, 0, s.pending, c))} className="h-16 w-16 rounded-2xl border-4 border-white text-xs font-black text-white transition-transform hover:scale-110" style={{ background: COLS[c] }} data-testid={`colour-pick-${c}`}>{NAMES[c]}</button>)}</div>
+            <div className="grid grid-cols-2 gap-3">{Object.keys(COLS).map((c) => <button key={c} type="button" onClick={() => setG((s) => play(s, me, s.pending, c))} className="h-16 w-16 rounded-2xl border-4 border-white text-xs font-black text-white transition-transform hover:scale-110" style={{ background: COLS[c] }} data-testid={`colour-pick-${c}`}>{NAMES[c]}</button>)}</div>
           </div>
         </div>
       )}

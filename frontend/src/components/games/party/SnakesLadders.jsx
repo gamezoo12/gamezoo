@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { difficultyOf } from '../../../lib/difficulty';
-import { BOTS, YOU, rivalsFor, sfx, themeFor, useBanter } from './kit';
+import { BOTS, YOU, onlinePlayers, rivalsFor, sfx, themeFor, useBanter, useGameState } from './kit';
 import { Dice3D, PartyStage } from './stage';
 
 // Snakes & Ladders: classic single die, exact roll to land on 100, a 6 rolls again. Harder levels add snakes and rivals.
@@ -15,6 +15,8 @@ function makeBoard(level) {
   return { ladders: Object.fromEntries(Object.entries(ladders).slice(0, nl)), snakes };
 }
 const xy = (n) => { const row = Math.floor((n - 1) / 10); const col = row % 2 === 0 ? (n - 1) % 10 : 9 - ((n - 1) % 10); return [col * 10 + 5, (9 - row) * 10 + 5]; };
+
+export const snakesInit = (n) => ({ pos: Array(n).fill(1), turn: 0, phase: 'roll', roll: 1, spin: 0, target: 0, ev: { kind: 'start', id: 0 } });
 
 function Ladder({ a, b }) {
   const [x1, y1] = xy(a); const [x2, y2] = xy(b);
@@ -46,14 +48,18 @@ function Snake({ a, b, i }) {
   );
 }
 
-export function SnakesLadders({ config, onComplete }) {
+export function SnakesLadders({ config, onComplete, online }) {
   const level = difficultyOf(config);
   const theme = themeFor(config);
-  const n = rivalsFor(config, 3) + 1;
+  const n = online ? online.names.length : rivalsFor(config, 3) + 1;
+  const me = online ? online.seat : 0;
   const { ladders, snakes } = useMemo(() => makeBoard(level), [level]);
-  const bots = useMemo(() => BOTS.slice(0, n - 1), [n]);
-  const banter = useBanter('Snakes and Ladders', bots);
-  const [g, setG] = useState({ pos: Array(n).fill(1), turn: 0, phase: 'roll', roll: 1, spin: 0, target: 0, ev: { kind: 'start', id: 0 } });
+  const bots = useMemo(() => (online ? [] : BOTS.slice(0, n - 1)), [n, online]);
+  const botChat = useBanter('Snakes and Ladders', bots);
+  const banter = online ? online.chat : botChat;
+  const [g, setG] = useGameState(() => snakesInit(n), online);
+  const nameOf = (i) => (i === me ? 'You' : online ? online.names[i] : bots[i - 1]?.name);
+  const driver = !online || g.turn === me;
   const [start] = useState(Date.now);
   const done = useRef(false);
   const ev = (s, kind, extra) => ({ kind, id: s.ev.id + 1, p: s.turn, ...extra });
@@ -61,7 +67,8 @@ export function SnakesLadders({ config, onComplete }) {
   useEffect(() => {
     if (g.phase === 'over') return undefined;
     let t;
-    if (g.phase === 'roll' && g.turn !== 0) t = setTimeout(() => roll(), 900);
+    if (g.phase === 'roll' && !online && g.turn !== 0) t = setTimeout(() => roll(), 900);
+    if (!driver) return undefined;
     if (g.phase === 'anim') t = setTimeout(() => setG((s) => {
       const p = s.turn; const cur = s.pos[p];
       if (cur < s.target) { const pos = [...s.pos]; pos[p] = cur + 1; return { ...s, pos, ev: ev(s, 'step') }; }
@@ -75,7 +82,7 @@ export function SnakesLadders({ config, onComplete }) {
   }, [g]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function land(s) {
-    if (s.pos[s.turn] === 100) return { ...s, phase: 'over', ev: ev(s, 'over') };
+    if (s.pos[s.turn] === 100) return { ...s, phase: 'over', roomWinner: s.turn, ev: ev(s, 'over') };
     return s.roll === 6 ? { ...s, phase: 'roll' } : { ...s, phase: 'next' };
   }
   function roll() {
@@ -83,6 +90,11 @@ export function SnakesLadders({ config, onComplete }) {
       if (s.phase !== 'roll') return s;
       const r = die(); const target = s.pos[s.turn] + r;
       if (target > 100) return { ...s, roll: r, spin: s.spin + 1, phase: 'next', ev: ev(s, 'roll', { over: true }) };
+      if (online) {
+        const pos = [...s.pos]; const to = ladders[target] || snakes[target]; pos[s.turn] = to || target;
+        const moved = { ...s, pos, roll: r, spin: s.spin + 1, target, ev: ev(s, to ? (ladders[target] ? 'ladder' : 'snake') : 'roll') };
+        return land(moved);
+      }
       return { ...s, roll: r, spin: s.spin + 1, target, phase: 'anim', ev: ev(s, 'roll') };
     });
   }
@@ -90,28 +102,28 @@ export function SnakesLadders({ config, onComplete }) {
   useEffect(() => {
     const e = g.ev; const bot = e.p - 1;
     if (e.kind === 'start') banter.say(0, 'start', { force: true });
-    if (e.kind === 'roll') sfx('dice');
+    if (e.kind === 'roll' || (online && ['ladder', 'snake'].includes(e.kind))) sfx('dice');
     if (e.kind === 'step') sfx('step');
-    if (e.kind === 'ladder') { sfx('ladder'); if (e.p === 0) banter.say(Math.floor(Math.random() * bots.length), 'you_good'); else banter.say(bot, 'bot_good'); }
+    if (e.kind === 'ladder') { sfx('ladder'); if (e.p === me) banter.say(Math.floor(Math.random() * bots.length), 'you_good'); else banter.say(bot, 'bot_good'); }
     if (e.kind === 'snake') {
       sfx('snake');
-      if (e.p === 0) banter.say(Math.floor(Math.random() * bots.length), 'bot_hit', { big: true, event: 'the human player just got bitten by a snake and slid way down the board', detail: 'laugh at them' });
+      if (e.p === me) banter.say(Math.floor(Math.random() * bots.length), 'bot_hit', { big: true, event: 'the human player just got bitten by a snake and slid way down the board', detail: 'laugh at them' });
       else banter.say(bot, 'bot_bad', { big: Math.random() < 0.5, event: 'you just got bitten by a snake and slid down' });
     }
     if (e.kind === 'over' && !done.current) {
-      done.current = true; const won = e.p === 0;
+      done.current = true; const won = e.p === me;
       sfx(won ? 'win' : 'lose');
       banter.say(won ? 0 : bot, won ? 'you_win' : 'bot_win', { big: true, force: true, event: won ? 'the human beat you at snakes and ladders' : 'you won snakes and ladders' });
-      const best = Math.max(...g.pos.slice(1));
-      setTimeout(() => onComplete({ solved: won, accuracy: won ? Math.min(1, 1.2 - best / 100) : g.pos[0] / 100, duration_ms: Date.now() - start }), 2200);
+      const best = Math.max(...g.pos.filter((_, i) => i !== me));
+      setTimeout(() => onComplete({ solved: won, accuracy: won ? Math.min(1, 1.2 - best / 100) : g.pos[me] / 100, duration_ms: Date.now() - start }), 2200);
     }
   }, [g.ev.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const cells = Array.from({ length: 100 }, (_, k) => { const row = Math.floor(k / 10); return 100 - row * 10 - (row % 2 === 0 ? k % 10 : 9 - (k % 10)); });
-  const players = [YOU, ...bots].map((p, i) => ({ ...p, color: COLORS[i], info: `square ${g.pos[i]}` }));
-  const myRoll = g.turn === 0 && g.phase === 'roll';
+  const players = online ? onlinePlayers(online, COLORS, (i) => `square ${g.pos[i]}`) : [YOU, ...bots].map((p, i) => ({ ...p, color: COLORS[i], info: `square ${g.pos[i]}` }));
+  const myRoll = g.turn === me && g.phase === 'roll';
   return (
-    <PartyStage config={config} title="Snakes & Ladders" players={players} active={g.turn} banter={banter}>
+    <PartyStage config={config} title="Snakes & Ladders" players={players} active={g.turn} banter={banter} meIdx={me}>
       <div className="mx-auto w-full max-w-[460px] rounded-[22px] p-2 sm:p-3" style={{ background: theme.frame, boxShadow: `0 0 0 2px ${theme.accent}88, 0 25px 60px rgba(0,0,0,0.6)` }}>
         <div className="relative aspect-square overflow-hidden rounded-xl" data-testid="snakes-board">
           <div className="absolute inset-0 grid grid-cols-10">
@@ -134,11 +146,11 @@ export function SnakesLadders({ config, onComplete }) {
         </div>
       </div>
       <div className="mt-3 flex items-center justify-center gap-4">
-        <div className="rounded-2xl p-2.5" style={{ background: `${COLORS[g.turn]}33`, boxShadow: myRoll ? `0 0 0 2px ${COLORS[0]}, 0 0 30px ${COLORS[0]}` : 'none' }}>
+        <div className="rounded-2xl p-2.5" style={{ background: `${COLORS[g.turn]}33`, boxShadow: myRoll ? `0 0 0 2px ${COLORS[me]}, 0 0 30px ${COLORS[me]}` : 'none' }}>
           <Dice3D value={g.roll} spin={g.spin} size={54} onClick={() => myRoll && roll()} disabled={!myRoll} testId="snakes-roll" />
         </div>
         <div className="text-left">
-          <div className="text-sm font-black text-white" data-testid="snakes-status">{g.phase === 'over' ? (g.turn === 0 ? 'You reached 100! 🏆' : `${bots[g.turn - 1].name} wins!`) : g.turn === 0 ? (myRoll ? 'Your turn: tap the dice' : `You rolled ${g.roll}`) : `${bots[g.turn - 1].name} is rolling…`}</div>
+          <div className="text-sm font-black text-white" data-testid="snakes-status">{g.phase === 'over' ? (g.turn === me ? 'You reached 100! 🏆' : `${nameOf(g.turn)} wins!`) : g.turn === me ? (myRoll ? 'Your turn: tap the dice' : `You rolled ${g.roll}`) : `${nameOf(g.turn)} is rolling…`}</div>
           <div className="text-[10px] font-semibold text-white/60">Exact roll to land on 100 · a 6 rolls again</div>
         </div>
       </div>

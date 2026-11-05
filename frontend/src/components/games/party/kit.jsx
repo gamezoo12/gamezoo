@@ -63,6 +63,9 @@ const SFX = {
   tick: (a) => tone(a, 1400, 0.03, { type: 'square', vol: 0.03 }),
   bad: (a) => tone(a, 200, 0.2, { type: 'square', vol: 0.05, to: 140 }),
   ladder: (a) => [440, 554, 659, 880, 1108].forEach((f, i) => tone(a, f, 0.1, { at: i * 0.06, type: 'triangle', vol: 0.06 })),
+  laugh: (a) => [0, 0.13, 0.26, 0.39].forEach((at, i) => tone(a, 620 - i * 40, 0.1, { at, type: 'triangle', vol: 0.07, to: 480 - i * 40 })),
+  clap: (a) => [0, 0.12, 0.24, 0.36, 0.48].forEach((at) => noise(a, 0.06, { at, freq: 1400, vol: 0.3 })),
+  cry: (a) => tone(a, 520, 0.7, { type: 'sine', vol: 0.06, to: 260 }),
   snake: (a) => { noise(a, 0.5, { freq: 5000, vol: 0.1 }); tone(a, 600, 0.6, { to: 150, vol: 0.05, type: 'sawtooth' }); },
 };
 export function sfx(kind) { if (!gameSoundEnabled()) return; try { const a = ac(); if (a) SFX[kind]?.(a); } catch { /* audio unavailable */ } }
@@ -78,16 +81,21 @@ const LINES = {
   taunt: ['Any day now… ⏳', 'Thinking hard? Do not hurt yourself.', 'I could do this in my sleep. Actually I just did.', 'Take your time, I am only ageing.'],
   bot_win: ['GG! Better luck next time, champ 👑', 'Another win for the trophy shelf!', 'Was there ever any doubt? 😎', 'Rematch? I could use the practice… not.'],
   you_win: ['NOOO! I demand a rematch!', 'Fine, you win. This time. 😤', 'I let you win. You are welcome.', 'The dice were rigged, I swear!'],
+  cheer_start: ['Welcome, superstar! Let us make it rain sweets 🍬', 'Your board is ready. Show me something sweet!', 'Deep breath… and SWAP!'],
+  cheer: ['WOW! Look at that combo! 🎉', 'Sweet move, you are on fire 🔥', 'The crowd goes wild!', 'Delicious! Keep it coming!', 'That was pure magic ✨'],
+  cheer_sad: ['Ooh, so close! Try another swap.', 'No match there, keep looking 👀', 'Hmm, not that one. You got this!'],
   reply: ['Big talk for someone losing 😏', 'Words are cute, moves are better.', 'Oh you have jokes now? Cute.', 'Talk to the scoreboard 📋', 'Haha, keep dreaming!'],
 };
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
+export const REACTIONS = [['😂', 'laugh'], ['😡', 'bad'], ['👏', 'clap'], ['😭', 'cry'], ['🔥', 'combo'], ['😎', 'six']];
+export const reactSound = (e) => sfx((REACTIONS.find(([x]) => x === e) || [])[1] || 'pop');
 export const QUICK_REPLIES = ['Bring it on 😤', 'So lucky!', 'Haha 😂', 'Watch this…', 'GG'];
 
 export function useBanter(game, bots) {
   const [msgs, setMsgs] = useState([]);
   const lastAi = useRef(0);
   const lastLine = useRef(0);
-  const push = useCallback((who, text) => { setMsgs((m) => (m.some((x) => x.who === who && x.text === text && Date.now() - x.at < 3000) ? m : [...m.slice(-5), { id: Math.random(), who, text, name: who >= 0 ? `${bots[who]?.name}: ` : '', at: Date.now() }])); if (who >= 0) sfx('chat'); }, [bots]);
+  const push = useCallback((who, text, emoji = '') => { setMsgs((m) => (m.some((x) => x.who === who && x.text === text && x.emoji === emoji && Date.now() - x.at < 3000) ? m : [...m.slice(-7), { id: Math.random(), who, text, emoji, mine: who < 0, name: who >= 0 ? `${bots[who]?.name}: ` : '', at: Date.now() }])); if (emoji) reactSound(emoji); else if (who >= 0) sfx('chat'); }, [bots]);
   const ai = useCallback(async (who, event, detail, said, kind) => {
     const bot = bots[who];
     try {
@@ -111,7 +119,14 @@ export function useBanter(game, bots) {
     if (now - lastAi.current > 5000) { lastAi.current = now; setTimeout(() => ai(who, 'player sent a chat message', '', text, 'reply'), 500); }
     else setTimeout(() => push(who, pick(LINES.reply)), 700);
   }, [ai, bots.length, push]);
-  return { msgs, say, reply, line: push };
+  const react = useCallback((emoji) => {
+    push(-1, '', emoji);
+    if (!bots.length) return;
+    const who = Math.floor(Math.random() * bots.length);
+    setTimeout(() => push(who, '', pick(REACTIONS.filter(([e]) => e !== emoji))[0]), 900);
+    if (Math.random() < 0.5) setTimeout(() => push(who, pick(LINES.reply)), 1700);
+  }, [bots, push]);
+  return { msgs, say, reply, react, line: push, quick: true };
 }
 
 // ---------- Clocks: per-turn countdown + whole-match countdown ----------
@@ -140,3 +155,27 @@ export function useClocks({ turnSec, matchSec, turnKey, running, onTurnOut, onMa
     matchLeft: matchSec ? Math.max(0, matchSec * 1000 - (now - matchStart.current)) / 1000 : null,
   };
 }
+
+// Live room chat in the same shape as bot banter (who = seat - 1, so seat 0 maps to the first avatar).
+export function useRoomChat(room, send) {
+  const msgs = (room?.chat || []).map((m) => ({ id: m.id, who: m.seat - 1, text: m.text, emoji: m.emoji, name: `${m.name}: `, mine: m.seat === room.seat, at: Date.parse(m.at) }));
+  const seen = useRef(new Set(msgs.map((m) => m.id)));
+  useEffect(() => { msgs.forEach((m) => { if (!seen.current.has(m.id)) { seen.current.add(m.id); if (m.emoji) reactSound(m.emoji); else if (!m.mine) sfx('chat'); } }); });
+  const noop = useCallback(() => {}, []);
+  return { msgs, say: noop, line: noop, reply: (text) => send({ text }), react: (emoji) => send({ emoji }), quick: false };
+}
+
+// Local state offline; in a live room the room state is the truth and every change is pushed to the server.
+export function useGameState(init, online) {
+  const [local, setLocal] = useState(init);
+  const cur = useRef(null);
+  const g = online ? online.state : local;
+  cur.current = g;
+  const set = useCallback((fn) => {
+    if (!online) { setLocal(fn); return; }
+    const next = typeof fn === 'function' ? fn(cur.current) : fn;
+    if (next !== cur.current) { cur.current = next; online.push(next, next.roomWinner ?? null); }
+  }, [online]);
+  return [g, set];
+}
+export const onlinePlayers = (online, colors, info) => online.names.map((n, i) => ({ name: i === online.seat ? 'You' : n, img: i === online.seat ? YOU.img : null, color: colors[i], info: info(i) }));

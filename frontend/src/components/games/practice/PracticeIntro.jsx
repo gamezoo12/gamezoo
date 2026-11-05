@@ -1,24 +1,38 @@
-import { Clock, Gamepad2, Play, Target } from 'lucide-react';
+import { Clock, Gamepad2, Play, Target, Users } from 'lucide-react';
 import { howToPlay, levelGoal, tierName, tierOf, timeLimit } from '../../../lib/practiceGames';
 
-export function PracticeIntro({ game, level, onStart, onBack }) {
+function Rule({ icon: Icon, color, title, children, testId }) {
+  return (
+    <div className="flex gap-3 rounded-2xl bg-white/[0.06] p-3">
+      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${color}`}><Icon className="h-4 w-4 text-white" /></span>
+      <div className="min-w-0"><div className="text-[10px] font-black uppercase tracking-widest text-white/50">{title}</div><div className="text-[13px] leading-snug text-white/90" data-testid={testId}>{children}</div></div>
+    </div>
+  );
+}
+
+// Mobile-first "game card" briefing shown before every level.
+export function PracticeIntro({ game, cover, level, onStart, onBack }) {
   const guide = howToPlay(game);
   const goal = levelGoal(game, level);
+  const limit = timeLimit(game, level);
   return (
-    <div className="pl-practice-pop mx-auto max-w-lg" data-testid="practice-instructions">
-      <div className="text-[11px] font-black uppercase tracking-[0.2em] text-amber-300">Level {level} · {tierName(tierOf(level))}</div>
-      <h2 className="mt-1 font-display text-2xl font-black text-white sm:text-3xl">How to play</h2>
-      <ul className="mt-4 space-y-3 text-sm text-white/80">
-        {guide.objective && <li className="flex gap-3"><Target className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" /><span data-testid="practice-objective">{guide.objective}</span></li>}
-        {guide.controls && <li className="flex gap-3"><Gamepad2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" /><span>{guide.controls}</span></li>}
-        <li className="flex gap-3"><Clock className="mt-0.5 h-4 w-4 shrink-0 text-rose-300" />{timeLimit(game, level) ? <span>Finish before the clock hits zero: <b className="text-white" data-testid="practice-time-limit">{timeLimit(game, level)}s</b>. Faster and cleaner runs earn more stars.</span> : <span data-testid="practice-time-limit">{guide.clock || 'No time limit: take your turns, outsmart the bots and win to clear the level.'}</span>}</li>
-      </ul>
-      {goal && <div className="mt-4 rounded-xl border border-amber-300/30 bg-amber-300/10 px-4 py-2.5 text-sm font-bold text-amber-200" data-testid="practice-level-goal">{goal}</div>}
-      <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-        <button type="button" onClick={onStart} className="inline-flex h-12 w-full shrink-0 items-center sm:w-auto sm:flex-1 justify-center gap-2 rounded-xl bg-amber-400 font-black text-slate-900 shadow-lg transition-transform hover:-translate-y-0.5 active:translate-y-0" data-testid="practice-start">
-          <Play className="h-4 w-4" />Start Level {level}
-        </button>
-        <button type="button" onClick={onBack} className="h-12 rounded-xl bg-white/10 px-5 font-bold text-white transition-colors hover:bg-white/15" data-testid="practice-back-levels">All levels</button>
+    <div className="pl-practice-pop mx-auto w-full max-w-sm overflow-hidden rounded-[28px] border border-white/15 bg-gradient-to-b from-[#211668] to-[#0b0726] shadow-[0_30px_80px_rgba(80,60,255,0.35)]" data-testid="practice-instructions">
+      <div className="relative aspect-[16/10]">
+        {cover && <img src={cover} alt="" className="h-full w-full object-cover" />}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#211668] via-[#211668]/30 to-transparent" />
+        <span className="absolute left-3 top-3 rounded-full bg-black/55 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-amber-300 backdrop-blur">Level {level} · {tierName(tierOf(level))}</span>
+        <h2 className="absolute bottom-2 left-4 right-4 font-display text-2xl font-black leading-tight text-white drop-shadow">{game.label}</h2>
+      </div>
+      <div className="space-y-2 p-4">
+        {goal && <div className="rounded-2xl border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-center text-sm font-black text-amber-200" data-testid="practice-level-goal">{goal}</div>}
+        {guide.objective && <Rule icon={Target} color="bg-amber-500" title="Goal" testId="practice-objective">{guide.objective}</Rule>}
+        {guide.controls && <Rule icon={Gamepad2} color="bg-sky-500" title="How to play">{guide.controls}</Rule>}
+        <Rule icon={Clock} color="bg-rose-500" title="Clock" testId="practice-time-limit">{limit ? `Finish within ${limit}s. Faster, cleaner runs earn more stars.` : guide.clock || 'No time limit: take your turns, outsmart the bots and win to clear the level.'}</Rule>
+        {game.category === 'Party' && <Rule icon={Users} color="bg-emerald-500" title="Opponents">{guide.solo ? 'Solo game: just you against the level.' : 'Bots chat and react as you play. Send emoji reactions or type a message back!'}</Rule>}
+        <div className="flex gap-2 pt-2">
+          <button type="button" onClick={onBack} className="h-12 shrink-0 rounded-2xl bg-white/10 px-4 text-sm font-bold text-white" data-testid="practice-back-levels">Levels</button>
+          <button type="button" onClick={onStart} className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-300 to-amber-500 font-black text-slate-900 shadow-lg transition-transform active:scale-95" data-testid="practice-start"><Play className="h-4 w-4 fill-slate-900" />Play level {level}</button>
+        </div>
       </div>
     </div>
   );
