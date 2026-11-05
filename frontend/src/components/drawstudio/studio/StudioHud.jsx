@@ -152,51 +152,15 @@ function Finale({ view, u, w }) {
   );
 }
 
-// Live captions of the voice commentary + the speaking AI host's card; rendered in the HUD so they are part of every recording.
-const HOST_IDS = ['max', 'leo', 'sophia', 'ruby'];
-function HostCard({ S, u, w, h }) {
-  const textures = useMemo(() => {
-    const loader = new THREE.TextureLoader();
-    return Object.fromEntries(HOST_IDS.map((id) => { const t = loader.load(`/hosts/${id}.jpg`); t.colorSpace = THREE.SRGBColorSpace; return [id, t]; }));
-  }, []);
-  const group = useRef();
-  const face = useRef();
-  const ring = useRef();
-  const name = useRef();
-  const lastHost = useRef('');
-  useFrame(({ clock }) => {
-    const cue = S.current.caption;
-    const on = Boolean(captionAt(cue) && cue?.host && textures[cue.host]);
-    if (!group.current) return;
-    group.current.visible = on;
-    if (!on) return;
-    if (cue.host !== lastHost.current) {
-      lastHost.current = cue.host;
-      face.current.material.map = textures[cue.host];
-      face.current.material.needsUpdate = true;
-      name.current.text = (cue.name || cue.host).toUpperCase();
-      name.current.sync();
-    }
-    ring.current.scale.setScalar(1 + Math.sin(clock.elapsedTime * 9) * 0.035);
-  });
-  const r = 62 * u;
-  return (
-    <group ref={group} visible={false} position={[-w / 2 + 40 * u + r, -h / 2 + 232 * u, 6]}>
-      <mesh ref={ring} position={[0, 0, -0.2]}><circleGeometry args={[r + 7 * u, 48]} /><meshBasicMaterial color="#ffd54a" toneMapped={false} /></mesh>
-      <mesh ref={face}><circleGeometry args={[r, 48]} /><meshBasicMaterial toneMapped={false} /></mesh>
-      <mesh position={[0, -r - 18 * u, -0.1]}><planeGeometry args={[150 * u, 34 * u]} /><meshBasicMaterial color="#7b3bff" toneMapped={false} /></mesh>
-      <Text ref={name} font={FONTS.bold} fontSize={18 * u} position={[0, -r - 18 * u, 0.2]} color="#ffffff" letterSpacing={0.15}>{' '}</Text>
-      <Text font={FONTS.bold} fontSize={11 * u} position={[0, r + 18 * u, 0.2]} color="#ff8fa3" letterSpacing={0.3}>● LIVE AI HOST</Text>
-    </group>
-  );
-}
-
+// Live captions of the voice commentary (with the speaking host's name); rendered in the HUD so they are part of every recording.
 function Subtitle({ S, u, w, h }) {
   const plate = useRef();
   const text = useRef();
   const last = useRef('');
   useFrame(() => {
-    const c = captionAt(S.current.caption);
+    const cue = S.current.caption;
+    const chunk = captionAt(cue);
+    const c = chunk && cue.name ? `${cue.name.toUpperCase()}: ${chunk}` : chunk;
     if (plate.current) plate.current.visible = Boolean(c);
     if (!text.current) return;
     text.current.visible = Boolean(c);
@@ -249,7 +213,6 @@ function Overlay({ S, view }) {
       {view.stage === 'revealed' && <WinnerCards view={view} u={u} w={w} />}
       {view.stage === 'complete' && <Finale view={view} u={u} w={w} />}
       <Subtitle S={S} u={u} w={w} h={h} />
-      <HostCard S={S} u={u} w={w} h={h} />
       <Confetti S={S} w={w} h={h} />
     </>
   );

@@ -76,8 +76,8 @@ class TestLeaderboard:
         assert r.status_code == 200
         d = r.json()
         assert d["game_id"] is None and d["me"] is not None and "games" in d["me"]
-        lv = [row["level"] for row in d["top"]]
-        assert lv == sorted(lv, reverse=True)
+        keys = [(row["stars"], row["level"]) for row in d["top"]]
+        assert keys == sorted(keys, reverse=True)  # iter60: global board ranked by stars then levels
 
     def test_anon_board(self):
         r = requests.get(f"{P}/leaderboard", params={"game_id": "math_sprint"})
@@ -114,8 +114,9 @@ class TestEventsStats:
 class TestAds:
     def test_settings_validation(self, admin):
         base = {"enabled": False, "source": "own", "every_n_levels": 3, "skip_after_s": 5, "adsense_client": "", "adsense_slot": ""}
-        assert admin.put(f"{ADM}/ads/settings", json={**base, "adsense_client": "pub-123"}).status_code == 400
-        assert admin.put(f"{ADM}/ads/settings", json={**base, "adsense_slot": "12ab"}).status_code == 400
+        # iter60: source=own clears junk AdSense IDs instead of rejecting; adsense still validates
+        assert admin.put(f"{ADM}/ads/settings", json={**base, "adsense_client": "pub-123"}).status_code == 200
+        assert admin.put(f"{ADM}/ads/settings", json={**base, "source": "adsense", "adsense_slot": "12ab"}).status_code == 400
         r = admin.put(f"{ADM}/ads/settings", json={**base, "enabled": True, "source": "adsense"})
         assert r.status_code == 400 and "AdSense" in r.json()["detail"]
 
@@ -167,4 +168,4 @@ class TestCommentary:
                        json={"stage": "intro", "mode": "preview", "contest_title": "Sample show", "override": {"enabled": True}}, timeout=60)
         assert r.status_code == 200, r.text
         d = r.json()
-        assert isinstance(d["text"], str) and len(d["text"]) > 3 and len(d["audio_b64"]) > 100
+        assert isinstance(d["text"], str) and len(d["text"]) > 3 and len(d["segments"]) >= 1 and len(d["segments"][0]["audio_b64"]) > 100

@@ -17,7 +17,7 @@ export default function GamesLeaderboard() {
       <section className="bg-gradient-to-br from-slate-950 via-indigo-950 to-fuchsia-950 text-white">
         <div className="mx-auto max-w-3xl px-4 py-8 md:py-12">
           <Link to="/games" className="inline-flex items-center gap-1 text-sm text-white/60 hover:text-white" data-testid="games-leaderboard-back"><ArrowLeft className="h-4 w-4" />All games</Link>
-          <div className="mt-4 inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.2em] text-[#FFD54A]"><Trophy className="h-4 w-4" />Free games leaderboard</div>
+          <div className="mt-4 flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.2em] text-[#FFD54A]"><Trophy className="h-4 w-4" />Free games leaderboard</div>
           <h1 className="mt-2 font-display text-4xl font-black sm:text-5xl">Star collectors</h1>
           <p className="mt-2 flex items-center gap-1.5 text-sm text-white/70"><Star className="h-4 w-4 fill-amber-400 text-amber-400" />Every level earns up to 3 stars. Collect the most across all games to top the global board.</p>
         </div>

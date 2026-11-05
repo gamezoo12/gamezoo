@@ -1,0 +1,50 @@
+{
+  "summary": "Tested iteration 60 on the public URL. Backend: 24 of 24 checks pass (13 new + 11 updated from iteration 59). The new checks cover: the hosts list in commentary options; saving solo/duo hosts in Draw Settings and restoring them; invalid duo/host values falling back to defaults; duo commentary returning 2-4 lines that alternate between the 2 chosen hosts, each with its own audio; solo returning 1 Max line; the global board sorted by stars then levels with masked names and a 'me' row; the per-game board sorted by level; unknown ad id click/impression returning 404; source=own clearing junk AdSense IDs while source=adsense still rejects them; ad start/end UTC round-trip. UI (Playwright): Draw Settings host picker works (4 portraits load, duo swaps out the older pick so 2 are always chosen, solo picks 1, the voice select is gone, the save persists after reload). Test voice shows 'Name: line' rows for solo (1 row) and duo (3 rows). The duo sample show ran all 10 stage actions to Finale with no page errors. The LIVE AI HOST card and subtitles show bottom-left and bottom, and the subtitles no longer cover the PREVIEW line. Problems found: (1) in one screenshot the host card showed Leo's face labelled 'RUBY'; (2) the finale commentary request returned 502 in the sample show, so the finale had no voice. /games/leaderboard works for guest and player1 (#1, 764 stars, 411 levels). The game select switches to the per-game board. All 4 leaderboard buttons go to /games/leaderboard, and practice-leaderboard-link hides during play. Fixes confirmed: ad background is solid black rgb(0,0,0); '1 player' does not wrap at 390px; the stats chart has date labels; the admin UI saves source=own after junk AdSense IDs were typed. Regression OK: instructions → ad → play → pass → next → ad; time-out fail → retry; 5 tiers; support launcher only on /paid-leagues and /free-world. Ads are OFF again, the TEST ad is deleted, and Draw commentary settings are back to duo max+sophia, enabled.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/admin/draw-studio/commentary (finale, from the sample show)", "issue": "1 of 9 sample-show calls (the finale) returned 502 to the browser. No line for it appears in backend.out.log, and no 'commentary failed' warning was logged, so it looks like a transient ingress/upstream 502. The same finale payload called directly worked twice (200, 8-9s, 4 lines). Flaky: 1 failure in 11 finale/sample calls."},
+      {"endpoint": "POST /api/admin/draw-studio/commentary (prompt quality, carried over from iteration 59)", "issue": "Not fixed yet. The test stage still has no sample facts, so lines say 'Tickets in the pool: zero' and '£0'. Mixing, drawing and round lines still re-greet the audience ('Welcome to the Prize League Sample Draw, folks!' in drawing, 'Welcome back…' in round). TASKS has no 'welcome viewers only in the intro' rule."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "StudioHud HostCard", "issue": "Seen once in the duo sample show (Round 2 draw, Leo+Ruby): the card showed Leo's portrait labelled 'RUBY'. Other screenshots matched (Ruby's face with RUBY). Likely cause: the face texture swaps at once in useFrame, but the name uses troika Text, whose .text change + sync() is async. The two can be out of step for a moment (and longer on slow or headless GPUs). Suggested fix: render one prebuilt name Text (and optionally one face mesh) per host and toggle visibility, instead of retypesetting the name at runtime. Check this in a real GPU browser.", "selector": "3D HUD (canvas) - no DOM selector", "priority": "MEDIUM"},
+      {"component": "createCommentator.prefetch (studio/commentary.js)", "issue": "A failed request is cached as null under its key (`.catch(() => null)`), so one transient 502 silently drops that stage's voice for the rest of the show (the finale had no voice this run). Retry once on failure, and don't cache null.", "selector": "n/a", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/games/leaderboard hero", "issues": ["The 'All games' back link and the 'FREE GAMES LEADERBOARD' eyebrow are both inline-flex, so they render on the same line with no gap ('All games🏆FREE GAMES LEADERBOARD'). The eyebrow's mt-4 has no effect. Make the eyebrow a block/flex element or wrap the link in its own block. Seen on desktop and at 390px."]},
+      {"screen": "/games/leaderboard global rows", "issues": ["The text reads '1 levels'. Use 'level' when the count is 1."]},
+      {"screen": "Draw Settings > Voice commentary host picker (1920px)", "issues": ["At xl the cards use grid-cols-2 in a wide panel, so each portrait is about 470px square and the picker alone is about 1000px tall. Use 4 columns, or cap the card or image size, on wide screens."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_draw_hosts_leaderboard_iter60.py",
+    "/app/backend/tests/test_free_games_leaderboard_ads.py",
+    "/app/tests/run_iter60_public.py"
+  ],
+  "action_items": [
+    "HostCard: make the speaking host's face and name change together (prebuilt per-host name Text toggled by visibility), and check it in a real browser during duo banter.",
+    "createCommentator: retry a failed commentary request once, and don't cache a null result, so a transient 502 does not drop the finale voice.",
+    "Commentary prompts: give the 'test' stage sample facts, and tell the model to greet viewers only in the intro (carried over from iteration 59).",
+    "GamesLeaderboard hero: put the back link and the eyebrow on separate lines; fix '1 levels' pluralization.",
+    "HostPicker: smaller cards / 4 columns on xl screens."
+  ],
+  "critical_code_review_comments": [
+    "draw_commentary.write_lines: if the LLM returns a duo with only 1 line, or all lines from one host, nothing enforces 2-4 alternating lines. All tested runs did alternate, but a fallback (e.g. reassign hosts by index when they don't alternate) would make it deterministic.",
+    "HostPicker: duo mode has no aria-pressed or role, so screen readers cannot tell which hosts are selected (the state is only shown by border and check icon). Add aria-pressed.",
+    "practice_routes overall board: $sort by updated_at before $group now makes $last:name deterministic (fixes the iteration 59 note)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_draw_hosts_leaderboard_iter60.py (new)",
+    "/app/backend/tests/test_free_games_leaderboard_ads.py (updated stale asserts: overall board sorted by stars, source=own now accepts junk IDs, commentary returns segments)",
+    "/app/tests/run_iter60_public.py (new public-URL runner)"
+  ],
+  "success_rate": {"backend": "100% (24/24)", "frontend": "about 92%: every requested flow works; host card face/name mismatch seen once; finale voice dropped once (transient 502)"},
+  "seed_data_creation": "Created and deleted the TEST_ad60 (API) and TEST_UI_Ad60 ads. Ad settings were turned on temporarily and reset to enabled=false, source=own, every 3, skip 5, no AdSense IDs. Draw commentary settings were changed during the tests and restored to enabled=true, duo, host max, duo [max, sophia], English, energetic. Guest progress was stored only in browser localStorage. A few practice start/pass/fail events were added for number_sequence. About 14 LLM+TTS commentary calls were made. No official draws were run.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run the backend tests with `set -a; . backend/.env; . frontend/.env; set +a; python3 /app/tests/run_iter60_public.py` (about 1.5 min; makes 3 LLM+TTS calls; restores the commentary and ad settings itself). conftest only allows loopback, so pytest cannot target the public URL directly. The home page with the free games section is /paid-leagues ('/' is the choose-your-world gate). The sample show is at /production/settings: draw-host-mode-duo → draw-commentary-sample → draw-stage-action ×10. Headless WebGL is slow (each full screenshot takes about 12s), so take few screenshots. The HostCard and subtitles live inside the 3D canvas, so check them only with screenshots. The admin free games page is /admin/free-games (tabs free-games-tab-stats/ads/leaderboard).",
+  "rca of the issue": "Finale 502: the browser got a 502, but no matching request line or 'commentary failed' warning is in the backend logs, so the backend never answered it; most likely a transient ingress/upstream failure. createCommentator caches the failed promise as null, so the stage stays silent with no retry. Host card mismatch: HostCard swaps material.map at once, while the name label is a troika Text whose re-typeset is async in a worker, so face and name can briefly disagree (made worse by slow headless rendering)."
+}

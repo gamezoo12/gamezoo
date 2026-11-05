@@ -113,8 +113,19 @@ export class DrawAudio {
     this.buffers.commentary = buf;
     this.play('commentary', { volume: 1.15 });
     const src = this.sources.commentary?.src;
+    if (!this.voiceAnalyser) { this.voiceAnalyser = this.ctx.createAnalyser(); this.voiceAnalyser.fftSize = 512; this.voiceData = new Uint8Array(512); }
+    this.sources.commentary?.gain.connect(this.voiceAnalyser);
     if (src) src.onended = () => duck.forEach(([k, s]) => { if (this.sources[k] === s) s.gain.gain.setTargetAtTime(s.base * (this.volumes[k] ?? 1), this.ctx.currentTime, 0.3); });
     return buf.duration;
+  }
+
+  // 0..1 loudness of the commentary voice right now (drives the 3D hosts' mouths).
+  voiceLevel() {
+    if (!this.voiceAnalyser || !this.sources.commentary) return 0;
+    this.voiceAnalyser.getByteTimeDomainData(this.voiceData);
+    let sum = 0;
+    for (let i = 0; i < this.voiceData.length; i += 1) { const v = (this.voiceData[i] - 128) / 128; sum += v * v; }
+    return Math.min(1, Math.sqrt(sum / this.voiceData.length) * 5);
   }
 
   stopAll() { this.stopHeartbeat(); Object.keys(this.sources).forEach((k) => this.stop(k)); }

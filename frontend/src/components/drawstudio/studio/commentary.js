@@ -29,7 +29,7 @@ export async function playSegments(segments, audio, onCaption, stillCurrent = ()
   for (const seg of segments) {
     if (!stillCurrent()) return;
     const dur = (await audio?.speak(seg.audio)) || seg.text.length / 14;
-    onCaption?.({ chunks: captionChunks(seg.text), t0: performance.now(), dur, host: seg.host, name: seg.name });
+    onCaption?.({ chunks: captionChunks(seg.text), t0: performance.now(), dur, host: seg.host, name: seg.name, action: seg.action, mood: seg.mood });
     await new Promise((r) => setTimeout(r, dur * 1000 + 150));
   }
 }
@@ -40,7 +40,11 @@ export function createCommentator(enabled, mode, { override, onCaption } = {}) {
   let current = null;
   const prefetch = (key, payload) => {
     if (!enabled) return null;
-    if (!lines.has(key)) lines.set(key, drawStudioAPI.commentary({ mode, ...payload, ...(override ? { override } : {}) }).catch(() => null));
+    if (!lines.has(key)) {
+      const ask = () => drawStudioAPI.commentary({ mode, ...payload, ...(override ? { override } : {}) });
+      const p = ask().catch(() => ask()).catch(() => { lines.delete(key); return null; });
+      lines.set(key, p);
+    }
     return lines.get(key);
   };
   const say = async (key, payload, audio) => {

@@ -104,9 +104,9 @@ async def commentary(body: CommentaryIn, request: Request):
         if body.stage != "finale":
             facts["all_winners"] = []
         lines = await write_lines(cfg, body.stage, facts)
-        audios = await asyncio.gather(*(speak(cfg, ln["text"], ln["host"]) for ln in lines))
+        audios = await asyncio.gather(*(speak(cfg, ln["text"], ln["host"], ln["mood"]) for ln in lines))
     except Exception as exc:  # provider failure must never break the draw
         log.warning("commentary failed: %s", exc)
         raise HTTPException(status_code=502, detail="Commentary is unavailable right now") from exc
     return {"text": " ".join(ln["text"] for ln in lines),
-            "segments": [{"host": ln["host"], "name": HOSTS[ln["host"]]["name"], "text": ln["text"], "audio_b64": base64.b64encode(a).decode()} for ln, a in zip(lines, audios)]}
+            "segments": [{"host": ln["host"], "name": HOSTS[ln["host"]]["name"], "text": ln["text"], "mood": ln["mood"], "action": ln["action"], "audio_b64": base64.b64encode(a).decode()} for ln, a in zip(lines, audios)]}

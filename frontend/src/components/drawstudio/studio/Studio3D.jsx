@@ -1,4 +1,5 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Hosts3D } from './Hosts3D';
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Environment, Lightformer } from '@react-three/drei';
@@ -60,6 +61,7 @@ export function Studio3D({ S, view, numbers, onCanvas }) {
         <Scenery />
         {image && <Backdrop image={image} />}
         <Machine S={S} numbers={numbers} roundIndex={view.round} />
+        <Hosts3D S={S} cast={view.cast} />
         <CameraRig S={S} />
         <EffectComposer multisampling={0}>
           <Bloom mipmapBlur intensity={1.05} luminanceThreshold={0.62} luminanceSmoothing={0.2} />

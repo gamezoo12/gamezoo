@@ -43,11 +43,14 @@ export function DrawTheatre({ mode, contest, rounds, tickets, plan, results = []
   const go = useCallback((next) => { Object.assign(S.current, { stage: next, t0: now() }); setStage(next); }, []);
   useEffect(() => { loadCanvasFonts(); }, []);
   const [voice, setVoice] = useState(null);
+  const [cast, setCast] = useState([]);
   useEffect(() => {
     let live = true;
+    S.current.voiceLevel = () => audio?.voiceLevel?.() || 0;
     const opts = { override: voiceOverride, onCaption: (cue) => { S.current.caption = cue; } };
-    if (voiceOverride) { setVoice(createCommentator(true, mode, opts)); return undefined; }
-    drawStudioAPI.settings().then((s) => live && setVoice(createCommentator(Boolean(s.commentary?.enabled), mode, opts))).catch(() => live && setVoice(createCommentator(false, mode, opts)));
+    const castOf = (c) => (c?.mode === 'duo' ? c.duo || [] : [c?.host].filter(Boolean));
+    if (voiceOverride) { setVoice(createCommentator(true, mode, opts)); setCast(castOf(voiceOverride)); return undefined; }
+    drawStudioAPI.settings().then((s) => { if (!live) return; setVoice(createCommentator(Boolean(s.commentary?.enabled), mode, opts)); if (s.commentary?.enabled) setCast(castOf(s.commentary)); }).catch(() => live && setVoice(createCommentator(false, mode, opts)));
     return () => { live = false; };
   }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
   const facts = useCallback((r = round) => roundFacts(contest, rounds, r, pool.length), [contest, rounds, round, pool.length]);
@@ -150,9 +153,9 @@ export function DrawTheatre({ mode, contest, rounds, tickets, plan, results = []
     mixed: [draw, 'Draw'], drawing: [null, 'Drawing…'], drawn: [reveal, 'Reveal Winner'],
     revealed: last ? [finale, 'Show Finale'] : [next, `Next: ${rounds[round + 1]?.name}`],
   }[stage];
-  const view = useMemo(() => ({ stage, round, rounds, outcomes, preview, replay, title: contest.title, eligible: pool.length,
+  const view = useMemo(() => ({ stage, round, rounds, outcomes, preview, replay, title: contest.title, eligible: pool.length, cast,
     totalPrize: rounds.reduce((a, r) => a + r.prize_amount * r.num_winners, 0), totalWinners: rounds.reduce((a, r) => a + Number(r.num_winners), 0) }),
-  [stage, round, rounds, outcomes, preview, replay, contest.title, pool.length]);
+  [stage, round, rounds, outcomes, preview, replay, contest.title, pool.length, cast]);
 
   return (
     <div ref={rootRef} className="fixed inset-0 z-[2147483000] flex flex-col bg-[#050211]" data-testid="draw-stage" data-stage={stage} data-mode={mode}>

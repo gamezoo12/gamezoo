@@ -1,6 +1,7 @@
 """AI voice commentary for Draw Studio broadcasts: script (LLM) + speech (TTS). Uses only facts the studio sends."""
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import uuid
@@ -75,35 +76,45 @@ def _facts(stage: str, d: dict) -> str:
 
 
 TASKS = {
-    "intro": "Open the broadcast: welcome viewers, name the draw, explain simply how it works (every eligible ticket enters the machine, it is mixed, and winning tickets are drawn at random by a certified random process), mention the total prize fund and how many tickets are in. Then introduce the first round.",
-    "round": "Introduce this next round: its name, the prize per winner and how many winners. Tease the audience.",
-    "loading": "Tickets are pouring into the machine now. Describe it with excitement and remind people to check their ticket numbers.",
-    "mixing": "The machine is mixing every ticket. Build suspense, heartbeat is racing.",
-    "drawing": "The draw is happening right now. Short dramatic build-up, no winner yet.",
-    "reveal": "Announce the winning ticket number(s) and name(s) exactly as given, congratulate them warmly and say the prize.",
-    "finale": "Close the show: recap every winner briefly, congratulate them, thank everyone who took part and invite them to the next draw.",
-    "test": "Say a short friendly sound check as the Prize League Draw Studio host.",
+    "intro": "OPEN the show (the only stage where you greet viewers): welcome everyone, name the draw, explain simply how it works (every eligible ticket goes into the machine, it gets mixed, and winners are picked at random by a certified random process), mention the total prize fund and how many tickets are in, then tease the first round.",
+    "round": "We are mid-show (do NOT greet or welcome again). Introduce this next round: its name, prize per winner and number of winners. Tease the audience.",
+    "loading": "Mid-show, no greeting. Tickets are pouring into the machine right now. React to it and tell people to grab their ticket numbers.",
+    "mixing": "Mid-show, no greeting. The machine is mixing every ticket. Build suspense, react to the spinning, joke about nerves.",
+    "drawing": "Mid-show, no greeting. The draw is happening this second. Short, breathless, dramatic build-up. No winner yet.",
+    "reveal": "Mid-show, no greeting. Announce the winning ticket number(s) and name(s) exactly as given, go wild celebrating, congratulate them and say the prize.",
+    "finale": "Close the show: recap every winner briefly, celebrate, thank everyone who played and invite them to the next draw.",
+    "test": "A quick, funny sound check: the hosts say hi to the organiser, joke around and show off their personality in a few seconds.",
 }
+TEST_FACTS = {"contest_title": "Prize League Sample Draw", "round_name": "Grand Prize", "prize_amount": 500, "num_winners": 1, "eligible": 240, "total_prize": 600}
+MOODS = {"excited": "bursting with excitement, fast and loud", "laughing": "laughing out loud mid-sentence, giggly and playful",
+         "teasing": "cheeky and teasing, a smile in the voice", "suspense": "low, slow, whispery suspense that builds",
+         "warm": "warm, heartfelt and sincere", "shocked": "genuinely astonished, gasping"}
+ACTIONS = ["talk", "laugh", "celebrate", "wave", "point", "suspense"]
 
 
 async def write_lines(cfg: dict, stage: str, data: dict) -> list[dict]:
-    """Returns [{host, text}] — one line for a solo host, 2-4 alternating banter lines for a duo."""
+    """Returns [{host, text, mood, action}] — one line for a solo host, 2-4 alternating banter lines for a duo."""
     from emergentintegrations.llm.chat import LlmChat, UserMessage
 
+    if stage == "test":
+        data = {**data, **TEST_FACTS}
     hosts = cast(cfg)
     people = "; ".join(f"{HOSTS[h]['name']} ({HOSTS[h]['gender']}): {HOSTS[h]['persona']}" for h in hosts)
     long_stage = stage in ("intro", "finale")
+    item = '{"host": "<name>", "text": "<spoken line>", "mood": "<' + "|".join(MOODS) + '>", "action": "<' + "|".join(ACTIONS) + '>"}'
     if len(hosts) == 2:
-        shape = (f"Write a short live exchange between co-hosts {HOSTS[hosts[0]]['name']} and {HOSTS[hosts[1]]['name']}: "
-                 f"{'3-4' if long_stage else '2-3'} alternating lines, each max 30 words, with playful banter, reactions and hype. "
-                 'Reply ONLY with JSON: [{"host": "<name>", "text": "<spoken line>"}].')
+        shape = (f"Write a live exchange between co-hosts {HOSTS[hosts[0]]['name']} and {HOSTS[hosts[1]]['name']}: "
+                 f"{'3-4' if long_stage else '2-3'} alternating lines, each max 28 words. They interrupt, react to and tease each other like real TV presenters.")
     else:
-        shape = f"Write what {HOSTS[hosts[0]]['name']} says: 1-3 short sentences (max {90 if long_stage else 55} words). Reply ONLY with JSON: [{{\"host\": \"{HOSTS[hosts[0]]['name']}\", \"text\": \"<spoken line>\"}}]."
-    system = (f"You write live commentary for the Prize League Draw Studio broadcast. Hosts: {people}. Overall tone: {STYLES[cfg['style']]}. "
-              "Be genuinely entertaining: vivid, funny, suspenseful, celebrate winners, talk to the audience at home. "
-              f"Write the spoken text ONLY in {cfg['language']} (use its native script). No emojis, no stage directions, no markdown inside the text. "
+        shape = f"Write 1-2 lines for {HOSTS[hosts[0]]['name']} (max {80 if long_stage else 45} words in total), talking to the audience at home."
+    system = (f"You write LIVE TV commentary for the Prize League Draw Studio. Hosts: {people}. Overall tone: {STYLES[cfg['style']]}. "
+              "Make it sound like real people talking off the cuff, not a script: contractions, short punchy sentences, natural reactions "
+              "(\"Ooh!\", \"Ha!\", \"No way!\", \"Come on!\"), laughter where it fits, a running joke or callback, talk directly to viewers. "
+              "Never sound like an announcement or repeat the same phrasing. "
+              f"Write the spoken text ONLY in {cfg['language']} (use its native script). No emojis, no stage directions or brackets inside the text. "
               "Use ONLY the facts provided. Never invent names, numbers or amounts, never promise prizes to anyone not named, never suggest the result is anything but random. "
-              "Read ticket numbers digit by digit if they are long. " + shape)
+              "Read ticket numbers digit by digit if they are long. " + shape +
+              f" For each line pick the voice mood and a body action (laugh when joking, celebrate on wins, point at the machine, suspense while drawing). Reply ONLY with a JSON array of {item}.")
     if cfg.get("notes"):
         system += f" Organiser notes you may weave in naturally: {cfg['notes']}"
     chat = LlmChat(api_key=os.environ["EMERGENT_LLM_KEY"], session_id=f"draw-commentary-{uuid.uuid4().hex}", system_message=system).with_model("openai", "gpt-5.4-mini")
@@ -111,16 +122,31 @@ async def write_lines(cfg: dict, stage: str, data: dict) -> list[dict]:
     by_name = {HOSTS[h]["name"].lower(): h for h in hosts}
     try:
         items = json.loads(raw[raw.index("["): raw.rindex("]") + 1])
-        lines = [{"host": by_name.get(str(i.get("host", "")).strip().lower(), hosts[n % len(hosts)]), "text": str(i.get("text", "")).strip()[:400]}
+        lines = [{"host": by_name.get(str(i.get("host", "")).strip().lower(), hosts[n % len(hosts)]), "text": str(i.get("text", "")).strip()[:400],
+                  "mood": i.get("mood") if i.get("mood") in MOODS else "excited", "action": i.get("action") if i.get("action") in ACTIONS else "talk"}
                  for n, i in enumerate(items) if str(i.get("text", "")).strip()]
     except (ValueError, AttributeError, TypeError):
-        lines = [{"host": hosts[0], "text": raw[:600]}]
-    return lines[:4] or [{"host": hosts[0], "text": raw[:600]}]
+        lines = []
+    return lines[:4] or [{"host": hosts[0], "text": raw[:600], "mood": "excited", "action": "talk"}]
 
 
-async def speak(cfg: dict, text: str, host: str | None = None) -> bytes:
-    from emergentintegrations.llm.openai import OpenAITextToSpeech
+def _expressive(text: str, voice: str, instructions: str) -> bytes:
+    from litellm import speech
 
-    tts = OpenAITextToSpeech(api_key=os.environ["EMERGENT_LLM_KEY"])
-    voice = HOSTS[host]["voice"] if host in HOSTS else cfg["voice"]
-    return await tts.generate_speech(text=text, model="tts-1-hd" if cfg.get("hd") else "tts-1", voice=voice, response_format="mp3")
+    r = speech(model="openai/gpt-4o-mini-tts", input=text, voice=voice, instructions=instructions, api_key=os.environ["EMERGENT_LLM_KEY"],
+               api_base=os.getenv("INTEGRATION_PROXY_URL", "https://integrations.emergentagent.com") + "/llm", custom_llm_provider="openai")
+    return r.content
+
+
+async def speak(cfg: dict, text: str, host: str | None = None, mood: str = "excited") -> bytes:
+    """Expressive voice (can laugh, whisper, react); falls back to the standard voice if it is unavailable."""
+    h = HOSTS.get(host) or HOSTS[cfg["host"]]
+    instructions = (f"You are {h['name']}, a live TV game-show presenter: {h['persona']}. Delivery: {MOODS.get(mood, MOODS['excited'])}. "
+                    f"Sound spontaneous and human, with natural breaths, emphasis and real laughter where the text is funny. Speak in {cfg['language']}.")
+    try:
+        return await asyncio.to_thread(_expressive, text, h["voice"], instructions)
+    except Exception:  # noqa: BLE001
+        from emergentintegrations.llm.openai import OpenAITextToSpeech
+
+        tts = OpenAITextToSpeech(api_key=os.environ["EMERGENT_LLM_KEY"])
+        return await tts.generate_speech(text=text, model="tts-1-hd" if cfg.get("hd") else "tts-1", voice=h["voice"], response_format="mp3")
