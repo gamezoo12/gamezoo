@@ -1,4 +1,4 @@
-# Free-play practice games: 10-level progress API (/api/games/practice/progress)
+# Free-play practice games: 100-level progress API (/api/games/practice/progress)
 import os
 import pytest
 import requests
@@ -47,7 +47,7 @@ class TestPracticeProgress:
         assert r.status_code == 400
 
     def test_validation_bounds(self, player):
-        for bad in [{"game_id": "number_sequence", "level": 11, "stars": 1},
+        for bad in [{"game_id": "number_sequence", "level": 101, "stars": 1},
                     {"game_id": "number_sequence", "level": 0, "stars": 1},
                     {"game_id": "number_sequence", "level": 1, "stars": 4},
                     {"game_id": "number_sequence", "level": 1, "stars": 0}]:
@@ -57,7 +57,7 @@ class TestPracticeProgress:
     def test_skip_levels_above_unlocked(self, player):
         cur = player.get(API).json()["progress"].get("arc_balloon_pop", {"unlocked": 1})
         lv = cur["unlocked"] + 2
-        if lv > 10:
+        if lv > 100:
             pytest.skip("already near max")
         r = player.post(API, json={"entries": [{"game_id": "arc_balloon_pop", "level": lv, "stars": 3}]})
         assert r.status_code == 200
@@ -81,10 +81,16 @@ class TestPracticeProgress:
         g = player.get(API).json()["progress"]["number_sequence"]
         assert g["stars"]["1"] == 3
 
-    def test_level10_caps_unlocked(self, player):
+    def test_level10_unlocks_tier2(self, player):
         player.post(API, json={"entries": [{"game_id": "number_sequence", "level": 10, "stars": 2}]})
         g = player.get(API).json()["progress"]["number_sequence"]
-        assert g["unlocked"] == 10 and g["stars"]["10"] >= 2
+        assert g["unlocked"] >= 11 and g["stars"]["10"] >= 2
+
+    def test_level100_caps_unlocked(self, player):
+        entries = [{"game_id": "number_sequence", "level": i, "stars": 1} for i in range(1, 101)]
+        assert player.post(API, json={"entries": entries}).status_code == 200
+        g = player.get(API).json()["progress"]["number_sequence"]
+        assert g["unlocked"] == 100 and "100" in g["stars"]
 
     def test_unlock_several_games_for_ui(self, player):
         for gid in ["arc_balloon_pop", "memory_match", "sudoku_mini", "tf2048_mini", "minesweeper_mini"]:

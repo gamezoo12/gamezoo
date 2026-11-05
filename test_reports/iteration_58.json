@@ -1,0 +1,41 @@
+{
+  "summary": "Tested the 100-level free-play games on the backend (public-URL runner, 17/17 pass) and in the UI with Playwright (mobile 390x844 and desktop 1920x1080, as a guest and as player1). Everything requested works except one thing: choosing a level did not scroll the page to the top. Clicking level 99 at scrollY=778 opened the instructions at y=-578, off screen, so a mobile user saw only the footer. I fixed it with one line in GamePreview.go() and re-checked: scrollY went from 383 to 0 and the instructions showed at y=200. The iteration_57 regressions all pass.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "GamePreview level pick", "issue": "Choosing a level did not scroll to the top, so the instructions were off screen on mobile. FIXED by the testing agent: go() now calls window.scrollTo({top:0}).", "selector": "[data-testid^=practice-level-]", "priority": "MEDIUM (fixed)"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/games/<id> hub", "issues": ["Minor: the cover image was blank in the first mobile screenshot on a fresh load (still loading). It showed on later loads."]}
+    ]
+  },
+  "verified": [
+    "Hub: 10 tier rows practice-tier-1..10 labelled 'Levels 1–10'..'Levels 91–100' with difficulty names (Starter, Easy, Casual, Medium, Challenging, Hard, Very Hard, Expert, Master, Impossible). A fresh guest has only L1 unlocked and tiers 2-10 disabled. Total stars shows 0/300.",
+    "The tier holding the next level opens by default: tier 2 after level 10, tier 5 at unlocked=41, tier 10 for player1 at L99.",
+    "Time limits for number_sequence: L1 15s, L2 15s, L10 12s, L11 29s (20 numbers), L41 63s (50 numbers), L99 81s (100 numbers). Math Sprint: L11 124s, L12 122s, L15 114s (shrinks inside a tier).",
+    "Number count per tier: 10, 20, 50 and 100 buttons. The 100-number board uses 10 columns and fits 390px (scrollWidth 390).",
+    "Pass shows practice-pass with 'Congratulations! Level N complete' and 'Play Level N+1'. That opens the level N+1 instructions. Passing L10 unlocks L11 and opens tier 2. Passing L99 unlocks L100.",
+    "A timeout on L11 shows practice-fail ('Time's up!') and practice-retry. Retry restarts the countdown.",
+    "Quit returns to the instructions. Back on a direct visit goes to /games (location.key fallback).",
+    "Each card on /games shows 'N/100 levels': number_sequence 98/100, math_sprint 14/100, pattern_repeat 100/100, an unplayed game '100 levels'.",
+    "Backend: level 101 and level 0 return 422, stars 4 returns 422, an unknown game returns 400, an anonymous request returns 401. Skipping ahead of the unlocked level is ignored. A batch of levels 1..100 caps unlocked at 100. Stars keep their highest value. player1 math_sprint was already unlocked to 15.",
+    "iteration_57 regressions: GET and POST on the old /api/admin/draw-studio/backdrops return 404. A partial PUT of settings volumes merges with the existing values and is saved (volumes restored afterwards). A player gets 403. The 'drawing' commentary line did not contain the winner display_name that was passed in (it was removed on the server). The DrawTheatre code prefetches the drawing line at mix()."
+  ],
+  "test_report_links": ["/app/tests/run_practice_100_public.py", "/app/backend/tests/test_practice_progress.py"],
+  "action_items": [
+    "Keep the scroll-to-top fix in GamePreview.jsx go(). It also covers Retry and Play next level.",
+    "Optional: Math Sprint tier-2 time limits (~120s for 6 questions) are very generous. Check that tiers 8-10 really feel 'very hard' for games that are not number_sequence, since only the difficulty setting tightens them."
+  ],
+  "critical_code_review_comments": [
+    "practiceProgress.applyLocal hardcodes 100 instead of importing LEVELS. It works but would drift if LEVELS changes.",
+    "GET /api/games/practice/progress uses to_list(200). That is fine now (about 30 games) but would silently cut off if the game list grew past 200.",
+    "backend/tests/test_practice_progress.py was out of date for 10 levels (level 11 expected 422). Updated to 101, and a check that unlocked caps at 100 was added."
+  ],
+  "updated_files": ["/app/frontend/src/pages/GamePreview.jsx", "/app/backend/tests/test_practice_progress.py", "/app/tests/run_practice_100_public.py"],
+  "success_rate": {"backend": "100%", "frontend": "100% after fix (one bug found and fixed)"},
+  "seed_data_creation": "player1 practice progress changed: number_sequence now unlocked to 100 (levels 1-99 cleared), pattern_repeat all 100 levels cleared (stars 2, L50 = 3). Draw-studio volumes were restored to the original {commentary:0.9, music:0.5}.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "The pytest conftest only allows loopback, so run /app/tests/run_practice_100_public.py with python after sourcing backend/.env and frontend/.env. It makes one LLM/TTS commentary call; set SKIP_LLM=1 to skip it. To set up guest progress in the UI, set localStorage 'pl-practice-progress' to {gameId:{unlocked,stars}}. Login submit testid: email-submit."
+}

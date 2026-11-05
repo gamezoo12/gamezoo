@@ -44,7 +44,7 @@ export default function GamePreview() {
   if (!allowed || !game) return <Navigate to="/games" replace />;
 
   const cover = settings?.game_preview_images?.[gameId] ? resolveMediaUrl(settings.game_preview_images[gameId]) : game.cover;
-  const go = (lv, s = 'intro') => { setLevel(lv); setResult(null); setRunKey((k) => k + 1); setStage(s); };
+  const go = (lv, s = 'intro') => { setLevel(lv); setResult(null); setRunKey((k) => k + 1); setStage(s); window.scrollTo({ top: 0, behavior: 'auto' }); };
   const finish = async (r) => {
     setResult(r);
     setStage('result');

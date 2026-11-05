@@ -732,3 +732,11 @@ Root causes fixed:
 - Video chunks now stored in Mongo (video_upload_sessions/video_upload_chunks), 2MB chunks, MOV/quicktime accepted (multi-instance safe)
 - GamePicker (components/admin/GamePicker.jsx): search + style + theme filters used in EditContestDialog and WorldGCCompetitionAdmin
 - Arcade themes +christmas/halloween/summer -> 160 arcade games (190 total)
+
+## 2026-06 — Free games 100 levels, Draw Studio backdrop + AI commentary, chat launcher scope
+- Free games: 50 unique games (30 classic + 20 arcade styles; themed duplicates hidden), AI cover art (lib/gameCovers.js), 100 levels each in 10 tiers (tier = difficulty 1-10, clock tightens per level), instructions → countdown → timed play → Congratulations/stars + Next level, or Retry. Number Sequence 10→100 numbers by tier. Progress: account (`/api/games/practice/progress`, collection practice_progress) or device for guests (merged on login). No rewards.
+- Draw Studio: contest/offer backdrop slides removed; Draw Settings has a full-screen Studio backdrop upload (`/api/admin/draw-studio/backdrop`). AI voice commentary (gpt-5.4-mini script + OpenAI TTS, Emergent key): enable, 17 languages, 9 voices, 3 host styles, HD, host notes, volume, Test voice. Cues: intro/round, mixing, drawing, reveal (winners), finale; prefetched; included in recordings; draw never blocked by commentary failure.
+- Chat assistant launcher only on /paid-leagues, /world, /free-world and the signup tab of /login.
+- Tests: iteration_56/57/58 all passing.
+## Backlog
+- Daily challenge level, per-game leaderboards for free play, commentary subtitles on stream.
