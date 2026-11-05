@@ -47,7 +47,7 @@ class TestPracticeProgress:
         assert r.status_code == 400
 
     def test_validation_bounds(self, player):
-        for bad in [{"game_id": "number_sequence", "level": 101, "stars": 1},
+        for bad in [{"game_id": "number_sequence", "level": 100001, "stars": 1},  # endless levels: only absurd input is rejected
                     {"game_id": "number_sequence", "level": 0, "stars": 1},
                     {"game_id": "number_sequence", "level": 1, "stars": 4},
                     {"game_id": "number_sequence", "level": 1, "stars": 0}]:
@@ -70,9 +70,9 @@ class TestPracticeProgress:
         r = player.post(API, json={"entries": entries})
         assert r.status_code == 200
         st = r.json()["progress"]["number_sequence"]
-        assert st["unlocked"] == 10
+        assert st["unlocked"] >= 10
         g = player.get(API).json()["progress"]["number_sequence"]
-        assert g["unlocked"] == 10
+        assert g["unlocked"] >= 10
         assert all(str(i) in g["stars"] for i in range(1, 10))
 
     def test_stars_keep_max(self, player):
@@ -86,11 +86,11 @@ class TestPracticeProgress:
         g = player.get(API).json()["progress"]["number_sequence"]
         assert g["unlocked"] >= 11 and g["stars"]["10"] >= 2
 
-    def test_level100_caps_unlocked(self, player):
+    def test_level100_unlocks_legend_101(self, player):
         entries = [{"game_id": "number_sequence", "level": i, "stars": 1} for i in range(1, 101)]
         assert player.post(API, json={"entries": entries}).status_code == 200
         g = player.get(API).json()["progress"]["number_sequence"]
-        assert g["unlocked"] == 100 and "100" in g["stars"]
+        assert g["unlocked"] >= 101 and "100" in g["stars"]  # endless: no cap at 100
 
     def test_unlock_several_games_for_ui(self, player):
         for gid in ["arc_balloon_pop", "memory_match", "sudoku_mini", "tf2048_mini", "minesweeper_mini"]:

@@ -125,9 +125,9 @@ async def _board(game_id: str | None) -> list:
         rows = [{'user_id': d['user_id'], 'name': d.get('name') or 'Player', 'level': d['best'], 'stars': d.get('stars_total', 0)} for d in docs]
     else:
         docs = await col.aggregate([
-            {'$match': {'best': {'$gte': 1}}},
+            {'$match': {'best': {'$gte': 1}}}, {'$sort': {'updated_at': 1}},
             {'$group': {'_id': '$user_id', 'name': {'$last': '$name'}, 'level': {'$sum': '$best'}, 'stars': {'$sum': '$stars_total'}, 'games': {'$sum': 1}}},
-            {'$sort': {'level': -1, 'stars': -1}}, {'$limit': 500}]).to_list(500)
+            {'$sort': {'stars': -1, 'level': -1}}, {'$limit': 500}]).to_list(500)
         rows = [{'user_id': d['_id'], 'name': d.get('name') or 'Player', 'level': d['level'], 'stars': d['stars'], 'games': d['games']} for d in docs]
     for i, r in enumerate(rows):
         r['rank'] = i + 1

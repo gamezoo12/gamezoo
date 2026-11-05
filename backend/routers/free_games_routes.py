@@ -77,6 +77,8 @@ async def list_ads(request: Request):
 @admin_router.put('/ads/settings')
 async def save_ad_settings(body: AdSettingsIn, request: Request):
     await require_admin(request)
+    if body.source == 'own':
+        body.adsense_client, body.adsense_slot = body.adsense_client if re.match(r'^ca-pub-\d{10,20}$', body.adsense_client or '') else '', body.adsense_slot if (body.adsense_slot or '').isdigit() else ''
     if body.adsense_client and not re.match(r'^ca-pub-\d{10,20}$', body.adsense_client):
         raise HTTPException(status_code=400, detail='AdSense publisher ID looks like ca-pub-1234567890123456')
     if body.adsense_slot and not body.adsense_slot.isdigit():
@@ -171,5 +173,7 @@ async def next_ad():
 
 @public_router.post('/{ad_id}/{kind}')
 async def ad_event(ad_id: str, kind: Literal['impression', 'click']):
-    await get_db().free_game_ads.update_one({'ad_id': ad_id}, {'$inc': {f'{kind}s': 1}})
+    r = await get_db().free_game_ads.update_one({'ad_id': ad_id, 'active': True}, {'$inc': {f'{kind}s': 1}})
+    if not r.matched_count:
+        raise HTTPException(status_code=404, detail='Ad not found')
     return {'ok': True}

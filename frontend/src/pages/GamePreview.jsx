@@ -12,6 +12,7 @@ import { PracticeIntro } from '../components/games/practice/PracticeIntro';
 import { PracticeRun } from '../components/games/practice/PracticeRun';
 import { PracticeResult } from '../components/games/practice/PracticeResult';
 import { PracticeLeaderboard } from '../components/games/practice/PracticeLeaderboard';
+import { LeaderboardButton } from '../components/games/practice/LeaderboardButton';
 import { AdInterstitial, adForThisStart } from '../components/games/practice/AdInterstitial';
 import { practiceAPI } from '../lib/api';
 
@@ -67,9 +68,12 @@ export default function GamePreview() {
   return (
     <div className="min-h-screen bg-slate-950">
       <div className="mx-auto max-w-4xl px-3 py-5 sm:px-6 md:py-10">
+        <div className="flex items-center justify-between gap-3">
         <button type="button" onClick={() => (stage !== 'levels' ? setStage('levels') : location.key !== 'default' ? navigate(-1) : navigate('/games'))} aria-label="Back" data-page-back-control="true" className="inline-flex items-center gap-1 text-sm text-white/60 hover:text-white" data-testid="practice-page-back">
           <ArrowLeft className="h-4 w-4" />Back
         </button>
+        {stage !== 'play' && <LeaderboardButton testId="practice-leaderboard-link" />}
+        </div>
 
         {stage === 'levels' && (
           <div className="pl-practice-pop mt-4 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03]" data-testid="practice-game-hub">

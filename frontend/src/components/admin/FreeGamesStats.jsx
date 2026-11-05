@@ -12,13 +12,16 @@ const Stat = ({ icon: Icon, label, value, testId }) => (
 function Bars({ series }) {
   const max = Math.max(1, ...series.map((s) => s.starts));
   return (
-    <div className="flex h-32 items-end gap-1" data-testid="free-games-daily-chart">
-      {series.map((s) => (
-        <div key={s.date} className="group relative flex-1" title={`${s.date}: ${s.starts} starts, ${s.passes} passes`}>
-          <div className="w-full rounded-t bg-indigo-500/80" style={{ height: `${(s.starts / max) * 120}px` }} />
-          <div className="absolute bottom-0 w-full rounded-t bg-emerald-500" style={{ height: `${(s.passes / max) * 120}px` }} />
-        </div>
-      ))}
+    <div>
+      <div className="flex h-32 items-end gap-1 border-b border-l border-slate-200 pl-1" data-testid="free-games-daily-chart">
+        {series.map((s) => (
+          <div key={s.date} className="relative h-full max-w-12 flex-1" title={`${s.date}: ${s.starts} starts, ${s.passes} passes`}>
+            <div className="absolute bottom-0 left-0 w-1/2 rounded-t bg-indigo-500/80" style={{ height: `${(s.starts / max) * 100}%` }} />
+            <div className="absolute bottom-0 right-0 w-1/2 rounded-t bg-emerald-500" style={{ height: `${(s.passes / max) * 100}%` }} />
+          </div>
+        ))}
+      </div>
+      <div className="mt-1 flex justify-between text-[10px] text-slate-400"><span>{series[0]?.date}</span><span>peak {max} starts/day</span><span>{series[series.length - 1]?.date}</span></div>
     </div>
   );
 }

@@ -6,7 +6,12 @@ import { resolveMediaUrl } from '../../lib/media';
 const input = 'mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm';
 const errText = (e) => { const d = e?.response?.data?.detail; return typeof d === 'string' ? d : 'Something went wrong'; };
 const BLANK = { title: '', media_type: 'image', media_url: '', click_url: '', cta: 'Learn more', active: true, weight: 1, starts_at: '', ends_at: '' };
-const toLocal = (iso) => (iso ? iso.slice(0, 16) : '');
+const toLocal = (iso) => {
+  if (!iso) return '';
+  if (!/Z|[+-]\d\d:\d\d$/.test(iso)) return iso.slice(0, 16);
+  const d = new Date(iso);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+};
 
 function AdSettings({ value, onSaved, onError }) {
   const [s, setS] = useState(value);

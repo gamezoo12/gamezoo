@@ -1,6 +1,7 @@
 """Draw Studio: full-screen backdrop image + AI voice commentary (Super Admin only)."""
 from __future__ import annotations
 
+import asyncio
 import base64
 import logging
 import uuid
@@ -13,7 +14,7 @@ from pydantic import BaseModel, Field
 
 from auth import require_super_admin
 from deps import get_db
-from services.draw_commentary import LANGUAGES, STYLES, VOICES, clean_commentary, commentary_settings, speak, write_line
+from services.draw_commentary import HOSTS, LANGUAGES, STYLES, VOICES, clean_commentary, commentary_settings, speak, write_lines
 
 router = APIRouter(prefix="/api/admin/draw-studio", tags=["draw-studio-media"])
 log = logging.getLogger("gz.draw_commentary")
@@ -64,7 +65,8 @@ async def backdrop_file(request: Request):
 @router.get("/commentary/options")
 async def commentary_options(request: Request):
     await require_super_admin(request)
-    return {"languages": LANGUAGES, "voices": VOICES, "styles": list(STYLES)}
+    return {"languages": LANGUAGES, "voices": VOICES, "styles": list(STYLES),
+            "hosts": [{"id": k, "name": v["name"], "gender": v["gender"], "persona": v["persona"]} for k, v in HOSTS.items()]}
 
 
 class Winner(BaseModel):
@@ -101,9 +103,10 @@ async def commentary(body: CommentaryIn, request: Request):
             facts["winners"] = []  # never let an early stage announce a winner
         if body.stage != "finale":
             facts["all_winners"] = []
-        text = await write_line(cfg, body.stage, facts)
-        audio = await speak(cfg, text)
+        lines = await write_lines(cfg, body.stage, facts)
+        audios = await asyncio.gather(*(speak(cfg, ln["text"], ln["host"]) for ln in lines))
     except Exception as exc:  # provider failure must never break the draw
         log.warning("commentary failed: %s", exc)
         raise HTTPException(status_code=502, detail="Commentary is unavailable right now") from exc
-    return {"text": text, "audio_b64": base64.b64encode(audio).decode()}
+    return {"text": " ".join(ln["text"] for ln in lines),
+            "segments": [{"host": ln["host"], "name": HOSTS[ln["host"]]["name"], "text": ln["text"], "audio_b64": base64.b64encode(a).decode()} for ln, a in zip(lines, audios)]}

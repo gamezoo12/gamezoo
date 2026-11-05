@@ -596,12 +596,15 @@ export const drawStudioAPI = {
   deleteBackdrop: () => api.delete('/admin/draw-studio/backdrop').then(r => r.data),
   backdropBlob: () => api.get('/admin/draw-studio/backdrop/file', { responseType: 'blob' }).then(r => r.data),
   commentaryOptions: () => api.get('/admin/draw-studio/commentary/options').then(r => r.data),
-  // Returns { text, audio } where audio is an ArrayBuffer (mp3).
-  commentary: (body) => api.post('/admin/draw-studio/commentary', body, { timeout: 45000 }).then(({ data }) => {
-    const bin = atob(data.audio_b64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
-    return { text: data.text, audio: bytes.buffer };
+  // Returns { text, segments: [{ host, name, text, audio }] } where audio is an mp3 ArrayBuffer per host line.
+  commentary: (body) => api.post('/admin/draw-studio/commentary', body, { timeout: 60000 }).then(({ data }) => {
+    const buf = (b64) => {
+      const bin = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+      return bytes.buffer;
+    };
+    return { text: data.text, segments: (data.segments || []).map((s) => ({ host: s.host, name: s.name, text: s.text, audio: buf(s.audio_b64) })) };
   }),
   recordings: (contestId) => api.get('/admin/draw-studio/recordings', { params: { contest_id: contestId } }).then(r => r.data),
   recordingBlob: (id) => api.get(`/admin/draw-studio/recordings/${id}/file`, { responseType: 'blob' }).then(r => r.data),

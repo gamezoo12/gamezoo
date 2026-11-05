@@ -83,6 +83,7 @@ const LegalDocPage = lazy(() => import('./pages/legal/LegalDocPage'));
 const PlayGame = lazy(() => import('./pages/PlayGame'));
 const GameArena = lazy(() => import('./pages/GameArena'));
 const GamePreview = lazy(() => import('./pages/GamePreview'));
+const GamesLeaderboard = lazy(() => import('./pages/GamesLeaderboard'));
 const ContestLeaderboard = lazy(() => import('./pages/ContestLeaderboard'));
 const LeaderboardIndex = lazy(() => import('./pages/LeaderboardIndex'));
 const HowItWorksPage = lazy(() => import('./pages/HowItWorks'));
@@ -356,6 +357,11 @@ function AppRouter() {
         <Route
           path="/games"
           element={<GameArena />}
+        />
+
+        <Route
+          path="/games/leaderboard"
+          element={<GamesLeaderboard />}
         />
 
         <Route

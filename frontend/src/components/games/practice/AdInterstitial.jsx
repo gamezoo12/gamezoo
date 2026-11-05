@@ -27,7 +27,11 @@ function AdSenseUnit({ client, slot }) {
       s.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(client)}`;
       document.head.appendChild(s);
     }
-    try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch { /* ad blocked */ }
+    // push once per <ins>: a second push (React StrictMode re-runs effects) throws an uncaught TagError
+    if (ref.current && !ref.current.dataset.plPushed) {
+      ref.current.dataset.plPushed = '1';
+      try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch { /* ad blocked */ }
+    }
   }, [client]);
   return <ins ref={ref} className="adsbygoogle block min-h-[250px] w-full" data-ad-client={client} data-ad-slot={slot} data-ad-format="auto" data-full-width-responsive="true" data-testid="practice-ad-adsense" />;
 }
@@ -36,7 +40,8 @@ function AdSenseUnit({ client, slot }) {
 export function AdInterstitial({ cfg, onDone }) {
   const [left, setLeft] = useState(cfg.skip_after_s);
   const ad = cfg.adsense ? null : cfg.ad;
-  useEffect(() => { if (ad) practiceAPI.adEvent(ad.ad_id, 'impression'); }, [ad]);
+  const counted = useRef(false);
+  useEffect(() => { if (ad && !counted.current) { counted.current = true; practiceAPI.adEvent(ad.ad_id, 'impression'); } }, [ad]);
   useEffect(() => {
     if (left <= 0) return undefined;
     const t = setTimeout(() => setLeft((v) => v - 1), 1000);
@@ -47,7 +52,7 @@ export function AdInterstitial({ cfg, onDone }) {
     if (ad.click_url) window.open(ad.click_url, ad.click_url.startsWith('/') ? '_self' : '_blank', 'noopener');
   };
   return (
-    <div className="fixed inset-0 z-[2147483000] flex flex-col bg-black/95 p-3 sm:p-6" data-testid="practice-ad">
+    <div className="fixed inset-0 z-[2147483000] flex flex-col bg-black p-3 sm:p-6" data-testid="practice-ad">
       <div className="flex items-center justify-between text-xs text-white/60">
         <span className="rounded bg-white/10 px-2 py-0.5 font-black uppercase tracking-widest">Ad</span>
         <button type="button" disabled={left > 0} onClick={onDone} className="inline-flex h-9 items-center gap-1 rounded-full bg-white/15 px-4 text-sm font-black text-white disabled:opacity-60" data-testid="practice-ad-skip">

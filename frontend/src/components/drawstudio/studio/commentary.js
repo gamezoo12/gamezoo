@@ -24,6 +24,16 @@ export function captionAt(cue, t = performance.now()) {
   return cue.chunks[cue.chunks.length - 1] || null;
 }
 
+// Plays a commentary line host by host (duo banter alternates), publishing a caption cue for each.
+export async function playSegments(segments, audio, onCaption, stillCurrent = () => true) {
+  for (const seg of segments) {
+    if (!stillCurrent()) return;
+    const dur = (await audio?.speak(seg.audio)) || seg.text.length / 14;
+    onCaption?.({ chunks: captionChunks(seg.text), t0: performance.now(), dur, host: seg.host, name: seg.name });
+    await new Promise((r) => setTimeout(r, dur * 1000 + 150));
+  }
+}
+
 // Fetches AI commentary lines ahead of time (they take a few seconds) and plays them on cue with captions.
 export function createCommentator(enabled, mode, { override, onCaption } = {}) {
   const lines = new Map();
@@ -39,10 +49,7 @@ export function createCommentator(enabled, mode, { override, onCaption } = {}) {
     current = key;
     const line = await p;
     if (!line || current !== key) return;
-    try {
-      const dur = await audio?.speak(line.audio);
-      onCaption?.({ chunks: captionChunks(line.text), t0: performance.now(), dur: dur || line.text.length / 14 });
-    } catch { /* voice is optional */ }
+    try { await playSegments(line.segments, audio, onCaption, () => current === key); } catch { /* voice is optional */ }
   };
   return { enabled, prefetch, say, reset: () => { lines.clear(); current = null; onCaption?.(null); } };
 }

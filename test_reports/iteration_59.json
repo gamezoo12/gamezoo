@@ -1,0 +1,52 @@
+{
+  "summary": "Tested the free-game features end to end on the public URL. Backend: 14 of 14 checks pass (endless levels, leaderboards, play events, admin stats, ads CRUD and settings validation, public ad events, commentary JSON). UI: tested with Playwright on desktop and mobile, as a guest, as player1 and as super admin. Everything requested works. I found and fixed two bugs in AdInterstitial.jsx. (1) AdSense: adsbygoogle.push() ran twice for one <ins> because StrictMode runs effects twice. Google's script then threw an uncaught TagError, and in the preview the webpack error overlay blocked the Skip button, so the level could not start. (2) Own ads: one view counted 2 impressions in the preview for the same reason. After the fixes, the AdSense skip works with no overlay and one view counts one impression. Ads are turned OFF again and the TEST ad is deleted.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/games/ads/{ad_id}/{kind}", "issue": "Anyone can call this with no rate limit, and an unknown ad_id still returns ok:true. Ad views and clicks can be inflated with scripts."},
+      {"endpoint": "POST /api/games/practice/event", "issue": "Anyone can call this with no rate limit, so admin play stats can be inflated with scripts."},
+      {"endpoint": "PUT /api/admin/free-games/ads/settings", "issue": "AdSense IDs are checked even when source=own. If an invalid ID was typed earlier, the UI hides that field once you pick 'My own ads', and saving fails with 'AdSense publisher ID looks like…' while the bad field is out of sight. Either skip the ID check when source=own, or clear the AdSense fields when switching to own."},
+      {"endpoint": "GET /api/games/practice/leaderboard (overall)", "issue": "$group uses $last:'$name' with no $sort first, so which name is picked is arbitrary. All names are the same user's masked name, so the impact is low."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "AdInterstitial / AdSenseUnit", "issue": "FIXED: push() was called twice for one <ins>, causing an uncaught TagError; the dev overlay blocked practice-ad-skip.", "selector": "[data-testid=practice-ad-adsense]", "priority": "HIGH"},
+      {"component": "AdInterstitial impression", "issue": "FIXED: the impression was sent twice per view (StrictMode double effect). Now guarded with a ref.", "selector": "[data-testid=practice-ad]", "priority": "MEDIUM"},
+      {"component": "FreeGamesAds AdForm", "issue": "Ad start/end dates: toLocal() takes the UTC ISO string, cuts it to 16 characters and shows it as local time. Saving parses it back as local time, so each edit shifts the date by the UTC offset (1 hour during BST).", "selector": "[data-testid=free-ad-starts], [data-testid=free-ad-ends]", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Draw Studio HUD subtitles", "issues": ["The subtitle plate sits on top of the 'PREVIEW · SIMULATED RESULT · NOT OFFICIAL' line and partly covers it. Raise the plate a little or move the preview line below it."]},
+      {"screen": "Admin Free Games Stats daily chart", "issues": ["With only one day of data the bar fills the whole width as one green block, and there are no axis labels or values. The 'starts' bar cannot be seen when starts equals passes."]},
+      {"screen": "Mobile per-game leaderboard header", "issues": ["At 390px, 'N player(s)' wraps onto 2 lines next to the long title. Add whitespace-nowrap."]},
+      {"screen": "Ad interstitial", "issues": ["The bg-black/95 backdrop lets the page header show faintly behind the ad. Consider solid black for a true full-screen ad."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_free_games_leaderboard_ads.py", "/app/tests/run_free_games_iter59_public.py", "/app/backend/tests/test_practice_progress.py"],
+  "action_items": [
+    "Skip AdSense ID validation when source=own (backend), or clear the hidden AdSense fields when switching to own (UI).",
+    "Add rate limiting or deduping for /api/games/ads/{id}/{kind} and /api/games/practice/event, and return 404 for unknown ad ids.",
+    "Fix the timezone round-trip for ad start/end dates in FreeGamesAds AdForm.",
+    "Move the HUD subtitle plate so it does not cover the preview watermark line.",
+    "Commentary prompt quality: most stage lines open with 'Welcome to the Prize League Sample Draw…' (mixing, drawing and round lines all re-greet). The Test voice line announces '£0 prize, 0 tickets, total prize fund £0'. Give the test stage sample facts, and tell the model to welcome viewers only in the intro.",
+    "In the sample show no 'loading' stage commentary call was made (the calls were intro, mixing, drawing, reveal, round, mixing, drawing, finale, reveal). Check whether that is intended. Round 2's reveal line arrived after the finale, so the finale subtitle showed '…for the Grand Prize of £500.' from the reveal line."
+  ],
+  "critical_code_review_comments": [
+    "practice_routes _col() backfills every document without 'best' or 'name' on the first request after a restart. That is fine at this scale, but it is an unbounded loop on the request path.",
+    "_lb_cache is per process. With several workers, a passed level may not show on another worker's board for up to 30s.",
+    "GamePreview.start() awaits /api/games/ads/next before every level start, which adds a network round-trip even when ads are off. Cache the config for the session."
+  ],
+  "updated_files": [
+    "/app/frontend/src/components/games/practice/AdInterstitial.jsx (push AdSense once per <ins>; count the impression once with a ref)",
+    "/app/backend/tests/test_practice_progress.py (updated stale asserts: level 101 is now valid and unlocked is no longer capped at 100)",
+    "/app/backend/tests/test_free_games_leaderboard_ads.py (new)",
+    "/app/tests/run_free_games_iter59_public.py (new public-URL runner)"
+  ],
+  "success_rate": {"backend": "100% (14/14)", "frontend": "100% of requested flows after the 2 fixes (AdSense skip failed before the fix)"},
+  "seed_data_creation": "player1: word_unscramble progress was raised to unlocked 152 (151 levels, 378 stars) and number_sequence from level 99 to 100 (unlocked 101). Added 1 start, 1 pass and 1 fail event for math_sprint, plus a few start events from UI runs. A TEST_UI_Ad59 ad was created and then deleted. A TEST_ad59 API ad was created and then deleted. Ad settings were restored to enabled=false, source=own, every 3, skip 5, no AdSense IDs.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "conftest only allows loopback, so run `set -a; . backend/.env; . frontend/.env; set +a; python3 /app/tests/run_free_games_iter59_public.py`. It makes 1 LLM+TTS call, turns ads on temporarily, and always resets them to disabled. Guest progress is stored in localStorage 'pl-practice-progress' and the auth token in localStorage 'gz_token'. number_sequence is the easiest game to automate: click seq-num-1..N, where N = 10 x difficulty. Sample show: /production/settings → draw-commentary-sample → draw-stage-action ×10 → draw-stage-close. Real contest preview: /production/live-draw → draw-contest-select → draw-preview. The support launcher shows only on /paid-leagues, /world and /free-world; it is hidden on / and /games by design.",
+  "rca of the issue": "AdSense TagError: AdSenseUnit's useEffect pushed {} to window.adsbygoogle on every effect run. React 18 StrictMode runs effects twice in development, so two pushes were queued for one <ins>. adsbygoogle.js throws 'All ins elements … already have ads' outside the try/catch. In the preview, CRA's runtime-error overlay iframe then covered the page and blocked practice-ad-skip. Fix: mark the <ins> with data-pl-pushed and push only once. The double impression had the same cause and is fixed with a useRef guard."
+}

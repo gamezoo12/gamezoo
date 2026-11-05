@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Trophy } from 'lucide-react';
 
 import { api, gamesAPI } from '../../lib/api';
 import { resolveMediaUrl } from '../../lib/media';
@@ -8,6 +8,7 @@ import { useAuth } from '../../context/AuthContext';
 import { uniqueGames, uniqueIdFor } from '../../lib/practiceGames';
 import { levelState, loadProgress } from '../../lib/practiceProgress';
 import { GameCoverCard } from '../games/practice/GameCoverCard';
+import { LeaderboardButton } from '../games/practice/LeaderboardButton';
 
 export default function GamePreviewSection({ mobile = false }) {
   const [settings, setSettings] = useState(null);
@@ -87,6 +88,8 @@ export default function GamePreviewSection({ mobile = false }) {
             </h2>
           </div>
 
+          <div className="flex items-center gap-3">
+          <Link to="/games/leaderboard" className="text-xs font-bold text-white/80 inline-flex items-center gap-1" data-testid="mobile-preview-leaderboard-link"><Trophy className="w-3.5 h-3.5 text-[#FFD54A]" />Leaderboard</Link>
           <Link
             to="/games"
             className="text-xs font-bold text-[#FFD54A] inline-flex items-center gap-1"
@@ -94,6 +97,7 @@ export default function GamePreviewSection({ mobile = false }) {
             All Games
             <ArrowRight className="w-3.5 h-3.5" />
           </Link>
+          </div>
         </div>
 
         <p className="text-xs text-white/60 mb-4">
@@ -129,6 +133,8 @@ export default function GamePreviewSection({ mobile = false }) {
             </p>
           </div>
 
+          <div className="flex flex-wrap items-center gap-4">
+          <LeaderboardButton testId="home-preview-leaderboard-link" light />
           <Link
             to="/games"
             className="inline-flex items-center gap-2 text-[#6C2BFF] font-extrabold"
@@ -137,6 +143,7 @@ export default function GamePreviewSection({ mobile = false }) {
             Explore all games
             <ArrowRight className="w-4 h-4" />
           </Link>
+          </div>
         </div>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
