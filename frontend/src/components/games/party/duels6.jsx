@@ -114,7 +114,7 @@ export const KNIGHTTRAP = duelDef({
   legal: (s) => knMoves(s.b, s.turn),
   play: (s, m) => { const c = [...s.b.c]; c[s.b.p[s.turn - 1]] = -1; const p = [...s.b.p]; p[s.turn - 1] = m; return { b: { c, p }, turn: 3 - s.turn, snd: 'thud' }; },
   result: (s) => (knMoves(s.b, s.turn).length ? null : 3 - s.turn), score: (b) => knMoves(b, 2).length - knMoves(b, 1).length, depth: (lv) => (lv <= 3 ? 2 : lv <= 7 ? 4 : 5),
-  Board: ({ g, legal, onMove }) => { const n = sq(g.b.c); return <Cells cols={n} cells={g.b.c} gap="gap-0.5" onCell={(i) => legal.includes(i) && onMove(i)} cellCls={(v, i) => (v === -1 ? 'bg-orange-950/40 shadow-[inset_0_0_12px_#ea580c]' : (Math.floor(i / n) + i) % 2 ? 'bg-slate-700' : 'bg-slate-400')} render={(v, i) => <>{g.b.p[0] === i && <span className="pty-new text-3xl text-sky-300 drop-shadow-[0_0_6px_#0ea5e9]">♞</span>}{g.b.p[1] === i && <span className="pty-new text-3xl text-rose-400 drop-shadow-[0_0_6px_#f43f5e]">♞</span>}{legal.includes(i) && <Glow />}</>} />; },
+  Board: ({ g, legal, onMove }) => { const n = sq(g.b.c); return <Cells cols={n} cells={g.b.c} gap="gap-0.5" onCell={(i) => legal.includes(i) && onMove(i)} cellCls={(v, i) => (v === -1 ? 'bg-black shadow-[inset_0_0_14px_#ea580c]' : (Math.floor(i / n) + i) % 2 ? 'bg-amber-900' : 'bg-amber-200')} render={(v, i) => <>{g.b.p[0] === i && <span className="pty-new flex h-[85%] w-[85%] items-center justify-center rounded-full bg-sky-500 text-3xl text-white shadow-[0_0_10px_#0ea5e9]">♞</span>}{g.b.p[1] === i && <span className="pty-new flex h-[85%] w-[85%] items-center justify-center rounded-full bg-rose-500 text-3xl text-white shadow-[0_0_10px_#f43f5e]">♞</span>}{legal.includes(i) && <Glow />}</>} />; },
 });
 
 // ---------- Oware ----------

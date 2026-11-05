@@ -14,7 +14,7 @@ from deps import get_db
 
 router = APIRouter(prefix='/api/party/rooms', tags=['party-rooms'])
 
-ONLINE_GAMES = {'pty_ludo_royale': 4, 'pty_colour_cards': 4, 'pty_four_in_row': 2, 'pty_snakes_ladders': 4, 'pty_dots_boxes': 4, 'pty_checkers': 2, 'pty_memory_duel': 4, 'pty_reversi': 2, 'pty_gomoku': 2, 'pty_tictactoe': 2, 'pty_mancala': 2, 'pty_isolation': 2, 'pty_breakthrough': 2, 'pty_domineering': 2, 'pty_clobber': 2, 'pty_nim': 2, 'pty_hex': 2, 'pty_treblecross': 2, 'pty_morris': 2, 'pty_fox_hounds': 2, 'pty_sim': 2, 'pty_chomp': 2, 'pty_kayles': 2, 'pty_notakto': 2}
+ONLINE_GAMES = {'pty_ludo_royale': 4, 'pty_colour_cards': 4, 'pty_four_in_row': 2, 'pty_snakes_ladders': 4, 'pty_dots_boxes': 4, 'pty_checkers': 2, 'pty_memory_duel': 4, 'pty_reversi': 2, 'pty_gomoku': 2, 'pty_tictactoe': 2, 'pty_mancala': 2, 'pty_isolation': 2, 'pty_breakthrough': 2, 'pty_domineering': 2, 'pty_clobber': 2, 'pty_nim': 2, 'pty_hex': 2, 'pty_treblecross': 2, 'pty_morris': 2, 'pty_fox_hounds': 2, 'pty_sim': 2, 'pty_chomp': 2, 'pty_kayles': 2, 'pty_notakto': 2, 'pty_misere_ttt': 2, 'pty_tiny_drop': 2, 'pty_dont_connect': 2, 'pty_order_chaos': 2, 'pty_wild_ttt': 2, 'pty_pick15': 2, 'pty_last_coin': 2, 'pty_square_coins': 2, 'pty_half_one': 2, 'pty_corner_queen': 2, 'pty_grundy': 2, 'pty_northcott': 2, 'pty_cram': 2, 'pty_snort': 2, 'pty_col': 2, 'pty_konane': 2, 'pty_hexapawn': 2, 'pty_pong_hau': 2, 'pty_mu_torere': 2, 'pty_dodgem': 2, 'pty_ataxx': 2, 'pty_atari_go': 2, 'pty_stalks': 2, 'pty_toads_frogs': 2, 'pty_ultimate_ttt': 2, 'pty_turtles': 2, 'pty_teeko': 2, 'pty_achi': 2, 'pty_corner_race': 2, 'pty_euclid': 2, 'pty_staircase': 2, 'pty_dominoes': 2, 'pty_square_hunt': 2, 'pty_knight_trap': 2, 'pty_oware': 2, 'pty_coin_line': 2}
 ROOM_TTL = timedelta(hours=6)
 
 

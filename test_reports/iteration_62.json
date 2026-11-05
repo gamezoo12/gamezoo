@@ -1,0 +1,44 @@
+{
+  "summary": "Frontend tests of the expanded Party section (100 games) on the public URL, mostly at a 430x900 mobile viewport. All 19 requested games passed. Every page loaded its cover, level 1 opened, the intro and countdown ran, the <defid>-board rendered, taps made moves, the <defid>-status line updated, there were no page errors, and nothing overflowed horizontally (scrollWidth difference 0 on every game). Duels: ultimate, dominoes, ataxx, oware, order, cornerrace, knighttrap, turtles, dodgem. Each shows party-player-0 and party-player-1, the party-turn-clock ('Your move · 20s', counting down) and the party-match-clock. The bot replied within 2.6 s on every measured move. When the turn clock runs out, a move is made automatically (Knight Trap, after waiting 24 s). Dominoes was won to a 3-star pass, and Turning Turtles was lost to practice-fail. Solos: merge2048, mines, wordfive, yacht, make24, pyramid, zip, echo, pipes, sudoku6. Player 1 is 'Host Zara · cheering', with no rival bot, a level clock, and no turn clock. Yacht was played on purpose (roll, hold, roll, score Chance = 17, turn 2/7), and a Zip Path step went 1/25 to 2/25. Ludo Royale played for about 70 s at mobile size: 23 rolls and 21 token picks with bot turns in between, it never froze (longest status stall about 6 s), and there were no errors. Chat works: party-chat-send posts the bubble and clears the input, reactions and quick replies post, and the bot answers. The party-theme-name header shows 'Level 1 · Neon City'. Levels 1-5 vs 6-10 was checked in code only (themeFor uses floor((lv-1)/5): Neon City, then Jungle Temple). Levels 6+ are locked for both the player and the admin account, so this could not be checked in the UI. Catalog: /games with the Party chip shows 100 unique /games/pty_* cards, all 100 covers load, none are broken, and the 100 cover URLs in gameCovers.js are unique. Rooms: /play/ABC123 signed out shows the 'Sign in to join' room-signin-btn linking to /login?next=/play/ABC123. Signed in as player1, Reversi 'Play with friends' created room 47FBDE (lobby, invite link, Copy/Share/WhatsApp). MAJOR GAP: none of the 36 new duels can be played with friends.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/games/practice/banter", "issue": "Returns 422 for most AI banter on game events. BanterInput.event max_length=40 is too short for the strings the client builds: duel.jsx:46 'you beat the human at ${title}', duel.jsx:68 'the human just made a huge move against you in ${title}', solo.jsx:19 'the player solved the ${title}…'. SweetSwap/BlockBlast game strings are also over game max_length=60. Confirmed with curl ('you beat the human at Ultimate Tic Tac Toe' gives 422 string_too_long). The client silently falls back to canned lines, so AI banter on win/lose/big moves never runs. Backend log shows about 45 of 91 banter calls returned 422."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "GamePreview 'Play with friends' / ONLINE_GAMES", "issue": "None of the 36 new turn-based duels (pty_ultimate_ttt, pty_dominoes, pty_ataxx, pty_oware, pty_order_chaos, pty_corner_race, pty_knight_trap, pty_turtles, pty_dodgem, pty_teeko, pty_achi, pty_konane, pty_hexapawn, …) are in ONLINE_GAMES (frontend/src/lib/partyRoom.js has 24 ids, and backend party_rooms_routes.py ONLINE_GAMES has the same 24). So no practice-play-friends button appears, even signed in, and POST /api/party/rooms would reject them. PARTY_ONLINE in index.jsx already maps every DUELS entry. This breaks the requirement that turn-based games can be played vs friends.", "selector": "[data-testid='practice-play-friends']", "priority": "HIGH"}
+    ],
+    "integration_issues": [
+      {"flow": "In-game AI banter", "issue": "Win/lose/big-move AI lines get 422 from /api/games/practice/banter (event too long). Only canned lines show.", "affected_selectors": ["party-chat", "party-bubble-1"]}
+    ],
+    "design_issues": [
+      {"screen": "Knight Trap board (mobile and desktop)", "issues": ["The knight glyphs (sky-300 and rose-400 ♞) look small and low-contrast, especially the blue knight on bg-slate-400 squares. Crumbled squares are only a subtle orange inset next to the dark checker squares."]},
+      {"screen": "Pyramid 13 (430px)", "issues": ["The pyramid rows overlap heavily. The suits/ranks of the second-to-bottom row are partly hidden behind the bottom row."]},
+      {"screen": "Yacht Dice status", "issues": ["Grammar: '1 rolls left' should be '1 roll left'."]},
+      {"screen": "ChatBar", "issues": ["Only the last 2 messages are visible, so the player's own typed or quick-reply message is pushed out within about 1-3 s when the bot replies."]},
+      {"screen": "Word Five", "issues": ["Any 5 letters are accepted as a guess (no dictionary check). That may be intended, but it makes the game trivial to brute-force."]}
+    ]
+  },
+  "test_report_links": ["/app/tests/party_sweep_snippet.py"],
+  "action_items": [
+    "HIGH: Add all 36 new duel ids (and any other DUELS ids missing) to ONLINE_GAMES in frontend/src/lib/partyRoom.js AND backend/routers/party_rooms_routes.py (max players 2), so 'Play with friends' / room create works for e.g. pty_ultimate_ttt. Better: derive the frontend list from PARTY_ONLINE keys so it cannot drift.",
+    "Raise BanterInput.event max_length (e.g. 160) and game max_length (e.g. 120) in backend/routers/practice_routes.py, or shorten the client event strings, so AI banter stops getting 422.",
+    "Make the Knight Trap knights bigger and higher-contrast, and make crumbled squares stand out more.",
+    "Reduce the vertical overlap in the Pyramid 13 layout at 430px.",
+    "Fix the '1 rolls left' plural in the Yacht status."
+  ],
+  "critical_code_review_comments": [
+    "ONLINE_GAMES is copied by hand in 2 places (lib/partyRoom.js and party_rooms_routes.py) and has fallen out of sync with PARTY_ONLINE (which already includes every duel). Use one source of truth.",
+    "useBanter catches every error silently. A 422 here should at least be logged in dev, because the validation mismatch went unnoticed.",
+    "Dominoes has no boneyard or draw, so with 14 of 28 tiles in play the game often blocks after 2-3 moves and is decided by pips. That may be intended, but games end abruptly.",
+    "Several party files are very dense one-line JSX (duels4-6, solos3-5), which makes review and maintenance hard."
+  ],
+  "updated_files": ["/app/tests/party_sweep_snippet.py"],
+  "success_rate": {"backend": "n/a (frontend only; banter 422 noted)", "frontend": "~90% (all 19 sampled games, Ludo, chat, clocks, catalog and room sign-in guard pass; friend rooms missing for the 36 new duels)"},
+  "seed_data_creation": "As player1@example.com, created a party room 47FBDE for pty_reversi (lobby only, not started). Chat message 'TEST_hello bot' was sent locally in a practice game (not persisted).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Each party page /games/pty_*: Decline cookies, click practice-level-1, then practice-start, then wait about 4.2 s for the countdown. Board is [data-testid$='-board'] and status is [data-testid$='-status']. On duels, wait for party-turn-clock, which shows only on your turn. Random taps work for one-tap games; two-step games (corner race, dodgem, ataxx) need select-then-target. The sweep loop is in /app/tests/party_sweep_snippet.py. Ludo: click ludo-roll when enabled and enabled ludo-token-* via JS. Login: login-email, login-password, email-submit (redirects to /choose-world). Levels above 1 are locked for both player1 and admin, so the level 6 world (Jungle Temple) is still unverified in the UI. Retest: practice-play-friends on pty_ultimate_ttt after the ONLINE_GAMES fix, plus banter 200s."
+}

@@ -151,10 +151,10 @@ async def leaderboard(request: Request, game_id: str | None = None, limit: int =
 
 
 class BanterInput(BaseModel):
-    game: str = Field(..., min_length=1, max_length=60)
+    game: str = Field(..., min_length=1, max_length=120)
     bot: str = Field(..., min_length=1, max_length=20)
     persona: str = Field('', max_length=120)
-    event: str = Field(..., min_length=1, max_length=40)
+    event: str = Field(..., min_length=1, max_length=160)
     detail: str = Field('', max_length=200)
     player_said: str = Field('', max_length=80)
 

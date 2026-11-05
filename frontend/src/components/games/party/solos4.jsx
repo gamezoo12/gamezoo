@@ -28,7 +28,7 @@ export const PYRAMID = {
   lost: (s) => { if (s.st.length || (s.passes && s.w.length)) return false; const av = pyrAvail(s); return !av.some((c) => c.r === 13 || av.some((o) => o.id !== c.id && o.r + c.r === 13)); },
   moves: (s) => `${s.removed}/${s.goal} cleared · pairs make 13 (K alone)`,
   Board: ({ s, act }) => (<div className="space-y-2">
-    <div className="flex flex-col items-center">{[0, 1, 2, 3, 4, 5, 6].map((r) => <div key={r} className="-mt-5 flex gap-0.5 first:mt-0">{Array.from({ length: r + 1 }, (_, k) => { const i = (r * (r + 1)) / 2 + k; const c = s.p[i]; return c ? <Card key={i} c={c} small sel={s.sel?.id === c.id} dim={!pyrExposed(s.p, i)} onClick={() => act({ p: i })} testid={`pyr-${i}`} /> : <span key={i} className="h-12 w-9" />; })}</div>)}</div>
+    <div className="flex flex-col items-center">{[0, 1, 2, 3, 4, 5, 6].map((r) => <div key={r} className="-mt-2 flex gap-0.5 first:mt-0">{Array.from({ length: r + 1 }, (_, k) => { const i = (r * (r + 1)) / 2 + k; const c = s.p[i]; return c ? <Card key={i} c={c} small sel={s.sel?.id === c.id} dim={!pyrExposed(s.p, i)} onClick={() => act({ p: i })} testid={`pyr-${i}`} /> : <span key={i} className="h-12 w-9" />; })}</div>)}</div>
     <div className="flex items-center justify-center gap-3"><Back n={s.st.length || (s.passes ? '↺' : '✕')} onClick={() => act('draw')} testid="pyr-stock" />{s.w.length ? <Card c={s.w[s.w.length - 1]} sel={s.sel?.id === s.w[s.w.length - 1].id} onClick={() => act({ w: true })} testid="pyr-waste" /> : <span className="h-16 w-11 rounded-lg border-2 border-dashed border-white/30" />}</div></div>),
 };
 

@@ -1,3 +1,11 @@
+## Party games: 100 games + sound fix (2026-06, preview only, NOT deployed)
+- 100 party games registered (`components/games/party/index.jsx` PARTY_GAMES/PARTY_HOW_TO; backend `game_routes.py` GAME_TYPES family 'party'; covers in `lib/gameCovers.js`).
+- New 64: 36 turn-based duels (`duels4/5/6.jsx` on `duel.jsx` engine, minimax bots, all playable with friends via ONLINE_GAMES in `lib/partyRoom.js` + `party_rooms_routes.py`) and 28 fully solo puzzles (`solos3/4/5.jsx` on `solo.jsx`, host cheers, no rival). Shared helpers `gkit.jsx`.
+- Sounds: per-move sounds (duel `snd`, solo `snd`), new synth effects (coin/slide/flip/chime/thud/whoosh/pad0-5). Fix for "no sound": master gain x3.2 + limiter, iPhone unlock on first tap + `navigator.audioSession='playback'` (silent switch), visible sound toggle `party-sound-toggle` in every party game.
+- Banter 422 fixed (BanterInput event max 160, game max 120). Chat shows last 3 msgs. Knight Trap contrast, Pyramid overlap, Yacht grammar fixed.
+- Tests: `party/party.render.test.jsx` 137/137 (100 games mount + random taps at Lv1/40, random playouts of all new duels); testing agent iteration_62 (19 sampled games pass on mobile, chat, rooms sign-in guard).
+- Backlog: GamePicker filter wrap (P2), Draw Studio prompt leak (P1), Word Five dictionary check (P2).
+
 # Prize League â€” PRD
 
 ## 3D Draw Studio v2 + Winners & Approvals + Premium Games phase 1 (2026-06, preview only, NOT deployed)

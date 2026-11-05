@@ -1,6 +1,14 @@
-import { useMemo, useState } from 'react';
-import { Clock, MessageCircle } from 'lucide-react';
-import { QUICK_REPLIES, REACTIONS, themeFor } from './kit';
+import { useEffect, useMemo, useState } from 'react';
+import { Clock, MessageCircle, Volume2, VolumeX } from 'lucide-react';
+import { QUICK_REPLIES, REACTIONS, sfx, themeFor } from './kit';
+import { gameSoundEnabled, setGameSoundEnabled } from '../../../lib/gameExperience';
+
+function SoundToggle() {
+  const [on, setOn] = useState(gameSoundEnabled());
+  useEffect(() => { const h = () => setOn(gameSoundEnabled()); window.addEventListener('pl-game-sound-change', h); return () => window.removeEventListener('pl-game-sound-change', h); }, []);
+  const flip = () => { setGameSoundEnabled(!on); if (!on) setTimeout(() => sfx('chime'), 0); };
+  return <button type="button" onClick={flip} className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full backdrop-blur transition-colors ${on ? 'bg-black/50 text-white' : 'bg-rose-500/80 text-white'}`} aria-label={on ? 'Mute sound' : 'Turn sound on'} data-testid="party-sound-toggle">{on ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}</button>;
+}
 
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
@@ -43,7 +51,8 @@ export function PartyStage({ config, title, players, active, turnLeft, turnSec, 
             <div className="truncate font-display text-base font-black uppercase tracking-wider text-white drop-shadow sm:text-lg">{title}</div>
             <div className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: th.accent }} data-testid="party-theme-name">Level {th.lv} · {th.name}</div>
           </div>
-          {matchLeft != null && <div className={`flex items-center gap-1 rounded-full bg-black/50 px-3 py-1 font-display text-sm font-black tabular-nums backdrop-blur ${matchLeft < 20 ? 'animate-pulse text-rose-300' : 'text-white'}`} data-testid="party-match-clock"><Clock className="h-3.5 w-3.5" />{fmt(matchLeft)}</div>}
+          <div className="flex items-center gap-1.5"><SoundToggle />
+          {matchLeft != null && <div className={`flex items-center gap-1 rounded-full bg-black/50 px-3 py-1 font-display text-sm font-black tabular-nums backdrop-blur ${matchLeft < 20 ? 'animate-pulse text-rose-300' : 'text-white'}`} data-testid="party-match-clock"><Clock className="h-3.5 w-3.5" />{fmt(matchLeft)}</div>}</div>
         </div>
         <div className="mb-3 mt-10 flex items-start justify-around gap-1">
           {players.map((p, i) => <Avatar key={p.name} p={p} idx={i} active={active === i} turnPct={active === i ? turnPct : null} bubble={latest[i - 1] && (latest[i - 1].text || latest[i - 1].emoji) ? { ...latest[i - 1], text: latest[i - 1].text || latest[i - 1].emoji } : null} edge={players.length > 1 && i === 0 ? 'l' : players.length > 1 && i === players.length - 1 ? 'r' : null} />)}
@@ -58,7 +67,7 @@ export function PartyStage({ config, title, players, active, turnLeft, turnSec, 
 }
 
 function ChatBar({ banter, accent }) {
-  const last = banter.msgs.filter((m) => m.text).slice(-2);
+  const last = banter.msgs.filter((m) => m.text).slice(-3);
   const [text, setText] = useState('');
   const send = (e) => { e.preventDefault(); if (text.trim()) { banter.reply(text.trim().slice(0, 120)); setText(''); } };
   return (

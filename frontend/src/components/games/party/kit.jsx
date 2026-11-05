@@ -34,18 +34,35 @@ export const BOTS = [
 
 // ---------- Sound: small synth so every game has real effects without audio files ----------
 let ctx;
-function ac() { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; ctx ||= new C(); if (ctx.state === 'suspended') ctx.resume().catch(() => {}); return ctx; }
+let out;
+// Louder master bus with a limiter so phone speakers can hear the effects.
+function ac() {
+  const C = window.AudioContext || window.webkitAudioContext; if (!C) return null;
+  if (!ctx) { ctx = new C(); const comp = ctx.createDynamicsCompressor(); out = ctx.createGain(); out.gain.value = 3.2; out.connect(comp); comp.connect(ctx.destination); }
+  if (ctx.state !== 'running') ctx.resume().catch(() => {});
+  return ctx;
+}
+// iPhone: play web audio even with the silent switch on, and unlock audio on the first tap.
+const SILENT = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+function unlockAudio() {
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* unsupported */ }
+  try { const el = new Audio(SILENT); el.setAttribute('playsinline', ''); el.play().catch(() => {}); } catch { /* unsupported */ }
+  const a = ac(); if (!a) return;
+  try { const b = a.createBuffer(1, 1, 22050); const src = a.createBufferSource(); src.buffer = b; src.connect(a.destination); src.start(0); } catch { /* ignore */ }
+  if (a.state === 'running') ['pointerdown', 'touchend', 'keydown'].forEach((e) => window.removeEventListener(e, unlockAudio, true));
+}
+if (typeof window !== 'undefined') ['pointerdown', 'touchend', 'keydown'].forEach((e) => window.addEventListener(e, unlockAudio, true));
 function tone(a, f, d, { type = 'sine', at = 0, vol = 0.08, to } = {}) {
   const o = a.createOscillator(); const g = a.createGain(); const t = a.currentTime + at;
   o.type = type; o.frequency.setValueAtTime(f, t); if (to) o.frequency.exponentialRampToValueAtTime(to, t + d);
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
-  o.connect(g); g.connect(a.destination); o.start(t); o.stop(t + d + 0.02);
+  o.connect(g); g.connect(out || a.destination); o.start(t); o.stop(t + d + 0.02);
 }
 function noise(a, d, { at = 0, vol = 0.12, freq = 2500 } = {}) {
   const b = a.createBuffer(1, Math.ceil(a.sampleRate * d), a.sampleRate); const ch = b.getChannelData(0);
   for (let i = 0; i < ch.length; i += 1) ch[i] = (Math.random() * 2 - 1) * (1 - i / ch.length);
   const s = a.createBufferSource(); const f = a.createBiquadFilter(); const g = a.createGain(); const t = a.currentTime + at;
-  s.buffer = b; f.type = 'bandpass'; f.frequency.value = freq; g.gain.value = vol; s.connect(f); f.connect(g); g.connect(a.destination); s.start(t);
+  s.buffer = b; f.type = 'bandpass'; f.frequency.value = freq; g.gain.value = vol; s.connect(f); f.connect(g); g.connect(out || a.destination); s.start(t);
 }
 const SFX = {
   dice: (a) => [0, 0.07, 0.15, 0.25, 0.37, 0.5].forEach((at, i) => noise(a, 0.05, { at, freq: 1800 + i * 200, vol: 0.18 })),

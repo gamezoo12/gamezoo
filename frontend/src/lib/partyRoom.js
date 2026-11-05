@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from './api';
 
-export const ONLINE_GAMES = ['pty_ludo_royale', 'pty_colour_cards', 'pty_four_in_row', 'pty_snakes_ladders', 'pty_dots_boxes', 'pty_checkers', 'pty_memory_duel', 'pty_reversi', 'pty_gomoku', 'pty_tictactoe', 'pty_mancala', 'pty_isolation', 'pty_breakthrough', 'pty_domineering', 'pty_clobber', 'pty_nim', 'pty_hex', 'pty_treblecross', 'pty_morris', 'pty_fox_hounds', 'pty_sim', 'pty_chomp', 'pty_kayles', 'pty_notakto'];
+export const ONLINE_GAMES = ['pty_ludo_royale', 'pty_colour_cards', 'pty_four_in_row', 'pty_snakes_ladders', 'pty_dots_boxes', 'pty_checkers', 'pty_memory_duel', 'pty_reversi', 'pty_gomoku', 'pty_tictactoe', 'pty_mancala', 'pty_isolation', 'pty_breakthrough', 'pty_domineering', 'pty_clobber', 'pty_nim', 'pty_hex', 'pty_treblecross', 'pty_morris', 'pty_fox_hounds', 'pty_sim', 'pty_chomp', 'pty_kayles', 'pty_notakto', 'pty_misere_ttt', 'pty_tiny_drop', 'pty_dont_connect', 'pty_order_chaos', 'pty_wild_ttt', 'pty_pick15', 'pty_last_coin', 'pty_square_coins', 'pty_half_one', 'pty_corner_queen', 'pty_grundy', 'pty_northcott', 'pty_cram', 'pty_snort', 'pty_col', 'pty_konane', 'pty_hexapawn', 'pty_pong_hau', 'pty_mu_torere', 'pty_dodgem', 'pty_ataxx', 'pty_atari_go', 'pty_stalks', 'pty_toads_frogs', 'pty_ultimate_ttt', 'pty_turtles', 'pty_teeko', 'pty_achi', 'pty_corner_race', 'pty_euclid', 'pty_staircase', 'pty_dominoes', 'pty_square_hunt', 'pty_knight_trap', 'pty_oware', 'pty_coin_line'];
 export const roomAPI = {
   create: (gameId) => api.post('/party/rooms', { game_id: gameId }).then((r) => r.data),
   join: (code) => api.post(`/party/rooms/${code}/join`).then((r) => r.data),
