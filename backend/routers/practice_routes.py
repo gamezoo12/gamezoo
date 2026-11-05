@@ -148,3 +148,40 @@ async def leaderboard(request: Request, game_id: str | None = None, limit: int =
         pass
     top = [{k: v for k, v in r.items() if k != 'user_id'} for r in rows[:max(1, min(limit, 100))]]
     return {'game_id': game_id, 'top': top, 'me': me, 'players': len(rows)}
+
+
+class BanterInput(BaseModel):
+    game: str = Field(..., min_length=1, max_length=60)
+    bot: str = Field(..., min_length=1, max_length=20)
+    persona: str = Field('', max_length=120)
+    event: str = Field(..., min_length=1, max_length=40)
+    detail: str = Field('', max_length=200)
+    player_said: str = Field('', max_length=80)
+
+
+_banter_hits: dict = {}
+
+
+@router.post('/banter')
+async def party_banter(body: BanterInput, request: Request):
+    """One short, funny trash-talk line from a bot opponent (AI written). Light per-IP limit; client has canned fallbacks."""
+    import os
+    import uuid
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+
+    ip = (request.headers.get('x-forwarded-for') or (request.client.host if request.client else '')).split(',')[0].strip()
+    now = time.time()
+    hits = [t for t in _banter_hits.get(ip, []) if now - t < 60]
+    if len(hits) >= 20:
+        raise HTTPException(429, 'Slow down')
+    _banter_hits[ip] = hits + [now]
+    system = (f"You are {body.bot}, a cheeky bot opponent in a casual mobile party game ({body.game}). Personality: {body.persona or 'playful trash-talker'}. "
+              "Reply with ONE short chat message (max 14 words) reacting to what just happened: funny, teasing or provoking, "
+              "family-friendly, no swearing, no insults about looks, race, gender or religion. You may use one emoji. "
+              "Output only the message text, no quotes, no name prefix.")
+    prompt = f"What happened: {body.event}. {body.detail}".strip()
+    if body.player_said:
+        prompt += f' The human player just typed to you: "{body.player_said}". Reply to them directly.'
+    chat = LlmChat(api_key=os.environ['EMERGENT_LLM_KEY'], session_id=f'banter-{uuid.uuid4().hex}', system_message=system).with_model('openai', 'gpt-5.4-mini')
+    text = str(await chat.send_message(UserMessage(text=prompt))).strip().strip('"').splitlines()[0][:140]
+    return {'text': text}

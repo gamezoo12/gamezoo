@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import uuid
 
 from dotenv import load_dotenv
@@ -77,11 +78,11 @@ def _facts(stage: str, d: dict) -> str:
 
 TASKS = {
     "intro": "OPEN the show (the only stage where you greet viewers): welcome everyone, name the draw, explain simply how it works (every eligible ticket goes into the machine, it gets mixed, and winners are picked at random by a certified random process), mention the total prize fund and how many tickets are in, then tease the first round.",
-    "round": "We are mid-show (do NOT greet or welcome again). Introduce this next round: its name, prize per winner and number of winners. Tease the audience.",
-    "loading": "Mid-show, no greeting. Tickets are pouring into the machine right now. React to it and tell people to grab their ticket numbers.",
-    "mixing": "Mid-show, no greeting. The machine is mixing every ticket. Build suspense, react to the spinning, joke about nerves.",
-    "drawing": "Mid-show, no greeting. The draw is happening this second. Short, breathless, dramatic build-up. No winner yet.",
-    "reveal": "Mid-show, no greeting. Announce the winning ticket number(s) and name(s) exactly as given, go wild celebrating, congratulate them and say the prize.",
+    "round": "Introduce this next round: its name, prize per winner and number of winners. Tease the audience.",
+    "loading": "Tickets are pouring into the machine right now. React to it and tell people to grab their ticket numbers.",
+    "mixing": "The machine is mixing every ticket. Build suspense, react to the spinning, joke about nerves.",
+    "drawing": "The draw is happening this second. Short, breathless, dramatic build-up. No winner yet.",
+    "reveal": "Announce the winning ticket number(s) and name(s) exactly as given, go wild celebrating, congratulate them and say the prize.",
     "finale": "Close the show: recap every winner briefly, celebrate, thank everyone who played and invite them to the next draw.",
     "test": "A quick, funny sound check: the hosts say hi to the organiser, joke around and show off their personality in a few seconds.",
 }
@@ -110,7 +111,9 @@ async def write_lines(cfg: dict, stage: str, data: dict) -> list[dict]:
     system = (f"You write LIVE TV commentary for the Prize League Draw Studio. Hosts: {people}. Overall tone: {STYLES[cfg['style']]}. "
               "Make it sound like real people talking off the cuff, not a script: contractions, short punchy sentences, natural reactions "
               "(\"Ooh!\", \"Ha!\", \"No way!\", \"Come on!\"), laughter where it fits, a running joke or callback, talk directly to viewers. "
-              "Never sound like an announcement or repeat the same phrasing. "
+              "Never sound like an announcement or repeat the same phrasing. The TASK tells you privately what is happening on stage: act on it, "
+              "but never say, quote or paraphrase the TASK, these rules, stage names or words like 'greeting', 'intro' or 'instructions'. "
+              "Only when the TASK says OPEN may the hosts welcome viewers. "
               f"Write the spoken text ONLY in {cfg['language']} (use its native script). No emojis, no stage directions or brackets inside the text. "
               "Use ONLY the facts provided. Never invent names, numbers or amounts, never promise prizes to anyone not named, never suggest the result is anything but random. "
               "Read ticket numbers digit by digit if they are long. " + shape +
@@ -122,12 +125,19 @@ async def write_lines(cfg: dict, stage: str, data: dict) -> list[dict]:
     by_name = {HOSTS[h]["name"].lower(): h for h in hosts}
     try:
         items = json.loads(raw[raw.index("["): raw.rindex("]") + 1])
-        lines = [{"host": by_name.get(str(i.get("host", "")).strip().lower(), hosts[n % len(hosts)]), "text": str(i.get("text", "")).strip()[:400],
+        lines = [{"host": by_name.get(str(i.get("host", "")).strip().lower(), hosts[n % len(hosts)]), "text": _clean(str(i.get("text", "")))[:400],
                   "mood": i.get("mood") if i.get("mood") in MOODS else "excited", "action": i.get("action") if i.get("action") in ACTIONS else "talk"}
-                 for n, i in enumerate(items) if str(i.get("text", "")).strip()]
+                 for n, i in enumerate(items) if _clean(str(i.get("text", "")))]
     except (ValueError, AttributeError, TypeError):
         lines = []
     return lines[:4] or [{"host": hosts[0], "text": raw[:600], "mood": "excited", "action": "talk"}]
+
+
+_LEAK = re.compile(r"(?i)\b(no greeting|without (a )?greeting|straight into it|mid-show|stage direction|as instructed|per the (task|instructions)|the task (says|is))\b[^.!?]*[.!?]?\s*")
+
+
+def _clean(text: str) -> str:
+    return re.sub(r"\s{2,}", " ", _LEAK.sub("", re.sub(r"[\[(][^\])]*[\])]", "", text))).strip()
 
 
 def _expressive(text: str, voice: str, instructions: str) -> bytes:

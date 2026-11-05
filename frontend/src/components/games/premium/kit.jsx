@@ -13,13 +13,14 @@ export const THEMES = {
 };
 
 // Shared premium stage: tilted 3D board with lighting, reflections and a floor shadow.
-export function Board3D({ theme, title, level, stats = [], children, flash }) {
+export function Board3D({ theme, title, level, stats = [], children, flash, bg, hue = 0 }) {
   const t = THEMES[theme];
   const ring = flash === 'good' ? '0 0 0 3px #34d399, 0 0 50px rgba(52,211,153,0.6)' : flash === 'bad' ? '0 0 0 3px #f43f5e, 0 0 50px rgba(244,63,94,0.6)' : `0 30px 80px ${t.glow}`;
   return (
     <div className="mx-auto w-full max-w-xl select-none" style={{ perspective: '1400px' }} data-testid={`premium-${theme}-board`}>
       <div className="relative rounded-[28px] p-4 transition-[transform,box-shadow] duration-300 sm:p-6"
         style={{ background: `radial-gradient(120% 90% at 30% 0%, ${t.from}, ${t.to})`, transform: `rotateX(10deg) ${flash === 'bad' ? 'translateX(-4px)' : ''}`, transformStyle: 'preserve-3d', boxShadow: ring }}>
+        {bg && <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[28px]"><img src={bg} alt="" className="h-full w-full scale-110 object-cover opacity-60 blur-[2px]" style={{ filter: `hue-rotate(${hue}deg) saturate(1.25)` }} /><div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/45 to-black/70" /></div>}
         <div className="pointer-events-none absolute inset-0 rounded-[28px]" style={{ background: 'linear-gradient(160deg, rgba(255,255,255,0.16), transparent 40%)' }} />
         <div className="relative mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="text-xs font-black uppercase tracking-[0.25em]" style={{ color: t.accent }}>{title}</div>

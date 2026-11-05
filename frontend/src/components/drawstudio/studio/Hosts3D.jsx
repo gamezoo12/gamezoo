@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Text } from '@react-three/drei';
+import { Billboard, Text } from '@react-three/drei';
 import { FONTS } from './textures';
 import { captionAt } from './commentary';
 
@@ -89,7 +89,7 @@ function Character({ id, slot, count, S }) {
           </group>
           {[-1, 1].map((x) => <mesh key={x} position={[x * 0.085, 0.345, 0.215]} rotation-z={x * -0.12}><boxGeometry args={[0.08, 0.016, 0.02]} />{mat(look.hair)}</mesh>)}
           <mesh ref={R.mouth} position={[0, 0.14, 0.215]} scale={[1.4, 0.2, 0.4]}><sphereGeometry args={[0.055, 16, 12]} />{mat('#5a1220')}</mesh>
-          <Text font={FONTS.bold} fontSize={0.11} position={[0, 0.66, 0]} color="#ffd54a" outlineWidth={0.008} outlineColor="#2a1050" letterSpacing={0.12}>{look.name}</Text>
+          <Billboard position={[0, 0.66, 0]}><Text font={FONTS.bold} fontSize={0.12} color="#ffd54a" outlineWidth={0.01} outlineColor="#2a1050" letterSpacing={0.12}>{look.name}</Text></Billboard>
         </group>
       </group>
     </group>

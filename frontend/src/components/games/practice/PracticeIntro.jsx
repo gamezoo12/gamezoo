@@ -11,7 +11,7 @@ export function PracticeIntro({ game, level, onStart, onBack }) {
       <ul className="mt-4 space-y-3 text-sm text-white/80">
         {guide.objective && <li className="flex gap-3"><Target className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" /><span data-testid="practice-objective">{guide.objective}</span></li>}
         {guide.controls && <li className="flex gap-3"><Gamepad2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" /><span>{guide.controls}</span></li>}
-        <li className="flex gap-3"><Clock className="mt-0.5 h-4 w-4 shrink-0 text-rose-300" /><span>Finish before the clock hits zero: <b className="text-white" data-testid="practice-time-limit">{timeLimit(game, level)}s</b>. Faster and cleaner runs earn more stars.</span></li>
+        <li className="flex gap-3"><Clock className="mt-0.5 h-4 w-4 shrink-0 text-rose-300" />{timeLimit(game, level) ? <span>Finish before the clock hits zero: <b className="text-white" data-testid="practice-time-limit">{timeLimit(game, level)}s</b>. Faster and cleaner runs earn more stars.</span> : <span data-testid="practice-time-limit">{guide.clock || 'No time limit: take your turns, outsmart the bots and win to clear the level.'}</span>}</li>
       </ul>
       {goal && <div className="mt-4 rounded-xl border border-amber-300/30 bg-amber-300/10 px-4 py-2.5 text-sm font-bold text-amber-200" data-testid="practice-level-goal">{goal}</div>}
       <div className="mt-6 flex flex-col gap-2 sm:flex-row">

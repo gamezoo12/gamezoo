@@ -1,0 +1,21 @@
+.pty-kenburns { animation: pty-kb 28s ease-in-out infinite alternate; transform-origin: center; }
+@keyframes pty-kb { from { transform: scale(1.08); } to { transform: scale(1.22) translate(-2%, 1%); } }
+.pty-spark { position: absolute; bottom: -10px; border-radius: 9999px; opacity: 0; animation-name: pty-rise; animation-iteration-count: infinite; animation-timing-function: linear; }
+@keyframes pty-rise { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: 0.9; } 100% { transform: translateY(-110vh) translateX(20px); opacity: 0; } }
+.pty-bubble { animation: pty-pop 0.35s cubic-bezier(.2,1.6,.4,1) both; }
+@keyframes pty-pop { from { scale: 0.6; opacity: 0; } to { scale: 1; opacity: 1; } }
+.pty-shake { animation: pty-shake 0.35s; }
+@keyframes pty-shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+.pty-token { transition: left 0.17s ease-out, top 0.17s ease-out, transform 0.2s; }
+.pty-hop { animation: pty-hop 0.6s ease-in-out infinite; }
+@keyframes pty-hop { 50% { transform: translate(-50%, -50%) scale(1.25); } 0%, 100% { transform: translate(-50%, -50%) scale(1); } }
+.pty-dropin { animation: pty-dropin 0.45s cubic-bezier(.5,0,.6,1.4) both; }
+@keyframes pty-dropin { from { transform: translateY(var(--fall, -300px)); } to { transform: translateY(0); } }
+.pty-fly { animation: pty-fly 0.4s ease-out both; }
+@keyframes pty-fly { from { transform: translateY(80px) rotate(-25deg) scale(0.7); opacity: 0; } to { transform: rotate(var(--rot, 0deg)); opacity: 1; } }
+.pty-burst { animation: pty-burst 0.5s ease-out both; }
+@keyframes pty-burst { from { transform: scale(0.3); opacity: 1; } to { transform: scale(1.8); opacity: 0; } }
+.pty-new { animation: pty-new 0.35s ease-out both; }
+@keyframes pty-new { from { transform: translateY(-40px) scale(0.5); opacity: 0; } to { transform: none; opacity: 1; } }
+.pty-banner { animation: pty-banner 1.4s ease-out both; }
+@keyframes pty-banner { 0% { transform: scale(0.4); opacity: 0; } 20% { transform: scale(1.1); opacity: 1; } 80% { opacity: 1; } 100% { transform: scale(1); opacity: 0; } }

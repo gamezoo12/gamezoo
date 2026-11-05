@@ -55,7 +55,8 @@ GAME_TYPES += [
     {'id': 'pty_ludo_royale', 'label': 'Ludo Royale', 'category': 'strategy', 'target_time_s': 240, 'max_attempts': 3, 'family': 'party'},
     {'id': 'pty_sweet_swap', 'label': 'Sweet Swap', 'category': 'puzzle', 'target_time_s': 150, 'max_attempts': 3, 'family': 'party'},
     {'id': 'pty_four_in_row', 'label': 'Four in a Row', 'category': 'strategy', 'target_time_s': 150, 'max_attempts': 3, 'family': 'party'},
-    {'id': 'pty_snakes_ladders', 'label': 'Snakes & Ladders Duel', 'category': 'strategy', 'target_time_s': 200, 'max_attempts': 3, 'family': 'party'},
+    {'id': 'pty_snakes_ladders', 'label': 'Snakes & Ladders', 'category': 'strategy', 'target_time_s': 200, 'max_attempts': 3, 'family': 'party'},
+    {'id': 'pty_snake_arena', 'label': 'Snake Arena', 'category': 'reaction', 'target_time_s': 120, 'max_attempts': 3, 'family': 'party'},
 ]
 
 

@@ -5,6 +5,7 @@ import { gameExperienceFor } from './gameExperience';
 import { gameCover } from './gameCovers';
 import { difficultyName } from './difficulty';
 import { PARTY_HOW_TO } from '../components/games/party';
+import { themeFor } from '../components/games/party/kit';
 
 export const tierName = (t) => (t <= 10 ? difficultyName(t) : `Legend ${t - 10}`);
 
@@ -43,18 +44,20 @@ export const sequenceCount = (level) => difficultyFor(level) * 10;
 export function timeLimit(game, level) {
   const d = difficultyFor(level);
   const squeeze = (1 - 0.02 * stepOf(level)) * legendSqueeze(tierOf(level));
+  if (game.category === 'Party') return null; // turn-based games vs bots are not timed
   if (game.id === 'number_sequence') return Math.max(Math.round(sequenceCount(level) * 0.55), Math.round(sequenceCount(level) * (1.5 - 0.06 * (d - 1)) * squeeze));
   return Math.max(10, Math.round(game.target * (2.2 - 0.13 * (d - 1)) * squeeze));
 }
 
 export function starsFor(limitS, result) {
+  if (!limitS) { const a = result.accuracy ?? 1; return a >= 0.9 ? 3 : a >= 0.6 ? 2 : 1; }
   const ratio = (result.duration_ms / 1000) / limitS;
   if (ratio <= 0.5 && (result.accuracy ?? 1) >= 0.8) return 3;
   return ratio <= 0.8 ? 2 : 1;
 }
 
 export function renderLevel(game, level, onComplete) {
-  const config = { difficulty: difficultyFor(level), practice_mode: true, public_preview: true };
+  const config = { difficulty: difficultyFor(level), stage_level: level, practice_mode: true, public_preview: true };
   if (game.style) return GAME_MAP[`arc_${game.style}_${THEME_IDS[(level - 1) % THEME_IDS.length]}`]?.(config, onComplete);
   if (game.id === 'number_sequence') config.count = sequenceCount(level);
   return GAME_MAP[game.id]?.(config, onComplete);
@@ -68,4 +71,4 @@ export function howToPlay(game) {
   return { objective: g.objective, controls: g.controls, mistakes: g.mistakes };
 }
 
-export const levelGoal = (game, level) => (game.id === 'number_sequence' ? `Tap 1 → ${sequenceCount(level)} in order` : game.style ? `New theme: ${Object.values(ARCADE_THEME_LABELS)[(level - 1) % THEME_IDS.length]}` : null);
+export const levelGoal = (game, level) => (game.category === 'Party' ? `World: ${themeFor({ stage_level: level }).name}${(level - 1) % 5 === 0 ? ' (new world!)' : ''}` : game.id === 'number_sequence' ? `Tap 1 → ${sequenceCount(level)} in order` : game.style ? `New theme: ${Object.values(ARCADE_THEME_LABELS)[(level - 1) % THEME_IDS.length]}` : null);

@@ -1,0 +1,43 @@
+{
+  "summary": "Tested iteration 61 on the public URL. Backend: 8 of 8 new tests pass. Expressive commentary returns segments that carry a valid mood and action. gpt-4o-mini-tts was called directly and works (51 KB mp3, so the tts-1 fallback is not being used). The test stage uses the sample facts (240 tickets, Grand Prize, no '£0'). /api/games/types lists exactly 5 family='party' games. practice progress, event and leaderboard accept all pty_* ids and reject pty_nope with 400. UI: the /games Party chip (arena-cat-party) shows 5 cards and all covers load. Each game shows its objective from PARTY_HOW_TO. Colour Clash Cards (390px): the bot plays +2 and skip, and the game reaches practice-pass with 3 stars. Sweet Swap (390px): passed with 3 stars in 7 swaps. Snakes & Ladders: one loss (practice-fail with Retry) at 390px and one pass at desktop. Four in a Row: AI replies to every move; lost 3 games, then won (pass). Ludo Royale: FROZE in 2 of 2 runs (desktop and mobile). Duo sample show: all 9 commentary calls returned 200, every segment had a mood and action, the show ran to Finale, and there were no console or page errors. MAX and SOPHIA 3D hosts stand left and right of the machine with name labels, subtitles read 'NAME: text', and there is no portrait card. Solo mode shows only MAX. The /games/leaderboard back link and eyebrow are on separate lines at 390px.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/admin/draw-studio/commentary (stage=mixing)", "issue": "The LLM read the prompt instruction aloud. Max's spoken mixing line was 'No greeting, straight into it. The machine's mixing...'. Cause: the TASKS text 'Mid-show, no greeting.' reads like a line to say. Reword it as a hidden instruction, e.g. 'Do not greet or welcome viewers and never mention this instruction', and/or remove phrases like 'no greeting' from the output."},
+      {"endpoint": "POST /api/admin/draw-studio/commentary", "issue": "Occasional invented numbers: one mixing line counted 'Sixty... eighty...' when the facts only said 80 tickets. Low impact."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "party/DiceRace.jsx LudoRoyale", "issue": "The game FREEZES when a bot rolls a 6 and moves. move() calls setTurn(p), the turn value does not change, and the bot useEffect only depends on [turn, over], so it never runs again. The UI is stuck on 'Rex is rolling…' and the player cannot finish the level. Reproduced in 2 of 2 runs within the first ~20 steps. Fix: add a counter, e.g. const [tick,setTick]=useState(0), bump it in move(), and add it to the effect deps (or use [turn, over, pos]).", "selector": "[data-testid='ludo-status']", "priority": "CRITICAL"},
+      {"component": "studio/Hosts3D.jsx name labels", "issue": "The MAX/SOPHIA <Text> label sits inside the head group, so it turns with the body. When a host walks or faces sideways (rotation.y up to ±1.2 rad), the label is seen edge-on and can't be read: SOPHIA showed as a thin line in the round 2 screenshot. Wrap it in drei <Billboard> (or move it outside the rotating root).", "selector": "3D canvas", "priority": "MEDIUM"},
+      {"component": "party/ColourCards.jsx", "issue": "draw() takes deck.shift() with no refill. The deck is only refilled inside apply(), so a long run of draws can empty it and add an undefined card, which crashes on card.c. Refill in draw() as well. +2 splice has the same risk.", "selector": "[data-testid='colour-cards-draw']", "priority": "LOW"},
+      {"component": "party/SweetSwap.jsx", "issue": "No check for a board with no possible moves, so the player could get stuck. Level 1 is also impossible to fail on moves: goal 420 with 24 moves, and every valid swap scores at least 30. Taps are still accepted after the goal is reached, so onComplete could fire twice.", "selector": "[data-testid='sweet-swap-board']", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Draw Studio sample show", "issues": ["The previous stage's caption keeps playing into the next stage: the round 1 reveal line was still showing on the round 2 intro card.", "No commentary is requested for the 'loading' (Enter Pool) stage, so it is silent. Only intro, mixing, drawing, reveal, round and finale are called.", "Walk speed is capped by dt (0.12 s per frame), so hosts take a long time to walk in on low-fps devices. They were not on stage 9 s after the show started in headless mode."]},
+      {"screen": "Four in a Row level 1", "issue_note": "The level 1 AI (depth 2 plus noise) is fairly strong: a greedy win/block bot lost 3 of 4 games. Consider more randomness at levels 1-2.", "issues": ["Level 1 difficulty may feel too hard for a starter tier"]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_party_games_expressive_iter61.py", "/app/tests/run_iter61_public.py"],
+  "action_items": [
+    "CRITICAL: Fix the Ludo Royale bot freeze when a bot rolls a 6 (DiceRace.jsx useEffect deps [turn, over]; the turn value doesn't change).",
+    "Make the 3D host name labels face the camera (drei Billboard).",
+    "Reword the mid-show TASKS prompts so the LLM never says 'No greeting' aloud.",
+    "Refill the deck inside ColourCards draw(); add a no-moves reshuffle to Sweet Swap and block taps after it completes."
+  ],
+  "critical_code_review_comments": [
+    "DiceRace.jsx LudoRoyale: the bot effect depends on [turn, over] only. A repeat turn (6) for the same bot never schedules another move, so the game hangs.",
+    "commentary.js prefetch retry is correct: ask().catch(()=>ask()).catch(()=>{lines.delete(key);return null}), so a failure is not cached.",
+    "draw_commentary.speak swallows every expressive-TTS exception silently and falls back to tts-1. Log the exception so you can tell when the fallback happens.",
+    "SnakesLadders/Ludo bot effects use the pos/closure from the render that scheduled them. That works now, but it is fragile."
+  ],
+  "updated_files": ["/app/backend/tests/test_party_games_expressive_iter61.py", "/app/tests/run_iter61_public.py"],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "~85% (Ludo blocked; all other games, the sample show and the leaderboard pass)"},
+  "seed_data_creation": "None. NOTE: test_progress_accepts_pty saved level 1 with 2 stars for player1@example.com on all 5 pty_* games. player1's global stars went from 764 to 774. There is no API to remove this.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend: `set -a; . backend/.env; . frontend/.env; set +a; python3 /app/tests/run_iter61_public.py` (makes 3 LLM+TTS calls, about 40 s; you can pass class names TestParty/TestExpressive). Each game page /games/pty_* needs practice-level-1 then practice-start. Ludo tokens use animate-bounce, so click them via JS. Colour cards: compare the span style.color of the hand cards and the top card. Sweet Swap: a JS solver finding adjacent swaps that make a match passes in about 7 moves. Four in a Row: use a JS win/block strategy and allow a few retries. Commentary settings are still duo max+sophia, enabled, style fun. Ads are still disabled. No official draws were run. The solo sample was run without saving.",
+  "rca of the issue": "Ludo freeze: in move(), setTurn(r === 6 ? p : next). When bot p rolls a 6, setTurn(p) leaves turn unchanged, so React does not re-run useEffect(..., [turn, over]) and no new bot setTimeout is scheduled. Reproduce: /games/pty_ludo_royale → level 1 → start → keep rolling; when Rex rolls a 6 the status stays 'Rex is rolling…' forever. Fix: add a move counter state to the effect deps."
+}
