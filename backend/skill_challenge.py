@@ -10,7 +10,7 @@ The generated problem is bundled with a short-lived HMAC-signed token that
 carries the correct answer in server-signed form. When the user submits an
 answer we call `verify_challenge()` which:
   1. Confirms the token has not been tampered with.
-  2. Confirms the token has not expired (default TTL: 5 minutes).
+  2. Confirms the token has not expired (default TTL: 30 minutes).
   3. Confirms the answer typed by the user matches the answer embedded in
      the token.
 
@@ -18,7 +18,7 @@ Because the correct answer never appears in the response body sent to the
 browser, users cannot inspect network traffic to cheat. Because the token is
 bound to a specific contest and single question via HMAC, users cannot re-use
 a token issued for contest A to submit a purchase against contest B. Tokens
-do remain valid for their 5-minute TTL, so a user who refreshes could submit
+do remain valid for their 30-minute TTL, so a user who refreshes could submit
 the same answer against the same contest multiple times — this is acceptable
 because knowing the answer is not a security barrier (the correct answer is
 one of four public options); the token exists to prove the challenge was
@@ -47,7 +47,7 @@ Difficulty = Literal['easy', 'medium', 'hard']
 
 ALLOWED_OPS: tuple[Op, ...] = ('addition', 'subtraction', 'multiplication', 'division')
 ALLOWED_DIFF: tuple[Difficulty, ...] = ('easy', 'medium', 'hard')
-DEFAULT_TTL_SECONDS = 300  # 5 minutes
+DEFAULT_TTL_SECONDS = 1800  # 30 minutes; server still validates expiry and HMAC
 
 
 def _key() -> bytes:

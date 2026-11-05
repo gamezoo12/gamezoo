@@ -26,7 +26,7 @@ export function PracticeResult({ result, level, stars, guest, onNext, onRetry, o
       <div className="pl-practice-pop relative">
         {champion ? <Crown className="mx-auto h-16 w-16 text-amber-400" /> : passed ? <Trophy className="mx-auto h-14 w-14 text-amber-400" /> : <RotateCcw className="mx-auto h-12 w-12 text-rose-400" />}
         <h2 className="mt-3 font-display text-3xl font-black text-white sm:text-4xl" data-testid="practice-result-title">
-          {champion ? 'Champion! All 10 levels done' : passed ? `Congratulations! Level ${level} complete` : result.timeout ? "Time's up!" : 'So close!'}
+          {champion ? `Champion! All ${LEVELS} levels done` : passed ? `Congratulations! Level ${level} complete` : result.timeout ? "Time's up!" : 'So close!'}
         </h2>
         {passed && <div className="mt-3 flex justify-center"><StarRow count={stars} size="h-9 w-9" testId="practice-result-stars" /></div>}
         <p className="mt-3 text-sm text-white/70">{passed ? `Time ${(result.duration_ms / 1000).toFixed(1)}s · accuracy ${Math.round((result.accuracy || 0) * 100)}%` : `Level ${level} beat you this time. Every retry makes you sharper.`}</p>

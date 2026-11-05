@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Navigate, useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, ShieldCheck, Star } from 'lucide-react';
 
 import { api, gamesAPI } from '../lib/api';
@@ -15,6 +15,7 @@ import { PracticeResult } from '../components/games/practice/PracticeResult';
 export default function GamePreview() {
   const { gameId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, loading: authLoading } = useAuth() || {};
   const [settings, setSettings] = useState(null);
   const [types, setTypes] = useState([]);
@@ -54,7 +55,7 @@ export default function GamePreview() {
   return (
     <div className="min-h-screen bg-slate-950">
       <div className="mx-auto max-w-4xl px-3 py-5 sm:px-6 md:py-10">
-        <button type="button" onClick={() => (stage !== 'levels' ? setStage('levels') : window.history.length > 1 ? navigate(-1) : navigate('/games'))} aria-label="Back" data-page-back-control="true" className="inline-flex items-center gap-1 text-sm text-white/60 hover:text-white" data-testid="practice-page-back">
+        <button type="button" onClick={() => (stage !== 'levels' ? setStage('levels') : location.key !== 'default' ? navigate(-1) : navigate('/games'))} aria-label="Back" data-page-back-control="true" className="inline-flex items-center gap-1 text-sm text-white/60 hover:text-white" data-testid="practice-page-back">
           <ArrowLeft className="h-4 w-4" />Back
         </button>
 
@@ -73,7 +74,7 @@ export default function GamePreview() {
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5"><ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />Free play · no ticket · no official score</span>
                 <span className="inline-flex items-center gap-1 font-bold text-amber-300" data-testid="practice-total-stars"><Star className="h-3.5 w-3.5 fill-amber-400" />{totalStars(state)}/{LEVELS * 3}</span>
               </div>
-              <p className="mb-3 text-sm text-white/70">Beat each level to unlock the next. It starts easy and gets brutal by level 10.</p>
+              <p className="mb-3 text-sm text-white/70">Beat each level to unlock the next. It starts easy and gets brutal by level 100.</p>
               <LevelPath state={state} onPick={(lv) => go(lv)} />
             </div>
           </div>

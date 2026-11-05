@@ -1,4 +1,4 @@
-"""Free home-preview games: per-account 10-level progress (fun only — no rewards, no wallet writes)."""
+"""Free home-preview games: per-account 100-level progress (fun only — no rewards, no wallet writes)."""
 from __future__ import annotations
 from datetime import datetime, timezone
 from typing import List
@@ -14,7 +14,7 @@ from services.arcade_catalog import STYLES
 router = APIRouter(prefix='/api/games/practice', tags=['games-practice'])
 
 ALLOWED = {g['id'] for g in GAME_TYPES if g.get('family') != 'arcade'} | {f'arc_{s[0]}' for s in STYLES}
-MAX_LEVEL = 10
+MAX_LEVEL = 100
 _indexed = False
 
 
@@ -25,7 +25,7 @@ class LevelEntry(BaseModel):
 
 
 class ProgressInput(BaseModel):
-    entries: List[LevelEntry] = Field(..., min_length=1, max_length=600)
+    entries: List[LevelEntry] = Field(..., min_length=1, max_length=6000)
 
 
 async def _col():

@@ -96,7 +96,12 @@ async def commentary(body: CommentaryIn, request: Request):
     if not cfg["enabled"] and body.stage != "test":
         raise HTTPException(status_code=409, detail="Voice commentary is turned off in Draw Settings")
     try:
-        text = await write_line(cfg, body.stage, body.model_dump(exclude={"override"}))
+        facts = body.model_dump(exclude={"override"})
+        if body.stage != "reveal":
+            facts["winners"] = []  # never let an early stage announce a winner
+        if body.stage != "finale":
+            facts["all_winners"] = []
+        text = await write_line(cfg, body.stage, facts)
         audio = await speak(cfg, text)
     except Exception as exc:  # provider failure must never break the draw
         log.warning("commentary failed: %s", exc)

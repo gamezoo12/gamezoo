@@ -97,7 +97,7 @@ export default function GamePreviewSection({ mobile = false }) {
         </div>
 
         <p className="text-xs text-white/60 mb-4">
-          10 levels per game. Beat one to unlock the next, free.
+          100 levels per game. Beat one to unlock the next, free.
         </p>
 
         <div className="grid grid-cols-2 gap-3">
@@ -124,7 +124,7 @@ export default function GamePreviewSection({ mobile = false }) {
             </h2>
 
             <p className="text-sm md:text-base text-slate-500 mt-2 max-w-2xl">
-              Every game has 10 levels, from easy to brutal. Beat one to unlock
+              Every game has 100 levels, from easy to brutal. Beat one to unlock
               the next, free, with no tickets and no official score.
             </p>
           </div>

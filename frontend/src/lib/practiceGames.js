@@ -4,7 +4,11 @@ import { ARCADE_STYLE_META, ARCADE_THEME_LABELS } from './arcadeMeta';
 import { gameExperienceFor } from './gameExperience';
 import { gameCover } from './gameCovers';
 
-export const LEVELS = 10;
+export const LEVELS = 100;
+export const TIER_SIZE = 10;
+// Levels come in 10 tiers: the tier sets the game's difficulty (1-10), each step inside a tier tightens the clock.
+export const tierOf = (level) => Math.ceil(level / TIER_SIZE);
+const stepOf = (level) => (level - 1) % TIER_SIZE;
 const THEME_IDS = Object.keys(ARCADE_THEME_LABELS);
 const NAMES = {
   jigsaw_3x3: 'Picture Jigsaw', jigsaw_4x4: 'Picture Jigsaw Pro', number_sequence: 'Number Sequence', slider_puzzle: 'Slide Puzzle',
@@ -26,11 +30,13 @@ export function uniqueGames(types, selected = null) {
   return [...premium, ...arcade].map((g) => ({ ...g, cover: gameCover(g.id) }));
 }
 
-export const sequenceCount = (level) => level * 10;
+export const sequenceCount = (level) => tierOf(level) * 10;
 
 export function timeLimit(game, level) {
-  if (game.id === 'number_sequence') return Math.round(sequenceCount(level) * (1.5 - 0.06 * (level - 1)));
-  return Math.max(15, Math.round(game.target * (2.2 - 0.13 * (level - 1))));
+  const t = tierOf(level);
+  const squeeze = 1 - 0.02 * stepOf(level);
+  if (game.id === 'number_sequence') return Math.round(sequenceCount(level) * (1.5 - 0.06 * (t - 1)) * squeeze);
+  return Math.max(12, Math.round(game.target * (2.2 - 0.13 * (t - 1)) * squeeze));
 }
 
 export function starsFor(limitS, result) {
@@ -40,7 +46,7 @@ export function starsFor(limitS, result) {
 }
 
 export function renderLevel(game, level, onComplete) {
-  const config = { difficulty: level, practice_mode: true, public_preview: true };
+  const config = { difficulty: tierOf(level), practice_mode: true, public_preview: true };
   if (game.style) return GAME_MAP[`arc_${game.style}_${THEME_IDS[(level - 1) % THEME_IDS.length]}`]?.(config, onComplete);
   if (game.id === 'number_sequence') config.count = sequenceCount(level);
   return GAME_MAP[game.id]?.(config, onComplete);

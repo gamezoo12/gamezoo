@@ -213,7 +213,8 @@ async def put_settings(body: SettingsIn, request: Request):
 
         await save_reward_settings(db, reward)
     if body.volumes is not None:
-        vols = {k: round(min(1.0, max(0.0, float(v))), 2) for k, v in body.volumes.items() if k in AUDIO_SLOTS or k == "commentary"}
+        cur = (await db.settings.find_one({"_id": "draw_studio"}, {"_id": 0, "volumes": 1}) or {}).get("volumes") or {}
+        vols = {**cur, **{k: round(min(1.0, max(0.0, float(v))), 2) for k, v in body.volumes.items() if k in AUDIO_SLOTS or k == "commentary"}}
         await db.settings.update_one({"_id": "draw_studio"}, {"$set": {"volumes": vols, "updated_at": _now()}}, upsert=True)
     if body.commentary is not None:
         await db.settings.update_one({"_id": "draw_studio"}, {"$set": {"commentary": clean_commentary(body.commentary), "updated_at": _now()}}, upsert=True)
@@ -307,51 +308,6 @@ async def recording_file(rid: str, request: Request):
     data, _ = get_object(doc["storage_path"])
     return Response(content=data, media_type=doc["content_type"].split(";")[0],
                     headers={"Content-Disposition": f'attachment; filename="prize-league-draw-{rid}.{doc["ext"]}"'})
-
-
-# --------------------------------------------------------------------------- studio backdrops (live contests + offers)
-
-async def _backdrop_items(db) -> list[dict]:
-    from services.reward_program import get_reward_settings
-
-    items = []
-    async for c in db.contests.find({"status": "live"}, {"_id": 0, "title": 1, "prize_amount": 1, "price": 1, "image": 1,
-                                                         "ticket_price": 1}).sort("created_at", -1).limit(8):
-        price = c.get("ticket_price") or c.get("price")
-        items.append({"kind": "contest", "title": c.get("title") or "Live contest", "headline": f"£{float(c.get('prize_amount') or 0):,.0f}",
-                      "subtitle": f"Tickets from £{float(price):.2f} · Enter now at Prize League" if price else "Enter now at Prize League",
-                      "image_url": c.get("image") if str(c.get("image") or "").startswith("https://") else None})
-    rs = await get_reward_settings(db)
-    if rs.get("signup_offer_enabled") and float(rs.get("signup_reward_tokens") or 0) > 0:
-        items.append({"kind": "offer", "title": "Welcome bonus for new players", "headline": f"{float(rs['signup_reward_tokens']):g} FREE TOKENS",
-                      "subtitle": f"Top up £{float(rs.get('signup_qualifying_topup_gbp') or 0):g} to unlock", "image_url": None})
-    if rs.get("referral_offer_enabled") and float(rs.get("referral_reward_tokens") or 0) > 0:
-        items.append({"kind": "offer", "title": "Refer a friend and earn", "headline": f"{float(rs['referral_reward_tokens']):g} TOKENS",
-                      "subtitle": "For every friend who joins and plays", "image_url": None})
-    if not items:
-        items.append({"kind": "offer", "title": "Skill contests with real prizes", "headline": "PRIZE LEAGUE", "subtitle": "Play. Compete. Win.", "image_url": None})
-    return items
-
-
-@router.get("/backdrops")
-async def backdrops(request: Request):
-    await require_super_admin(request)
-    return {"items": await _backdrop_items(get_db())}
-
-
-@router.get("/backdrops/image")
-async def backdrop_image(url: str, request: Request):
-    await require_super_admin(request)
-    if url not in {i["image_url"] for i in await _backdrop_items(get_db()) if i.get("image_url")}:
-        raise HTTPException(status_code=404, detail="Unknown backdrop image")
-    import asyncio
-
-    import requests
-
-    resp = await asyncio.to_thread(requests.get, url, timeout=15)
-    if resp.status_code != 200 or not resp.headers.get("Content-Type", "").startswith("image/") or len(resp.content) > 10 * 1024 * 1024:
-        raise HTTPException(status_code=502, detail="Backdrop image unavailable")
-    return Response(content=resp.content, media_type=resp.headers["Content-Type"])
 
 
 # --------------------------------------------------------------------------- player-facing round media

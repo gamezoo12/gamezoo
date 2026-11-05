@@ -1,0 +1,40 @@
+{
+  "summary": "Tested the Draw Studio backdrop, AI voice commentary, chat-launcher visibility, and regression of the free games from iteration_56. Backend: 16/16 checks passed against the public URL. These were the backdrop upload/file/delete/re-upload cycle, 415 for non-images, 401/403 for players and anonymous users, commentary options (17 languages, 9 voices, 3 styles), settings save and clean-up of bad values, 409 when commentary is disabled, stage=test returning audio/mpeg, override, all 6 stages returning audio/mpeg with an X-Commentary-Text header (reveal names the winner), 422 for an invalid stage, and player 403. Frontend: on Draw Settings (/production/settings), remove, upload and re-upload of the backdrop work with a live preview. Commentary language, style and notes save and survive a page reload. Test voice shows 'Preparing voice…' and gets a 200 audio/mpeg response. Draw Studio preview (c_drawstudio_e2e) shows the uploaded image as a full-screen background and the old slide frame is gone. The full Enter Pool → Mix → Draw → Reveal → Finale run completed, with commentary requests for intro, mixing, drawing, reveal and finale (all 200). With commentary forced to 502 the draw still finished with no errors. The chat launcher is visible only on /paid-leagues, /world, /free-world and /login?tab=signup, and toggles correctly between the signup and login tabs. It is hidden on /, /login, /competitions, /games, /games/<id>, /my-account, /choose-world, /admin and /production. Regression: /games has 50 cards with 0 lock icons, and timeLimit uses 2.2→1.03.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/admin/draw-studio/commentary", "issue": "If winners or all_winners are sent with stage=mixing or drawing, the LLM reads out the winner too early (seen in testing: the mixing line said 'ticket 123456 belongs to Alice'). The frontend does not send winners for those stages today, but the backend should drop winners/all_winners unless stage is reveal or finale, so an early reveal can never be broadcast."},
+      {"endpoint": "PUT /api/admin/draw-studio/settings", "issue": "volumes is replaced entirely with $set rather than merged, so a partial volumes payload wipes the other slots. The UI always sends the full map, so this only affects other API callers."},
+      {"endpoint": "GET /api/admin/draw-studio/backdrops, /backdrops/image", "issue": "The old contest/offer slide endpoints and drawStudioAPI.backdrops/backdropImage are now dead code with no callers. Consider removing them."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "GamePreview hub Back (pages/GamePreview.jsx:57)", "issue": "The fallback uses window.history.length > 1. If the hub is opened directly in a tab that already has history (in testing, a tab that started at about:blank; in real use, arriving from Google or another site), Back calls navigate(-1) and leaves the app. Repro: open a new tab and load /games/jigsaw_3x3 → click Back → you land on about:blank instead of /games. Fix: use react-router's location.key === 'default' (or a flag for in-app navigation) to decide between navigate(-1) and navigate('/games').", "selector": "[data-testid='practice-page-back']", "priority": "LOW"}
+    ],
+    "integration_issues": [
+      {"flow": "Draw Studio drawing commentary", "issue": "The 'drawing' line is only requested when Draw is clicked, not fetched in advance. LLM + TTS takes about 5-8 s, so it usually arrives after the draw is done; say() then skips it because current !== key. In testing the drawing response arrived last, after finale. Fetch r{round}-draw in advance when Mix is clicked, the same way mixing is fetched at Enter Pool.", "affected_selectors": ["[data-testid='draw-stage-action']"]},
+      {"flow": "Draw Studio intro commentary", "issue": "The intro commentary request is sent twice per preview in dev, because React StrictMode double-mounts and the settings effect creates two commentators. This only happens in dev, but each extra call costs an LLM + TTS request.", "affected_selectors": []}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_draw_studio_backdrop_commentary.py", "/app/tests/run_draw_media_public.py"],
+  "action_items": [
+    "LOW: prefetch the r{round}-draw commentary line when Mix is clicked so the drawing line plays during the drawing animation",
+    "LOW: in draw_commentary._facts / the commentary route, drop winners/all_winners unless stage is reveal or finale",
+    "LOW: GamePreview Back: replace the window.history.length check with location.key === 'default'",
+    "LOW (optional): merge volumes in PUT /settings; remove the unused /backdrops endpoints and their api.js helpers"
+  ],
+  "critical_code_review_comments": [
+    "Official mode sends real winner display names to the external LLM. This is acceptable because they are already shown on screen, but it should be noted for privacy/GDPR documentation.",
+    "commentary.js caches failed (null) requests in the Map, so a line that fails once is never retried in that run. This is acceptable and never blocks the draw.",
+    "BackdropPanel and Studio3D both fetch the admin-only /backdrop/file. This is fine now because only /production uses Studio3D, but a public broadcast viewer would need a public endpoint."
+  ],
+  "updated_files": ["/app/backend/tests/test_draw_studio_backdrop_commentary.py", "/app/tests/run_draw_media_public.py"],
+  "success_rate": {"backend": "100% (16/16)", "frontend": "95% (all requested flows pass; 1 low-priority Back edge case, plus 2 commentary timing/efficiency findings)"},
+  "seed_data_creation": "None kept. During testing the backdrop was swapped temporarily and has been re-uploaded from /tmp/bd.jpg. The commentary settings are restored to English / onyx / energetic, enabled, notes empty, HD off. The test also set volumes.commentary to 0.7; the original value was unknown, so it was removed and the volume falls back to the default of 1.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "The /app/backend/tests conftest sends requests only to loopback and skips public-URL tests unless an isolated backend exists, so run /app/tests/run_draw_media_public.py with python directly to test against the public URL. It snapshots and restores the draw_studio backdrop, commentary and volumes. The Draw Settings route is /production/settings (not /production/draw-settings). draw-contest-select is a native <select>. Uploading through the UI replaces the user's backdrop; the original is /tmp/bd.jpg.",
+  "rca of the issue": "Drawing-line timing: DrawTheatre.draw() calls voice.say('r{n}-draw') with nothing fetched in advance, so the LLM + TTS delay (about 5-8 s) is longer than the drawing animation, and when the audio arrives the current key has moved on to reveal. Back button: window.history.length counts entries from before the app was loaded, so it cannot tell whether the user navigated within the app."
+}

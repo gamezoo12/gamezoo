@@ -126,6 +126,11 @@ export default function CompetitionDetail() {
     const cart = raw ? JSON.parse(raw) : [];
     const idx = cart.findIndex(x => x.contest_id === c.contest_id);
     const token = challenge?.challenge_token || null;
+    if (needsSkill && challenge?.expires_at && challenge.expires_at <= Math.floor(Date.now() / 1000)) {
+      toast({ title: 'Skill question expired', description: 'Please answer a fresh question before checkout.' });
+      loadChallenge();
+      return;
+    }
     const item = {
       contest_id: c.contest_id, slug: c.slug, title: c.title, image: c.image,
       price: c.price, qty: tickets, skill_answer: answer || 'n/a',

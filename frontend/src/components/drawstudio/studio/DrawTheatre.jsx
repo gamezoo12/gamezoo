@@ -43,7 +43,11 @@ export function DrawTheatre({ mode, contest, rounds, tickets, plan, results = []
   const go = useCallback((next) => { Object.assign(S.current, { stage: next, t0: now() }); setStage(next); }, []);
   useEffect(() => { loadCanvasFonts(); }, []);
   const [voice, setVoice] = useState(null);
-  useEffect(() => { drawStudioAPI.settings().then((s) => setVoice(createCommentator(Boolean(s.commentary?.enabled), mode))).catch(() => setVoice(createCommentator(false, mode))); }, [mode]);
+  useEffect(() => {
+    let live = true;
+    drawStudioAPI.settings().then((s) => live && setVoice(createCommentator(Boolean(s.commentary?.enabled), mode))).catch(() => live && setVoice(createCommentator(false, mode)));
+    return () => { live = false; };
+  }, [mode]);
   const facts = useCallback((r = round) => roundFacts(contest, rounds, r, pool.length), [contest, rounds, round, pool.length]);
   const openKey = `r${round}-${round === 0 ? 'intro' : 'round'}`;
   const openLine = () => [openKey, { stage: round === 0 ? 'intro' : 'round', ...facts() }];
@@ -84,7 +88,7 @@ export function DrawTheatre({ mode, contest, rounds, tickets, plan, results = []
     voice?.prefetch(`r${round}-mix`, { stage: 'mixing', ...facts() });
     go('loading');
   };
-  const mix = () => { audio?.startHeartbeat(72); voice?.say(`r${round}-mix`, { stage: 'mixing', ...facts() }, audio); go('mixing'); };
+  const mix = () => { audio?.startHeartbeat(72); voice?.say(`r${round}-mix`, { stage: 'mixing', ...facts() }, audio); voice?.prefetch(`r${round}-draw`, { stage: 'drawing', ...facts() }); go('mixing'); };
   const draw = async () => {
     setBusy(true); setError('');
     audio?.play('drumroll', { loop: true });

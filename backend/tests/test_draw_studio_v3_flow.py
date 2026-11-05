@@ -202,8 +202,6 @@ def test_settings_and_backdrops(api):
     assert "bogus" not in p.json()["volumes"]
     api.put(_ds("/settings"), json={"bonus_expiry_enabled": orig["bonus_expiry_enabled"], "bonus_expiry_days": orig["bonus_expiry_days"],
                                      "volumes": orig["volumes"]})
-    b = api.get(_ds("/backdrops"))
-    assert b.status_code == 200 and len(b.json().get("items") or b.json().get("backdrops") or []) > 0
 
 
 # --- contest game lock

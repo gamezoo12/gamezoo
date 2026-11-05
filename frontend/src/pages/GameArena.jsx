@@ -37,7 +37,7 @@ export default function GameArena() {
       <section className="bg-gradient-to-br from-slate-950 via-indigo-950 to-fuchsia-950 text-white">
         <div className="mx-auto max-w-7xl px-4 py-10 md:py-16 lg:px-8">
           <div className="inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.2em] text-[#FFD54A]"><Gamepad2 className="h-4 w-4" />Prize League Game Arena</div>
-          <h1 className="mt-3 font-display text-4xl font-black leading-tight sm:text-5xl lg:text-6xl">{games.length} games. 10 levels each.</h1>
+          <h1 className="mt-3 font-display text-4xl font-black leading-tight sm:text-5xl lg:text-6xl">{games.length} games. 100 levels each.</h1>
           <p className="mt-3 max-w-2xl text-sm text-white/70 md:text-lg">Start easy, unlock level after level, and see how far your skill can take you.</p>
           <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs sm:text-sm"><ShieldCheck className="h-4 w-4 text-emerald-400" />Free · No ticket · No official score</div>
         </div>

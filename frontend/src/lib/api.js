@@ -597,8 +597,6 @@ export const drawStudioAPI = {
   backdropBlob: () => api.get('/admin/draw-studio/backdrop/file', { responseType: 'blob' }).then(r => r.data),
   commentaryOptions: () => api.get('/admin/draw-studio/commentary/options').then(r => r.data),
   commentary: (body) => api.post('/admin/draw-studio/commentary', body, { responseType: 'arraybuffer', timeout: 45000 }).then(r => r.data),
-  backdrops: () => api.get('/admin/draw-studio/backdrops').then(r => r.data),
-  backdropImage: (url) => api.get('/admin/draw-studio/backdrops/image', { params: { url }, responseType: 'blob' }).then(r => r.data),
   recordings: (contestId) => api.get('/admin/draw-studio/recordings', { params: { contest_id: contestId } }).then(r => r.data),
   recordingBlob: (id) => api.get(`/admin/draw-studio/recordings/${id}/file`, { responseType: 'blob' }).then(r => r.data),
   async saveRecording(blob, meta) {

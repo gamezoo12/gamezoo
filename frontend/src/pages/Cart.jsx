@@ -22,12 +22,12 @@ function _tokenExp(tok) {
 }
 
 /** Item needs a fresh skill answer if it's a skill contest AND
- * (no token OR token expired OR expiring in <60s). */
+ * (no token OR expired token). Do not discard a valid verified answer. */
 function _needsFreshSkill(item) {
   if ((item.entry_mode || 'skill_game') !== 'skill_game') return false;
   const exp = _tokenExp(item.challenge_token);
   const now = Math.floor(Date.now() / 1000);
-  return !exp || exp - now < 60;
+  return !exp || exp <= now;
 }
 
 export default function Cart() {
@@ -62,6 +62,7 @@ export default function Cart() {
           challenge_token: ch.challenge_token,
           expires_at: ch.expires_at,
           chosen: null,
+          verified: false,
           verifying: false,
           error: null,
         },
@@ -90,11 +91,26 @@ export default function Cart() {
     });
   }, [items]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const pickAnswer = (item, opt) => {
-    setSkills(prev => ({
-      ...prev,
-      [item.contest_id]: { ...(prev[item.contest_id] || {}), chosen: opt, error: null },
-    }));
+  const pickAnswer = async (item, opt) => {
+    const current = skills[item.contest_id];
+    if (!current?.challenge_token || current.verifying || current.verified) return;
+    const token = current.challenge_token;
+    setSkills(prev => ({ ...prev, [item.contest_id]: { ...prev[item.contest_id], chosen: opt, verifying: true, error: null } }));
+    try {
+      const result = await contestsAPI.verifySkill(item.slug, opt, token);
+      setSkills(prev => {
+        if (prev[item.contest_id]?.challenge_token !== token) return prev;
+        return { ...prev, [item.contest_id]: {
+          ...prev[item.contest_id], verifying: false, verified: result.correct === true,
+          error: result.correct ? null : 'Incorrect answer. Please try again.',
+        } };
+      });
+    } catch (err) {
+      setSkills(prev => {
+        if (prev[item.contest_id]?.challenge_token !== token) return prev;
+        return { ...prev, [item.contest_id]: { ...prev[item.contest_id], verifying: false, verified: false, error: 'Could not verify answer. Please retry.' } };
+      });
+    }
   };
 
   const save = (list) => {
@@ -131,7 +147,7 @@ export default function Cart() {
       .filter(i => {
         const fresh = skills[i.contest_id];
         // Fresh challenge issued → user must pick an option.
-        if (fresh) return fresh.chosen == null;
+        if (fresh) return !fresh.verified || fresh.verifying || _needsFreshSkill({ ...i, challenge_token: fresh.challenge_token });
         // No fresh challenge → rely on the item's stored (non-expired) token.
         return _needsFreshSkill(i);
       });
@@ -145,7 +161,7 @@ export default function Cart() {
       const payload = items.map(i => {
         const fresh = skills[i.contest_id];
         // Prefer the fresh, just-picked challenge over the stored one.
-        if (fresh && fresh.chosen != null && fresh.challenge_token) {
+        if (fresh?.verified && fresh.chosen != null && fresh.challenge_token) {
           return {
             contest_id: i.contest_id,
             qty: Number(i.qty),
@@ -199,8 +215,15 @@ export default function Cart() {
       } else if (status === 400 && /skill|token|answer|expired/i.test(detail)) {
         // Force a re-issue of the skill challenge for the failing contest(s)
         // so the user's next click can succeed.
-        items.forEach(loadSkillFor);
-        toast({ title: 'Skill question refreshed', description: 'Please answer the new question below and try again.' });
+        // Only replace an expired/invalid challenge, never a valid verified answer
+        // for an unrelated checkout failure.
+        const affected = items.filter(i =>
+          (i.entry_mode || 'skill_game') === 'skill_game' &&
+          (/expired|invalid_token|contest_mismatch/i.test(detail) ||
+           _needsFreshSkill({ ...i, challenge_token: skills[i.contest_id]?.challenge_token || i.challenge_token }))
+        );
+        if (affected.length) affected.forEach(loadSkillFor);
+        toast({ title: 'Skill verification failed', description: detail });
       } else {
         toast({ title: 'Checkout failed', description: detail });
       }
@@ -444,9 +467,13 @@ export default function Cart() {
                       New question
                     </button>
                   </div>
-                  {skills[i.contest_id]?.error ? (
+                  {skills[i.contest_id]?.error && (
                     <div className="text-xs text-rose-600 mt-1">{skills[i.contest_id].error}</div>
-                  ) : (
+                  )}
+                  {skills[i.contest_id]?.verified && (
+                    <div className="text-xs text-emerald-700 mt-1">Skill verified. Ready for checkout.</div>
+                  )}
+                  {!skills[i.contest_id]?.error?.includes('Could not load') && (
                     <>
                       <div className="mt-2 font-display font-extrabold text-lg text-slate-900">
                         {skills[i.contest_id]?.question || 'Loading question…'}
@@ -460,6 +487,7 @@ export default function Cart() {
                               key={opt}
                               type="button"
                               onClick={() => pickAnswer(i, opt)}
+                              disabled={skills[i.contest_id]?.verifying || skills[i.contest_id]?.verified}
                               data-testid={`skill-option-${i.contest_id}-${opt}`}
                               className={`h-10 rounded-lg border-2 font-extrabold text-sm transition ${active ? 'border-[#6C2BFF] bg-[#6C2BFF] text-white' : 'border-slate-200 hover:border-[#6C2BFF] text-slate-900'}`}
                             >
