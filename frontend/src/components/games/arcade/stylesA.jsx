@@ -25,22 +25,21 @@ export function BalloonPop({ theme, config, onComplete }) {
 export function CatchFall({ theme, config, onComplete }) {
   const t = ARCADE_THEMES[theme]; const level = levelOf(config); const goal = scale(level, 8, 18);
   const run = useRun(onComplete); const [lane, setLane] = useState(1); const [drop, setDrop] = useState(null); const [score, setScore] = useState(0);
-  const laneRef = useRef(1); laneRef.current = lane;
+  const laneRef = useRef(1); laneRef.current = lane; const dropRef = useRef(null);
   useEffect(() => {
     const ms = Math.max(700, 1500 - level * 80);
-    const spawn = () => setDrop({ id: Math.random(), lane: Math.floor(Math.random() * 3), bad: Math.random() < 0.25, e: pick(t.items)[0] });
+    const spawn = () => { dropRef.current = { id: Math.random(), lane: Math.floor(Math.random() * 3), bad: Math.random() < 0.25, e: pick(t.items)[0] }; setDrop(dropRef.current); };
     spawn();
     const id = setInterval(() => {
-      setDrop((d) => {
-        if (d) {
-          const caught = d.lane === laneRef.current;
-          if (caught && !d.bad) { run.ping('good'); setScore((s) => { if (s + 1 >= goal) run.finish(goal); return s + 1; }); } else if (caught && d.bad) run.ping('bad');
-        }
-        return { id: Math.random(), lane: Math.floor(Math.random() * 3), bad: Math.random() < 0.25, e: pick(t.items)[0] };
-      });
+      const d = dropRef.current;
+      if (d && d.lane === laneRef.current) {
+        if (!d.bad) { run.ping('good'); setScore((s) => s + 1); } else run.ping('bad');
+      }
+      spawn();
     }, ms);
     return () => clearInterval(id);
   }, [level]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (score >= goal) run.finish(goal); }, [score]); // eslint-disable-line react-hooks/exhaustive-deps
   const ms = Math.max(700, 1500 - level * 80);
   return <Stage theme={theme} title="Catch the Prizes" flash={run.flash} stats={[['Caught', `${score}/${goal}`]]}>
     <style>{'@keyframes arcFall{from{top:0}to{top:78%}}'}</style>
@@ -58,7 +57,7 @@ export function HigherLower({ theme, config, onComplete }) {
   const run = useRun(onComplete); const [cur, setCur] = useState(() => 1 + Math.floor(Math.random() * 99)); const [streak, setStreak] = useState(0); const [icon] = useState(() => pick(t.items)[0]);
   const guess = (up) => {
     let next = 1 + Math.floor(Math.random() * 99); while (next === cur) next = 1 + Math.floor(Math.random() * 99);
-    if ((next > cur) === up) { run.ping('good'); setStreak((s) => { if (s + 1 >= goal) run.finish(goal); return s + 1; }); } else { run.ping('bad'); setStreak(0); }
+    if ((next > cur) === up) { run.ping('good'); setStreak((s) => { if (s + 1 >= goal) run.finish(goal); return s + 1; }); } else { run.ping('bad'); setStreak((s) => Math.max(0, s - 1)); }
     setCur(next);
   };
   return <Stage theme={theme} title="Higher or Lower" flash={run.flash} stats={[['Streak', `${streak}/${goal}`]]}>
@@ -103,16 +102,18 @@ export function StackTower({ theme, config, onComplete }) {
 export function DodgeRunner({ theme, config, onComplete }) {
   const t = ARCADE_THEMES[theme]; const level = levelOf(config); const goal = scale(level, 10, 25);
   const run = useRun(onComplete); const [lane, setLane] = useState(1); const [obs, setObs] = useState([]); const [dodged, setDodged] = useState(0); const [runner] = useState(() => pick(t.items)[0]);
-  const laneRef = useRef(1); laneRef.current = lane;
+  const laneRef = useRef(1); laneRef.current = lane; const obsRef = useRef([]);
   useEffect(() => {
-    const id = setInterval(() => setObs((cur) => {
-      const moved = cur.map((o) => ({ ...o, y: o.y + 1 }));
-      moved.filter((o) => o.y === 5).forEach((o) => { if (o.lane === laneRef.current) run.ping('bad'); else setDodged((d) => { if (d + 1 >= goal) run.finish(goal); return d + 1; }); });
+    const id = setInterval(() => {
+      const moved = obsRef.current.map((o) => ({ ...o, y: o.y + 1 }));
+      let ok = 0; moved.filter((o) => o.y === 5).forEach((o) => { if (o.lane === laneRef.current) run.ping('bad'); else ok += 1; });
       const keep = moved.filter((o) => o.y < 6);
-      return Math.random() < 0.55 ? [...keep, { id: Math.random(), lane: Math.floor(Math.random() * 3), y: 0 }] : keep;
-    }), Math.max(220, 520 - level * 28));
+      obsRef.current = Math.random() < 0.55 ? [...keep, { id: Math.random(), lane: Math.floor(Math.random() * 3), y: 0 }] : keep;
+      setObs(obsRef.current); if (ok) setDodged((d) => d + ok);
+    }, Math.max(220, 520 - level * 28));
     return () => clearInterval(id);
   }, [level]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (dodged >= goal) run.finish(goal); }, [dodged]); // eslint-disable-line react-hooks/exhaustive-deps
   return <Stage theme={theme} title="Dodge Runner" flash={run.flash} stats={[['Dodged', `${dodged}/${goal}`]]}>
     <div className="relative grid h-72 grid-cols-3 overflow-hidden rounded-2xl bg-black/25">
       {obs.map((o) => <span key={o.id} className="absolute text-3xl transition-[top] duration-200" style={{ left: `${o.lane * 33.3 + 12}%`, top: `${o.y * 15}%` }}>{t.bad}</span>)}

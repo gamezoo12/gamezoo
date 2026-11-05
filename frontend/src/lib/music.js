@@ -18,9 +18,9 @@ export function startMusic(world) {
   el = new Audio(`${BASE}world${want}.mp3`); el.loop = true; el.volume = 0; el.setAttribute('playsinline', ''); cur = want;
   el.play().catch(retryOnTap); ramp(VOL);
 }
-export function stopMusic() { want = -1; if (!el) return; const a = el; ramp(0, () => { if (want < 0) a.pause(); }); }
+export function stopMusic() { want = -1; if (!el) return; const a = el; ramp(0, () => { if (want < 0) a.pause(); }); setTimeout(() => { if (want < 0) a.pause(); }, 700); }
 export function setMusicEnabled(on) {
   try { localStorage.setItem(KEY, on ? 'on' : 'off'); } catch { /* storage blocked */ }
   window.dispatchEvent(new Event('pl-game-music-change'));
-  if (!on) { const w = want; stopMusic(); want = w; } else if (want >= 0) startMusic(want);
+  if (!on) { clearInterval(fade); if (el) el.pause(); } else if (want >= 0) startMusic(want);
 }

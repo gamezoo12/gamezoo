@@ -126,7 +126,11 @@ function GlobalPageNavigation() {
   const [hasPageBack, setHasPageBack] = useState(false);
 
   useEffect(() => {
+    if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual';
     window.scrollTo(0, 0);
+    const raf = requestAnimationFrame(() => window.scrollTo(0, 0));
+    const t = setTimeout(() => window.scrollTo(0, 0), 250);
+    return () => { cancelAnimationFrame(raf); clearTimeout(t); };
   }, [location.key]);
 
   useEffect(() => {

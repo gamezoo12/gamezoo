@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Check, Copy, Crown, Share2, Users } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { roomAPI, useRoom } from '../lib/partyRoom';
@@ -48,6 +48,8 @@ function Lobby({ room, code, onStart, starting }) {
 
 export default function PartyRoom() {
   const { code: raw } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const code = (raw || '').toUpperCase();
   const { user, loading } = useAuth() || {};
   const [joinErr, setJoinErr] = useState('');
@@ -80,7 +82,7 @@ export default function PartyRoom() {
   return (
     <div className="min-h-screen bg-slate-950">
       <div className="mx-auto max-w-4xl px-3 py-5 sm:px-6">
-        <Link to={`/games/${room.game_id}`} className="text-sm text-white/60 hover:text-white" data-testid="room-back">← {g.label}</Link>
+        <Link to={`/games/${room.game_id}`} replace onClick={(e) => { if (location.key !== 'default' && location.state?.fromGame) { e.preventDefault(); navigate(-1); } }} className="text-sm text-white/60 hover:text-white" data-testid="room-back">← {g.label}</Link>
         <div className="mt-4">
           {room.status === 'lobby' && <Lobby room={room} code={code} onStart={start} starting={starting} />}
           {room.status !== 'lobby' && online && <div className="relative">{g.render(CONFIG, setResult, online)}

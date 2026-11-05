@@ -40,6 +40,7 @@ export default function GamePreview() {
       .finally(() => setLoading(false));
   }, []);
   useEffect(() => { if (!authLoading) loadProgress(user).then(setProgress); }, [user, authLoading]);
+  useEffect(() => { window.scrollTo({ top: 0, behavior: 'auto' }); }, [stage, gameId]);
 
   const game = useMemo(() => uniqueGames(types).find((g) => g.id === gameId), [types, gameId]);
   const state = levelState(progress, gameId);
@@ -92,7 +93,7 @@ export default function GamePreview() {
                 <span className="inline-flex items-center gap-1 font-bold text-amber-300" data-testid="practice-total-stars"><Star className="h-3.5 w-3.5 fill-amber-400" />{totalStars(state)} stars</span>
               </div>
               {ONLINE_GAMES.includes(gameId) && (
-                <button type="button" onClick={async () => { if (!user) { navigate(`/login?next=/games/${gameId}`); return; } try { const r = await roomAPI.create(gameId); navigate(`/play/${r.code}`); } catch { /* ignore */ } }}
+                <button type="button" onClick={async () => { if (!user) { navigate(`/login?next=/games/${gameId}`); return; } try { const r = await roomAPI.create(gameId); navigate(`/play/${r.code}`, { state: { fromGame: true } }); } catch { /* ignore */ } }}
                   className="mb-4 flex w-full items-center gap-3 rounded-2xl bg-gradient-to-r from-sky-500 to-indigo-600 p-3 text-left shadow-lg transition-transform hover:-translate-y-0.5" data-testid="practice-play-friends">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/20"><Users className="h-5 w-5 text-white" /></span>
                   <span className="min-w-0"><span className="block font-display text-base font-black text-white">Play with friends</span><span className="block text-xs text-white/80">{user ? 'Create a room and send the invite link' : 'Sign in to invite friends to a live game'}</span></span>
