@@ -52,7 +52,7 @@ export default function ReferralPromo() {
               {terms?.enabled && <ul className="mt-5 space-y-2 text-sm text-white/80">
                 <li className="flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center font-bold text-xs">1</span> Share your link</li>
                 <li className="flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center font-bold text-xs">2</span> Friend signs up with your referral code</li>
-                <li className="flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center font-bold text-xs">3</span> Friend tops up {gbpText(terms.qualifying_topup_gbp)}+{terms.contest_entry_required ? ' and enters at least one contest' : ''}</li>
+                <li className="flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center font-bold text-xs">3</span> {Number(terms.qualifying_topup_gbp || 0) === 0 ? 'Friend signs up with your code (no top-up needed)' : `Friend tops up ${gbpText(terms.qualifying_topup_gbp)}+`}{terms.contest_entry_required ? ' and enters at least one contest' : ''}</li>
                 <li className="flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center font-bold text-xs">4</span> You receive {tokensText(terms.referrer_reward_tokens)} 🪙</li>
               </ul>}
             </div>

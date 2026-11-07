@@ -10,7 +10,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Coins, Gamepad2, ListChecks, Trophy, Globe2, ChevronRight, Sparkles, Target, Zap as SpeedIcon } from 'lucide-react';
+import { Coins, Crown, Gamepad2, ListChecks, Trophy, Globe2, ChevronRight, Sparkles, Target, Zap as SpeedIcon } from 'lucide-react';
 import { contestsAPI, gamesAPI, ordersAPI } from '../../lib/api';
 import { tokenCount, tokens as fmtTokens } from '../../lib/format';
 import { useAuth } from '../../context/AuthContext';
@@ -26,7 +26,7 @@ const TABS = [
   { id: 'contests', label: 'Home',       Icon: ListChecks },
   { id: 'free-world', label: 'Free World', Icon: Globe2, href: '/world' },
   { id: 'leaderboard', label: 'Leaderboard', Icon: Trophy },
-  { id: 'games',       label: 'Games',       Icon: Gamepad2 },
+  { id: 'winners',     label: 'Winners',     Icon: Crown, href: '/winners' },
 ];
 
 export default function MobileHome() {

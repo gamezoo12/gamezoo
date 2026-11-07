@@ -272,7 +272,81 @@ async def upload_media(cid: str, request: Request, kind: Literal["cover", "galle
             "caption": caption[:140], "uploaded_at": _now().isoformat()}
     op = {"$set": {"cover": item}} if kind == "cover" else {"$push": {"media": item}}
     await db[PUB].update_one({"contest_id": cid}, {**op, "$setOnInsert": {"contest_id": cid}}, upsert=True)
-    await _audit(db, admin, "media_upload", contest_id=cid, media_id=mid, kind=kind)
+    return {"media": item}
+
+
+# Chunked media upload: large gallery videos are sent in 2 MB pieces so proxy body limits never block them.
+MEDIA_CHUNK = 2 * 1024 * 1024
+EXT_TYPES = {"mp4": "video/mp4", "m4v": "video/x-m4v", "mov": "video/quicktime", "webm": "video/webm", "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp", "gif": "image/gif", "heic": "image/heic"}
+
+
+class ChunkStartIn(BaseModel):
+    kind: Literal["cover", "gallery"]
+    caption: str = ""
+    filename: str = ""
+    content_type: str = ""
+    size: int
+
+
+@admin_router.post("/contests/{cid}/media/chunked/start")
+async def media_chunked_start(cid: str, body: ChunkStartIn, request: Request):
+    await require_super_admin(request)
+    ext = (body.filename or "").rsplit(".", 1)[-1][:5].lower()
+    ctype = (body.content_type or "").split(";")[0].lower() or EXT_TYPES.get(ext, "")
+    if not ctype.startswith(("image/", "video/")):
+        raise HTTPException(status_code=415, detail="Upload an image or a video (MP4, MOV, WebM, JPG, PNG)")
+    if body.kind == "cover" and not ctype.startswith("image/"):
+        raise HTTPException(status_code=415, detail="Cover must be an image")
+    if not 0 < body.size <= MAX_MEDIA:
+        raise HTTPException(status_code=413, detail="File must be under 150 MB")
+    db = get_db()
+    if not await db.contests.find_one({"contest_id": cid, "status": {"$in": COMPLETED}}, {"_id": 1}):
+        raise HTTPException(status_code=404, detail="Only completed Paid World contests accept media")
+    upload_id = uuid.uuid4().hex
+    await db.pw_media_uploads.insert_one({"upload_id": upload_id, "contest_id": cid, "kind": body.kind, "caption": body.caption[:140],
+                                          "ext": ext or ("mp4" if ctype.startswith("video") else "jpg"), "content_type": ctype,
+                                          "size": body.size, "created_at": _now()})
+    return {"upload_id": upload_id, "chunk_size": MEDIA_CHUNK}
+
+
+@admin_router.put("/contests/{cid}/media/chunked/{upload_id}/{index}")
+async def media_chunked_part(cid: str, upload_id: str, index: int, request: Request):
+    from bson import Binary
+    await require_super_admin(request)
+    db = get_db()
+    if not await db.pw_media_uploads.find_one({"upload_id": upload_id, "contest_id": cid}, {"_id": 1}):
+        raise HTTPException(status_code=404, detail="Upload expired. Please try again.")
+    data = await request.body()
+    if not data or len(data) > MEDIA_CHUNK or not 0 <= index < 80:
+        raise HTTPException(status_code=400, detail="Invalid chunk")
+    await db.pw_media_chunks.update_one({"upload_id": upload_id, "index": index}, {"$set": {"data": Binary(data), "created_at": _now()}}, upsert=True)
+    return {"ok": True}
+
+
+@admin_router.post("/contests/{cid}/media/chunked/{upload_id}/complete")
+async def media_chunked_complete(cid: str, upload_id: str, request: Request):
+    admin = await require_super_admin(request)
+    db = get_db()
+    s = await db.pw_media_uploads.find_one({"upload_id": upload_id, "contest_id": cid}, {"_id": 0})
+    if not s:
+        raise HTTPException(status_code=404, detail="Upload expired. Please try again.")
+    try:
+        chunks = await db.pw_media_chunks.find({"upload_id": upload_id}, {"_id": 0}).sort("index", 1).to_list(80)
+        data = b"".join(bytes(c["data"]) for c in chunks)
+        if len(data) != int(s["size"]):
+            raise HTTPException(status_code=400, detail="Upload incomplete. Please try again.")
+        from object_storage import APP_NAME, put_object
+        mid = f"pwm_{uuid.uuid4().hex[:14]}"
+        ctype = s["content_type"]
+        stored = put_object(f"{APP_NAME}/paid-winners/{cid}/{mid}.{s['ext']}", data, ctype)
+    finally:
+        await db.pw_media_chunks.delete_many({"upload_id": upload_id})
+        await db.pw_media_uploads.delete_one({"upload_id": upload_id})
+    item = {"media_id": mid, "path": stored["path"], "content_type": ctype, "type": "video" if ctype.startswith("video") else "image",
+            "caption": s["caption"], "uploaded_at": _now().isoformat()}
+    op = {"$set": {"cover": item}} if s["kind"] == "cover" else {"$push": {"media": item}}
+    await db[PUB].update_one({"contest_id": cid}, {**op, "$setOnInsert": {"contest_id": cid}}, upsert=True)
+    await _audit(db, admin, "media_upload", contest_id=cid, media_id=mid, kind=s["kind"])
     return {"media": item}
 
 

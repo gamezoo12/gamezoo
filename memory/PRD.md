@@ -764,3 +764,8 @@ Root causes fixed:
 ## Backlog
 - P1: Remaining party games in batches toward 100 total (user wants at least 100), each with world themes, bot banter and clocks.
 - P2: Daily challenge level; online multiplayer with real friends.
+
+## 2026-06 — Hall of Winners
+- Paid-leagues mobile tab bar: "Games" tab replaced with "Winners" (Crown icon) linking to /winners
+- /winners is now a public "Hall of Winners" page (pages/HallOfWinners.jsx wrapping components/winners/WinnersHall.jsx), no login needed
+- Pending: full regression test of contest auto-close, bonus-token draws, chunked video uploads, admin level edits (user opted to skip for now)

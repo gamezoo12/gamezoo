@@ -285,6 +285,19 @@ async def _complete_referral_if_eligible(db, referred_user_id: str) -> bool:
         raise
 
 
+async def qualify_zero_topup_referral(db, user_id: str) -> None:
+    """A £0 referral threshold means no top-up is needed: mark the top-up step met right away."""
+    referral = await db.referrals.find_one({'referred_user_id': user_id, 'status': 'pending', 'topup_qualified': {'$ne': True}}, {'_id': 0})
+    if not referral:
+        return
+    terms = referral.get('offer_terms') or referral_terms(await get_reward_settings(db))
+    if float(terms.get('qualifying_topup_gbp') or 0) != 0:
+        return
+    await db.referrals.update_one({'referral_id': referral['referral_id'], 'topup_qualified': {'$ne': True}},
+                                  {'$set': {'topup_qualified': True, 'topup_qualified_at': datetime.now(timezone.utc), 'topup_amount_gbp': 0.0}})
+    await _complete_referral_if_eligible(db, user_id)
+
+
 async def grant_zero_threshold_signup_bonus(db, user_id: str) -> bool:
     user = await db.users.find_one(
         {'user_id': user_id, 'signup_bonus_offer_eligible': True, 'signup_bonus_granted': {'$ne': True}},

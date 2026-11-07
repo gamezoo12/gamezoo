@@ -1367,6 +1367,8 @@ async def all_contests(request: Request):
     await require_admin(request)
     from deps import get_db
     db = get_db()
+    from services.contest_lifecycle import close_expired_contests
+    await close_expired_contests(db)
     rows = await db.contests.find({}, {'_id': 0}).sort('end_date', 1).to_list(500)
     ids = [c['contest_id'] for c in rows]
     studio_done = set(await db.draw_studio_plans.distinct('contest_id', {'contest_id': {'$in': ids}, 'status': 'completed'}))

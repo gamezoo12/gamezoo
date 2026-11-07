@@ -319,6 +319,8 @@ async def register(inp: RegisterInput, request: Request):
             **await referral_enrollment(db),
         )
         await db.referrals.insert_one(r.model_dump())
+        from routers.referral_routes import qualify_zero_topup_referral
+        await qualify_zero_topup_referral(db, r.referred_user_id)
 
         # Promotion programme is independent from the token referral
         # programme. A successful referred signup automatically receives its
@@ -829,6 +831,8 @@ async def _apply_google_personal_referral(db, user_id: str, referral_code: str) 
                 **await referral_enrollment(db),
             )
             await db.referrals.insert_one(referral.model_dump())
+            from routers.referral_routes import qualify_zero_topup_referral
+            await qualify_zero_topup_referral(db, referral.referred_user_id)
             await db.users.update_one(
                 {'user_id': user_id},
                 {'$set': {

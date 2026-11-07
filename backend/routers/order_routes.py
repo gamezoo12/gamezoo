@@ -1,3 +1,4 @@
+from services.contest_lifecycle import is_expired
 from fastapi import APIRouter, HTTPException, Request
 from datetime import datetime, timezone, timedelta
 
@@ -102,8 +103,8 @@ async def checkout(inp: CheckoutInput, request: Request):
             c = await db.contests.find_one({'contest_id': item.contest_id}, {'_id': 0})
             if not c:
                 raise HTTPException(status_code=404, detail=f'Contest not found: {item.contest_id}')
-            if c.get('status') != 'live':
-                raise HTTPException(status_code=400, detail=f'Contest closed: {c["title"]}')
+            if c.get('status') != 'live' or is_expired(c):
+                raise HTTPException(status_code=400, detail=f'Contest closed: {c["title"]} has ended and is awaiting its draw')
             _validate_skill(c, item)
             if item.qty <= 0 or item.qty > 500:
                 raise HTTPException(status_code=400, detail='Invalid quantity')

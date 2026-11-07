@@ -125,7 +125,8 @@ def signup_conditions_text(terms: dict) -> str:
 
 
 def referral_conditions_text(terms: dict) -> str:
-    steps = [f"signs up with your code, tops up {money(terms['qualifying_topup_gbp'])} or more in one verified payment"]
+    steps = ["signs up with your code" if _num(terms['qualifying_topup_gbp']) == 0 else
+             f"signs up with your code, tops up {money(terms['qualifying_topup_gbp'])} or more in one verified payment"]
     if terms.get('contest_entry_required'):
         steps.append('enters at least one contest')
     text = f"You earn {tokens_text(terms['referrer_reward_tokens'])} when your friend " + ' and '.join(steps) + '.'
@@ -154,12 +155,12 @@ def public_offer(settings: dict) -> dict:
 def referral_progress(ref: dict, settings: dict) -> dict:
     """Per-referral state and the exact condition still pending, from the terms that apply to it."""
     terms = ref.get('offer_terms') or referral_terms(settings)
-    topup_met = bool(ref.get('topup_qualified'))
+    topup_met = bool(ref.get('topup_qualified')) or _num(terms.get('qualifying_topup_gbp')) == 0
     needs_contest = bool(terms.get('contest_entry_required'))
     contest_met = bool(ref.get('contest_entered'))
     conditions = [{
         'key': 'topup', 'met': topup_met, 'required_gbp': terms['qualifying_topup_gbp'],
-        'label': f"Top-up of {money(terms['qualifying_topup_gbp'])} or more in one verified payment",
+        'label': ("No top-up needed" if _num(terms['qualifying_topup_gbp']) == 0 else f"Top-up of {money(terms['qualifying_topup_gbp'])} or more in one verified payment"),
     }]
     if needs_contest:
         conditions.append({'key': 'contest_entry', 'met': contest_met, 'label': 'Enter at least one contest'})

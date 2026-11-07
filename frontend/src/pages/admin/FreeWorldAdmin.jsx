@@ -384,7 +384,6 @@ export default function FreeWorldAdmin() {
       const res = await worldAdminAPI.editUserProgress(selectedUser.user_id, {
         current_level: edit.current_level,
         highest_unlocked_level: edit.highest_unlocked_level,
-        champion_stage: edit.champion_stage,
         champion_ready: edit.champion_ready,
         completed_levels: edit.completed_levels,
         reason: editReason.trim() || undefined,

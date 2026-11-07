@@ -134,8 +134,8 @@ export default function CompetitionCard({ c }) {
             >
               <Clock className="h-4 w-4 shrink-0" />
               <span className="truncate">
-                {ended
-                  ? 'Ended'
+                {ended || c.status === 'closed'
+                  ? 'Draw coming soon'
                   : `${t.days}d ${String(t.hours).padStart(2, '0')}h ${String(
                       t.mins
                     ).padStart(2, '0')}m`}

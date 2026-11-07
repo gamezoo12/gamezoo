@@ -114,7 +114,7 @@ export default function CompetitionsAdmin() {
               <div className="flex gap-3 p-3">
                 <img src={c.image} alt="" className="w-20 h-20 rounded-lg object-cover" />
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2"><span data-testid={`contest-phase-${c.contest_id}`} className={`text-[10px] uppercase px-2 py-0.5 rounded-full ${colors[phaseOf(c)] || colors.draft}`}>{PHASE_LABEL[phaseOf(c)] || c.status}</span><span className="text-xs text-slate-500">{c.category}</span></div>
+                  <div className="flex items-center gap-2"><span data-testid={`contest-phase-${c.contest_id}`} className={`text-[10px] uppercase px-2 py-0.5 rounded-full ${colors[phaseOf(c)] || colors.draft}`}>{PHASE_LABEL[phaseOf(c)] || c.status}{c.winners_published ? ' · Winners published' : ''}</span><span className="text-xs text-slate-500">{c.category}</span></div>
                   <div className="font-semibold text-slate-900 line-clamp-2 mt-1">{c.title}</div>
                   <div className="text-xs text-slate-500 mt-1">Prize {Number(c.prize_amount || 0) > 0 ? gbp(c.prize_amount) : ''}{Number(c.prize_bonus_tokens || 0) > 0 ? `${Number(c.prize_amount || 0) > 0 ? ' + ' : ''}${Number(c.prize_bonus_tokens).toLocaleString()} Winning Bonus Tokens` : ''} • {c.tickets_sold || 0}/{c.tickets_total} • {gbp(c.price)}/entry</div>
                   <div className="text-xs text-slate-400 mt-0.5">Ends {new Date(c.end_date).toLocaleDateString('en-GB')}</div>

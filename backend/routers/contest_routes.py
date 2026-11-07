@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
+from services.contest_lifecycle import close_expired_contests, is_expired
 from skill_challenge import build_challenge, verify_challenge
 
 router = APIRouter(prefix='/api/contests', tags=['contests'])
@@ -75,9 +76,11 @@ def _to_public(c: dict) -> dict:
 async def list_contests(category: Optional[str] = None, q: Optional[str] = Query(None), limit: int = 100):
     from deps import get_db
     db = get_db()
+    await close_expired_contests(db)
     query = {
         '$or': [
             {'status': 'live'},
+            {'status': 'closed'},
             {
                 'status': 'draft',
                 'public_coming_soon': True,
@@ -100,6 +103,9 @@ async def get_contest(slug: str):
     doc = await db.contests.find_one({'slug': slug}, {'_id': 0})
     if not doc:
         raise HTTPException(status_code=404, detail='Contest not found')
+    if doc.get('status') == 'live' and is_expired(doc):
+        await close_expired_contests(db)
+        doc['status'] = 'closed'
     return _to_public(doc)
 
 

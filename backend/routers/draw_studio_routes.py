@@ -23,6 +23,7 @@ from pymongo.errors import DuplicateKeyError
 
 from auth import require_super_admin
 from deps import get_db
+from services.contest_lifecycle import close_expired_contests, prize_value
 
 router = APIRouter(prefix="/api/admin/draw-studio", tags=["draw-studio"])
 
@@ -76,9 +77,11 @@ async def _promotion(db, pid: str) -> Optional[dict]:
 
 
 async def _contest(db, cid: str) -> dict:
-    c = await db.contests.find_one({"contest_id": cid}, {"_id": 0, "contest_id": 1, "title": 1, "prize_amount": 1, "status": 1})
+    await close_expired_contests(db)
+    c = await db.contests.find_one({"contest_id": cid}, {"_id": 0, "contest_id": 1, "title": 1, "prize_amount": 1,
+                                                          "prize_bonus_tokens": 1, "status": 1})
     if c:
-        return {**c, "kind": "paid_world"}
+        return {**c, "prize_amount": prize_value(c), "kind": "paid_world"}
     p = await _promotion(db, cid)
     if not p:
         raise HTTPException(status_code=404, detail="Contest not found")
@@ -182,7 +185,7 @@ async def _validate(db, contest: dict, rounds: list[dict], pool_size: int):
     budget = _budget(rounds)
     published = round(float(contest.get("prize_amount") or 0), 2)
     if budget > published:
-        raise HTTPException(status_code=422, detail=f"Total prizes £{budget:.2f} exceed the contest's published prize £{published:.2f}")
+        raise HTTPException(status_code=422, detail=f"Total prizes {budget:.2f} exceed the contest's published prize value {published:.2f} (cash + bonus tokens)")
     used = 0
     for i, r in enumerate(rounds):
         available = pool_size - (0 if r["allow_previous_winners"] else used)
@@ -203,8 +206,11 @@ def _public_plan(plan: dict) -> dict:
 async def list_contests(request: Request):
     await require_super_admin(request)
     db = get_db()
-    contests = await db.contests.find({}, {"_id": 0, "contest_id": 1, "title": 1, "prize_amount": 1, "status": 1,
+    await close_expired_contests(db)
+    contests = await db.contests.find({}, {"_id": 0, "contest_id": 1, "title": 1, "prize_amount": 1, "prize_bonus_tokens": 1, "status": 1,
                                            "tickets_sold": 1, "tickets_total": 1, "end_date": 1}).sort("created_at", -1).to_list(500)
+    for c in contests:
+        c["prize_amount"] = prize_value(c)
     counts = {r["_id"]: r["n"] async for r in db.tickets.aggregate([
         {"$match": {"refunded": {"$ne": True}, "disqualified": {"$ne": True}}},
         {"$group": {"_id": "$contest_id", "n": {"$sum": 1}}}])}
@@ -427,6 +433,7 @@ async def publish_hall(plan_id: str, request: Request):
     await db[PUB].update_one({"contest_id": cid}, {"$set": {**settings, "updated_at": _now(), "updated_by": admin.get("email")},
                                                    "$setOnInsert": {"display_order": 100}}, upsert=True)
     await pub_audit(db, admin, "publication", contest_id=cid, settings=settings)
+    await db.contests.update_one({"contest_id": cid}, {"$set": {"winners_published": True, "winners_published_at": _now()}})
     sent = await _shout_out(db, cid)
     return {"ok": True, "shoutouts_sent": sent}
 
@@ -487,7 +494,7 @@ async def announce_round(plan_id: str, round_index: int, request: Request):
     plan = await db[PLANS].find_one({"plan_id": plan_id}, {"_id": 0, "rounds": 1, "contest_title": 1})
     cfg = plan["rounds"][round_index]
     names = ", ".join(f"#{w['ticket_number']} {w['display_name']}" for w in result["winners"])
-    text = (cfg.get("announcement_text") or f"{cfg['name']} winner{'s' if len(result['winners']) > 1 else ''}: {{winners}} — £{cfg['prize_amount']:.2f}")
+    text = (cfg.get("announcement_text") or f"{cfg['name']} winner{'s' if len(result['winners']) > 1 else ''}: {{winners}} — " + (f"{cfg['prize_amount']:g} bonus tokens" if cfg.get('reward_type') == 'bonus' else f"£{cfg['prize_amount']:.2f}"))
     text = text.replace("{winners}", names)[:300]
     from routers.announcement_routes import AnnouncementIn, create_announcement
 

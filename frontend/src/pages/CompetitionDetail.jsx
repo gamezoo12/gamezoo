@@ -85,6 +85,7 @@ export default function CompetitionDetail() {
       c?.status === 'draft' &&
       String(c?.tag || '').trim().toLowerCase() === 'coming soon'
     );
+  const isClosed = !isComingSoon && !!c && (['closed', 'drawn', 'archived'].includes(c.status) || (c.end_date && new Date(c.end_date) <= new Date()));
 
   if (!c) return <div className="max-w-7xl mx-auto p-10 text-slate-500">Loading contest...</div>;
 
@@ -207,7 +208,14 @@ export default function CompetitionDetail() {
             <Progress value={status.pct} className="h-2" />
           </div>
 
-          {isComingSoon ? (
+          {isClosed ? (
+            <div className="mt-6 rounded-2xl border-2 border-amber-300 bg-amber-50 p-6 md:p-8 text-center" data-testid="awaiting-draw-lock">
+              <div className="inline-flex items-center rounded-full bg-amber-500 px-4 py-1.5 text-xs font-extrabold uppercase tracking-wider text-white">{c.status === 'drawn' ? 'Completed' : 'Entries closed'}</div>
+              <h2 className="mt-4 font-display text-2xl font-extrabold text-slate-900">{c.status === 'drawn' ? 'Winners have been drawn' : 'Draw coming soon'}</h2>
+              <p className="mx-auto mt-2 max-w-lg text-sm leading-relaxed text-slate-600">{c.status === 'drawn' ? 'See who won in the Hall of Winners.' : 'This contest has ended and no new entries are accepted. The live draw will take place shortly.'}</p>
+              <Link to="/winners" className="mt-4 inline-flex rounded-full bg-[#6C2BFF] px-5 py-2 text-sm font-bold text-white" data-testid="awaiting-draw-winners-link">Hall of Winners</Link>
+            </div>
+          ) : isComingSoon ? (
             <div
               className="mt-6 rounded-2xl border-2 border-[#6C2BFF]/20 bg-[#6C2BFF]/5 p-6 md:p-8 text-center"
               data-testid="coming-soon-detail-lock"
