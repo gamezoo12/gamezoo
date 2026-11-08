@@ -777,3 +777,8 @@ Root causes fixed:
 - Draw Studio: completed contests labelled [COMPLETED]; new plans/locks blocked while published or already drawn
 - New POST /api/admin/draw-studio/plans/{id}/void (confirmation "VOID DRAW"): only when winners unpublished and nothing credited; voids winners, contest back to 'closed' so it can be redrawn. UI button "Void & redraw" (data-testid draw-void)
 - /api/contests skips docs without slug (preview test data caused 500)
+
+## 2026-06 — Hall of Winners gallery: posts + Draw Studio controls
+- Gallery posts (headline, message, optional photo): POST /api/admin/paid-winners/contests/{cid}/posts; photo posts via chunked upload kind="post" (title/body in start body). Stored in paid_winner_publication.media with type "post"; public gallery renders post cards (Details.jsx PostCard)
+- Draw Studio shows a "Hall of Winners gallery" section (reuses PaidWinnersPublishing with contestId prop) for drawn Paid World contests: upload video/photo, add posts, reorder, delete
+- Upload on preview verified OK (5 MB chunked video). Production upload error RCA requested from deployer — pending

@@ -284,8 +284,10 @@ EXT_TYPES = {"mp4": "video/mp4", "m4v": "video/x-m4v", "mov": "video/quicktime",
 
 
 class ChunkStartIn(BaseModel):
-    kind: Literal["cover", "gallery"]
+    kind: Literal["cover", "gallery", "post"]
     caption: str = ""
+    title: str = ""
+    body: str = ""
     filename: str = ""
     content_type: str = ""
     size: int
@@ -298,8 +300,10 @@ async def media_chunked_start(cid: str, body: ChunkStartIn, request: Request):
     ctype = (body.content_type or "").split(";")[0].lower() or EXT_TYPES.get(ext, "")
     if not ctype.startswith(("image/", "video/")):
         raise HTTPException(status_code=415, detail="Upload an image or a video (MP4, MOV, WebM, JPG, PNG)")
-    if body.kind == "cover" and not ctype.startswith("image/"):
-        raise HTTPException(status_code=415, detail="Cover must be an image")
+    if body.kind in ("cover", "post") and not ctype.startswith("image/"):
+        raise HTTPException(status_code=415, detail="Cover and post pictures must be images")
+    if body.kind == "post" and not body.title.strip():
+        raise HTTPException(status_code=400, detail="Add a headline for the post")
     if not 0 < body.size <= MAX_MEDIA:
         raise HTTPException(status_code=413, detail="File must be under 150 MB")
     db = get_db()
@@ -307,6 +311,7 @@ async def media_chunked_start(cid: str, body: ChunkStartIn, request: Request):
         raise HTTPException(status_code=404, detail="Only completed Paid World contests accept media")
     upload_id = uuid.uuid4().hex
     await db.pw_media_uploads.insert_one({"upload_id": upload_id, "contest_id": cid, "kind": body.kind, "caption": body.caption[:140],
+                                          "title": body.title.strip()[:120], "body": body.body.strip()[:2000],
                                           "ext": ext or ("mp4" if ctype.startswith("video") else "jpg"), "content_type": ctype,
                                           "size": body.size, "created_at": _now()})
     return {"upload_id": upload_id, "chunk_size": MEDIA_CHUNK}
@@ -347,9 +352,29 @@ async def media_chunked_complete(cid: str, upload_id: str, request: Request):
         await db.pw_media_uploads.delete_one({"upload_id": upload_id})
     item = {"media_id": mid, "path": stored["path"], "content_type": ctype, "type": "video" if ctype.startswith("video") else "image",
             "caption": s["caption"], "uploaded_at": _now().isoformat()}
+    if s["kind"] == "post":
+        item.update({"type": "post", "title": s.get("title", ""), "body": s.get("body", "")})
     op = {"$set": {"cover": item}} if s["kind"] == "cover" else {"$push": {"media": item}}
     await db[PUB].update_one({"contest_id": cid}, {**op, "$setOnInsert": {"contest_id": cid}}, upsert=True)
     await _audit(db, admin, "media_upload", contest_id=cid, media_id=mid, kind=s["kind"])
+    return {"media": item}
+
+
+class PostIn(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
+    body: str = Field(default="", max_length=2000)
+
+
+@admin_router.post("/contests/{cid}/posts")
+async def create_post(cid: str, body: PostIn, request: Request):
+    admin = await require_super_admin(request)
+    db = get_db()
+    if not await db.contests.find_one({"contest_id": cid, "status": {"$in": COMPLETED}}, {"_id": 1}):
+        raise HTTPException(status_code=404, detail="Only completed Paid World contests accept posts")
+    item = {"media_id": f"pwp_{uuid.uuid4().hex[:14]}", "type": "post", "title": body.title.strip(), "body": body.body.strip(),
+            "caption": "", "uploaded_at": _now().isoformat()}
+    await db[PUB].update_one({"contest_id": cid}, {"$push": {"media": item}, "$setOnInsert": {"contest_id": cid}}, upsert=True)
+    await _audit(db, admin, "post_create", contest_id=cid, media_id=item["media_id"])
     return {"media": item}
 
 
@@ -459,7 +484,9 @@ async def public_gallery(cid: str):
         m = {k: v for k, v in m.items() if k == "round_index" or v not in hidden}
         if m.get("clip") or m.get("screenshot"):
             clips.append(m)
-    return {"contest": _card(c), "media": [{k: m[k] for k in ("media_id", "type", "caption", "content_type")} for m in c["publication"]["media"]],
+    return {"contest": _card(c), "media": [{"media_id": m["media_id"], "type": m["type"], "caption": m.get("caption", ""), "content_type": m.get("content_type"),
+                                                    "title": m.get("title"), "body": m.get("body"), "has_image": bool(m.get("path"))}
+                                                   for m in c["publication"]["media"]],
             "round_media": clips}
 
 
@@ -483,7 +510,7 @@ async def _media_response(db, cid: str, mid: str, public: bool, request: Request
     cover = p.get("cover") or {}
     item = cover if cover.get("media_id") == mid else next((m for m in p.get("media", []) if m.get("media_id") == mid), None)
     allowed = (p.get("show_winners") or p.get("show_gallery") or p.get("show_leaderboard")) if item is cover else p.get("show_gallery")
-    if not item or (public and not allowed):
+    if not item or not item.get("path") or (public and not allowed):
         raise HTTPException(status_code=404, detail="Media not found")
     from object_storage import get_object
     data, _ = get_object(item["path"])

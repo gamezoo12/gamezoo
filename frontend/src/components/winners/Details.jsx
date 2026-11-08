@@ -75,18 +75,32 @@ function Tile({ item, onOpen, testid }) {
   );
 }
 
+function PostCard({ cid, post }) {
+  return (
+    <article className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]" data-testid={`pw-post-${post.media_id}`}>
+      {post.has_image && <img src={paidWinnersAPI.mediaUrl(cid, post.media_id)} alt="" className="aspect-video w-full object-cover" loading="lazy" />}
+      <div className="p-4">
+        <h3 className="font-display text-base font-bold text-white">{post.title}</h3>
+        {post.body && <p className="mt-2 whitespace-pre-line text-sm text-indigo-100/80">{post.body}</p>}
+      </div>
+    </article>
+  );
+}
+
 export function GalleryDetail({ cid }) {
   const d = useData(paidWinnersAPI.gallery, cid);
   const [open, setOpen] = useState(null);
   if (!d) return <Loading />;
+  const posts = d.error ? [] : d.media.filter((m) => m.type === 'post');
   const items = d.error ? [] : [
-    ...d.media.map((m) => ({ key: m.media_id, type: m.type, caption: m.caption, src: paidWinnersAPI.mediaUrl(cid, m.media_id) })),
+    ...d.media.filter((m) => m.type !== 'post').map((m) => ({ key: m.media_id, type: m.type, caption: m.caption, src: paidWinnersAPI.mediaUrl(cid, m.media_id) })),
     ...d.round_media.flatMap((r) => [['clip', 'video', 'winner reveal'], ['screenshot', 'image', 'winner screen']].filter(([k]) => r[k])
       .map(([k, type, label]) => ({ key: r[k], type, caption: `Round ${r.round_index + 1} · ${label}`, src: paidWinnersAPI.roundMediaUrl(cid, r[k]) }))),
   ];
-  if (!items.length) return <Empty text="No draw media has been published for this contest yet." />;
+  if (!items.length && !posts.length) return <Empty text="No draw media has been published for this contest yet." />;
   return (
     <>
+      {posts.length > 0 && <div className="mb-5 grid items-start gap-4 sm:grid-cols-2" data-testid="pw-posts">{posts.map((p) => <PostCard key={p.media_id} cid={cid} post={p} />)}</div>}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="pw-gallery">
         {items.map((it) => <Tile key={it.key} item={it} onOpen={setOpen} testid={`pw-media-${it.key}`} />)}
       </div>

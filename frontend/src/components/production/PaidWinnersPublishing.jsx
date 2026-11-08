@@ -34,11 +34,11 @@ function ContestPublish({ c, run }) {
   );
 }
 
-export default function PaidWinnersPublishing() {
+export default function PaidWinnersPublishing({ contestId }) {
   const [rows, setRows] = useState(null);
   const [msg, setMsg] = useState(['', '']);
   const [progress, setProgress] = useState(0);
-  const load = useCallback(() => paidWinnersAPI.contests().then((r) => setRows(r.contests)).catch((e) => setMsg([errText(e), ''])), []);
+  const load = useCallback(() => paidWinnersAPI.contests().then((r) => setRows(contestId ? r.contests.filter((c) => c.contest_id === contestId) : r.contests)).catch((e) => setMsg([errText(e), ''])), [contestId]);
   useEffect(() => { load(); }, [load]);
   const run = async (fn, ok) => {
     setMsg(['', '']); setProgress(0);
@@ -46,12 +46,12 @@ export default function PaidWinnersPublishing() {
   };
   return (
     <div className="mt-6 space-y-4" data-testid="paid-winners-publishing">
-      <p className="flex items-center gap-2 text-sm text-indigo-200/70"><Globe2 className="h-4 w-4 text-amber-300" />Completed Paid World contests stay hidden on the public Winners page until you switch a tab on. Only approved winners are ever shown, with first name and last initial only.</p>
+      {!contestId && <p className="flex items-center gap-2 text-sm text-indigo-200/70"><Globe2 className="h-4 w-4 text-amber-300" />Completed Paid World contests stay hidden on the public Winners page until you switch a tab on. Only approved winners are ever shown, with first name and last initial only.</p>}
       {progress > 0 && <div className="h-1.5 overflow-hidden rounded-full bg-white/10" data-testid="publish-upload-progress"><div className="h-full bg-amber-400 transition-[width]" style={{ width: `${Math.round(progress * 100)}%` }} /></div>}
       {msg[0] && <div role="alert" className="rounded-xl border border-rose-400/40 bg-rose-500/10 p-3 text-sm text-rose-200" data-testid="publish-error">{msg[0]}</div>}
       {msg[1] && <div role="status" className="rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-3 text-sm text-emerald-200" data-testid="publish-notice">{msg[1]}</div>}
       {rows?.map((c) => <ContestPublish key={c.contest_id} c={c} run={run} />)}
-      {rows && !rows.length && <p className="py-14 text-center text-sm text-indigo-200/60" data-testid="publish-empty">No completed Paid World contests yet.</p>}
+      {rows && !rows.length && <p className="py-14 text-center text-sm text-indigo-200/60" data-testid="publish-empty">{contestId ? 'The Hall of Winners gallery opens once this contest has been drawn.' : 'No completed Paid World contests yet.'}</p>}
     </div>
   );
 }

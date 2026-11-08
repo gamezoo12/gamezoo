@@ -632,9 +632,9 @@ export const paidWinnersAPI = {
   reject: (id) => api.post(`/admin/paid-winners/winners/${id}/reject`).then(r => r.data),
   contests: () => api.get('/admin/paid-winners/contests').then(r => r.data),
   setPublication: (cid, body) => api.put(`/admin/paid-winners/contests/${cid}/publication`, body).then(r => r.data),
-  upload: async (cid, kind, file, caption = '', onProgress) => {
+  upload: async (cid, kind, file, caption = '', onProgress, extra = {}) => {
     const base = `/admin/paid-winners/contests/${cid}/media/chunked`;
-    const { upload_id: id, chunk_size: size } = (await api.post(`${base}/start`, { kind, caption, filename: file.name || '', content_type: file.type || '', size: file.size })).data;
+    const { upload_id: id, chunk_size: size } = (await api.post(`${base}/start`, { kind, caption, filename: file.name || '', content_type: file.type || '', size: file.size, ...extra })).data;
     const n = Math.ceil(file.size / size);
     for (let i = 0; i < n; i += 1) {
       const part = file.slice(i * size, Math.min(file.size, (i + 1) * size));
@@ -644,6 +644,7 @@ export const paidWinnersAPI = {
     }
     return (await api.post(`${base}/${id}/complete`)).data;
   },
+  createPost: (cid, body) => api.post(`/admin/paid-winners/contests/${cid}/posts`, body).then(r => r.data),
   reorder: (cid, ids) => api.put(`/admin/paid-winners/contests/${cid}/media/order`, { media_ids: ids }).then(r => r.data),
   removeMedia: (cid, mid) => api.delete(`/admin/paid-winners/contests/${cid}/media/${mid}`).then(r => r.data),
   setRoundMediaVisible: (cid, rid, visible) => api.put(`/admin/paid-winners/contests/${cid}/round-media/${rid}/visibility`, { visible }).then(r => r.data),

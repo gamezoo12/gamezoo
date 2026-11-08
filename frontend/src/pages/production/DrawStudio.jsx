@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import PaidWinnersPublishing from '../../components/production/PaidWinnersPublishing';
 import { Lock, PlayCircle, RotateCcw, Save, ShieldCheck, Sparkles, Ticket, Trophy, Volume2 } from 'lucide-react';
 import { drawStudioAPI } from '../../lib/api';
 import { DrawAudio, SOUND_SLOTS } from '../../components/drawstudio/drawAudio';
@@ -129,6 +130,7 @@ export default function DrawStudio() {
               <HallPublishButton key={`${plan?.plan_id}-${plan?.announcement_id}-${plan?.hall_published}`} plan={plan} className={`${pill} border border-emerald-300/60 text-emerald-200`} onDone={() => setNotice('Published to the Hall of Winners.')} onError={setError} />
             </div>
           </section>}
+          {pool && pool.contest?.kind !== 'promotion' && <section className={card} data-testid="draw-hall-gallery"><h2 className="text-lg font-black">Hall of Winners gallery</h2><p className="mt-1 text-xs text-indigo-200/60">Upload videos, photos and posts, or remove them, for this contest's public gallery.</p><PaidWinnersPublishing key={`${contestId}-${plan?.status}`} contestId={contestId} /></section>}
           <ResultsPanel results={results} rounds={rounds} busy={busy} onReport={report} onReplay={(i) => setShow({ mode: 'replay', round: i })} />
         </div>
         {pool && <aside className="space-y-6"><FlowPanel rounds={rounds} /></aside>}

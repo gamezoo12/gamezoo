@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowDown, ArrowUp, Eye, EyeOff, Film, ImagePlus, Trash2, Upload } from 'lucide-react';
+import { ArrowDown, ArrowUp, Eye, EyeOff, Film, ImagePlus, Newspaper, Trash2, Upload, X } from 'lucide-react';
 import { drawStudioAPI, paidWinnersAPI } from '../../lib/api';
 import { useBlobUrl } from './useBlobUrl';
 
@@ -9,6 +9,27 @@ function Thumb({ cid, item }) {
   const url = useBlobUrl(() => paidWinnersAPI.adminMediaBlob(cid, item.media_id), item.media_id);
   if (!url) return <div className="h-16 w-24 animate-pulse rounded-lg bg-white/10" />;
   return item.type === 'video' ? <video src={url} className="h-16 w-24 rounded-lg object-cover" muted /> : <img src={url} alt="" className="h-16 w-24 rounded-lg object-cover" />;
+}
+
+function PostForm({ c, run }) {
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [file, setFile] = useState(null);
+  const field = 'w-full rounded-lg border border-white/15 bg-[#0b0724] px-3 text-xs';
+  const submit = () => run((p) => (file ? paidWinnersAPI.upload(c.contest_id, 'post', file, '', p, { title, body }) : paidWinnersAPI.createPost(c.contest_id, { title, body })), 'Post added to the gallery.')
+    .then(() => { setTitle(''); setBody(''); setFile(null); });
+  return (
+    <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-3" data-testid={`publish-post-form-${c.contest_id}`}>
+      <div className="flex items-center gap-1.5 text-xs font-black"><Newspaper className="h-3.5 w-3.5 text-amber-300" />New post</div>
+      <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} placeholder="Headline" className={`${field} h-8`} data-testid={`publish-post-title-${c.contest_id}`} />
+      <textarea value={body} onChange={(e) => setBody(e.target.value)} maxLength={2000} rows={3} placeholder="Message (optional)" className={`${field} py-2`} data-testid={`publish-post-body-${c.contest_id}`} />
+      <div className="flex flex-wrap items-center gap-2">
+        {file ? <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1.5 text-xs" data-testid={`publish-post-file-${c.contest_id}`}>{file.name}<button type="button" onClick={() => setFile(null)} aria-label="Remove photo"><X className="h-3 w-3" /></button></span>
+          : <UploadButton label="Add photo (optional)" accept="image/*" icon={ImagePlus} testid={`publish-post-photo-${c.contest_id}`} onFile={setFile} />}
+        <button type="button" disabled={!title.trim()} onClick={submit} className="rounded-full bg-amber-400 px-4 py-1.5 text-xs font-black text-[#1a1033] disabled:opacity-40" data-testid={`publish-post-submit-${c.contest_id}`}>Publish post</button>
+      </div>
+    </div>
+  );
 }
 
 function RoundThumb({ rid, kind }) {
@@ -47,10 +68,11 @@ export function GalleryMedia({ c, run }) {
         <input value={caption} onChange={(e) => setCaption(e.target.value)} maxLength={140} placeholder="Caption (optional)" className="h-8 flex-1 rounded-lg border border-white/15 bg-[#0b0724] px-3 text-xs" data-testid={`publish-caption-${c.contest_id}`} />
         <UploadButton label="Add image / video" accept="image/*,video/*" icon={Film} testid={`publish-media-upload-${c.contest_id}`} onFile={(f) => run((p) => paidWinnersAPI.upload(c.contest_id, 'gallery', f, caption, p), 'Media added to the gallery.').then(() => setCaption(''))} />
       </div>
+      <PostForm c={c} run={run} />
       {media.map((m, i) => (
         <div key={m.media_id} className="flex items-center gap-3 rounded-xl bg-white/[0.04] p-2" data-testid={`publish-media-${m.media_id}`}>
-          <Thumb cid={c.contest_id} item={m} />
-          <div className="min-w-0 flex-1 text-xs"><div className="font-bold capitalize">{i + 1}. {m.type}</div><div className="truncate text-white/50">{m.caption || 'No caption'}</div></div>
+          {m.type === 'post' && !m.path ? <div className="flex h-16 w-24 items-center justify-center rounded-lg bg-white/10"><Newspaper className="h-5 w-5 text-amber-300" /></div> : <Thumb cid={c.contest_id} item={m} />}
+          <div className="min-w-0 flex-1 text-xs"><div className="font-bold capitalize">{i + 1}. {m.type}</div><div className="truncate text-white/50">{m.type === 'post' ? m.title : m.caption || 'No caption'}</div></div>
           <button type="button" className={iconBtn} disabled={!i} onClick={() => move(i, -1)} aria-label="Move up" data-testid={`publish-media-up-${m.media_id}`}><ArrowUp className="h-3.5 w-3.5" /></button>
           <button type="button" className={iconBtn} disabled={i === media.length - 1} onClick={() => move(i, 1)} aria-label="Move down" data-testid={`publish-media-down-${m.media_id}`}><ArrowDown className="h-3.5 w-3.5" /></button>
           <button type="button" className={iconBtn} onClick={() => window.confirm('Remove this media from the gallery?') && run(() => paidWinnersAPI.removeMedia(c.contest_id, m.media_id), 'Media removed.')} aria-label="Remove" data-testid={`publish-media-delete-${m.media_id}`}><Trash2 className="h-3.5 w-3.5 text-rose-300" /></button>
