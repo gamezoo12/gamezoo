@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Megaphone, Pencil, Trash2 } from 'lucide-react';
 import { announcementsAdminAPI as api } from '../../lib/api';
 
@@ -75,7 +75,7 @@ export default function AnnouncementsAdmin() {
 
   const run = async (fn, ok) => {
     setBusy(true); setError(''); setNotice('');
-    try { await fn(); setNotice(ok); await load(); } catch (e) { setError(errText(e)); } finally { setBusy(false); }
+    try { await fn(); setNotice(ok); await load(); } catch (e) { setError(errText(e)); window.scrollTo({ top: 0, behavior: 'smooth' }); } finally { setBusy(false); }
   };
 
   const payload = (publish) => ({
@@ -87,9 +87,11 @@ export default function AnnouncementsAdmin() {
     setForm(empty); setEditingId(null);
   }, publish ? 'Saved and published.' : 'Saved.');
 
+  const formRef = useRef(null);
   const edit = (a) => {
     setEditingId(a.announcement_id);
     setForm({ title: a.title, text: a.text, icon: a.icon || '', link: a.link || '', priority: a.priority, start: utcIsoToLondonLocal(a.start_at), end: utcIsoToLondonLocal(a.end_at), publish: a.published });
+    setTimeout(() => { formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); formRef.current?.querySelector('input')?.focus({ preventScroll: true }); }, 0);
   };
   const move = (index, delta) => {
     const ids = items.map((a) => a.announcement_id);
@@ -120,7 +122,7 @@ export default function AnnouncementsAdmin() {
         <button type="button" disabled={busy} className="h-10 rounded-md bg-slate-900 px-4 text-sm font-bold text-white disabled:opacity-50" onClick={() => run(async () => { await api.saveBadgeSettings(badge); window.dispatchEvent(new Event('pl:promotion-badge-updated')); }, 'Promotion icon settings saved.')}>Save icon settings</button>
       </section>
 
-      <section className="space-y-3 rounded-lg border border-slate-200 bg-white p-4" data-testid="announcement-form">
+      <section ref={formRef} className={`space-y-3 rounded-lg border bg-white p-4 ${editingId ? 'border-[#6C2BFF] ring-2 ring-[#6C2BFF]/30' : 'border-slate-200'}`} data-testid="announcement-form">
         <h2 className="font-bold text-slate-900">{editingId ? 'Edit announcement' : 'Create announcement'}</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           <label><span className={label}>Title (admin only)</span><input className={field} maxLength={120} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} data-testid="ann-title" /></label>
@@ -148,7 +150,7 @@ export default function AnnouncementsAdmin() {
               <span className={`rounded-full px-3 py-1 text-xs font-bold uppercase ${STATUS_STYLE[a.status]}`} data-testid="announcement-status">{a.status}</span>
             </div>
             <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold">
-              <button type="button" className="rounded border px-2 py-1" onClick={() => edit(a)}><Pencil className="mr-1 inline h-3 w-3" />Edit</button>
+              <button type="button" className="rounded border px-2 py-1" onClick={() => edit(a)} data-testid={`announcement-edit-${a.announcement_id}`}><Pencil className="mr-1 inline h-3 w-3" />Edit</button>
               {a.published ? <button type="button" className="rounded border px-2 py-1" onClick={() => run(() => api.action(a.announcement_id, 'unpublish'), 'Unpublished.')}>Unpublish</button>
                 : <button type="button" className="rounded border px-2 py-1" onClick={() => run(() => api.action(a.announcement_id, 'publish'), 'Published.')}>Publish</button>}
               {a.enabled ? <button type="button" className="rounded border px-2 py-1" onClick={() => run(() => api.action(a.announcement_id, 'disable'), 'Disabled.')}>Disable</button>
@@ -171,8 +173,8 @@ export default function AnnouncementsAdmin() {
           </div>
           {editingGenerated === item.id && <div className="mt-2 space-y-2">
             <label className="block text-xs font-semibold">Announcement text<input className={field} maxLength={200} value={generatedText} onChange={(e) => setGeneratedText(e.target.value)} /></label>
-            {item.values && <p className="text-xs text-slate-500">Keep {Object.keys(item.values).map(key => `{${key}}`).join(' and ')} to show the actual winner information.</p>}
-            <button type="button" className="rounded border px-2 py-1 text-xs font-bold" onClick={() => updateGenerated(item, { text: generatedText })}>Save</button>
+            {item.values && <p className="text-xs text-slate-500">Type the exact text you want, or use {Object.keys(item.values).map(key => `{${key}}`).join(' and ')} to fill in the winner details automatically.</p>}
+            <button type="button" className="rounded border px-2 py-1 text-xs font-bold" onClick={() => updateGenerated(item, { text: generatedText })} data-testid={`generated-save-${item.id}`}>Save</button>
             <button type="button" className="ml-2 rounded border px-2 py-1 text-xs font-bold" onClick={() => setEditingGenerated(null)}>Cancel</button>
           </div>}
           <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold">

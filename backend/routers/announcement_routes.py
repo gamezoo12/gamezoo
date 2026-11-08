@@ -262,8 +262,6 @@ async def update_generated_announcement(source_id: str, body: GeneratedAnnouncem
     if not item:
         raise HTTPException(status_code=404, detail="Ticker announcement not found")
     text = _clean_text(body.text, "Announcement text", 200)
-    if any("{" + key + "}" not in text for key in item.get("values", {})):
-        raise HTTPException(status_code=422, detail="Winner announcements must retain their winner and prize or promotion placeholders")
     previous = await db.site_ticker_overrides.find_one({"_id": source_id}, {"_id": 0})
     updated = {"text": text, "enabled": body.enabled, "published": body.published, "deleted": body.deleted}
     await db.site_ticker_overrides.update_one({"_id": source_id}, {"$set": updated}, upsert=True)
