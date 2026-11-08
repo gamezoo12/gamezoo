@@ -1,8 +1,8 @@
 """Draw Studio operations: winner reward approvals, draw settings and saved recordings (Super Admin only)."""
 from __future__ import annotations
 
-import os
-import shutil
+
+
 import uuid
 from datetime import datetime, timezone
 from typing import Literal, Optional
@@ -242,7 +242,6 @@ async def init_recording(body: RecordingIn, request: Request):
     if not body.content_type.startswith(allowed):
         raise HTTPException(status_code=415, detail="Screenshots must be PNG/JPEG; recordings must be WebM or MP4")
     rid = f"dsv_{uuid.uuid4().hex[:14]}"
-    os.makedirs(os.path.join(REC_DIR, rid), exist_ok=True)
     doc = {"recording_id": rid, **body.model_dump(), "status": "uploading", "created_at": _now(), "created_by": admin.get("email")}
     await get_db().draw_studio_recordings.insert_one(dict(doc))
     return {"recording_id": rid, "chunk_size": MAX_CHUNK}
@@ -257,8 +256,9 @@ async def upload_chunk(rid: str, index: int, request: Request):
     data = await request.body()
     if not data or len(data) > MAX_CHUNK:
         raise HTTPException(status_code=413, detail="Chunk too large")
-    with open(os.path.join(REC_DIR, rid, f"{index:04d}"), "wb") as f:
-        f.write(data)
+    from bson import Binary
+    await get_db().draw_studio_chunks.update_one({"recording_id": rid, "index": index},
+                                                 {"$set": {"data": Binary(data), "created_at": _now()}}, upsert=True)
     return {"ok": True}
 
 
@@ -273,17 +273,16 @@ async def complete_recording(rid: str, body: CompleteIn, request: Request):
     doc = await db.draw_studio_recordings.find_one({"recording_id": rid, "status": "uploading"}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Upload not found")
-    folder = os.path.join(REC_DIR, rid)
-    parts = [os.path.join(folder, f"{i:04d}") for i in range(body.chunks)]
-    if not all(os.path.exists(p) for p in parts):
+    chunks = await db.draw_studio_chunks.find({"recording_id": rid, "index": {"$lt": body.chunks}}, {"_id": 0}).sort("index", 1).to_list(200)
+    if [c["index"] for c in chunks] != list(range(body.chunks)):
         raise HTTPException(status_code=409, detail="Some chunks are missing; retry the upload")
-    data = b"".join(open(p, "rb").read() for p in parts)
+    data = b"".join(bytes(c["data"]) for c in chunks)
     from object_storage import APP_NAME, put_object
 
     ctype = doc["content_type"]
     ext = "png" if "png" in ctype else "jpg" if "jpeg" in ctype else "mp4" if "mp4" in ctype else "webm"
     stored = put_object(f"{APP_NAME}/draw-studio/recordings/{rid}.{ext}", data, doc["content_type"].split(";")[0])
-    shutil.rmtree(folder, ignore_errors=True)
+    await db.draw_studio_chunks.delete_many({"recording_id": rid})
     await db.draw_studio_recordings.update_one({"recording_id": rid}, {"$set": {
         "status": "ready", "storage_path": stored["path"], "size": len(data), "ext": ext, "completed_at": _now()}})
     await _audit(db, "recording_saved", admin, plan_id=doc.get("plan_id"), recording_id=rid, mode=doc["mode"], size=len(data))

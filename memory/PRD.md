@@ -782,3 +782,7 @@ Root causes fixed:
 - Gallery posts (headline, message, optional photo): POST /api/admin/paid-winners/contests/{cid}/posts; photo posts via chunked upload kind="post" (title/body in start body). Stored in paid_winner_publication.media with type "post"; public gallery renders post cards (Details.jsx PostCard)
 - Draw Studio shows a "Hall of Winners gallery" section (reuses PaidWinnersPublishing with contestId prop) for drawn Paid World contests: upload video/photo, add posts, reorder, delete
 - Upload on preview verified OK (5 MB chunked video). Production upload error RCA requested from deployer — pending
+
+## 2026-06 — Voided draw delete + live upload fix
+- DELETE /api/admin/draw-studio/plans/{id} (voided only): erases plan, results, voided winners, recordings, chunks and audit entries (user chose "no trace"). Button "Delete permanently" in Draw History (data-testid history-delete-{plan_id})
+- Prod RCA (deployer): Draw Studio recording chunks were written to pod-local /tmp; prod has 2 replicas -> FileNotFoundError 500. Fixed: chunks now stored in Mongo `draw_studio_chunks` (draw_studio_ops_routes.py)

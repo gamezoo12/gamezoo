@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react';
-import { Download, FileCheck2, Film, History } from 'lucide-react';
+import { Download, FileCheck2, Film, History, Trash2 } from 'lucide-react';
 import { drawStudioAPI } from '../../lib/api';
 import { downloadBlob } from '../../components/drawstudio/studio/useRecorder';
 
 const money = (v) => `£${Number(v || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const when = (d) => (d ? new Date(d).toLocaleString('en-GB', { timeZone: 'Europe/London' }) : '—');
 
-function PlanCard({ plan }) {
+function PlanCard({ plan, onDeleted }) {
   const [results, setResults] = useState(null);
   const [busy, setBusy] = useState(false);
   const toggle = async () => setResults(results ? null : (await drawStudioAPI.plan(plan.plan_id)).results);
+  const remove = async () => {
+    if (!window.confirm('Permanently delete this voided draw? Its rounds, cancelled winners and recordings are erased and cannot be recovered.')) return;
+    setBusy(true);
+    try { await drawStudioAPI.deletePlan(plan.plan_id); onDeleted(plan.plan_id); } catch (e) { window.alert(e?.response?.data?.detail || 'Delete failed'); } finally { setBusy(false); }
+  };
   const report = async () => { setBusy(true); try { const d = await drawStudioAPI.report(plan.plan_id); downloadBlob(new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' }), `${plan.plan_id}-audit.json`); } finally { setBusy(false); } };
   return (
     <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-5" data-testid={`history-plan-${plan.plan_id}`}>
@@ -22,6 +27,7 @@ function PlanCard({ plan }) {
       <div className="mt-3 flex gap-2">
         <button type="button" onClick={toggle} className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold hover:bg-white/20" data-testid={`history-results-${plan.plan_id}`}>{results ? 'Hide results' : 'Show results'}</button>
         {plan.status !== 'draft' && <button type="button" disabled={busy} onClick={report} className="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-1.5 text-xs font-bold hover:bg-white/10" data-testid={`history-report-${plan.plan_id}`}><FileCheck2 className="h-3.5 w-3.5" />Audit report</button>}
+        {plan.status === 'voided' && <button type="button" disabled={busy} onClick={remove} className="inline-flex items-center gap-1 rounded-full border border-rose-400/60 px-3 py-1.5 text-xs font-bold text-rose-200 hover:bg-rose-500/15" data-testid={`history-delete-${plan.plan_id}`}><Trash2 className="h-3.5 w-3.5" />Delete permanently</button>}
       </div>
       {results && <ul className="mt-3 space-y-1 text-sm">{results.length ? results.map((r) => <li key={r.round_index} className="text-indigo-100"><b>{r.round_name}</b> — {r.winners.map((w) => `#${w.ticket_number} ${w.display_name} (${money(w.prize_amount)})`).join(', ')} <span className="text-[11px] text-indigo-200/50">· {when(r.drawn_at)} · {r.candidate_count} eligible</span></li>) : <li className="text-xs text-indigo-200/60">No rounds drawn yet.</li>}</ul>}
     </article>
@@ -40,7 +46,7 @@ export default function DrawHistory() {
     <div className="-m-4 min-h-screen bg-[#07041a] p-4 pb-32 text-white sm:-m-6 sm:p-8 sm:pb-32" data-testid="draw-history-page">
       <h1 className="flex items-center gap-3 text-4xl font-black tracking-tight"><History className="h-9 w-9 text-amber-300" />Draw History &amp; Recordings</h1>
       <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_380px]">
-        <div className="space-y-3">{plans.length ? plans.map((p) => <PlanCard key={p.plan_id} plan={p} />) : <p className="text-sm text-indigo-200/60">No draws yet.</p>}</div>
+        <div className="space-y-3">{plans.length ? plans.map((p) => <PlanCard key={p.plan_id} plan={p} onDeleted={(id) => setPlans((ps) => ps.filter((x) => x.plan_id !== id))} />) : <p className="text-sm text-indigo-200/60">No draws yet.</p>}</div>
         <section className="h-fit rounded-2xl border border-white/10 bg-white/[0.04] p-5" data-testid="history-recordings">
           <h2 className="flex items-center gap-2 text-lg font-black text-amber-300"><Film className="h-5 w-5" />Saved recordings</h2>
           <p className="mt-1 text-xs text-indigo-200/60">Recordings download to your computer when you stop. Copies you save from the studio appear here.</p>

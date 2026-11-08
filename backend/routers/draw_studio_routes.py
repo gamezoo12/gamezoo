@@ -375,6 +375,26 @@ async def void_plan(plan_id: str, body: ConfirmIn, request: Request):
     return {"ok": True}
 
 
+@router.delete("/plans/{plan_id}")
+async def delete_voided_plan(plan_id: str, request: Request):
+    """Permanently erase a voided draw: plan, round results, cancelled winners, recordings and audit entries."""
+    await require_super_admin(request)
+    db = get_db()
+    plan = await db[PLANS].find_one({"plan_id": plan_id}, {"_id": 0, "status": 1})
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    if plan["status"] != "voided":
+        raise HTTPException(status_code=409, detail="Only voided draws can be deleted")
+    rec_ids = await db.draw_studio_recordings.distinct("recording_id", {"plan_id": plan_id})
+    await db.draw_studio_chunks.delete_many({"recording_id": {"$in": rec_ids}})
+    await db.draw_studio_recordings.delete_many({"plan_id": plan_id})
+    await db.winners.delete_many({"draw_plan_id": plan_id, "approval_status": "voided"})
+    await db[RESULTS].delete_many({"plan_id": plan_id})
+    await db[AUDIT].delete_many({"plan_id": plan_id})
+    await db[PLANS].delete_one({"plan_id": plan_id, "status": "voided"})
+    return {"ok": True}
+
+
 @router.post("/plans/{plan_id}/rounds/{round_index}/draw")
 async def draw_round(plan_id: str, round_index: int, body: ConfirmIn, request: Request):
     admin = await require_super_admin(request)

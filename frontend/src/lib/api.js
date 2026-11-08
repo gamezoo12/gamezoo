@@ -577,6 +577,7 @@ export const drawStudioAPI = {
   updatePlan: (planId, body) => api.put(`/admin/draw-studio/plans/${planId}`, body).then(r => r.data),
   lock: (planId) => api.post(`/admin/draw-studio/plans/${planId}/lock`, { confirmation: 'LOCK DRAW' }).then(r => r.data),
   voidPlan: (planId) => api.post(`/admin/draw-studio/plans/${planId}/void`, { confirmation: 'VOID DRAW' }).then(r => r.data),
+  deletePlan: (planId) => api.delete(`/admin/draw-studio/plans/${planId}`).then(r => r.data),
   drawRound: (planId, index) => api.post(`/admin/draw-studio/plans/${planId}/rounds/${index}/draw`, { confirmation: `DRAW ROUND ${index + 1}` }).then(r => r.data),
   announce: (planId, index) => api.post(`/admin/draw-studio/plans/${planId}/rounds/${index}/announce`).then(r => r.data),
   report: (planId) => api.get(`/admin/draw-studio/plans/${planId}/report`).then(r => r.data),
