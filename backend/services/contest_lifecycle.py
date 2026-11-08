@@ -23,6 +23,9 @@ def is_expired(c: dict) -> bool:
 async def close_expired_contests(db) -> int:
     """Move every live contest whose end time has passed to 'closed' so no more entries are accepted."""
     now = datetime.now(timezone.utc)
+    done = await db.draw_studio_plans.distinct('contest_id', {'status': 'completed'})
+    await db.contests.update_many({'status': {'$in': [OPEN, AWAITING]}, '$or': [{'contest_id': {'$in': done}}, {'winners_published': True}]},
+                                  {'$set': {'status': 'drawn', 'drawn_at': now}})
     ids = [c['contest_id'] async for c in db.contests.find({'status': OPEN}, {'_id': 0, 'contest_id': 1, 'end_date': 1}) if is_expired(c)]
     if not ids:
         return 0

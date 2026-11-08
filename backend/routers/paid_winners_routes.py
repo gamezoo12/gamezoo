@@ -231,6 +231,9 @@ async def set_publication(cid: str, body: PublicationIn, request: Request):
         raise HTTPException(status_code=404, detail="Only completed Paid World contests can be published")
     await db[PUB].update_one({"contest_id": cid}, {"$set": {**body.model_dump(), "updated_at": _now(), "updated_by": admin.get("email")}}, upsert=True)
     await _audit(db, admin, "publication", contest_id=cid, settings=body.model_dump())
+    await db.contests.update_one({"contest_id": cid}, {"$set": {"winners_published": body.show_winners}})
+    if body.show_winners:
+        await db.contests.update_one({"contest_id": cid, "status": "closed"}, {"$set": {"status": "drawn", "drawn_at": _now()}})
     sent = await _shout_out(db, cid) if body.show_winners else 0
     return {"ok": True, "shoutouts_sent": sent}
 

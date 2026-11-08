@@ -208,7 +208,7 @@ async def list_contests(request: Request):
     db = get_db()
     await close_expired_contests(db)
     contests = await db.contests.find({}, {"_id": 0, "contest_id": 1, "title": 1, "prize_amount": 1, "prize_bonus_tokens": 1, "status": 1,
-                                           "tickets_sold": 1, "tickets_total": 1, "end_date": 1}).sort("created_at", -1).to_list(500)
+                                           "tickets_sold": 1, "tickets_total": 1, "end_date": 1, "winners_published": 1}).sort("created_at", -1).to_list(500)
     for c in contests:
         c["prize_amount"] = prize_value(c)
     counts = {r["_id"]: r["n"] async for r in db.tickets.aggregate([
@@ -222,14 +222,16 @@ async def list_contests(request: Request):
         end = c.get("end_date")
         if isinstance(end, datetime) and end.tzinfo is None:
             end = end.replace(tzinfo=timezone.utc)
+        c["drawn"] = c["contest_id"] in done or c.get("status") in ("drawn", "archived") or bool(c.get("winners_published"))
         c["awaiting_draw"] = (c.get("status") in ("live", "closed") and isinstance(end, datetime) and end <= now
-                              and c["contest_id"] not in done and c["eligible_tickets"] > 0)
+                              and not c["drawn"] and c["eligible_tickets"] > 0)
     pids = set(await db.promotion_campaigns.distinct("promotion_id", {"deleted": {"$ne": True}})) | set(
         await db.promotion_config.distinct("promotion_id", {"deleted": {"$ne": True}}))
     for pid in sorted(p for p in pids if p):
         promo = await _promotion(db, pid)
         if promo and promo["status"] == "closed":
             promo["eligible_tickets"] = await db.promotion_tickets.count_documents({"promotion_id": pid, "ticket_number": {"$ne": None}})
+            promo["drawn"] = pid in done
             promo["awaiting_draw"] = pid not in done and promo["eligible_tickets"] > 0
             promo.pop("image", None)
             contests.append(promo)
@@ -266,6 +268,7 @@ async def create_plan(body: PlanIn, request: Request):
     contest = await _contest(db, body.contest_id)
     if not contest:
         raise HTTPException(status_code=404, detail="Contest not found")
+    await _ensure_redrawable(db, body.contest_id)
     rounds = [r.model_dump() for r in body.rounds]
     pool_size = len(await _pool(db, body.contest_id))
     budget, published = await _validate(db, contest, rounds, pool_size)
@@ -309,8 +312,7 @@ async def lock_plan(plan_id: str, body: ConfirmIn, request: Request):
         raise HTTPException(status_code=404, detail="Plan not found")
     if plan["status"] != "draft":
         return {"plan": _public_plan(plan), "idempotent_replay": True}
-    if await db[PLANS].find_one({"contest_id": plan["contest_id"], "status": {"$in": ["locked", "in_progress", "completed"]}}):
-        raise HTTPException(status_code=409, detail="This contest already has a locked or completed official draw")
+    await _ensure_redrawable(db, plan["contest_id"])
     contest = await _contest(db, plan["contest_id"])
     if contest.get("status") == "live":
         raise HTTPException(status_code=409, detail="Ticket sales are still open. Close the contest before locking the draw so every ticket is included.")
@@ -332,6 +334,45 @@ async def lock_plan(plan_id: str, body: ConfirmIn, request: Request):
     await _audit(db, "plan_locked", admin, plan_id=plan_id, pool_size=len(pool), pool_hash=fields["pool_hash_sha256"],
                  seed_commitment=fields["seed_commitment_sha256"])
     return {"plan": _public_plan(await db[PLANS].find_one({"plan_id": plan_id}, {"_id": 0})), "idempotent_replay": False}
+
+
+async def _ensure_redrawable(db, contest_id: str):
+    from routers.paid_winners_routes import PUB
+    pub = await db[PUB].find_one({"contest_id": contest_id}, {"_id": 0, "show_winners": 1}) or {}
+    c = await db.contests.find_one({"contest_id": contest_id}, {"_id": 0, "winners_published": 1}) or {}
+    if pub.get("show_winners") or c.get("winners_published"):
+        raise HTTPException(status_code=409, detail="Winners for this contest are published. Unpublish them first to allow a redraw.")
+    if await db[PLANS].find_one({"contest_id": contest_id, "status": {"$in": ["locked", "in_progress", "completed"]}}, {"_id": 1}):
+        raise HTTPException(status_code=409, detail="This contest has already been drawn. Void the existing draw to redraw.")
+
+
+@router.post("/plans/{plan_id}/void")
+async def void_plan(plan_id: str, body: ConfirmIn, request: Request):
+    """Cancel an unpublished draw so the contest can be drawn again. Blocked once winners are published or paid."""
+    from routers.paid_winners_routes import PUB
+    admin = await require_super_admin(request)
+    if body.confirmation != "VOID DRAW":
+        raise HTTPException(status_code=400, detail="Type VOID DRAW to confirm")
+    db = get_db()
+    plan = await db[PLANS].find_one({"plan_id": plan_id}, {"_id": 0, "contest_id": 1, "status": 1})
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    if plan["status"] not in ("locked", "in_progress", "completed"):
+        raise HTTPException(status_code=409, detail="Only locked or drawn plans can be voided")
+    cid = plan["contest_id"]
+    pub = await db[PUB].find_one({"contest_id": cid}, {"_id": 0, "show_winners": 1}) or {}
+    c = await db.contests.find_one({"contest_id": cid}, {"_id": 0, "winners_published": 1}) or {}
+    if pub.get("show_winners") or c.get("winners_published"):
+        raise HTTPException(status_code=409, detail="Winners are published. Unpublish them before voiding this draw.")
+    if await db.winners.find_one({"draw_plan_id": plan_id, "$or": [{"paid_out": True}, {"credit_lock": True}, {"approval_status": "credited"}]}, {"_id": 1}):
+        raise HTTPException(status_code=409, detail="A prize from this draw has already been credited, so it cannot be redrawn")
+    now = _now()
+    await db[PLANS].update_one({"plan_id": plan_id}, {"$set": {"status": "voided", "voided_at": now, "voided_by": admin.get("email")},
+                                                     "$unset": {"official_contest_lock": ""}})
+    await db.winners.update_many({"draw_plan_id": plan_id}, {"$set": {"approval_status": "voided", "public_hidden": True, "voided_at": now}})
+    await db.contests.update_one({"contest_id": cid, "status": "drawn"}, {"$set": {"status": "closed"}, "$unset": {"drawn_at": ""}})
+    await _audit(db, "plan_voided", admin, plan_id=plan_id, contest_id=cid)
+    return {"ok": True}
 
 
 @router.post("/plans/{plan_id}/rounds/{round_index}/draw")
@@ -434,6 +475,7 @@ async def publish_hall(plan_id: str, request: Request):
                                                    "$setOnInsert": {"display_order": 100}}, upsert=True)
     await pub_audit(db, admin, "publication", contest_id=cid, settings=settings)
     await db.contests.update_one({"contest_id": cid}, {"$set": {"winners_published": True, "winners_published_at": _now()}})
+    await db.contests.update_one({"contest_id": cid, "status": "closed"}, {"$set": {"status": "drawn", "drawn_at": _now()}})
     sent = await _shout_out(db, cid)
     return {"ok": True, "shoutouts_sent": sent}
 

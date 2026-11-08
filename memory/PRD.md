@@ -769,3 +769,11 @@ Root causes fixed:
 - Paid-leagues mobile tab bar: "Games" tab replaced with "Winners" (Crown icon) linking to /winners
 - /winners is now a public "Hall of Winners" page (pages/HallOfWinners.jsx wrapping components/winners/WinnersHall.jsx), no login needed
 - Pending: full regression test of contest auto-close, bonus-token draws, chunked video uploads, admin level edits (user opted to skip for now)
+
+## 2026-06 — Published contests lifecycle fix
+- Root cause: contests with a completed Draw Studio draw could stay status 'closed' -> still listed on home (/api/contests shows live+closed) and selectable in Draw Studio
+- contest_lifecycle.close_expired_contests now also reconciles: closed/live contests with a completed plan or winners_published -> 'drawn' (auto-fixes existing prod data)
+- Publishing (publish-hall and Hall publication toggle) marks contest drawn + winners_published; unpublishing clears winners_published
+- Draw Studio: completed contests labelled [COMPLETED]; new plans/locks blocked while published or already drawn
+- New POST /api/admin/draw-studio/plans/{id}/void (confirmation "VOID DRAW"): only when winners unpublished and nothing credited; voids winners, contest back to 'closed' so it can be redrawn. UI button "Void & redraw" (data-testid draw-void)
+- /api/contests skips docs without slug (preview test data caused 500)

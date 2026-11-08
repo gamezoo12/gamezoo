@@ -93,7 +93,7 @@ async def list_contests(category: Optional[str] = None, q: Optional[str] = Query
         query['title'] = {'$regex': q, '$options': 'i'}
     limit = max(1, min(limit, 500))
     docs = await db.contests.find(query, {'_id': 0}).sort('end_date', 1).to_list(limit)
-    return [_to_public(d) for d in docs]
+    return [_to_public(d) for d in docs if d.get('slug')]
 
 
 @router.get('/{slug}')

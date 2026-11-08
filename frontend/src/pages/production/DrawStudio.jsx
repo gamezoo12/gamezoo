@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Lock, PlayCircle, Save, ShieldCheck, Sparkles, Ticket, Trophy, Volume2 } from 'lucide-react';
+import { Lock, PlayCircle, RotateCcw, Save, ShieldCheck, Sparkles, Ticket, Trophy, Volume2 } from 'lucide-react';
 import { drawStudioAPI } from '../../lib/api';
 import { DrawAudio, SOUND_SLOTS } from '../../components/drawstudio/drawAudio';
 import { DrawTheatre } from '../../components/drawstudio/studio/DrawTheatre';
@@ -47,7 +47,7 @@ export default function DrawStudio() {
     if (!contestId) return;
     Promise.all([drawStudioAPI.pool(contestId), drawStudioAPI.plans(contestId)]).then(async ([p, plans]) => {
       setPool(p);
-      const current = plans.plans.find((x) => x.status !== 'draft') || plans.plans[0];
+      const current = plans.plans.find((x) => !['draft', 'voided'].includes(x.status)) || plans.plans.find((x) => x.status === 'draft');
       if (current) await refreshPlan(current.plan_id); else setRounds([newRound(1)]);
     }).catch((e) => setError(errText(e)));
   }, [contestId, refreshPlan]);
@@ -67,6 +67,8 @@ export default function DrawStudio() {
     && run(async () => { const r = await drawStudioAPI.lock(plan.plan_id); await refreshPlan(plan.plan_id); return r; }, (r) => `Locked. ${r.plan.pool_size} tickets frozen · pool hash ${r.plan.pool_hash_sha256.slice(0, 12)}…`);
   const report = () => run(async () => { const d = await drawStudioAPI.report(plan.plan_id); downloadBlob(new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' }), `${plan.plan_id}-audit.json`); return d; },
     (d) => (d.verification?.verified ? 'Audit report downloaded · independent verification PASSED.' : 'Audit report downloaded.'));
+  const voidDraw = () => window.confirm('Void this draw so the contest can be drawn again? The current winners will be cancelled. This is only possible while winners are unpublished and unpaid.')
+    && run(async () => { const r = await drawStudioAPI.voidPlan(plan.plan_id); setPlan(null); setResults([]); drawStudioAPI.contests().then((x) => setContests(x.contests)); return r; }, () => 'Draw voided. Save new settings to redraw this contest.');
   const testSounds = () => SOUND_SLOTS.forEach((s, i) => setTimeout(() => { audio?.stopAll(); audio?.play(s); }, i * 900));
   const tickets = pool?.tickets || [];
   const awaiting = useMemo(() => contests.filter((c) => c.awaiting_draw).sort((a, b) => new Date(a.end_date) - new Date(b.end_date)), [contests]);
@@ -96,7 +98,7 @@ export default function DrawStudio() {
               <select className="h-11 min-w-0 flex-1 rounded-xl border border-white/15 bg-[#0b0724] px-3 text-sm" value={contestId} onChange={(e) => setContestId(e.target.value)} data-testid="draw-contest-select">
                 <option value="">Select a Paid World or Promotion contest</option>
                 {[['paid_world', 'Paid World contests'], ['promotion', 'Promotion prize draws']].map(([k, label]) => (
-                  <optgroup key={k} label={label}>{contests.filter((c) => (c.kind || 'paid_world') === k).map((c) => <option key={c.contest_id} value={c.contest_id}>{c.awaiting_draw ? '[ENDED · AWAITING DRAW] ' : ''}{c.title} · {c.eligible_tickets} tickets</option>)}</optgroup>
+                  <optgroup key={k} label={label}>{contests.filter((c) => (c.kind || 'paid_world') === k).map((c) => <option key={c.contest_id} value={c.contest_id}>{c.awaiting_draw ? '[ENDED · AWAITING DRAW] ' : c.drawn ? '[COMPLETED] ' : ''}{c.title} · {c.eligible_tickets} tickets</option>)}</optgroup>
                 ))}
               </select>
               {pool && <span className="rounded-lg border border-emerald-400/40 px-3 py-1 text-xs font-bold capitalize text-emerald-300" data-testid="draw-contest-status">{pool.contest.status}</span>}
@@ -123,6 +125,7 @@ export default function DrawStudio() {
               <button type="button" className={`${pill} bg-[#3b6bff] text-white`} disabled={!tickets.length || budget > published} onClick={() => setShow({ mode: 'preview' })} data-testid="draw-preview"><PlayCircle className="h-4 w-4" />Preview Full Draw</button>
               <button type="button" className={`${pill} border border-white/20 text-white`} onClick={testSounds} data-testid="draw-test-sounds"><Volume2 className="h-4 w-4" />Test Sounds</button>
               {locked && <button type="button" className={`${pill} bg-gradient-to-r from-amber-300 to-amber-500 text-[#1a1033] shadow-[0_0_30px_rgba(255,213,74,0.35)]`} disabled={busy || !pool.official_draws_enabled} onClick={official} data-testid="draw-official-start"><Sparkles className="h-4 w-4" />{finished ? 'Open finale' : results.length ? 'Continue Official Draw' : 'Start Official Draw'}</button>}
+              {locked && !plan?.hall_published && <button type="button" className={`${pill} border border-rose-400/60 text-rose-200`} disabled={busy} onClick={voidDraw} data-testid="draw-void"><RotateCcw className="h-4 w-4" />Void &amp; redraw</button>}
               <HallPublishButton key={`${plan?.plan_id}-${plan?.announcement_id}-${plan?.hall_published}`} plan={plan} className={`${pill} border border-emerald-300/60 text-emerald-200`} onDone={() => setNotice('Published to the Hall of Winners.')} onError={setError} />
             </div>
           </section>}
