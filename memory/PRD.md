@@ -793,3 +793,10 @@ Root causes fixed:
 - Admin: GET/PUT /api/admin/world/champion-attempt-rules; UI section "Championship Attempt Rules" in FreeWorldAdmin (components/admin/ChampionAttemptRules.jsx)
 - Announcements: Edit scrolls to form; generated winner text can be free text (placeholders optional)
 - PENDING: Free World staff (admin/super_admin) dropped from winners on prod — deployer RCA pointed at settle_hybrid_level_bonuses (world_gc_live_routes.py, legacy_hybrid engine, GC4); awaiting full result
+
+## 2026-06 — 11 new skill games, festive maps, Santa avatar
+- New games (frontend/src/components/games/premium/batch6.jsx, registered in GAME_MAP/GAME_CATALOG + backend GAME_TYPES/SUPPORTED_GAMES): pipe_connect, ball_sort, colour_flood, code_breaker, word_search, speed_typing, quick_count, shape_rotation, path_memory, stack_tower, sum_hunt — difficulty 1–10, random puzzle per attempt
+- GC settings: Number Sequence "Numbers to tap (1→N)" (target_number 5–100) for levels + Champion; Champion client-game game_config (difficulty) now passed through (_champion_game_for, champion_config, PrizeLeagueWorld)
+- Festive 4K maps (Nano Banana Pro 4K via fal Universal Key, script /app/scripts/gen_festive_maps.py) at frontend/src/world/assets/festive/champ-1..10.jpg; CSS festiveMaps.css; theme via world_settings {_id:"map_theme"} GET /api/world/public/map-theme, PUT /api/admin/world/map-theme; admin toggle MapThemeToggle in FreeWorldAdmin; original maps kept (switch "Original")
+- Snow + fireworks overlay (FestiveFx in WorldCanvas) and animated Santa avatar (SantaAvatar.jsx) in festive theme; Santa dances + magic crackers on passed attempt, waves "Try again" on failed (event pl-santa-celebrate from PrizeLeagueWorld onFinished)
+- Test report iteration_64: all pass; fixed follow-ups (finish guards, non-overlapping dots, solvable ball sort, word search line match, lazy festive images, theme flash, toggle rollback)

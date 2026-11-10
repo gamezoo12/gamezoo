@@ -8,8 +8,9 @@ export default function MapThemeToggle() {
   useEffect(() => { worldAPI.mapTheme().then(setT).catch(() => setMsg('Could not load map theme')); }, []);
   if (!t) return null;
   const save = async (next) => {
+    const prev = t;
     setT(next); setMsg('');
-    try { await worldAdminAPI.setMapTheme(next); setMsg('Saved. Players see it next time they open Free World.'); } catch { setMsg('Save failed'); }
+    try { await worldAdminAPI.setMapTheme(next); setMsg('Saved. Players see it next time they open Free World.'); } catch { setT(prev); setMsg('Save failed'); }
   };
   const pill = (active) => `rounded-full px-4 py-2 text-sm font-bold border ${active ? 'bg-[#6C2BFF] text-white border-[#6C2BFF]' : 'bg-white text-slate-700 border-slate-300'}`;
   return (

@@ -1,0 +1,48 @@
+{
+  "summary": "Tested backend and frontend for the 11 new skill games in GC settings (difficulty, preview, target_number), the festive map theme, and the Championship attempt rules. Backend: 10/10 pytest pass against the public URL. Map theme GET/PUT works, rejects bad themes (422) and requires auth. Champion-attempt-rules GET defaults are 5 / 3 free + 1 token / 0 free + 2 tokens, PUT works with validation and was restored to defaults. GC12 draft accepts all 11 new game ids with difficulty values and number_sequence target_number for levels and Champion; unknown games give 422. Frontend in /admin/world-gc-settings with GC12: all 11 games appear in the level picker (202 options). Picking one shows gc-difficulty-N (10 levels) and gc-preview-game-N. Every game was played in the preview at Difficulty 1 and 10 with no page errors. Bots completed Speed Typing, Quick Count, Shape Rotation, Path Memory, Stack Tower, Sum Hunt and Colour Flood at both L1 and L10. Pipe Connect (rotations, 3x3 to 7x7), Ball Sort (move plus restart), Code Breaker (submit adds to history, 3-slot/4-colour up to 5-slot/7-colour) and Word Search (misses counter, 6x6 to 11x11) were checked for interactions only, not solved. Picking Number Sequence shows gc-target-number-2 and gc-target-number-champion with no difficulty select. Saving the draft persisted target_number=42, L3 ball_sort difficulty 10 and Champion code_breaker difficulty 8, and the values survived a reload. The Champion preview opens with the saved difficulty. GC12 was restored to its original draft. /admin/free-world: section-map-theme Festive/Original/effects all save and show map-theme-msg, and the API reflects each change. The effects checkbox is disabled when Original is selected. ChampionAttemptRules UI loads the defaults, saves (car-msg), shows the validation message for cost 0, and was restored to defaults. /world as player1 (390x844): .pl2d-world has data-map-theme='festive' and data-map-effects='on'. Sections 1-10 use the champ-N festive images; after switching to classic they use the original images and the fx overlay is display:none. festive-fx has pointer-events:none, elementFromPoint on the PLAY button hits it, and PLAY opens the level screen. Final state: map theme festive + effects on, attempt rules at defaults, GC4 not touched. Only minor issues were found (listed below).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "world_routes champion counters", "issue": "Stage counters still write the hardcoded free_attempt_policy: 3 marker even when the configured free_attempts is 0 or another value. A rules change only affects counters created afterwards (by design per the UI copy), but the policy marker no longer describes the real allowance and could confuse later migrations."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "PremiumStackTower / PremiumSpeedTyping (batch6.jsx)", "issue": "No 'finished' guard. Stack Tower: after reaching the goal, extra taps on stack-board call done()/onComplete again before unmount. Speed Typing: retyping the last word calls done() again. In official runs this risks double submissions. Add a useRef finished flag like Pipe Connect's lit-size guard.", "selector": "[data-testid='stack-board'], [data-testid='typing-input']", "priority": "MEDIUM"},
+      {"component": "PremiumQuickCount", "issue": "Dots are placed at random with overlaps (16px dots, up to ~25 at L10 in a 320px board), so the exact count is sometimes visually impossible. Use non-overlapping placement.", "selector": "[data-testid='count-board']", "priority": "LOW"},
+      {"component": "PremiumBallSort", "issue": "Restart does not reset the move counter. Accuracy uses the stale moves value (off by one, same in Pipe Connect). A random deal with 2 empty tubes is not guaranteed to be solvable; generate the puzzle with reverse moves.", "selector": "[data-testid='ballsort-restart']", "priority": "LOW"},
+      {"component": "PremiumWordSearch", "issue": "Random filler letters can form a listed word a second time; tapping that copy counts as a miss.", "selector": "[data-testid^='ws-']", "priority": "LOW"}
+    ],
+    "integration_issues": [
+      {"flow": "Free World map festive theme load", "issue": "The festive CSS background-image rules (!important) load all 10 festive JPGs (3392x5056, ~1.3-3MB each, ~20MB total) as soon as /world loads. Classic mode only loads the sections near the player (seen: 3-6). This is heavy on mobile data and memory. Lazy-apply the background only near the viewport and serve compressed WebP around 1600px wide.", "affected_selectors": [".pl2d-world[data-map-theme='festive'] .pl1000-section"]},
+      {"flow": "WorldCanvas map theme init", "issue": "mapTheme starts as {theme:'classic'} until /api/world/public/map-theme resolves, so the original maps flash before the festive ones appear. The backend default is festive.", "affected_selectors": [".pl2d-world[data-map-theme]"]},
+      {"flow": "MapThemeToggle save", "issue": "The UI state updates optimistically and is not rolled back when the PUT fails, so it can show a theme that was never saved.", "affected_selectors": ["[data-testid='map-theme-festive']", "[data-testid='map-theme-classic']"]}
+    ],
+    "design_issues": [
+      {"screen": "Free World map (festive)", "issues": ["The festive images include their own painted glowing paths, which clash with the app's black road overlay drawn on top.", "FestiveFx renders 102 animated spans per C1-C10 section even in classic mode (hidden with display:none). Render it only when theme=festive and effects=on to save DOM and animation cost on mobile."]},
+      {"screen": "Admin Free World > Per-Championship Attempt Limits", "issues": ["The helper text still says 'Leave unset to use the default (3 free attempts)'. This now contradicts the new C5+ rule (0 free, 2 tokens)."]},
+      {"screen": "GC Competition Settings > Effective configuration table", "issues": ["Number Sequence shows as 'Number Sequence (1→N)' without the configured N. The Pending column shows '—' for a pending number_sequence target change, so admins can't see the change before applying."]}
+    ]
+  },
+  "test_report_links": ["/app/tests/test_iter64_games_maptheme_attempt_rules.py", "/app/tests/iter64_preview_harness.py", "/app/test_reports/pytest/iter64.xml"],
+  "action_items": [
+    "Add a one-shot completion guard to Stack Tower and Speed Typing (and ideally to all batch6 games) so onComplete fires only once",
+    "Lazy-load and compress the festive championship backgrounds (~20MB loaded eagerly right now)",
+    "Only mount FestiveFx when theme=festive and effects=on; set the initial mapTheme state to null/festive to avoid the flash of classic maps",
+    "Update the Per-Championship Attempt Limits helper text to match the configurable early/late rules",
+    "Optional: non-overlapping Quick Count dots, solvable-by-construction Ball Sort, reset moves on Ball Sort restart"
+  ],
+  "critical_code_review_comments": [
+    "batch6.jsx: every game generates a new random puzzle on mount, so each attempt gets a different puzzle as requested. Difficulty scales via lerpLevel and was confirmed at L1 and L10.",
+    "batch6.jsx: Pipe Connect and Ball Sort compute accuracy from the moves value before the update (off by one).",
+    "world_routes.py: _champion_game_for and the champion session merge game_config (difficulty and target_number) from the ACTIVE GC config only. This could not be tested end to end without activating a GC, so it was checked by code review only.",
+    "MapThemeToggle saves on every click with no debounce or rollback. ChampionAttemptRules shows backend validation messages correctly."
+  ],
+  "updated_files": ["/app/tests/test_iter64_games_maptheme_attempt_rules.py", "/app/tests/iter64_preview_harness.py"],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "100% of requested flows pass; minor issues listed"},
+  "seed_data_creation": "None. GC12 draft was changed temporarily and restored to its original draft (L1 pipe_connect d7, L2 number_sequence target 40, Champion ball_sort d9). Map theme was left festive + effects on. Attempt rules were restored to defaults (5, 3/1, 0/2).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "backend/tests/conftest.py forces a loopback-only isolated backend (TEST_BACKEND_URL :8002) and blocks external HTTP, so public-URL API tests live in /app/tests and run with: cd /tmp && REACT_APP_BACKEND_URL=<url> python -m pytest /app/tests/test_iter64_games_maptheme_attempt_rules.py -c /dev/null. UI harness: exec(open('/app/tests/iter64_preview_harness.py').read(), globals()); await setup_admin(page); await open_game(page, gid, level); await play(page, gid, level). Path Memory needs a MutationObserver installed before demo start to capture the sequence (polling misses 300ms steps). Admin token goes in localStorage 'gz_token'. Admin routes: /admin/world-gc-settings and /admin/free-world. Use GC12 (draft) and never GC4/GC5 (GC5 is live).",
+  "test_credentials": "Super admin bachanta8@gmail.com / Herts@910022; player1@example.com / Player@12345 (from /app/memory/test_credentials.md)"
+}

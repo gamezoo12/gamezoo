@@ -3,6 +3,10 @@ import { difficultyOf, lerpLevel } from '../../../lib/difficulty';
 import { Board3D, useFeedback } from './kit';
 
 const done = (onComplete, start, accuracy) => onComplete({ solved: true, accuracy: Math.max(0.05, Math.min(1, accuracy)), duration_ms: Date.now() - start });
+function useFinish(onComplete) {
+  const finished = useRef(false);
+  return (start, accuracy) => { if (finished.current) return; finished.current = true; done(onComplete, start, accuracy); };
+}
 const rnd = (n) => Math.floor(Math.random() * n);
 const shuffle = (list) => { const a = [...list]; for (let i = a.length - 1; i > 0; i -= 1) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const btn = 'rounded-xl border-b-[5px] font-black shadow-lg transition-transform hover:-translate-y-0.5 active:translate-y-0.5';
@@ -59,13 +63,14 @@ export function PremiumPipeConnect({ config, onComplete }) {
   });
   const [moves, setMoves] = useState(0);
   const [start] = useState(Date.now);
+  const finish = useFinish(onComplete);
   const [flash, fire] = useFeedback();
   const lit = useMemo(() => connected(tiles, n), [tiles, n]);
   const turn = (k) => {
     if (lit.size === n * n) return;
     const t = tiles.map((m, i) => (i === k ? rot(m) : m));
     setTiles(t); setMoves((v) => v + 1); fire('tap');
-    if (connected(t, n).size === n * n) { fire('good'); setTimeout(() => done(onComplete, start, Math.min(1, (n * n * 1.5) / (moves + 1))), 250); }
+    if (connected(t, n).size === n * n) { fire('good'); setTimeout(() => finish(start, Math.min(1, (n * n * 1.5) / (moves + 1))), 250); }
   };
   return (
     <Board3D theme="math" title="Pipe Connect" level={level} flash={flash} stats={[['Grid', `${n}×${n}`], ['Linked', `${lit.size}/${n * n}`], ['Turns', moves]]}>
@@ -84,8 +89,15 @@ export function PremiumBallSort({ config, onComplete }) {
   const level = difficultyOf(config);
   const colours = lerpLevel(level, 3, 7);
   const deal = useCallback(() => {
-    let tubes;
-    do { const balls = shuffle([...Array(colours).keys()].flatMap((c) => Array(CAP).fill(c))); tubes = [...Array(colours).keys()].map((i) => balls.slice(i * CAP, i * CAP + CAP)).concat([[], []]); } while (sortedTubes(tubes));
+    let tubes = [...Array(colours).keys()].map((c) => Array(CAP).fill(c)).concat([[], []]);
+    for (let step = 0; step < colours * 60 || sortedTubes(tubes); step += 1) {
+      const from = tubes.map((t, i) => i).filter((i) => { const t = tubes[i]; return t.length && (t.length === 1 || t[t.length - 2] === t[t.length - 1]); });
+      const fi = from[rnd(from.length)];
+      const to = tubes.map((t, i) => i).filter((i) => i !== fi && tubes[i].length < CAP);
+      if (fi === undefined || !to.length) continue;
+      const ti = to[rnd(to.length)]; const ball = tubes[fi][tubes[fi].length - 1];
+      tubes = tubes.map((t, i) => (i === fi ? t.slice(0, -1) : i === ti ? [...t, ball] : t));
+    }
     return tubes;
   }, [colours]);
   const [initial] = useState(deal);
@@ -93,6 +105,7 @@ export function PremiumBallSort({ config, onComplete }) {
   const [pick, setPick] = useState(null);
   const [moves, setMoves] = useState(0);
   const [start] = useState(Date.now);
+  const finish = useFinish(onComplete);
   const [flash, fire] = useFeedback();
   const tap = (i) => {
     if (pick === null) { if (tubes[i].length) { setPick(i); fire('tap'); } return; }
@@ -101,7 +114,7 @@ export function PremiumBallSort({ config, onComplete }) {
     if (to.length >= CAP || (to.length && to[to.length - 1] !== ball)) { fire('bad'); setPick(null); return; }
     const next = tubes.map((t, k) => (k === pick ? t.slice(0, -1) : k === i ? [...t, ball] : t));
     setTubes(next); setPick(null); setMoves((m) => m + 1); fire('tap');
-    if (sortedTubes(next)) { fire('good'); setTimeout(() => done(onComplete, start, Math.min(1, (colours * 4) / (moves + 1))), 250); }
+    if (sortedTubes(next)) { fire('good'); setTimeout(() => finish(start, Math.min(1, (colours * 4) / (moves + 1))), 250); }
   };
   return (
     <Board3D theme="party" title="Ball Sort" level={level} flash={flash} stats={[['Colours', colours], ['Moves', moves]]}>
@@ -113,7 +126,7 @@ export function PremiumBallSort({ config, onComplete }) {
           </button>
         ))}
       </div>
-      <div className="mt-3 text-center"><button type="button" onClick={() => { setTubes(initial); setPick(null); }} className="rounded-full border border-white/30 px-4 py-1.5 text-xs font-bold text-white" data-testid="ballsort-restart">Restart puzzle</button></div>
+      <div className="mt-3 text-center"><button type="button" onClick={() => { setTubes(initial); setPick(null); setMoves(0); }} className="rounded-full border border-white/30 px-4 py-1.5 text-xs font-bold text-white" data-testid="ballsort-restart">Restart puzzle</button></div>
     </Board3D>
   );
 }
@@ -143,12 +156,13 @@ export function PremiumColourFlood({ config, onComplete }) {
   const par = useMemo(() => greedyMoves(grid, n, colours), []); // eslint-disable-line react-hooks/exhaustive-deps
   const [moves, setMoves] = useState(0);
   const [start] = useState(Date.now);
+  const finish = useFinish(onComplete);
   const [flash, fire] = useFeedback();
   const pickColour = (c) => {
     if (c === grid[0]) return;
     const g = floodWith(grid, n, c); const m = moves + 1;
     setGrid(g); setMoves(m); fire('tap');
-    if (floodRegion(g, n).size === n * n) { fire('good'); setTimeout(() => done(onComplete, start, par / m), 250); }
+    if (floodRegion(g, n).size === n * n) { fire('good'); setTimeout(() => finish(start, par / m), 250); }
   };
   return (
     <Board3D theme="memory" title="Colour Flood" level={level} flash={flash} stats={[['Moves', moves], ['Target', par]]}>
@@ -172,13 +186,14 @@ export function PremiumCodeBreaker({ config, onComplete }) {
   const [guess, setGuess] = useState([]);
   const [history, setHistory] = useState([]);
   const [start] = useState(Date.now);
+  const finish = useFinish(onComplete);
   const [flash, fire] = useFeedback();
   const submit = () => {
     const exact = guess.filter((g, i) => g === secret[i]).length;
     const common = [...Array(colours).keys()].reduce((s, c) => s + Math.min(guess.filter((g) => g === c).length, secret.filter((x) => x === c).length), 0);
     const h = [...history, { guess, exact, near: common - exact }];
     setHistory(h); setGuess([]);
-    if (exact === len) { fire('good'); setTimeout(() => done(onComplete, start, (len + 2) / h.length), 300); } else fire('bad');
+    if (exact === len) { fire('good'); setTimeout(() => finish(start, (len + 2) / h.length), 300); } else fire('bad');
   };
   return (
     <Board3D theme="target" title="Code Breaker" level={level} flash={flash} stats={[['Code length', len], ['Guesses', history.length]]}>
@@ -230,16 +245,23 @@ export function PremiumWordSearch({ config, onComplete }) {
   const [first, setFirst] = useState(null);
   const [misses, setMisses] = useState(0);
   const [start] = useState(Date.now);
+  const finish = useFinish(onComplete);
   const [flash, fire] = useFeedback();
+  const [foundCells, setFoundCells] = useState(() => new Set());
   const tap = (k) => {
     if (first === null) { setFirst(k); fire('tap'); return; }
-    const hit = placed.find((p) => !found.includes(p.word) && ((p.cells[0] === first && p.cells[p.cells.length - 1] === k) || (p.cells[0] === k && p.cells[p.cells.length - 1] === first)));
     setFirst(null);
+    const [x0, y0, x1, y1] = [first % n, Math.floor(first / n), k % n, Math.floor(k / n)];
+    const steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+    const dx = Math.sign(x1 - x0); const dy = Math.sign(y1 - y0);
+    const straight = steps > 0 && (x0 + dx * steps === x1) && (y0 + dy * steps === y1);
+    const cells = straight ? Array.from({ length: steps + 1 }, (_, i) => (y0 + dy * i) * n + x0 + dx * i) : [];
+    const letters = cells.map((c) => grid[c]).join('');
+    const hit = placed.find((p) => !found.includes(p.word) && (p.word === letters || p.word === [...letters].reverse().join('')));
     if (!hit) { fire('bad'); setMisses((m) => m + 1); return; }
-    const f = [...found, hit.word]; setFound(f); fire('good');
-    if (f.length === placed.length) setTimeout(() => done(onComplete, start, placed.length / (placed.length + misses)), 250);
+    const f = [...found, hit.word]; setFound(f); setFoundCells(new Set([...foundCells, ...cells])); fire('good');
+    if (f.length === placed.length) setTimeout(() => finish(start, placed.length / (placed.length + misses)), 250);
   };
-  const foundCells = new Set(placed.filter((p) => found.includes(p.word)).flatMap((p) => p.cells));
   return (
     <Board3D theme="words" title="Word Search" level={level} flash={flash} stats={[['Found', `${found.length}/${placed.length}`], ['Misses', misses]]}>
       <p className="mb-2 text-center text-xs text-white/70">Tap the first and last letter of each word.</p>
@@ -259,13 +281,14 @@ export function PremiumSpeedTyping({ config, onComplete }) {
   const [text, setText] = useState('');
   const [errors, setErrors] = useState(0);
   const [start] = useState(Date.now);
+  const finish = useFinish(onComplete);
   const [flash, fire] = useFeedback();
   const typed = useRef(0);
   const change = (v) => {
     const t = v.toUpperCase().trim(); const w = words[i];
     typed.current += 1;
     if (!w.startsWith(t)) { fire('bad'); setErrors((e) => e + 1); setText(''); return; }
-    if (t === w) { fire('good'); setText(''); if (i + 1 === words.length) { done(onComplete, start, 1 - errors / typed.current); return; } setI(i + 1); return; }
+    if (t === w) { fire('good'); setText(''); if (i + 1 === words.length) { finish(start, 1 - errors / typed.current); return; } setI(i + 1); return; }
     setText(v);
   };
   return (
@@ -288,17 +311,18 @@ export function PremiumQuickCount({ config, onComplete }) {
   const [phase, setPhase] = useState('show');
   const [wrong, setWrong] = useState(0);
   const [start] = useState(Date.now);
+  const finish = useFinish(onComplete);
   const [flash, fire] = useFeedback();
   const { count, dots, options } = useMemo(() => {
     const c = lerpLevel(level, 5, 22) + rnd(4);
-    const d = Array.from({ length: c }, () => [8 + rnd(84), 8 + rnd(84), PALETTE[rnd(level >= 6 ? 6 : 1)]]);
+    const d = shuffle([...Array(100).keys()]).slice(0, c).map((cell) => [5 + (cell % 10) * 9.5 + rnd(4), 5 + Math.floor(cell / 10) * 9.5 + rnd(4), PALETTE[rnd(level >= 6 ? 6 : 1)]]);
     return { count: c, dots: d, options: shuffle([c, c + 1, c - 1, c + (rnd(2) ? 2 : -2)]) };
   }, [round, seed, level]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { setPhase('show'); const t = setTimeout(() => setPhase('answer'), showMs); return () => clearTimeout(t); }, [round, seed, showMs]);
   const answer = (v) => {
     if (v !== count) { fire('bad'); setWrong((w) => w + 1); setSeed((s) => s + 1); return; }
     fire('good');
-    if (round + 1 >= rounds) done(onComplete, start, rounds / (rounds + wrong)); else setRound(round + 1);
+    if (round + 1 >= rounds) finish(start, rounds / (rounds + wrong)); else setRound(round + 1);
   };
   return (
     <Board3D theme="reaction" title="Quick Count" level={level} flash={flash} stats={[['Round', `${round + 1}/${rounds}`], ['Wrong', wrong]]}>
@@ -334,6 +358,7 @@ export function PremiumShapeRotation({ config, onComplete }) {
   const [round, setRound] = useState(0);
   const [wrong, setWrong] = useState(0);
   const [start] = useState(Date.now);
+  const finish = useFinish(onComplete);
   const [flash, fire] = useFeedback();
   const q = useMemo(() => {
     let target; let mir;
@@ -348,7 +373,7 @@ export function PremiumShapeRotation({ config, onComplete }) {
   const pick = (o) => {
     if (!o.ok) { fire('bad'); setWrong((w) => w + 1); return; }
     fire('good');
-    if (round + 1 >= rounds) done(onComplete, start, rounds / (rounds + wrong)); else setRound(round + 1);
+    if (round + 1 >= rounds) finish(start, rounds / (rounds + wrong)); else setRound(round + 1);
   };
   return (
     <Board3D theme="math" title="Shape Rotation" level={level} flash={flash} stats={[['Round', `${round + 1}/${rounds}`], ['Wrong', wrong]]}>
@@ -385,6 +410,7 @@ export function PremiumPathMemory({ config, onComplete }) {
   const [pos, setPos] = useState(0);
   const [wrong, setWrong] = useState(0);
   const [start] = useState(Date.now);
+  const finish = useFinish(onComplete);
   const [flash, fire] = useFeedback();
   useEffect(() => {
     setPos(0); setShow(0);
@@ -395,7 +421,7 @@ export function PremiumPathMemory({ config, onComplete }) {
     if (show !== -1) return;
     if (k !== path[pos]) { fire('bad'); setWrong((w) => w + 1); setReplay((r) => r + 1); return; }
     fire('tap');
-    if (pos + 1 === path.length) { fire('good'); if (round + 1 >= rounds) done(onComplete, start, rounds / (rounds + wrong)); else setRound(round + 1); } else setPos(pos + 1);
+    if (pos + 1 === path.length) { fire('good'); if (round + 1 >= rounds) finish(start, rounds / (rounds + wrong)); else setRound(round + 1); } else setPos(pos + 1);
   };
   return (
     <Board3D theme="memory" title="Path Memory" level={level} flash={flash} stats={[['Round', `${round + 1}/${rounds}`], ['Path', len], ['Wrong', wrong]]}>
@@ -418,6 +444,7 @@ export function PremiumStackTower({ config, onComplete }) {
   const [stack, setStack] = useState([{ x: 25, w: 50 }]);
   const [fails, setFails] = useState(0);
   const [start] = useState(Date.now);
+  const finish = useFinish(onComplete);
   const [flash, fire] = useFeedback();
   const [x, setX] = useState(0);
   const state = useRef({ x: 0, dir: 1, last: 0 });
@@ -438,7 +465,7 @@ export function PremiumStackTower({ config, onComplete }) {
     if (right - left < 2) { fire('bad'); setFails((f) => f + 1); setStack([{ x: 25, w: 50 }]); state.current = { x: 0, dir: 1, last: 0 }; return; }
     const next = [...stack, { x: left, w: right - left }];
     fire(right - left > top.w - 1 ? 'good' : 'tap'); setStack(next); state.current = { x: 0, dir: 1, last: 0 };
-    if (next.length - 1 >= goal) done(onComplete, start, (next[next.length - 1].w / 50) / (1 + fails * 0.25));
+    if (next.length - 1 >= goal) finish(start, (next[next.length - 1].w / 50) / (1 + fails * 0.25));
   };
   const visible = stack.slice(-10);
   return (
@@ -466,6 +493,7 @@ export function PremiumSumHunt({ config, onComplete }) {
   const [sel, setSel] = useState([]);
   const [busts, setBusts] = useState(0);
   const [start] = useState(Date.now);
+  const finish = useFinish(onComplete);
   const [flash, fire] = useFeedback();
   const sum = sel.reduce((s, i) => s + nums[i], 0);
   const tap = (k) => {
@@ -473,7 +501,7 @@ export function PremiumSumHunt({ config, onComplete }) {
     const total = s.reduce((a, i) => a + nums[i], 0);
     if (total > target) { fire('bad'); setBusts((b) => b + 1); setSel([]); return; }
     setSel(s); fire('tap');
-    if (total === target) { fire('good'); setSel([]); if (round + 1 >= rounds) done(onComplete, start, rounds / (rounds + busts)); else setRound(round + 1); }
+    if (total === target) { fire('good'); setSel([]); if (round + 1 >= rounds) finish(start, rounds / (rounds + busts)); else setRound(round + 1); }
   };
   return (
     <Board3D theme="math" title="Sum Hunt" level={level} flash={flash} stats={[['Target', target], ['Sum', sum], ['Round', `${round + 1}/${rounds}`]]}>

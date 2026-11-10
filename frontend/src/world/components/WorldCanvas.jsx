@@ -29,6 +29,7 @@ import InstallPrompt from './InstallPrompt';
 
 import '../styles/world2d.css';
 import '../styles/festiveMaps.css';
+import SantaAvatar from './SantaAvatar';
 
 const CHAMPIONSHIP_HEIGHT = 3500;
 const VIRTUAL_SECTION_OVERSCAN = 1;
@@ -1939,6 +1940,7 @@ const ChampionshipSection = React.memo(function ChampionshipSection({
             }
             aria-label="Your avatar"
           >
+            <SantaAvatar />
             <span className="pl1000-avatar-head" />
 
             <span className="pl1000-avatar-body">
@@ -2180,8 +2182,8 @@ export default function WorldCanvas({
 
   const { user } = useAuth();
 
-  const [mapTheme, setMapTheme] = useState({ theme: 'classic', effects: false });
-  useEffect(() => { worldAPI.mapTheme().then(setMapTheme).catch(() => {}); }, []);
+  const [mapTheme, setMapTheme] = useState(() => { try { return JSON.parse(localStorage.getItem('pl_map_theme')) || { theme: 'festive', effects: true }; } catch { return { theme: 'festive', effects: true }; } });
+  useEffect(() => { worldAPI.mapTheme().then((t) => { setMapTheme(t); localStorage.setItem('pl_map_theme', JSON.stringify(t)); }).catch(() => {}); }, []);
 
   const [walletBalance, setWalletBalance] =
     useState(null);

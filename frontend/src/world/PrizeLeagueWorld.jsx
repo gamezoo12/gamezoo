@@ -842,7 +842,9 @@ export default function PrizeLeagueWorld() {
               setGameFlowOpen(false);
               setChampionMode(false);
             }}
-            onFinished={async () => {
+            onFinished={async (result) => {
+              const kind = result?.passed ? 'win' : 'try';
+              setTimeout(() => window.dispatchEvent(new CustomEvent('pl-santa-celebrate', { detail: { kind } })), 400);
               try {
                 const refreshed =
                   await worldAPI.level(
