@@ -60,7 +60,6 @@ function SantaModel({ dance }) {
         <mesh position={[0, 0.06, 0]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.5, 0.07, 12, 40]} /><M c={BLACK} r={0.25} m={0.4} /></mesh>
         <mesh position={[0, 0.06, 0.52]}><boxGeometry args={[0.2, 0.17, 0.05]} /><M c={GOLD} r={0.2} m={0.9} e="#7a5a00" /></mesh>
         <mesh position={[0, -0.3, 0]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.4, 0.09, 12, 40]} /><M c={WHITE} r={0.95} /></mesh>
-        <mesh position={[0, 0.12, 0.5]} scale={[0.07, 0.36, 0.05]}><sphereGeometry args={[1, 12, 12]} /><M c={WHITE} r={0.95} /></mesh>
         <Arm side={-1} armRef={armL} />
         <Arm side={1} armRef={armR} />
         <group ref={head} position={[0, 0.95, 0]}>
@@ -151,11 +150,46 @@ function Sleigh() {
   );
 }
 
+function SnowTrail({ count = 140, color = '#ffffff', size = 0.09, speed = 1 }) {
+  const ref = useRef();
+  const data = useMemo(() => {
+    const pos = new Float32Array(count * 3);
+    const vel = new Float32Array(count * 3);
+    const life = new Float32Array(count).map(() => Math.random());
+    return { pos, vel, life };
+  }, [count]);
+  useFrame((_, dt) => {
+    const { pos, vel, life } = data;
+    const d = Math.min(dt, 0.05);
+    for (let i = 0; i < count; i += 1) {
+      life[i] += d * 0.9 * speed;
+      if (life[i] >= 1) {
+        life[i] = 0;
+        pos[i * 3] = -0.95 + Math.random() * 0.2; pos[i * 3 + 1] = -0.75 + Math.random() * 0.35; pos[i * 3 + 2] = (Math.random() - 0.5) * 0.9;
+        vel[i * 3] = -(1.6 + Math.random() * 1.6) * speed; vel[i * 3 + 1] = (Math.random() - 0.3) * 0.6; vel[i * 3 + 2] = (Math.random() - 0.5) * 0.5;
+      }
+      pos[i * 3] += vel[i * 3] * d; pos[i * 3 + 1] += vel[i * 3 + 1] * d - d * 0.15; pos[i * 3 + 2] += vel[i * 3 + 2] * d;
+    }
+    const g = ref.current.geometry;
+    g.attributes.position.needsUpdate = true;
+    ref.current.material.opacity = 0.75 + Math.sin(performance.now() / 90) * 0.2;
+  });
+  return (
+    <points ref={ref}>
+      <bufferGeometry><bufferAttribute attach="attributes-position" args={[data.pos, 3]} /></bufferGeometry>
+      <pointsMaterial color={color} size={size} sizeAttenuation transparent depthWrite={false} blending={2} />
+    </points>
+  );
+}
+
 function Ride({ dir }) {
   const g = useRef();
   useFrame(({ clock }) => { g.current.position.y = Math.sin(clock.elapsedTime * 11) * 0.05 + 0.15; g.current.rotation.z = Math.sin(clock.elapsedTime * 5.5) * 0.03; });
   return (
     <group ref={g} rotation={[0.15, dir > 0 ? -0.35 : Math.PI + 0.35, 0]}>
+      <SnowTrail />
+      <SnowTrail count={60} color="#ffe27a" size={0.06} speed={1.3} />
+      <SnowTrail count={40} color="#a5f3fc" size={0.05} speed={0.8} />
       <Sleigh />
       <group position={[-0.1, 0.25, 0]} rotation={[0, dir > 0 ? 0.9 : -0.9, 0]} scale={0.8}><SantaModel dance="ride" /></group>
       <Reindeer x={2.05} phase={0} />
@@ -165,12 +199,12 @@ function Ride({ dir }) {
 }
 
 // Real-time 3D Santa (procedural, no model files). dance: idle|twist|spin|moonwalk|disco|belly|wave|kick|ride|try
-export default function Santa3D({ dance = 'idle', dir = 1, className = '', testId = 'santa-3d' }) {
-  const dpr = useMemo(() => Math.min(2, window.devicePixelRatio || 1), []);
+export default function Santa3D({ dance = 'idle', dir = 1, className = '', testId = 'santa-3d', lite = false }) {
+  const dpr = useMemo(() => (lite ? 1 : Math.min(2, window.devicePixelRatio || 1)), [lite]);
   const riding = dance === 'ride';
   return (
     <div className={className} data-testid={testId} data-dance={dance}>
-      <Canvas key={riding ? 'ride' : 'stand'} shadows dpr={dpr} resize={{ offsetSize: true, scroll: false }} camera={riding ? { position: [0, 1.2, 8.5], fov: 32 } : { position: [0, 0.5, 4.6], fov: 38 }} gl={{ alpha: true, antialias: true }} style={{ background: 'transparent' }}>
+      <Canvas key={riding ? 'ride' : 'stand'} shadows={!lite} dpr={dpr} resize={{ offsetSize: true, scroll: false }} camera={riding ? { position: [0, 1.2, 8.5], fov: 32 } : { position: [0, 0.5, 4.6], fov: 38 }} gl={{ alpha: true, antialias: true }} style={{ background: 'transparent', pointerEvents: 'none' }}>
         <ambientLight intensity={0.75} />
         <hemisphereLight args={['#fff6e0', '#3b1d5e', 0.6]} />
         <directionalLight position={[2.5, 4, 3]} intensity={1.6} castShadow shadow-mapSize={[512, 512]} />

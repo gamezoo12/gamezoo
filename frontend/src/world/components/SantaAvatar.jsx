@@ -82,7 +82,7 @@ export default function SantaAvatar({ left, bottom }) {
       {mode !== 'idle' && <span className="pl-santa-say" data-testid="santa-say">{SAYINGS[mode]}</span>}
       {(mode === 'win' || mode === 'dance') && <span className="pl-santa-crackers">{Array.from({ length: 6 }, (_, i) => <span key={i} className="pl-santa-cracker" style={{ '--a': `${i * 60}deg`, '--c': ['#facc15', '#f43f5e', '#22d3ee', '#a3e635', '#f472b6', '#fb923c'][i], animationDelay: `${(i % 3) * 0.45}s` }} />)}</span>}
       {mode !== 'idle' && <span className="pl-santa-sparkles">{Array.from({ length: 14 }, (_, i) => <span key={i} style={{ left: `${(i * 37) % 100}%`, animationDelay: `${(i % 7) * 0.18}s`, background: ['#fde047', '#fff', '#f9a8d4', '#67e8f9'][i % 4] }} />)}</span>}
-      <Santa3D dance={mode === 'win' || mode === 'dance' ? dance : ['ride', 'try'].includes(mode) ? mode : 'idle'} dir={dir} className="pl-santa-3d" />
+      <Santa3D dance={mode === 'win' || mode === 'dance' ? dance : ['ride', 'try'].includes(mode) ? mode : 'idle'} dir={dir} className="pl-santa-3d" lite />
     </span>
   );
 }
