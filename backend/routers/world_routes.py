@@ -581,6 +581,21 @@ async def _assert_legacy_competition_mode(db, contest_number: int | None = None)
         )
 
 
+async def _champion_attempt_rule(db, stage: int) -> dict:
+    """Free Championship attempts + token price for a personal Champion stage."""
+    rules = await _champion_attempt_rules(db)
+    return rules["late"] if int(stage or 1) >= rules["late_from_stage"] else rules["early"]
+
+
+async def _champion_attempt_rules(db) -> dict:
+    doc = await db.world_settings.find_one({"_id": "champion_attempt_rules", "season_id": WORLD_SEASON_ID}, {"_id": 0}) or {}
+    return {
+        "late_from_stage": int(doc.get("late_from_stage", 5)),
+        "early": {"free_attempts": int(doc.get("early_free_attempts", 3)), "token_cost": int(doc.get("early_token_cost", CHAMPION_TOKEN_RETRY_COST))},
+        "late": {"free_attempts": int(doc.get("late_free_attempts", 0)), "token_cost": int(doc.get("late_token_cost", 2))},
+    }
+
+
 async def _user_champion_stage(db, user_id: str) -> int:
     """
     Personal Champion progression.
@@ -2138,6 +2153,39 @@ async def admin_world_reset_extensions(request: Request):
             "created_at": _utcnow(),
         })
     return {"championship_extensions": {}, "cleared": bool(before)}
+
+
+class ChampionAttemptRulesInput(BaseModel):
+    late_from_stage: int = Field(5, ge=2, le=WORLD_CONTEST_COUNT)
+    early_free_attempts: int = Field(..., ge=0, le=20)
+    early_token_cost: int = Field(..., ge=1, le=1000)
+    late_free_attempts: int = Field(..., ge=0, le=20)
+    late_token_cost: int = Field(..., ge=1, le=1000)
+
+
+@admin_router.get("/champion-attempt-rules")
+async def admin_get_champion_attempt_rules(request: Request):
+    await require_admin(request)
+    return await _champion_attempt_rules(get_db())
+
+
+@admin_router.put("/champion-attempt-rules")
+async def admin_set_champion_attempt_rules(payload: ChampionAttemptRulesInput, request: Request):
+    admin = await require_admin(request)
+    db = get_db()
+    before = await _champion_attempt_rules(db)
+    await db.world_settings.update_one(
+        {"_id": "champion_attempt_rules", "season_id": WORLD_SEASON_ID},
+        {"$set": {**payload.model_dump(), "updated_at": _utcnow(), "updated_by": admin.get("user_id")}},
+        upsert=True,
+    )
+    await db.world_progress_audit_log.insert_one({
+        "season_id": WORLD_SEASON_ID, "scope": "champion_attempt_rules",
+        "actor_user_id": admin.get("user_id"), "actor_email": admin.get("email"),
+        "changes": [{"field": "champion_attempt_rules", "before": before, "after": payload.model_dump()}],
+        "reason": "updated Championship attempt rules", "created_at": _utcnow(),
+    })
+    return await _champion_attempt_rules(db)
 
 
 class StageLevelConfigInput(BaseModel):
@@ -8115,8 +8163,10 @@ async def _champion_attempt_status(
     except Exception:
         stage = 1
 
+    rule = await _champion_attempt_rule(db, stage)
+
     if stage >= 2:
-        initial_attempts = 3
+        initial_attempts = rule["free_attempts"]
         scoped = await db.world_champion_stage_counters.find_one(
             {
                 "season_id": WORLD_SEASON_ID,
@@ -8164,7 +8214,7 @@ async def _champion_attempt_status(
                 int(scoped.get("attempts_remaining", initial_attempts)),
             )
     else:
-        initial_attempts = 3
+        initial_attempts = rule["free_attempts"]
         counter = await db.world_champion_attempt_counters.find_one(
             {
                 "season_id": WORLD_SEASON_ID,
@@ -8250,7 +8300,7 @@ async def _champion_attempt_status(
             attempts_remaining == 0
             and entitlement_remaining == 0
         ),
-        "token_retry_cost": CHAMPION_TOKEN_RETRY_COST,
+        "token_retry_cost": rule["token_cost"],
     }
 
 
@@ -8277,12 +8327,13 @@ async def _consume_champion_stage2_attempt(
         "champion_stage": stage,
     }
 
+    free = (await _champion_attempt_rule(db, stage))["free_attempts"]
     await db.world_champion_stage_counters.update_one(
         key,
         {
             "$setOnInsert": {
                 **key,
-                "attempts_remaining": 3,
+                "attempts_remaining": free,
                 "free_attempt_policy": 3,
                 "created_at": now,
             }
@@ -8421,7 +8472,7 @@ async def _consume_champion_attempt(
                     user_id,
 
                 "attempts_remaining":
-                    3,
+                    (await _champion_attempt_rule(db, stage))["free_attempts"],
 
 
                 "free_attempt_policy":
@@ -10193,7 +10244,7 @@ async def reserve_world_token_retry(
         # Champion retry has its own entitlement rules.
         config = {
             "token_retry_enabled": True,
-            "token_retry_cost": 1,
+            "token_retry_cost": (await _champion_attempt_rule(db, await _user_champion_stage(db, user_id)))["token_cost"],
         }
 
     # Championship uses three free attempts per global contest.

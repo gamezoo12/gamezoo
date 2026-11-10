@@ -563,6 +563,8 @@ export const worldAdminAPI = {
 
   stageLevelConfig: () =>
     api.get('/admin/world/stage-level-config').then(r => r.data),
+  championAttemptRules: () => api.get('/admin/world/champion-attempt-rules').then(r => r.data),
+  setChampionAttemptRules: (data) => api.put('/admin/world/champion-attempt-rules', data).then(r => r.data),
 
   setStageLevelConfig: (data) =>
     api.put('/admin/world/stage-level-config', data).then(r => r.data),

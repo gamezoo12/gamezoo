@@ -1,3 +1,5 @@
+import ChampionAttemptRules from '../../components/admin/ChampionAttemptRules';
+
 import {
   useCallback,
   useEffect,
@@ -724,6 +726,8 @@ export default function FreeWorldAdmin() {
           </table>
         </div>
       </section>
+
+      <ChampionAttemptRules />
 
       {/* PART 2.5 — PER-CHAMPIONSHIP+LEVEL ATTEMPT CONFIG (Phase 4) */}
       <section className="rounded-2xl border border-slate-200 bg-white p-5"

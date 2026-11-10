@@ -786,3 +786,10 @@ Root causes fixed:
 ## 2026-06 — Voided draw delete + live upload fix
 - DELETE /api/admin/draw-studio/plans/{id} (voided only): erases plan, results, voided winners, recordings, chunks and audit entries (user chose "no trace"). Button "Delete permanently" in Draw History (data-testid history-delete-{plan_id})
 - Prod RCA (deployer): Draw Studio recording chunks were written to pod-local /tmp; prod has 2 replicas -> FileNotFoundError 500. Fixed: chunks now stored in Mongo `draw_studio_chunks` (draw_studio_ops_routes.py)
+
+## 2026-06 — Championship attempt rules (personal progression)
+- world_settings {_id:"champion_attempt_rules"}: late_from_stage (5), early free/cost (3/1), late free/cost (0/2). Helpers _champion_attempt_rules/_champion_attempt_rule in world_routes.py
+- Applied to _champion_attempt_status, both consume paths (new counters only), and champion token-retry reservation price
+- Admin: GET/PUT /api/admin/world/champion-attempt-rules; UI section "Championship Attempt Rules" in FreeWorldAdmin (components/admin/ChampionAttemptRules.jsx)
+- Announcements: Edit scrolls to form; generated winner text can be free text (placeholders optional)
+- PENDING: Free World staff (admin/super_admin) dropped from winners on prod — deployer RCA pointed at settle_hybrid_level_bonuses (world_gc_live_routes.py, legacy_hybrid engine, GC4); awaiting full result
