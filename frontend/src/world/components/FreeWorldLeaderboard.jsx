@@ -240,7 +240,7 @@ export default function FreeWorldLeaderboard({ open, onClose, activeGc: activeGc
         <div className="pl-global-lb-card flex gap-2 p-2" role="tablist" data-testid="lb-view-tabs">
           {[['championship', 'Championship Leaderboard'], ['level', 'Level Leaderboard']].map(([k, label]) => (
             <button key={k} type="button" role="tab" aria-selected={view === k} onClick={() => setView(k)} data-testid={`lb-tab-${k}`}
-              className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-black transition-colors ${view === k ? 'bg-[#6C2BFF] text-white shadow' : 'text-[#3b2a85] hover:bg-[#f1edff]'}`}>{label}</button>
+              className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-black transition-colors ${view === k ? 'bg-[var(--fw-accent)] text-white shadow' : 'text-[var(--fw-accent-strong)] hover:bg-[var(--fw-accent-soft)]'}`}>{label}</button>
           ))}
         </div>
 

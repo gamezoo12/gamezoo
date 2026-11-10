@@ -620,7 +620,7 @@ function FestiveFx({ seed }) {
   }, []);
   return (
     <div ref={ref} className="pl-festive-fx" aria-hidden="true" data-testid={`festive-fx-${seed}`}>
-      {visible && Array.from({ length: 36 }, (_, i) => <span key={`s${i}`} className="pl-snow" style={{ left: `${(i * 37 + seed * 11) % 100}%`, top: `${(i * 23 + seed * 5) % 100}%`, animationDelay: `${-((i * 1.7) % 12)}s`, animationDuration: `${8 + (i % 7)}s`, width: 3 + (i % 4), height: 3 + (i % 4) }} />)}
+      {visible && Array.from({ length: 72 }, (_, i) => <span key={`s${i}`} className="pl-snow" style={{ left: `${(i * 37 + seed * 11) % 100}%`, top: `${(i * 23 + seed * 5) % 100}%`, animationDelay: `${-((i * 1.7) % 12)}s`, animationDuration: `${7 + (i % 8)}s`, width: 2 + (i % 6), height: 2 + (i % 6), opacity: 0.55 + (i % 5) * 0.1 }} />)}
       {visible && Array.from({ length: 6 }, (_, i) => <span key={`f${i}`} className="pl-firework" style={{ left: `${10 + ((i * 19 + seed * 7) % 80)}%`, top: `${2 + ((i * 8.3 + seed) % 92)}%`, animationDelay: `${(i * 0.9 + (seed % 3) * 0.4) % 6.5}s`, '--fw': ['#facc15', '#f472b6', '#38bdf8', '#a3e635', '#fb7185', '#c084fc'][i % 6] }} />)}
     </div>
   );

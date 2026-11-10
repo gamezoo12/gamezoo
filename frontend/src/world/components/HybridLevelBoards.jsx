@@ -1,6 +1,7 @@
 import { VerifiedReviewerBadge } from '../../components/VerifiedReviewerBadge';
 import { useEffect, useState } from 'react';
 import { Clock, Crown, Lock } from 'lucide-react';
+import { TokenRulesButton } from './TokenRulesButton';
 import { worldGcCompetitionAPI } from '../../lib/api';
 import { GAME_CATALOG } from '../../lib/gameCatalog';
 
@@ -44,19 +45,19 @@ export function LevelLeaderboardPanel({ gcNumber, boards, isMine }) {
           {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => {
             const on = enabled.some((b) => b.level === n);
             return <button key={n} type="button" disabled={!on} onClick={() => setLevel(n)} data-testid={`lb-level-btn-${n}`} title={on ? `Level ${n}` : 'No level leaderboard for this level'}
-              className={`flex h-11 items-center justify-center gap-1 rounded-xl text-sm font-black transition-colors ${n === level ? 'bg-[#6C2BFF] text-white shadow-lg' : on ? 'bg-[#f1edff] text-[#3b2a85] hover:bg-[#e4dcff]' : 'cursor-not-allowed bg-slate-100 text-slate-400'}`}>
+              className={`flex h-11 items-center justify-center gap-1 rounded-xl text-sm font-black transition-colors ${n === level ? 'bg-[var(--fw-accent)] text-white shadow-lg' : on ? 'bg-[var(--fw-accent-soft)] text-[var(--fw-accent-strong)] hover:bg-[var(--fw-line)]' : 'cursor-not-allowed bg-slate-100 text-slate-400'}`}>
               {!on && <Lock size={11} />}L{n}</button>;
           })}
         </div>
         {!enabled.length && <p className="mt-3 text-sm text-slate-500" data-testid="lb-level-none">No level leaderboards for this GC. {upcoming ? `${upcoming} Every-Level levels are scheduled; rankings appear when each level opens.` : 'Level rankings appear only for Every-Level competitions that have opened.'}</p>}
       </div>
       {board && <div className="pl-global-lb-card pl-global-lb-rankings" data-testid="lb-level-board">
-        <div className="pl-global-lb-rankhead"><h2>LEVEL {board.level} RANKINGS</h2><span className="pl-global-lb-updates" data-testid="lb-level-status">{board.status}</span></div>
+        <div className="pl-global-lb-rankhead"><h2>LEVEL {board.level} RANKINGS</h2><span className="flex items-center gap-2"><TokenRulesButton rewards={board.rewards} /><span className="pl-global-lb-updates" data-testid="lb-level-status">{board.status}</span></span></div>
         <div className="mb-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-          <div className="rounded-xl bg-[#f7f5ff] p-2"><div className="text-slate-500">Game</div><b data-testid="lb-level-game">{gameName(board.game_id)}</b></div>
-          <div className="rounded-xl bg-[#f7f5ff] p-2"><div className="text-slate-500">Your best</div><b className="font-mono" data-testid="lb-level-my-best">{fmt(board.mine?.personal_best_ms)}</b></div>
-          <div className="rounded-xl bg-[#f7f5ff] p-2"><div className="text-slate-500">Your rank</div><b data-testid="lb-level-my-rank">{board.mine?.rank ? `#${board.mine.rank}` : '—'}</b></div>
-          <div className="rounded-xl bg-[#f7f5ff] p-2"><div className="text-slate-500">Rewards</div><b>{board.reward_status === 'finalized' ? 'Finalized' : 'Provisional'}</b></div>
+          <div className="rounded-xl bg-[var(--fw-soft)] p-2"><div className="text-slate-500">Game</div><b data-testid="lb-level-game">{gameName(board.game_id)}</b></div>
+          <div className="rounded-xl bg-[var(--fw-soft)] p-2"><div className="text-slate-500">Your best</div><b className="font-mono" data-testid="lb-level-my-best">{fmt(board.mine?.personal_best_ms)}</b></div>
+          <div className="rounded-xl bg-[var(--fw-soft)] p-2"><div className="text-slate-500">Your rank</div><b data-testid="lb-level-my-rank">{board.mine?.rank ? `#${board.mine.rank}` : '—'}</b></div>
+          <div className="rounded-xl bg-[var(--fw-soft)] p-2"><div className="text-slate-500">Rewards</div><b>{board.reward_status === 'finalized' ? 'Finalized' : 'Provisional'}</b></div>
         </div>
         <div className="mb-3 flex flex-wrap gap-1.5 text-[11px]" data-testid="lb-level-rewards">
           {[1, 2, 3, 4, 5].map((r) => <span key={r} className="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 font-semibold text-amber-900">#{r}: {board.rewards?.[String(r)] ?? 0} Bonus Tokens</span>)}

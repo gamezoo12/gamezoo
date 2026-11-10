@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { seededShuffle } from '../../../lib/difficulty';
 import { Anchor, Bell, Bolt, Camera, Cherry, Crown, Diamond, Feather, Flame, Gem, Gift, Heart, Key, Moon, Music, Rocket, Star, Sun, Trophy, Zap } from 'lucide-react';
 import { Board3D } from './kit';
 
@@ -12,8 +13,14 @@ const useFlash = () => {
   return [flash, (kind) => { setFlash(kind); setTimeout(() => setFlash(null), 380); }];
 };
 
-export function SequenceBoard({ numbers, next, target, columns = 5, onTap, disabled, level, misses }) {
+// Difficulty: 1-2 glow the next number; 5+ reshuffle the grid every few correct taps (every tap at 8+).
+const reshuffleEvery = (level) => (level >= 8 ? 1 : level >= 7 ? 2 : level >= 6 ? 3 : level >= 5 ? 5 : 0);
+export function SequenceBoard({ numbers: baseNumbers, next, target, columns = 5, onTap, disabled, level, misses }) {
   const [flash, fire] = useFlash();
+  const every = reshuffleEvery(level || 0);
+  const bucket = every ? Math.floor((next - 1) / every) : 0;
+  const numbers = useMemo(() => (every && bucket ? seededShuffle(baseNumbers, 700 + bucket * 31 + (level || 0)) : baseNumbers), [baseNumbers, every, bucket, level]);
+  const hint = level && level <= 2;
   const tap = (n) => { fire(n === next ? (n >= target ? 'good' : null) : 'bad'); onTap(n); };
   const stats = [['Next', next > target ? '✓' : next], ['Progress', `${Math.min(next - 1, target)}/${target}`]];
   if (misses != null) stats.push(['Misses', misses]);
@@ -21,7 +28,7 @@ export function SequenceBoard({ numbers, next, target, columns = 5, onTap, disab
     <Board3D theme="math" title="Sequence Grid" level={level} flash={flash} stats={stats}>
       <div className={`grid ${columns > 6 ? 'gap-1' : 'gap-2'}`} style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }} data-testid="sequence-board">
         {numbers.map((n) => <button key={n} type="button" disabled={disabled || n < next} onClick={() => tap(n)} data-testid={`seq-num-${n}`}
-          className={`${tile3d} aspect-square ${columns > 6 ? '!rounded-md !border-b-[3px] text-[clamp(0.7rem,2.6vw,1rem)]' : 'text-[clamp(0.95rem,2.4vw,1.35rem)]'} font-black ${n < next ? 'border-emerald-800 bg-emerald-500/40 text-white/40' : 'border-sky-800 bg-gradient-to-b from-sky-200 to-sky-400 text-sky-950'}`}>{n}</button>)}
+          className={`${tile3d} aspect-square ${columns > 6 ? '!rounded-md !border-b-[3px] text-[clamp(0.7rem,2.6vw,1rem)]' : 'text-[clamp(0.95rem,2.4vw,1.35rem)]'} font-black ${n < next ? 'border-emerald-800 bg-emerald-500/40 text-white/40' : 'border-sky-800 bg-gradient-to-b from-sky-200 to-sky-400 text-sky-950'} ${hint && n === next ? 'ring-4 ring-amber-300 animate-pulse' : ''}`}>{n}</button>)}
       </div>
     </Board3D>
   );

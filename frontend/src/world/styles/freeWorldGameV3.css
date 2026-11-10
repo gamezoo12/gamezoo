@@ -34,7 +34,7 @@
     sans-serif;
 
   color:
-    #071226;
+    var(--fw-ink);
 }
 
 
@@ -54,13 +54,13 @@
     24px 26px;
 
   border:
-    1px solid #d8deea;
+    1px solid var(--fw-line);
 
   border-radius:
     24px;
 
   background:
-    #ffffff;
+    var(--fw-card);
 
   box-shadow:
     0 28px 80px
@@ -90,16 +90,16 @@
   padding: 0;
 
   border:
-    1px solid #cfd6e4;
+    1px solid var(--fw-line);
 
   border-radius:
     14px;
 
   background:
-    #ffffff;
+    var(--fw-card);
 
   color:
-    #071226;
+    var(--fw-ink);
 
   cursor:
     pointer;
@@ -122,7 +122,7 @@
   margin: 0;
 
   color:
-    #071226;
+    var(--fw-ink);
 
   font-size:
     clamp(
@@ -150,7 +150,7 @@
     10px;
 
   color:
-    #6724c7;
+    var(--fw-accent);
 
   font-size:
     clamp(
@@ -184,7 +184,7 @@
     18px;
 
   border:
-    1px solid #d8c8fa;
+    1px solid var(--fw-line);
 
   border-radius:
     18px;
@@ -192,8 +192,8 @@
   background:
     linear-gradient(
       135deg,
-      #ffffff 0%,
-      #fbf8ff 100%
+      var(--fw-card) 0%,
+      var(--fw-soft) 100%
     );
 }
 
@@ -224,16 +224,16 @@
     center;
 
   border:
-    2px solid #6724c7;
+    2px solid var(--fw-accent);
 
   border-radius:
     8px;
 
   color:
-    #6724c7;
+    var(--fw-accent);
 
   background:
-    #ffffff;
+    var(--fw-card);
 
   font-size:
     28px;
@@ -245,7 +245,7 @@
 
 .fwv3-game-banner-copy > span {
   color:
-    #6724c7;
+    var(--fw-accent);
 
   font-size:
     15px;
@@ -263,7 +263,7 @@
     6px 0 0;
 
   color:
-    #071226;
+    var(--fw-ink);
 
   font-size:
     clamp(
@@ -324,13 +324,13 @@
     16px;
 
   border:
-    1px solid #d9dfeb;
+    1px solid var(--fw-line);
 
   border-radius:
     18px;
 
   background:
-    #ffffff;
+    var(--fw-card);
 
   text-align:
     center;
@@ -348,7 +348,7 @@
     48px;
 
   color:
-    #6724c7;
+    var(--fw-accent);
 
   stroke-width:
     2.6;
@@ -366,7 +366,7 @@
 
 .fwv3-stat-grid span {
   color:
-    #6724c7;
+    var(--fw-accent);
 
   font-size:
     13px;
@@ -378,7 +378,7 @@
 
 .fwv3-stat-grid strong {
   color:
-    #071226;
+    var(--fw-ink);
 
   font-size:
     42px;
@@ -396,7 +396,7 @@
     5px;
 
   color:
-    #071226;
+    var(--fw-ink);
 
   font-size:
     16px;
@@ -408,7 +408,7 @@
 
 .fwv3-bars {
   color:
-    #6724c7;
+    var(--fw-accent);
 
   font-size:
     42px;
@@ -435,13 +435,13 @@
     18px 28px;
 
   border:
-    1px solid #d8c8fa;
+    1px solid var(--fw-line);
 
   border-radius:
     18px;
 
   background:
-    #fbf9ff;
+    var(--fw-soft);
 }
 
 
@@ -456,7 +456,7 @@
     42px;
 
   color:
-    #6724c7;
+    var(--fw-accent);
 }
 
 
@@ -464,7 +464,7 @@
   margin: 0;
 
   color:
-    #071226;
+    var(--fw-ink);
 
   font-size:
     18px;
@@ -552,13 +552,13 @@
 
 .fwv3-button-primary {
   border:
-    2px solid #6420c8;
+    2px solid var(--fw-accent-strong);
 
   background:
     linear-gradient(
       135deg,
-      #7b2be2 0%,
-      #5620bd 100%
+      var(--fw-accent) 0%,
+      var(--fw-accent-strong) 100%
     );
 
   color:
@@ -577,13 +577,13 @@
 
 .fwv3-button-outline {
   border:
-    2px solid #6420c8;
+    2px solid var(--fw-accent-strong);
 
   background:
-    #ffffff;
+    var(--fw-card);
 
   color:
-    #6420c8;
+    var(--fw-accent-strong);
 }
 
 
@@ -604,7 +604,7 @@
     14px;
 
   color:
-    #071226;
+    var(--fw-ink);
 
   font-size:
     16px;
@@ -616,7 +616,7 @@
 
 .fwv3-practice-note svg {
   color:
-    #6724c7;
+    var(--fw-accent);
 }
 
 
@@ -665,7 +665,7 @@
     block;
 
   color:
-    #6724c7;
+    var(--fw-accent);
 
   text-align:
     center;
@@ -698,7 +698,7 @@
     10px;
 
   color:
-    #6724c7;
+    var(--fw-accent);
 
   font-variant-numeric:
     tabular-nums;
@@ -728,7 +728,7 @@
     275px;
 
   color:
-    #6724c7;
+    var(--fw-accent);
 
   font-size:
     47px;
@@ -749,7 +749,7 @@
 
 .fwv3-timer-caption {
   color:
-    #6724c7;
+    var(--fw-accent);
 
   text-align:
     center;
@@ -776,13 +776,13 @@
     12px -12px 8px;
 
   border-top:
-    1px solid #eceaf3;
+    1px solid var(--fw-line);
 
   border-bottom:
-    1px solid #eceaf3;
+    1px solid var(--fw-line);
 
   background:
-    #ffffff;
+    var(--fw-card);
 }
 
 
@@ -797,7 +797,7 @@
 
 .fwv3-progress > div + div {
   border-left:
-    1px solid #eceaf3;
+    1px solid var(--fw-line);
 }
 
 
@@ -806,7 +806,7 @@
     block;
 
   color:
-    #6724c7;
+    var(--fw-accent);
 
   font-size:
     10px;
@@ -824,7 +824,7 @@
     3px;
 
   color:
-    #071226;
+    var(--fw-ink);
 
   font-size:
     25px;
@@ -848,13 +848,13 @@
     7px;
 
   border:
-    1px solid #e2e4eb;
+    1px solid var(--fw-line);
 
   border-radius:
     12px;
 
   background:
-    #f3f3f7;
+    var(--fw-soft);
 
   contain:
     layout paint;
@@ -875,16 +875,16 @@
     0;
 
   border:
-    1px solid #d5d8e2;
+    1px solid var(--fw-line);
 
   border-radius:
     9px;
 
   background:
-    #ffffff;
+    var(--fw-card);
 
   color:
-    #070c18;
+    var(--fw-ink);
 
   font-family:
     inherit;
@@ -985,7 +985,7 @@
     10px;
 
   background:
-    #ffffff;
+    var(--fw-card);
 
   color:
     #df1717;
@@ -1035,7 +1035,7 @@
     14px auto 10px;
 
   color:
-    #6724c7;
+    var(--fw-accent);
 }
 
 
@@ -1045,7 +1045,7 @@
     12px 0 8px;
 
   color:
-    #071226;
+    var(--fw-ink);
 
   font-size:
     32px;
@@ -1061,7 +1061,7 @@
 .fwv3-ready-card p,
 .fwv3-result-message {
   color:
-    #39465a;
+    var(--fw-muted);
 
   font-size:
     15px;
@@ -1082,13 +1082,13 @@
     16px;
 
   border:
-    1px solid #ded8ed;
+    1px solid var(--fw-line);
 
   border-radius:
     14px;
 
   background:
-    #fbf9ff;
+    var(--fw-soft);
 }
 
 
@@ -1097,7 +1097,7 @@
     block;
 
   color:
-    #6724c7;
+    var(--fw-accent);
 
   font-size:
     11px;
@@ -1115,7 +1115,7 @@
     4px;
 
   color:
-    #071226;
+    var(--fw-ink);
 
   font-size:
     38px;
@@ -1133,7 +1133,7 @@
     20px 0;
 
   color:
-    #6724c7;
+    var(--fw-accent);
 
   font-size:
     90px;
@@ -1148,7 +1148,7 @@
 
 .fwv3-countdown-card p {
   color:
-    #39465a;
+    var(--fw-muted);
 
   font-weight:
     700;
@@ -1225,7 +1225,7 @@
     20px 0;
 
   border:
-    1px solid #e0ddec;
+    1px solid var(--fw-line);
 
   border-radius:
     14px;
@@ -1234,7 +1234,7 @@
     hidden;
 
   background:
-    #ffffff;
+    var(--fw-card);
 }
 
 
@@ -1246,7 +1246,7 @@
 
 .fwv3-result-grid > div:nth-child(2) {
   border-left:
-    1px solid #e0ddec;
+    1px solid var(--fw-line);
 }
 
 
@@ -1255,7 +1255,7 @@
     1 / -1;
 
   border-top:
-    1px solid #e0ddec;
+    1px solid var(--fw-line);
 }
 
 
@@ -1264,7 +1264,7 @@
     block;
 
   color:
-    #6724c7;
+    var(--fw-accent);
 
   font-size:
     10px;
@@ -1282,7 +1282,7 @@
     4px;
 
   color:
-    #071226;
+    var(--fw-ink);
 
   font-size:
     22px;
@@ -1324,19 +1324,19 @@
     12px;
 
   border:
-    1px solid #ded8ed;
+    1px solid var(--fw-line);
 
   border-radius:
     12px;
 
   background:
-    #fbf9ff;
+    var(--fw-soft);
 }
 
 
 .fwv3-refresh-note strong {
   color:
-    #6724c7;
+    var(--fw-accent);
 
   font-size:
     11px;
@@ -1348,7 +1348,7 @@
 
 .fwv3-refresh-note span {
   color:
-    #071226;
+    var(--fw-ink);
 
   font-size:
     13px;
@@ -1743,14 +1743,14 @@
   display: grid;
   place-content: center;
   padding: 12px;
-  border: 1px solid #ded8ed;
+  border: 1px solid var(--fw-line);
   border-radius: 14px;
-  background: #fbf9ff;
+  background: var(--fw-soft);
 }
 
 .fwv3-ready-stats span {
   display: block;
-  color: #6724c7;
+  color: var(--fw-accent);
   font-size: 10px;
   font-weight: 950;
 }
@@ -1758,7 +1758,7 @@
 .fwv3-ready-stats strong {
   display: block;
   margin-top: 4px;
-  color: #071226;
+  color: var(--fw-ink);
   font-size: 21px;
   font-weight: 950;
   font-variant-numeric: tabular-nums;
@@ -1805,9 +1805,9 @@
   padding: 22px 20px 20px;
 
   border-radius: 20px;
-  border: 2px solid #6420c8;
+  border: 2px solid var(--fw-accent-strong);
 
-  background: #ffffff;
+  background: var(--fw-card);
 
   box-shadow:
     0 24px 60px rgba(60, 20, 130, .35),
@@ -1821,7 +1821,7 @@
   font-size: 10px;
   font-weight: 900;
   letter-spacing: 2px;
-  color: #7b2be2;
+  color: var(--fw-accent);
 }
 
 .fwv3-token-modal h3 {
@@ -1829,7 +1829,7 @@
   text-align: center;
   font-size: 22px;
   font-weight: 900;
-  color: #2a1160;
+  color: var(--fw-ink);
 }
 
 .fwv3-token-modal-lead {
@@ -1837,7 +1837,7 @@
   text-align: center;
   font-size: 12.5px;
   line-height: 1.5;
-  color: #6b5e86;
+  color: var(--fw-muted);
 }
 
 .fwv3-token-modal-rows {
@@ -1863,13 +1863,13 @@
 .fwv3-token-modal-rows > div span {
   font-size: 12px;
   font-weight: 700;
-  color: #6b5e86;
+  color: var(--fw-muted);
 }
 
 .fwv3-token-modal-rows > div strong {
   font-size: 15px;
   font-weight: 900;
-  color: #4b1aa8;
+  color: var(--fw-accent-strong);
 }
 
 .fwv3-token-modal-insufficient {
@@ -1938,7 +1938,7 @@ body:has(.fwv3-overlay) {
   display: block;
   width: 5px;
   border-radius: 999px;
-  background: #6724c7;
+  background: var(--fw-accent);
 }
 
 .fwv3-bars > span:nth-child(1) {
@@ -2087,14 +2087,14 @@ body:has(.fwv3-overlay) {
 }
 
 .fwv3-colour-card {
-  background: linear-gradient(180deg, #ffffff 0%, #f4efff 100%);
+  background: linear-gradient(180deg, var(--fw-card) 0%, var(--fw-soft) 100%);
 }
 
 .fwv3-colour-progress {
   height: 8px;
   margin: 2px 4px 10px;
   border-radius: 999px;
-  background: #e5dcfa;
+  background: var(--fw-line);
   overflow: hidden;
 }
 
@@ -2102,13 +2102,13 @@ body:has(.fwv3-overlay) {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #6724c7, #ff1493, #ff7900);
+  background: linear-gradient(90deg, var(--fw-accent), #ff1493, #ff7900);
   transition: width 0.18s ease;
 }
 
 .fwv3-colour-count {
   text-align: center;
-  color: #6724c7;
+  color: var(--fw-accent);
   font-size: 13px;
   font-weight: 900;
   letter-spacing: 0.08em;
@@ -2128,14 +2128,14 @@ body:has(.fwv3-overlay) {
   min-height: 104px;
   margin-bottom: 14px;
   padding: 10px;
-  border: 2px solid #d8c8fa;
+  border: 2px solid var(--fw-line);
   border-radius: 20px;
-  background: #ffffff;
+  background: var(--fw-card);
   font-size: clamp(34px, 11vw, 50px);
   font-weight: 950;
   letter-spacing: 0.04em;
   text-align: center;
-  box-shadow: inset 0 0 0 4px #f4efff;
+  box-shadow: inset 0 0 0 4px var(--fw-soft);
 }
 
 .fwv3-colour-word.is-dark-bg {

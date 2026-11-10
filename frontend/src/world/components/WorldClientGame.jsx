@@ -29,7 +29,7 @@ export function WorldClientGame({ gameId, config = {}, label, onComplete, onSkip
         <strong>{timerText}</strong>
       </div>
       <div className="fwv3-timer-caption">{timerCaption}</div>
-      <div onPointerDownCapture={() => playGameSound('tap')} style={{ background: '#fff', color: '#0f172a', borderRadius: 16, padding: 12, opacity: busy ? 0.6 : 1 }}>
+      <div onPointerDownCapture={() => playGameSound('tap')} style={{ background: 'var(--fw-card)', color: 'var(--fw-ink)', borderRadius: 16, padding: 12, opacity: busy ? 0.6 : 1 }}>
         {children || GAME_MAP[gameId]?.(config, (result) => !busy && finish(result))}
       </div>
       {onSkip && <button type="button" onClick={onSkip} className="fwv3-button fwv3-button-outline" style={{ marginTop: 12 }} data-testid="world-client-game-skip">Skip practice</button>}

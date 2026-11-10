@@ -1,3 +1,5 @@
+import { applyWorldTheme, cachedWorldThemeId } from '../lib/worldThemes';
+
 import {
   useNavigate,
 } from 'react-router-dom';
@@ -90,6 +92,10 @@ export default function PrizeLeagueWorld() {
   const [flowStage, setFlowStage] = useState('instructions');
   const [unlimitedOn, setUnlimitedOn] = useState(false);
   useEffect(() => { worldAPI.unlimitedGames().then((r) => setUnlimitedOn(Boolean(r?.enabled))).catch(() => setUnlimitedOn(true)); }, []);
+  useEffect(() => {
+    applyWorldTheme(cachedWorldThemeId());
+    worldAPI.uiTheme().then((r) => r?.theme_id && applyWorldTheme(r.theme_id)).catch(() => {});
+  }, []);
 
   const [futureGcModel, setFutureGcModel] = useState(null);
   const [worldPaused, setWorldPaused] = useState(null);

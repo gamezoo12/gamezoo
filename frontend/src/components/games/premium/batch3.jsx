@@ -20,7 +20,7 @@ export function PremiumNumberSequence({ config, onComplete }) {
   const tap = (n) => {
     if (n !== next) { playGameSound('failure'); setMisses((m) => m + 1); return; }
     playGameSound(n === count ? 'success' : 'tap');
-    if (n === count) onComplete({ solved: true, accuracy: Math.max(0.1, 1 - misses * (1 / count)), duration_ms: Date.now() - start });
+    if (n === count) onComplete({ solved: true, accuracy: Math.max(0.1, 1 - misses * (1 / count)), duration_ms: Date.now() - start, correct: count, total: count + misses });
     setNext(n + 1);
   };
   const columns = count <= 20 ? 5 : count <= 40 ? 6 : count <= 60 ? 8 : 10;
