@@ -88,7 +88,7 @@ export function SequencePredict({ onComplete }) {
   const pick = (v) => {
     const ok = v === current.next;
     if (ok) setRight(r=>r+1);
-    if (i+1 >= q.length) onComplete({ solved:true, accuracy:(right + (ok?1:0))/q.length, duration_ms: now()-start });
+    if (i+1 >= q.length) onComplete({ solved:true, accuracy:(right + (ok?1:0))/q.length, duration_ms: now()-start, correct: right + (ok?1:0), total: q.length });
     else setI(i+1);
   };
   return (
@@ -713,7 +713,7 @@ export function SpotPattern({ onComplete }) {
   const pick = (idx) => {
     const ok = idx === rounds[i].oddIndex;
     if (ok) setRight(r=>r+1);
-    if (i+1 >= rounds.length) onComplete({ solved:true, accuracy: (right+(ok?1:0))/rounds.length, duration_ms: now()-t0 });
+    if (i+1 >= rounds.length) onComplete({ solved:true, accuracy: (right+(ok?1:0))/rounds.length, duration_ms: now()-t0, correct: right+(ok?1:0), total: rounds.length });
     else setI(i+1);
   };
   return (

@@ -310,6 +310,7 @@ export default function FreeWorldNumberSequenceV3({
   const [result, setResult] =
     useState(null);
   const [resultQuote, setResultQuote] = useState('');
+  const [clientScore, setClientScore] = useState(null);
 
   const [
     attemptSummary,
@@ -1649,16 +1650,6 @@ if (
 
             <article>
 
-              <div
-                className="fwv3-bars"
-                aria-hidden="true"
-              >
-                <span />
-                <span />
-                <span />
-                <span />
-              </div>
-
               <div>
 
                 <span>
@@ -1822,7 +1813,7 @@ if (
       <WorldClientGame gameId={session.game_id} config={session.game_config} busy={busy} timerText={formatElapsed(officialDisplayMs)}
         timerCaption={championMode ? 'CHAMPION STOPWATCH - FASTEST VERIFIED TIME WINS' : 'OFFICIAL STOPWATCH'}
         label={championMode ? 'CHAMPION RUN' : 'OFFICIAL ATTEMPT'}
-        onComplete={(result) => submitOfficial({ solved: Boolean(result.solved), taps: [] })} />
+        onComplete={(result) => { setClientScore({ solved: Boolean(result.solved), correct: result.correct, total: result.total }); submitOfficial({ solved: Boolean(result.solved), taps: [] }); }} />
       <button type="button" className="fwv3-fullscreen-back" disabled={busy} onClick={onClose} aria-label="Back to world">‹ Back</button>
     </div>;
   }
@@ -2475,11 +2466,15 @@ if (
             <div>
 
               <span>
-                CORRECT
+                {clientScore && clientScore.total == null ? 'RESULT' : 'CORRECT'}
               </span>
 
-              <strong>
-                {correctCount} / {target}
+              <strong data-testid="game-result-correct">
+                {clientScore
+                  ? (clientScore.total != null
+                      ? `${clientScore.correct} / ${clientScore.total}`
+                      : (clientScore.solved ? 'Solved' : 'Not solved'))
+                  : `${correctCount} / ${target}`}
               </strong>
 
             </div>

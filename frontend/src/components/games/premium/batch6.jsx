@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { difficultyOf, lerpLevel } from '../../../lib/difficulty';
 import { Board3D, useFeedback } from './kit';
 
-const done = (onComplete, start, accuracy) => onComplete({ solved: true, accuracy: Math.max(0.05, Math.min(1, accuracy)), duration_ms: Date.now() - start });
+const done = (onComplete, start, accuracy, counts) => onComplete({ solved: true, accuracy: Math.max(0.05, Math.min(1, accuracy)), duration_ms: Date.now() - start, ...counts });
 function useFinish(onComplete) {
   const finished = useRef(false);
-  return (start, accuracy) => { if (finished.current) return; finished.current = true; done(onComplete, start, accuracy); };
+  return (start, accuracy, counts) => { if (finished.current) return; finished.current = true; done(onComplete, start, accuracy, counts); };
 }
 const rnd = (n) => Math.floor(Math.random() * n);
 const shuffle = (list) => { const a = [...list]; for (let i = a.length - 1; i > 0; i -= 1) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
@@ -260,7 +260,7 @@ export function PremiumWordSearch({ config, onComplete }) {
     const hit = placed.find((p) => !found.includes(p.word) && (p.word === letters || p.word === [...letters].reverse().join('')));
     if (!hit) { fire('bad'); setMisses((m) => m + 1); return; }
     const f = [...found, hit.word]; setFound(f); setFoundCells(new Set([...foundCells, ...cells])); fire('good');
-    if (f.length === placed.length) setTimeout(() => finish(start, placed.length / (placed.length + misses)), 250);
+    if (f.length === placed.length) setTimeout(() => finish(start, placed.length / (placed.length + misses), { correct: placed.length, total: placed.length + misses }), 250);
   };
   return (
     <Board3D theme="words" title="Word Search" level={level} flash={flash} stats={[['Found', `${found.length}/${placed.length}`], ['Misses', misses]]}>
@@ -322,7 +322,7 @@ export function PremiumQuickCount({ config, onComplete }) {
   const answer = (v) => {
     if (v !== count) { fire('bad'); setWrong((w) => w + 1); setSeed((s) => s + 1); return; }
     fire('good');
-    if (round + 1 >= rounds) finish(start, rounds / (rounds + wrong)); else setRound(round + 1);
+    if (round + 1 >= rounds) finish(start, rounds / (rounds + wrong), { correct: rounds, total: rounds + wrong }); else setRound(round + 1);
   };
   return (
     <Board3D theme="reaction" title="Quick Count" level={level} flash={flash} stats={[['Round', `${round + 1}/${rounds}`], ['Wrong', wrong]]}>
@@ -373,7 +373,7 @@ export function PremiumShapeRotation({ config, onComplete }) {
   const pick = (o) => {
     if (!o.ok) { fire('bad'); setWrong((w) => w + 1); return; }
     fire('good');
-    if (round + 1 >= rounds) finish(start, rounds / (rounds + wrong)); else setRound(round + 1);
+    if (round + 1 >= rounds) finish(start, rounds / (rounds + wrong), { correct: rounds, total: rounds + wrong }); else setRound(round + 1);
   };
   return (
     <Board3D theme="math" title="Shape Rotation" level={level} flash={flash} stats={[['Round', `${round + 1}/${rounds}`], ['Wrong', wrong]]}>
@@ -421,7 +421,7 @@ export function PremiumPathMemory({ config, onComplete }) {
     if (show !== -1) return;
     if (k !== path[pos]) { fire('bad'); setWrong((w) => w + 1); setReplay((r) => r + 1); return; }
     fire('tap');
-    if (pos + 1 === path.length) { fire('good'); if (round + 1 >= rounds) finish(start, rounds / (rounds + wrong)); else setRound(round + 1); } else setPos(pos + 1);
+    if (pos + 1 === path.length) { fire('good'); if (round + 1 >= rounds) finish(start, rounds / (rounds + wrong), { correct: rounds, total: rounds + wrong }); else setRound(round + 1); } else setPos(pos + 1);
   };
   return (
     <Board3D theme="memory" title="Path Memory" level={level} flash={flash} stats={[['Round', `${round + 1}/${rounds}`], ['Path', len], ['Wrong', wrong]]}>
@@ -501,7 +501,7 @@ export function PremiumSumHunt({ config, onComplete }) {
     const total = s.reduce((a, i) => a + nums[i], 0);
     if (total > target) { fire('bad'); setBusts((b) => b + 1); setSel([]); return; }
     setSel(s); fire('tap');
-    if (total === target) { fire('good'); setSel([]); if (round + 1 >= rounds) finish(start, rounds / (rounds + busts)); else setRound(round + 1); }
+    if (total === target) { fire('good'); setSel([]); if (round + 1 >= rounds) finish(start, rounds / (rounds + busts), { correct: rounds, total: rounds + busts }); else setRound(round + 1); }
   };
   return (
     <Board3D theme="math" title="Sum Hunt" level={level} flash={flash} stats={[['Target', target], ['Sum', sum], ['Round', `${round + 1}/${rounds}`]]}>

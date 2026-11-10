@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { difficultyOf, lerpLevel, seeded, seededShuffle } from '../../../lib/difficulty';
 import { Board3D, useFeedback } from './kit';
 
-const done = (onComplete, start, accuracy) => onComplete({ solved: true, accuracy: Math.max(0.05, Math.min(1, accuracy)), duration_ms: Date.now() - start });
+const done = (onComplete, start, accuracy, counts) => onComplete({ solved: true, accuracy: Math.max(0.05, Math.min(1, accuracy)), duration_ms: Date.now() - start, ...counts });
 const key3d = 'rounded-xl border-b-[5px] shadow-lg transition-transform hover:-translate-y-0.5 active:translate-y-0.5';
 const rand = () => Math.floor(Math.random() * 1e6);
 
@@ -64,7 +64,7 @@ export function PremiumSequencePredict({ config, onComplete }) {
   const [wrong, setWrong] = useState(0);
   const [start] = useState(Date.now);
   const [flash, fire] = useFeedback();
-  const pick = (v) => { if (v !== qs[i].ans) { fire('bad'); setWrong((w) => w + 1); return; } fire('good'); if (i + 1 >= total) done(onComplete, start, total / (total + wrong)); else setI(i + 1); };
+  const pick = (v) => { if (v !== qs[i].ans) { fire('bad'); setWrong((w) => w + 1); return; } fire('good'); if (i + 1 >= total) done(onComplete, start, total / (total + wrong), { correct: total, total: total + wrong }); else setI(i + 1); };
   return (
     <Board3D theme="memory" title="Pattern Oracle" level={level} flash={flash} stats={[['Sequence', `${i + 1}/${total}`], ['Wrong', wrong]]}>
       <div className="mb-5 flex flex-wrap items-center justify-center gap-2" data-testid="sequence-terms">{qs[i].shown.map((t, k) => <span key={k} className="rounded-xl bg-violet-950/70 px-3 py-2 font-mono text-xl font-black text-white shadow-inner">{t}</span>)}<span className="rounded-xl border-2 border-dashed border-amber-300 px-4 py-2 text-xl font-black text-amber-300">?</span></div>
@@ -105,7 +105,7 @@ export function PremiumCountdownNumbers({ config, onComplete }) {
     const res = evaluate(expr.replace(/×/g, '*').replace(/÷/g, '/').replace(/−/g, '-'), cur.nums);
     if (res.error || res.value !== cur.target) { fire('bad'); setTries((t) => t + 1); setMsg(res.error || `That makes ${Math.round(res.value * 100) / 100}`); return; }
     fire('good'); setMsg(''); setExpr('');
-    if (i + 1 >= rounds) done(onComplete, start, rounds / (rounds + tries)); else setI(i + 1);
+    if (i + 1 >= rounds) done(onComplete, start, rounds / (rounds + tries), { correct: rounds, total: rounds + tries }); else setI(i + 1);
   };
   return (
     <Board3D theme="reaction" title="Countdown Numbers" level={level} flash={flash} stats={[['Round', `${i + 1}/${rounds}`], ['Tries', tries]]}>
@@ -179,7 +179,7 @@ export function PremiumChess({ config, onComplete }) {
   const [flash, fire] = useFeedback();
   const cur = list[i];
   const opts = useMemo(() => seededShuffle(cur.opts.slice(0, level <= 3 ? 3 : 4), i + level), [cur, i, level]);
-  const pick = (o) => { if (o !== cur.answer) { fire('bad'); setWrong((w) => w + 1); return; } fire('good'); if (i + 1 >= total) done(onComplete, start, total / (total + wrong)); else setI(i + 1); };
+  const pick = (o) => { if (o !== cur.answer) { fire('bad'); setWrong((w) => w + 1); return; } fire('good'); if (i + 1 >= total) done(onComplete, start, total / (total + wrong), { correct: total, total: total + wrong }); else setI(i + 1); };
   return (
     <Board3D theme="reaction" title="Checkmate Arena" level={level} flash={flash} stats={[['Puzzle', `${i + 1}/${total}`], ['Wrong', wrong]]}>
       <p className="mb-2 text-center text-xs font-bold text-amber-100">{level <= 5 ? cur.title : 'White to move'} · White mates in one</p>

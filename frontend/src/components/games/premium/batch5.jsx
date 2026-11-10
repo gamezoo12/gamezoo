@@ -4,7 +4,7 @@ import { difficultyOf, lerpLevel, seeded, seededShuffle } from '../../../lib/dif
 import { Board3D, useFeedback } from './kit';
 import { useKeyMoves } from './batch4';
 
-const done = (onComplete, start, accuracy) => onComplete({ solved: true, accuracy: Math.max(0.05, Math.min(1, accuracy)), duration_ms: Date.now() - start });
+const done = (onComplete, start, accuracy, counts) => onComplete({ solved: true, accuracy: Math.max(0.05, Math.min(1, accuracy)), duration_ms: Date.now() - start, ...counts });
 const key3d = 'rounded-xl border-b-[5px] shadow-lg transition-transform hover:-translate-y-0.5 active:translate-y-0.5';
 const rand = () => Math.floor(Math.random() * 1e6);
 
@@ -163,7 +163,7 @@ export function PremiumAnagram({ config, onComplete }) {
     fire('good');
     const f = [...found, w];
     setFound(f);
-    if (f.length >= Math.min(need, valid.length)) done(onComplete, start, f.length / (f.length + wrong));
+    if (f.length >= Math.min(need, valid.length)) done(onComplete, start, f.length / (f.length + wrong), { correct: f.length, total: f.length + wrong });
   };
   return (
     <Board3D theme="math" title="Anagram Hunt" level={level} flash={flash} stats={[['Found', `${found.length}/${Math.min(need, valid.length)}`], ['Min letters', minLen], ['Wrong', wrong]]}>
@@ -249,7 +249,7 @@ export function PremiumSpotPattern({ config, onComplete }) {
     if (!pattern.has(k)) { fire('bad'); setWrong((w) => w + 1); return; }
     fire('tap');
     const p = new Set(picked); p.add(k); setPicked(p);
-    if (p.size === cells) { fire('good'); if (round + 1 >= rounds) done(onComplete, start, (rounds * cells) / (rounds * cells + wrong)); else { setRound(round + 1); setPicked(new Set()); setPhase('show'); } }
+    if (p.size === cells) { fire('good'); if (round + 1 >= rounds) done(onComplete, start, (rounds * cells) / (rounds * cells + wrong), { correct: rounds * cells, total: rounds * cells + wrong }); else { setRound(round + 1); setPicked(new Set()); setPhase('show'); } }
   };
   return (
     <Board3D theme="memory" title="Flash Memory" level={level} flash={flash} stats={[['Round', `${round + 1}/${rounds}`], ['Cells', `${picked.size}/${cells}`], ['Wrong', wrong]]}>

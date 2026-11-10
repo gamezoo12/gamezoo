@@ -3,7 +3,7 @@ import { difficultyOf, lerpLevel, seeded, seededShuffle } from '../../../lib/dif
 import { Board3D, useFeedback } from './kit';
 import { MemoryTile } from './boards';
 
-const done = (onComplete, start, accuracy) => onComplete({ solved: true, accuracy: Math.max(0.05, Math.min(1, accuracy)), duration_ms: Date.now() - start });
+const done = (onComplete, start, accuracy, counts) => onComplete({ solved: true, accuracy: Math.max(0.05, Math.min(1, accuracy)), duration_ms: Date.now() - start, ...counts });
 
 // ---------- Memory Match: more pairs and faster flip-back as difficulty rises ----------
 export function PremiumMemory({ config, onComplete }) {
@@ -32,7 +32,7 @@ export function PremiumMemory({ config, onComplete }) {
       setOpen([]);
     }, match ? 320 : lerpLevel(level, 800, 320));
   };
-  useEffect(() => { if (cards.every((c) => c.done)) done(onComplete, start, pairs / Math.max(moves, pairs)); }, [cards]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (cards.every((c) => c.done)) done(onComplete, start, pairs / Math.max(moves, pairs), { correct: pairs, total: pairs }); }, [cards]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <Board3D theme="memory" title="Memory Vault" level={level} flash={flash} stats={[['Pairs', `${cards.filter((c) => c.done).length / 2}/${pairs}`], ['Moves', moves]]}>
       <div className="grid gap-2 sm:gap-3" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
@@ -66,7 +66,7 @@ export function PremiumTargetTap({ config, onComplete }) {
     raf.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf.current);
   }, [level]);
-  useEffect(() => { if (hits >= total) done(onComplete, start, total / (total + misses)); }, [hits]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (hits >= total) done(onComplete, start, total / (total + misses), { correct: total, total: total + misses }); }, [hits]); // eslint-disable-line react-hooks/exhaustive-deps
   const miss = () => { setMisses((m) => m + 1); fire('bad'); };
   return (
     <Board3D theme="target" title="Bullseye Range" level={level} flash={flash} stats={[['Hits', `${hits}/${total}`], ['Misses', misses]]}>
@@ -106,7 +106,7 @@ export function PremiumWordUnscramble({ config, onComplete }) {
     if (next.length < word.length) { setPicked(next); return; }
     if (next.map((k) => tiles[k]).join('') === word) {
       fire('good');
-      if (round + 1 >= rounds) done(onComplete, start, rounds / (rounds + wrong));
+      if (round + 1 >= rounds) done(onComplete, start, rounds / (rounds + wrong), { correct: rounds, total: rounds + wrong });
       else { setRound(round + 1); setPicked([]); }
     } else { fire('bad'); setWrong((w) => w + 1); setPicked([]); }
   };
@@ -154,7 +154,7 @@ export function PremiumMathSprint({ config, onComplete }) {
   const answer = (v) => {
     if (v !== qs[i].ans) { fire('bad'); setWrong((w) => w + 1); return; }
     fire('good');
-    if (i + 1 >= total) done(onComplete, start, total / (total + wrong)); else setI(i + 1);
+    if (i + 1 >= total) done(onComplete, start, total / (total + wrong), { correct: total, total: total + wrong }); else setI(i + 1);
   };
   return (
     <Board3D theme="math" title="Number Reactor" level={level} flash={flash} stats={[['Question', `${i + 1}/${total}`], ['Wrong', wrong]]}>

@@ -6,7 +6,7 @@ import { Board3D, useFeedback } from './kit';
 import { SequenceBoard } from './boards';
 import { playGameSound } from '../../../lib/gameExperience';
 
-const done = (onComplete, start, accuracy) => onComplete({ solved: true, accuracy: Math.max(0.05, Math.min(1, accuracy)), duration_ms: Date.now() - start });
+const done = (onComplete, start, accuracy, counts) => onComplete({ solved: true, accuracy: Math.max(0.05, Math.min(1, accuracy)), duration_ms: Date.now() - start, ...counts });
 const tile3d = 'rounded-xl border-b-[6px] shadow-lg transition-transform hover:-translate-y-0.5 active:translate-y-0.5';
 
 // ---------- Number Sequence: new look, same 1→20 rules the server expects ----------
@@ -50,7 +50,7 @@ export function PremiumEmojiRiddle({ config, onComplete }) {
     if (!clean(ans).includes(clean(answer))) { fire('bad'); setTries((t) => t + 1); return; }
     fire('good');
     setAns('');
-    if (i + 1 >= rounds) done(onComplete, start, rounds / (rounds + tries)); else setI(i + 1);
+    if (i + 1 >= rounds) done(onComplete, start, rounds / (rounds + tries), { correct: rounds, total: rounds + tries }); else setI(i + 1);
   };
   return (
     <Board3D theme="memory" title="Emoji Cinema" level={level} flash={flash} stats={[['Riddle', `${i + 1}/${rounds}`], ['Wrong', tries]]}>
@@ -165,7 +165,7 @@ export function PremiumPatternRepeat({ config, onComplete }) {
     fire('tap');
     if (k + 1 < len) { setInput([...input, n]); return; }
     fire('good'); setInput([]);
-    if (len >= target) done(onComplete, start, target / (target + errors)); else setLen(len + 1);
+    if (len >= target) done(onComplete, start, target / (target + errors), { correct: target, total: target + errors }); else setLen(len + 1);
   };
   return (
     <Board3D theme="reaction" title="Pattern Pulse" level={level} flash={flash} stats={[['Length', `${len}/${target}`], ['Errors', errors], ['Status', showing ? 'Watch' : 'Repeat']]}>

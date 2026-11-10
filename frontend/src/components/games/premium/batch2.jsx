@@ -4,7 +4,7 @@ import { difficultyOf, lerpLevel, seeded, seededShuffle } from '../../../lib/dif
 import { Board3D, useFeedback } from './kit';
 import { ChromaBoard } from './boards';
 
-const done = (onComplete, start, accuracy) => onComplete({ solved: true, accuracy: Math.max(0.05, Math.min(1, accuracy)), duration_ms: Date.now() - start });
+const done = (onComplete, start, accuracy, counts) => onComplete({ solved: true, accuracy: Math.max(0.05, Math.min(1, accuracy)), duration_ms: Date.now() - start, ...counts });
 
 // ---------- Simon Says: longer sequences, faster playback, more pads ----------
 const PADS = ['#ef4444', '#22c55e', '#3b82f6', '#eab308', '#a855f7', '#f97316'];
@@ -37,7 +37,7 @@ export function PremiumSimon({ config, onComplete }) {
     fire('tap');
     if (input + 1 < len) { setInput(input + 1); return; }
     fire('good');
-    if (len >= target) done(onComplete, start, target / (target + errors));
+    if (len >= target) done(onComplete, start, target / (target + errors), { correct: target, total: target + errors });
     else { setLen(len + 1); setInput(0); }
   };
   return (
@@ -72,7 +72,7 @@ export function PremiumWhack({ config, onComplete }) {
   const whack = (i) => {
     if (i !== mole.i || mole.bomb) { fire('bad'); setMisses((m) => m + 1); if (i === mole.i) setMole({ i: -1 }); return; }
     fire('good'); setMole({ i: -1 });
-    if (hits + 1 >= goal) done(onComplete, start, goal / (goal + misses)); else setHits(hits + 1);
+    if (hits + 1 >= goal) done(onComplete, start, goal / (goal + misses), { correct: goal, total: goal + misses }); else setHits(hits + 1);
   };
   return (
     <Board3D theme="words" title="Mole Meadow" level={level} flash={flash} stats={[['Hits', `${hits}/${goal}`], ['Misses', misses]]}>
@@ -122,7 +122,7 @@ export function PremiumTrivia({ config, onComplete }) {
     setPicked(o);
     const nextCorrect = correct + (ok ? 1 : 0);
     setCorrect(nextCorrect);
-    setTimeout(() => { setPicked(null); if (i + 1 >= total) done(onComplete, start, nextCorrect / total); else setI(i + 1); }, 650);
+    setTimeout(() => { setPicked(null); if (i + 1 >= total) done(onComplete, start, nextCorrect / total, { correct: nextCorrect, total }); else setI(i + 1); }, 650);
   };
   return (
     <Board3D theme="math" title="Quiz Dome" level={level} flash={flash} stats={[['Question', `${i + 1}/${total}`], ['Correct', correct]]}>
@@ -150,7 +150,7 @@ export function PremiumColorMatch({ config, onComplete }) {
   const pick = (k) => {
     if (k !== (cur.rule === 'ink' ? cur.ink : cur.w)) { fire('bad'); setWrong((w) => w + 1); return; }
     fire('good');
-    if (i + 1 >= total) done(onComplete, start, total / (total + wrong)); else setI(i + 1);
+    if (i + 1 >= total) done(onComplete, start, total / (total + wrong), { correct: total, total: total + wrong }); else setI(i + 1);
   };
   return <ChromaBoard word={INKS[cur.w][0]} inkHex={INKS[cur.ink][1]} rule={cur.rule} options={INKS.slice(0, n).map(([label, hex], k) => ({ key: k, label, hex }))}
     onPick={pick} round={i + 1} total={total} extra={['Wrong', wrong]} flash={flash} level={level} />;
@@ -171,7 +171,7 @@ export function PremiumOddOne({ config, onComplete }) {
   const pick = (k) => {
     if (k !== cur.odd) { fire('bad'); setWrong((w) => w + 1); return; }
     fire('good');
-    if (i + 1 >= total) done(onComplete, start, total / (total + wrong)); else setI(i + 1);
+    if (i + 1 >= total) done(onComplete, start, total / (total + wrong), { correct: total, total: total + wrong }); else setI(i + 1);
   };
   return (
     <Board3D theme="target" title="Spectrum Hunt" level={level} flash={flash} stats={[['Round', `${i + 1}/${total}`], ['Wrong', wrong]]}>

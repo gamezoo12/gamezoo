@@ -57,7 +57,7 @@ export function MemoryMatch({ onComplete }) {
       const duration_ms = Date.now() - start;
       // Accuracy = min moves (8) / actual moves
       const accuracy = Math.min(1, 8 / Math.max(moves, 8));
-      onComplete({ solved: true, accuracy, duration_ms });
+      onComplete({ solved: true, accuracy, duration_ms, correct: 8, total: 8 });
     }
   }, [cards, moves, start, onComplete]);
 
@@ -85,7 +85,7 @@ export function NumberSequence({ onComplete }) {
       if (n === 20) {
         const duration_ms = Date.now() - start;
         const accuracy = Math.max(0.1, 1 - misses * 0.05);
-        onComplete({ solved: true, accuracy, duration_ms });
+        onComplete({ solved: true, accuracy, duration_ms, correct: 20, total: 20 + misses });
       }
       setNext(next + 1);
     } else {
@@ -123,7 +123,7 @@ export function TargetTap({ onComplete }) {
     if (count >= TOTAL) {
       const duration_ms = Date.now() - start;
       const accuracy = Math.max(0.05, TOTAL / (TOTAL + misses));
-      onComplete({ solved: true, accuracy, duration_ms });
+      onComplete({ solved: true, accuracy, duration_ms, correct: TOTAL, total: TOTAL + misses });
     }
   }, [count, misses, start, onComplete]);
 
@@ -374,7 +374,7 @@ export function MathSprint({ onComplete }) {
       const nc = correct + 1;
       setCorrect(nc);
       if (nc >= TARGET) {
-        onComplete({ solved: true, accuracy: Math.max(0.2, TARGET / (TARGET + misses)), duration_ms: Date.now() - start });
+        onComplete({ solved: true, accuracy: Math.max(0.2, TARGET / (TARGET + misses)), duration_ms: Date.now() - start, correct: TARGET, total: TARGET + misses });
         return;
       }
     } else setMisses(m => m + 1);
@@ -457,7 +457,7 @@ export function TriviaQuiz({ onComplete }) {
     const isRight = o === cur.a;
     const nc = correct + (isRight ? 1 : 0);
     if (i + 1 >= qs.length) {
-      onComplete({ solved: true, accuracy: nc / qs.length, duration_ms: Date.now() - start });
+      onComplete({ solved: true, accuracy: nc / qs.length, duration_ms: Date.now() - start, correct: nc, total: qs.length });
     } else { setCorrect(nc); setI(i + 1); }
   };
   return (
@@ -535,7 +535,7 @@ export function WhackMole({ onComplete }) {
   }, []);
   useEffect(() => {
     if (hits >= TARGET_HITS) {
-      onComplete({ solved: true, accuracy: Math.max(0.1, TARGET_HITS / (TARGET_HITS + misses)), duration_ms: Date.now() - start });
+      onComplete({ solved: true, accuracy: Math.max(0.1, TARGET_HITS / (TARGET_HITS + misses)), duration_ms: Date.now() - start, correct: TARGET_HITS, total: TARGET_HITS + misses });
     }
   }, [hits, misses, start, onComplete]);
   return (
@@ -574,7 +574,7 @@ export function OddOneOut({ onComplete }) {
   const pick = (i) => {
     const nc = correct + (i === oddIdx ? 1 : 0);
     if (round + 1 >= TOTAL) {
-      onComplete({ solved: true, accuracy: nc / TOTAL, duration_ms: Date.now() - start });
+      onComplete({ solved: true, accuracy: nc / TOTAL, duration_ms: Date.now() - start, correct: nc, total: TOTAL });
     } else { setCorrect(nc); setRound(round + 1); gen(); }
   };
   return (
@@ -606,7 +606,7 @@ export function ColorMatch({ onComplete }) {
   const pick = (name) => {
     if (name === q.colorName) setCorrect(c => c + 1); else setMisses(m => m + 1);
     if (round + 1 >= TOTAL) {
-      onComplete({ solved: true, accuracy: (correct + (name === q.colorName ? 1 : 0)) / TOTAL, duration_ms: Date.now() - start });
+      onComplete({ solved: true, accuracy: (correct + (name === q.colorName ? 1 : 0)) / TOTAL, duration_ms: Date.now() - start, correct: correct + (name === q.colorName ? 1 : 0), total: TOTAL });
     } else { setRound(round + 1); setQ(gen()); }
   };
   return (
