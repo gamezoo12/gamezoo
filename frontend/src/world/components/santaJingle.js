@@ -20,7 +20,7 @@ let stopAt = 0;
 export const isSantaMuted = () => localStorage.getItem(KEY) === '1';
 export const setSantaMuted = (muted) => {
   localStorage.setItem(KEY, muted ? '1' : '0');
-  if (muted) { voiceToken += 1; if (ctx) { ctx.close(); ctx = null; master = null; stopAt = 0; } window.speechSynthesis?.cancel(); }
+  if (muted) { voiceToken += 1; stopSantaSong(); if (ctx) { ctx.close(); ctx = null; master = null; stopAt = 0; } window.speechSynthesis?.cancel(); }
 };
 
 function audio() {
@@ -88,6 +88,34 @@ export function playSfx(kind) {
     // Audio is optional.
   }
 }
+
+let song = null;
+const SONG_COUNT = 10;
+// Plays one of the pre-recorded sung Santa greetings (public/santa-songs). Returns false if it can't play.
+export function playSantaSong(onFail) {
+  if (isSantaMuted()) return;
+  const recent = JSON.parse(localStorage.getItem('pl_santa_songs') || '[]');
+  const pool = [...Array(SONG_COUNT).keys()].map((i) => i + 1).filter((n) => !recent.includes(n));
+  const n = pool[Math.floor(Math.random() * pool.length)];
+  localStorage.setItem('pl_santa_songs', JSON.stringify([n, ...recent].slice(0, 6)));
+  stopSantaSong();
+  song = new Audio(`${process.env.PUBLIC_URL || ''}/santa-songs/song-${n}.mp3`);
+  song.volume = 0;
+  song.onerror = () => onFail?.();
+  song.play().then(() => {
+    let v = 0;
+    const fade = setInterval(() => { v = Math.min(1, v + 0.1); if (song) song.volume = v; if (v >= 1) clearInterval(fade); }, 80);
+  }).catch(() => {
+    const retry = () => song?.play().catch(() => {});
+    window.addEventListener('pointerdown', retry, { once: true });
+    song.volume = 1;
+  });
+}
+export function softenSantaSong() {
+  const s = song; if (!s) return;
+  const fade = setInterval(() => { s.volume = Math.max(0, s.volume - 0.08); if (s.volume <= 0) { clearInterval(fade); s.pause(); } }, 80);
+}
+export function stopSantaSong() { if (song) { song.pause(); song = null; } }
 
 let voiceToken = 0;
 // Plays pre-recorded Santa voice clips (public/santa-voice/*.mp3) one after another, softening the music underneath.

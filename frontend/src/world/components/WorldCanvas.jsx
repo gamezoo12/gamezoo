@@ -2184,7 +2184,7 @@ export default function WorldCanvas({
   const { user } = useAuth();
 
   const [mapTheme, setMapTheme] = useState(() => { try { return JSON.parse(localStorage.getItem('pl_map_theme')) || { theme: 'festive', effects: true }; } catch { return { theme: 'festive', effects: true }; } });
-  const [santaIntroDone, setSantaIntroDone] = useState(false);
+  const [santaIntroDone, setSantaIntroDone] = useState(() => sessionStorage.getItem('pl_santa_intro_seen') === '1');
   useEffect(() => { worldAPI.mapTheme().then((t) => { setMapTheme(t); localStorage.setItem('pl_map_theme', JSON.stringify(t)); }).catch(() => {}); }, []);
 
   const [walletBalance, setWalletBalance] =
@@ -3446,7 +3446,7 @@ export default function WorldCanvas({
       )}
 
       {mapTheme.theme === 'festive' && !santaIntroDone && !previewState && (
-        <SantaIntro name={(user?.name || '').split(' ')[0] || 'friend'} onDone={() => setSantaIntroDone(true)} />
+        <SantaIntro name={(user?.name || '').split(' ')[0] || 'friend'} onDone={() => { sessionStorage.setItem('pl_santa_intro_seen', '1'); setSantaIntroDone(true); }} />
       )}
 
       <div

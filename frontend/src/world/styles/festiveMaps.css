@@ -210,3 +210,10 @@
 .pl-santa-intro-figure .pl-santa-crackers { top: 18%; transform: scale(2.4); }
 @keyframes pl-intro-drop { from { transform: translateY(-120vh) rotate(-20deg); } to { transform: none; } }
 @keyframes pl-card-pop { from { transform: scale(.3); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* 3D Santa canvas */
+.pl-santa-3d { width: 100%; height: 100%; pointer-events: none; }
+.pl-santa-3d canvas { pointer-events: none; }
+.pl2d-world[data-map-theme="festive"] .pl1000-progress-avatar .pl-santa { width: 110px; height: 120px; bottom: -12px; }
+.pl-santa-intro-figure.pl-santa { width: min(70vw, 340px); height: min(90vw, 420px); }
+.pl-santa.is-ride .pl-santa-3d { position: relative; z-index: 3; transform: translateY(-16px) scale(.85); }

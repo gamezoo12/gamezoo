@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Volume2, VolumeX, X } from 'lucide-react';
-import { SantaFigure } from './SantaAvatar';
-import { SONG_NAMES, isSantaMuted, playJingle, playSfx, playVoice, setSantaMuted } from './santaJingle';
+import Santa3D from './Santa3D';
+import { SONG_NAMES, isSantaMuted, playJingle, playSantaSong, playSfx, playVoice, setSantaMuted, softenSantaSong } from './santaJingle';
 
 export const DANCES = ['twist', 'spin', 'moonwalk', 'disco', 'belly', 'wave', 'kick'];
 const OPENERS = ['Ho Ho Ho', 'Ho ho, hello', 'Jingle jingle', 'Well hello there', 'Ho ho ho, look who’s here', 'Merry greetings', 'Sleigh bells ring', 'Twinkle twinkle', 'Hip hip hooray', 'Ho ho, welcome back'];
@@ -55,20 +55,21 @@ export default function SantaIntro({ name, onDone }) {
     finished.current = true;
     const target = document.querySelector('[data-testid="free-world-avatar"]')?.getBoundingClientRect();
     const me = figure.current?.getBoundingClientRect();
-    playSfx('whoosh');
+    playSfx('whoosh'); softenSantaSong();
     if (target && me) setLeaving({ x: target.left + target.width / 2 - (me.left + me.width / 2), y: target.top + target.height / 2 - (me.top + me.height / 2), s: Math.max(0.15, target.height / me.height) });
     else setLeaving({ x: 0, y: 400, s: 0.2 });
     setTimeout(onDone, 1100);
   };
   useEffect(() => {
-    playJingle(INTRO_MS / 1000, SONG_NAMES[pick(SONG_NAMES)]);
-    const v = setTimeout(() => playVoice(wish.clips), 900);
+    sessionStorage.setItem('pl_santa_intro_seen', '1');
+    playSantaSong(() => { playJingle(INTRO_MS / 1000, SONG_NAMES[pick(SONG_NAMES)]); playVoice(wish.clips); });
+    const v = null;
     const a = setTimeout(() => { setStep(1); playSfx('magic'); }, INTRO_MS / 3);
     const b = setTimeout(() => { setStep(2); playSfx('pop'); }, (INTRO_MS * 2) / 3);
     const c = setTimeout(leave, INTRO_MS);
     return () => [v, a, b, c].forEach(clearTimeout);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const toggleMute = () => { const m = !muted; setMuted(m); setSantaMuted(m); if (!m) playJingle(4); };
+  const toggleMute = () => { const m = !muted; setMuted(m); setSantaMuted(m); if (!m) playSantaSong(); };
   return createPortal(
     <div className={`pl-santa-intro ${leaving ? 'is-leaving' : ''}`} data-testid="santa-intro">
       <div className="pl-santa-intro-sky">{Array.from({ length: 16 }, (_, i) => <span key={i} className="pl-firework" style={{ left: `${(i * 23) % 92 + 4}%`, top: `${(i * 31) % 55 + 4}%`, animationDelay: `${(i * 0.6) % 6}s`, '--fw': ['#facc15', '#f472b6', '#38bdf8', '#a3e635', '#fb7185', '#c084fc'][i % 6] }} />)}
@@ -84,7 +85,7 @@ export default function SantaIntro({ name, onDone }) {
       <div ref={figure} className={`pl-santa-intro-figure pl-santa is-dance pl-dance-${dances[step]}`} data-dance={dances[step]} data-testid="santa-intro-figure"
         style={leaving ? { transform: `translate(${leaving.x}px, ${leaving.y}px) scale(${leaving.s})` } : undefined}>
         <span className="pl-santa-crackers">{Array.from({ length: 6 }, (_, i) => <span key={`${step}-${i}`} className="pl-santa-cracker" style={{ '--a': `${i * 60}deg`, '--c': ['#facc15', '#f43f5e', '#22d3ee', '#a3e635', '#f472b6', '#fb923c'][i], animationDelay: `${(i % 3) * 0.4}s` }} />)}</span>
-        <SantaFigure />
+        <Santa3D dance={leaving ? 'wave' : dances[step]} className="pl-santa-3d" testId="santa-intro-3d" />
       </div>
     </div>,
     document.body,
