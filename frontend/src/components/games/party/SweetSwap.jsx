@@ -100,7 +100,7 @@ export function SweetSwap({ config, onComplete }) {
     if (done.current) return; done.current = true; setOver(true);
     sfx(won ? 'win' : 'lose');
     banter.say(0, won ? 'cheer' : 'cheer_sad', { big: true, force: true, event: won ? 'the player just cleared the candy level, celebrate them' : 'the player just failed the candy level, comfort them kindly', detail: why });
-    setTimeout(() => onComplete({ solved: won, accuracy: won ? Math.min(1, 0.5 + moves / movesMax) : Math.min(0.9, score / goal), duration_ms: Date.now() - start }), 1800);
+    { const end = Date.now(); setTimeout(() => onComplete({ solved: won, accuracy: won ? Math.min(1, 0.5 + moves / movesMax) : Math.min(0.9, score / goal), duration_ms: end - start, delay_ms: Date.now() - end }), 1800); }
   };
   const { turnLeft, matchLeft } = useClocks({ turnSec, matchSec, turnKey: moveNo, running: !over,
     onTurnOut: () => { sfx('bad'); setSel(null); setMoveNo((m) => m + 1); setMoves((m) => { if (m - 1 <= 0) end(false, 'out of moves'); return m - 1; }); banter.say(0, 'cheer_sad', { force: true }); },

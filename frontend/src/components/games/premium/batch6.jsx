@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { difficultyOf, lerpLevel } from '../../../lib/difficulty';
 import { Board3D, useFeedback } from './kit';
 
-const done = (onComplete, start, accuracy, counts) => onComplete({ solved: true, accuracy: Math.max(0.05, Math.min(1, accuracy)), duration_ms: Date.now() - start, ...counts });
+const done = (onComplete, start, accuracy, counts, end = Date.now()) => onComplete({ solved: true, accuracy: Math.max(0.05, Math.min(1, accuracy)), duration_ms: end - start, delay_ms: Date.now() - end, ...counts });
 function useFinish(onComplete) {
   const finished = useRef(false);
-  return (start, accuracy, counts) => { if (finished.current) return; finished.current = true; done(onComplete, start, accuracy, counts); };
+  return (start, accuracy, counts, end) => { if (finished.current) return; finished.current = true; done(onComplete, start, accuracy, counts, end); };
 }
 const rnd = (n) => Math.floor(Math.random() * n);
 const shuffle = (list) => { const a = [...list]; for (let i = a.length - 1; i > 0; i -= 1) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
@@ -70,7 +70,7 @@ export function PremiumPipeConnect({ config, onComplete }) {
     if (lit.size === n * n) return;
     const t = tiles.map((m, i) => (i === k ? rot(m) : m));
     setTiles(t); setMoves((v) => v + 1); fire('tap');
-    if (connected(t, n).size === n * n) { fire('good'); setTimeout(() => finish(start, Math.min(1, (n * n * 1.5) / (moves + 1))), 250); }
+    if (connected(t, n).size === n * n) { fire('good'); { const end = Date.now(); setTimeout(() => finish(start, Math.min(1, (n * n * 1.5) / (moves + 1)), undefined, end), 250); } }
   };
   return (
     <Board3D theme="math" title="Pipe Connect" level={level} flash={flash} stats={[['Grid', `${n}×${n}`], ['Linked', `${lit.size}/${n * n}`], ['Turns', moves]]}>
@@ -114,7 +114,7 @@ export function PremiumBallSort({ config, onComplete }) {
     if (to.length >= CAP || (to.length && to[to.length - 1] !== ball)) { fire('bad'); setPick(null); return; }
     const next = tubes.map((t, k) => (k === pick ? t.slice(0, -1) : k === i ? [...t, ball] : t));
     setTubes(next); setPick(null); setMoves((m) => m + 1); fire('tap');
-    if (sortedTubes(next)) { fire('good'); setTimeout(() => finish(start, Math.min(1, (colours * 4) / (moves + 1))), 250); }
+    if (sortedTubes(next)) { fire('good'); { const end = Date.now(); setTimeout(() => finish(start, Math.min(1, (colours * 4) / (moves + 1)), undefined, end), 250); } }
   };
   return (
     <Board3D theme="party" title="Ball Sort" level={level} flash={flash} stats={[['Colours', colours], ['Moves', moves]]}>
@@ -162,7 +162,7 @@ export function PremiumColourFlood({ config, onComplete }) {
     if (c === grid[0]) return;
     const g = floodWith(grid, n, c); const m = moves + 1;
     setGrid(g); setMoves(m); fire('tap');
-    if (floodRegion(g, n).size === n * n) { fire('good'); setTimeout(() => finish(start, par / m), 250); }
+    if (floodRegion(g, n).size === n * n) { fire('good'); { const end = Date.now(); setTimeout(() => finish(start, par / m, undefined, end), 250); } }
   };
   return (
     <Board3D theme="memory" title="Colour Flood" level={level} flash={flash} stats={[['Moves', moves], ['Target', par]]}>
@@ -193,7 +193,7 @@ export function PremiumCodeBreaker({ config, onComplete }) {
     const common = [...Array(colours).keys()].reduce((s, c) => s + Math.min(guess.filter((g) => g === c).length, secret.filter((x) => x === c).length), 0);
     const h = [...history, { guess, exact, near: common - exact }];
     setHistory(h); setGuess([]);
-    if (exact === len) { fire('good'); setTimeout(() => finish(start, (len + 2) / h.length), 300); } else fire('bad');
+    if (exact === len) { fire('good'); { const end = Date.now(); setTimeout(() => finish(start, (len + 2) / h.length, undefined, end), 300); } } else fire('bad');
   };
   return (
     <Board3D theme="target" title="Code Breaker" level={level} flash={flash} stats={[['Code length', len], ['Guesses', history.length]]}>
@@ -260,7 +260,7 @@ export function PremiumWordSearch({ config, onComplete }) {
     const hit = placed.find((p) => !found.includes(p.word) && (p.word === letters || p.word === [...letters].reverse().join('')));
     if (!hit) { fire('bad'); setMisses((m) => m + 1); return; }
     const f = [...found, hit.word]; setFound(f); setFoundCells(new Set([...foundCells, ...cells])); fire('good');
-    if (f.length === placed.length) setTimeout(() => finish(start, placed.length / (placed.length + misses), { correct: placed.length, total: placed.length + misses }), 250);
+    if (f.length === placed.length) { const end = Date.now(); setTimeout(() => finish(start, placed.length / (placed.length + misses), { correct: placed.length, total: placed.length + misses }, end), 250); }
   };
   return (
     <Board3D theme="words" title="Word Search" level={level} flash={flash} stats={[['Found', `${found.length}/${placed.length}`], ['Misses', misses]]}>

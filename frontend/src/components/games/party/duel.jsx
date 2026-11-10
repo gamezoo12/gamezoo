@@ -44,7 +44,7 @@ export function DuelGame({ def, config, onComplete, online }) {
     if (done.current) return; done.current = true;
     sfx(won ? 'win' : 'lose');
     banter.say(0, won ? 'you_win' : 'bot_win', { big: true, force: true, event: won ? `the human beat you at ${def.title}` : `you beat the human at ${def.title}`, detail: why || '' });
-    setTimeout(() => onComplete({ solved: won, accuracy: won ? 0.95 : 0.3, duration_ms: Date.now() - start }), 1800);
+    { const end = Date.now(); setTimeout(() => onComplete({ solved: won, accuracy: won ? 0.95 : 0.3, duration_ms: end - start, delay_ms: Date.now() - end }), 1800); }
   };
   const { turnLeft, matchLeft } = useClocks({ turnSec, matchSec, turnKey: g.ev.id, running: !g.over,
     onTurnOut: () => { if (g.turn === mySide && legal.length) { move(legal[Math.floor(Math.random() * legal.length)]); banter.say(0, 'taunt', { force: true }); } },

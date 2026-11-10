@@ -4,7 +4,7 @@ import { difficultyOf, lerpLevel, seeded, seededShuffle } from '../../../lib/dif
 import { Board3D, useFeedback } from './kit';
 import { useKeyMoves } from './batch4';
 
-const done = (onComplete, start, accuracy, counts) => onComplete({ solved: true, accuracy: Math.max(0.05, Math.min(1, accuracy)), duration_ms: Date.now() - start, ...counts });
+const done = (onComplete, start, accuracy, counts, end = Date.now()) => onComplete({ solved: true, accuracy: Math.max(0.05, Math.min(1, accuracy)), duration_ms: end - start, delay_ms: Date.now() - end, ...counts });
 const key3d = 'rounded-xl border-b-[5px] shadow-lg transition-transform hover:-translate-y-0.5 active:translate-y-0.5';
 const rand = () => Math.floor(Math.random() * 1e6);
 
@@ -85,7 +85,7 @@ export function Premium2048({ config, onComplete }) {
     const s = spawn(next);
     setMoves((m) => m + 1);
     fire(Math.max(...s) > Math.max(...cur) ? 'good' : 'tap');
-    if (Math.max(...s) >= target) { fin.current = true; setG(s); setTimeout(() => done(onComplete, start, 1 / (1 + resets * 0.3)), 200); return; }
+    if (Math.max(...s) >= target) { fin.current = true; setG(s); { const end = Date.now(); setTimeout(() => done(onComplete, start, 1 / (1 + resets * 0.3), undefined, end), 200); } return; }
     if (['left', 'right', 'up', 'down'].every((x) => shift(s, x).every((v, k) => v === s[k]))) { fire('bad'); setResets((r) => r + 1); setG(spawn(spawn(Array(16).fill(0)))); return; }
     setG(s);
   }, [target, fire, onComplete, start, resets]);
@@ -209,7 +209,7 @@ export function PremiumMaze({ config, onComplete }) {
     posRef.current = np;
     setPos(np);
     setSteps((s) => s + 1);
-    if (np === n * n - 1) { fire('good'); setTimeout(() => done(onComplete, start, 1), 150); } else fire('tap');
+    if (np === n * n - 1) { fire('good'); { const end = Date.now(); setTimeout(() => done(onComplete, start, 1, undefined, end), 150); } } else fire('tap');
   }, [walls, n, fire, onComplete, start]);
   useKeyMoves(move);
   const swipe = useSwipe(move);

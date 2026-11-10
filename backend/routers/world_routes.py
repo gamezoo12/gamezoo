@@ -4806,6 +4806,13 @@ def _colour_questions(colours: int, rounds: int):
     return questions, expected
 
 
+def _finish_moment_ms(client_ms: int, server_elapsed_ms: int) -> int:
+    """Client finish time if consistent with server elapsed (network latency only), else server time."""
+    if server_elapsed_ms - 3000 <= client_ms <= server_elapsed_ms + 1500:
+        return max(100, int(client_ms))
+    return max(100, server_elapsed_ms)
+
+
 def _world_client_games() -> dict:
     """Registered skill games played via their existing client component (all except server-checked Number Sequence)."""
     from routers.game_routes import GAME_TYPES
@@ -7653,8 +7660,7 @@ async def free_world_session_submit(
         # Client-component game: completion is browser-reported, so the score always
         # uses the server-measured elapsed time; a client cannot claim a faster run.
         sequence_valid = body.duration_ms <= server_elapsed_ms + 1500
-        body.duration_ms = max(100, server_elapsed_ms if time_limit_ms == 0
-                               else min(server_elapsed_ms, 300000))
+        body.duration_ms = _finish_moment_ms(body.duration_ms, server_elapsed_ms)
 
     submitted_in_time = (
         time_limit_ms == 0 or body.duration_ms <= time_limit_ms
@@ -9567,8 +9573,8 @@ async def champion_session_submit(
         # Leaderboard then ranks duration_ms ascending.
         score = target if passed else 0
 
-        authoritative_duration_ms = (
-            server_elapsed_ms
+        authoritative_duration_ms = _finish_moment_ms(
+            body.duration_ms, server_elapsed_ms
         )
 
     else:

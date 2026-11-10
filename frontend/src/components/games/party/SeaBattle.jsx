@@ -66,7 +66,7 @@ export function SeaBattle({ config, onComplete }) {
     if (done.current) return; done.current = true;
     sfx(won ? 'win' : 'lose');
     banter.say(0, won ? 'you_win' : 'bot_win', { big: true, force: true, event: won ? 'the human sank your whole fleet' : 'you sank the human\'s whole fleet', detail: why });
-    setTimeout(() => onComplete({ solved: won, accuracy: won ? Math.min(1, hitsOn(theirs, myShots) / Math.max(1, Object.keys(myShots).length) + 0.3) : 0.3, duration_ms: Date.now() - start }), 1800);
+    { const end = Date.now(); setTimeout(() => onComplete({ solved: won, accuracy: won ? Math.min(1, hitsOn(theirs, myShots) / Math.max(1, Object.keys(myShots).length) + 0.3) : 0.3, duration_ms: end - start, delay_ms: Date.now() - end }), 1800); }
   };
   const fire = (i) => {
     if (turn !== 0 || done.current || myShots[i]) return;

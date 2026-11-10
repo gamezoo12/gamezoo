@@ -17,7 +17,7 @@ export function SoloGame({ def, config, onComplete }) {
     if (done.current) return; done.current = true;
     sfx(won ? 'win' : 'lose');
     banter.say(0, won ? 'cheer' : 'cheer_sad', { big: true, force: true, event: won ? `the player solved the ${def.title} level` : `the player failed the ${def.title} level`, detail: why });
-    setTimeout(() => onComplete({ solved: won, accuracy: won ? 1 : 0.3, duration_ms: Date.now() - start }), 1600);
+    { const end = Date.now(); setTimeout(() => onComplete({ solved: won, accuracy: won ? 1 : 0.3, duration_ms: end - start, delay_ms: Date.now() - end }), 1600); }
   };
   const { matchLeft } = useClocks({ matchSec, running: !done.current, onMatchOut: () => end(false, 'clock ran out') });
   useEffect(() => { banter.say(0, 'cheer_start', { force: true }); }, []); // eslint-disable-line react-hooks/exhaustive-deps

@@ -106,7 +106,7 @@ export function ColourCards({ config, onComplete, online }) {
     if (!online) setG((s) => ({ ...s, phase: 'over', winner: won ? 0 : 1 }));
     const leader = g.hands.slice(1).reduce((b, h, i, a) => (h.length < a[b].length ? i : b), 0);
     banter.say(won ? 0 : leader, won ? 'you_win' : 'bot_win', { big: true, force: true, event: won ? 'the human won the card game' : 'you won the card game', detail: why || '' });
-    setTimeout(() => onComplete({ solved: won, accuracy: won ? Math.max(0.5, 1 - g.hands[me].length * 0.1) : 0.3, duration_ms: Date.now() - start }), 2000);
+    { const end = Date.now(); setTimeout(() => onComplete({ solved: won, accuracy: won ? Math.max(0.5, 1 - g.hands[me].length * 0.1) : 0.3, duration_ms: end - start, delay_ms: Date.now() - end }), 2000); }
   };
   const { turnLeft, matchLeft } = useClocks({ turnSec, matchSec, turnKey: g.turnNo, running: g.phase !== 'over',
     onTurnOut: () => { if (g.turn === me && g.phase !== 'over') { sfx('bad'); setG((s) => { if (s.turn !== me) return s; if (s.drawn) return pass(s); const d = drawOne({ ...s, phase: 'play', pending: null }, me); return d.drawn ? pass(d) : d; }); banter.say(0, 'taunt', { force: true }); } },

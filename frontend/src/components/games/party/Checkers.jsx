@@ -72,7 +72,7 @@ export function Checkers({ config, onComplete, online }) {
   };
   const { turnLeft, matchLeft } = useClocks({ turnSec, matchSec, turnKey: g.ev.id, running: !g.over,
     onTurnOut: () => { if (g.turn === mySide && legal.length) { move(legal[Math.floor(Math.random() * legal.length)]); banter.say(0, 'taunt', { force: true }); } },
-    onMatchOut: () => { done.current = true; const won = count(mySide) > count(mySide === 1 ? 2 : 1); sfx(won ? 'win' : 'lose'); setTimeout(() => onComplete({ solved: won, accuracy: 0.5, duration_ms: Date.now() - start }), 1200); } });
+    onMatchOut: () => { done.current = true; const won = count(mySide) > count(mySide === 1 ? 2 : 1); sfx(won ? 'win' : 'lose'); { const end = Date.now(); setTimeout(() => onComplete({ solved: won, accuracy: 0.5, duration_ms: end - start, delay_ms: Date.now() - end }), 1200); } } });
 
   useEffect(() => {
     if (online || g.over || g.turn !== 2) return undefined;
@@ -96,7 +96,7 @@ export function Checkers({ config, onComplete, online }) {
       done.current = true; const won = e.side === mySide;
       sfx(won ? 'win' : 'lose');
       banter.say(0, won ? 'you_win' : 'bot_win', { big: true, force: true, event: won ? 'the human beat you at checkers' : 'you beat the human at checkers' });
-      setTimeout(() => onComplete({ solved: won, accuracy: Math.min(1, 0.4 + count(mySide) / 12), duration_ms: Date.now() - start }), 1800);
+      { const end = Date.now(); setTimeout(() => onComplete({ solved: won, accuracy: Math.min(1, 0.4 + count(mySide) / 12), duration_ms: end - start, delay_ms: Date.now() - end }), 1800); }
     }
   }, [g.ev.id]); // eslint-disable-line react-hooks/exhaustive-deps
 

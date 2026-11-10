@@ -58,7 +58,7 @@ export function FourInRow({ config, onComplete, online }) {
     if (done.current) return; done.current = true;
     sfx(solved ? 'win' : 'lose');
     banter.say(0, solved ? 'you_win' : 'bot_win', { big: true, force: true, event: solved ? 'the human beat you at four in a row' : 'you beat the human at four in a row', detail: why || '' });
-    setTimeout(() => onComplete({ solved, accuracy: solved ? Math.max(0.5, 1 - g.moves / 42) : 0.3, duration_ms: Date.now() - start }), 1800);
+    { const end = Date.now(); setTimeout(() => onComplete({ solved, accuracy: solved ? Math.max(0.5, 1 - g.moves / 42) : 0.3, duration_ms: end - start, delay_ms: Date.now() - end }), 1800); }
   };
   const drop = (c) => {
     if (g.turn !== me || g.win) return;

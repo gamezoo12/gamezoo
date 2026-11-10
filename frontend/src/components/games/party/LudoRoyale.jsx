@@ -188,7 +188,7 @@ export function LudoRoyale({ config, onComplete, online }) {
       banter.say(won ? 0 : who(e.seat), won ? 'you_win' : 'bot_win', { big: true, force: true, event: won ? 'the human player beat you at Ludo' : 'you just won the Ludo game against the human' });
       const total = g.pos[mySeat].length;
       const rivalsHome = Math.max(...g.seats.filter((s) => s !== mySeat).map((s) => g.pos[s].filter((x) => x === END).length));
-      setTimeout(() => onComplete({ solved: won, accuracy: won ? 1 - (rivalsHome / total) * 0.5 : g.pos[mySeat].filter((x) => x === END).length / total, duration_ms: Date.now() - start }), 2200);
+      { const end = Date.now(); setTimeout(() => onComplete({ solved: won, accuracy: won ? 1 - (rivalsHome / total) * 0.5 : g.pos[mySeat].filter((x) => x === END).length / total, duration_ms: end - start, delay_ms: Date.now() - end }), 2200); }
     }
   }, [g.ev?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 

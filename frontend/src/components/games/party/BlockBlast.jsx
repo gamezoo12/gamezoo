@@ -46,7 +46,7 @@ export function BlockBlast({ config, onComplete }) {
     if (done.current) return; done.current = true;
     sfx(won ? 'win' : 'lose');
     banter.say(0, won ? 'cheer' : 'cheer_sad', { big: true, force: true, event: won ? 'the player cleared the block puzzle level, celebrate' : 'the player ran out of space in the block puzzle, comfort them', detail: why });
-    setTimeout(() => onComplete({ solved: won, accuracy: won ? 1 : Math.min(0.9, score / goal), duration_ms: Date.now() - start }), 1700);
+    { const end = Date.now(); setTimeout(() => onComplete({ solved: won, accuracy: won ? 1 : Math.min(0.9, score / goal), duration_ms: end - start, delay_ms: Date.now() - end }), 1700); }
   };
   const { matchLeft } = useClocks({ matchSec, running: !done.current, onMatchOut: () => end(score >= goal, 'level clock ran out') });
   useEffect(() => { banter.say(0, 'cheer_start', { force: true }); }, []); // eslint-disable-line react-hooks/exhaustive-deps

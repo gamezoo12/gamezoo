@@ -115,7 +115,7 @@ export function SnakesLadders({ config, onComplete, online }) {
       sfx(won ? 'win' : 'lose');
       banter.say(won ? 0 : bot, won ? 'you_win' : 'bot_win', { big: true, force: true, event: won ? 'the human beat you at snakes and ladders' : 'you won snakes and ladders' });
       const best = Math.max(...g.pos.filter((_, i) => i !== me));
-      setTimeout(() => onComplete({ solved: won, accuracy: won ? Math.min(1, 1.2 - best / 100) : g.pos[me] / 100, duration_ms: Date.now() - start }), 2200);
+      { const end = Date.now(); setTimeout(() => onComplete({ solved: won, accuracy: won ? Math.min(1, 1.2 - best / 100) : g.pos[me] / 100, duration_ms: end - start, delay_ms: Date.now() - end }), 2200); }
     }
   }, [g.ev.id]); // eslint-disable-line react-hooks/exhaustive-deps
 

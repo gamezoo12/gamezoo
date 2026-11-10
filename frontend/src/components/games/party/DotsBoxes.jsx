@@ -70,7 +70,7 @@ export function DotsBoxes({ config, onComplete, online }) {
       sfx(won ? 'win' : 'lose');
       const bestBot = scores.reduce((b, x, p) => (p !== me && x > scores[b] ? p : b), me === 0 ? 1 : 0);
       banter.say(won ? 0 : bestBot - 1, won ? 'you_win' : 'bot_win', { big: true, force: true, event: won ? 'the human won dots and boxes' : 'you won dots and boxes' });
-      setTimeout(() => onComplete({ solved: won, accuracy: Math.min(1, scores[me] / (g.n * g.n) + 0.4), duration_ms: Date.now() - start }), 1800);
+      { const end = Date.now(); setTimeout(() => onComplete({ solved: won, accuracy: Math.min(1, scores[me] / (g.n * g.n) + 0.4), duration_ms: end - start, delay_ms: Date.now() - end }), 1800); }
     }
   }, [g.ev.id]); // eslint-disable-line react-hooks/exhaustive-deps
 

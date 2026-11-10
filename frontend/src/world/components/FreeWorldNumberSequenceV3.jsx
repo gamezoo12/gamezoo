@@ -950,6 +950,7 @@ if (
       async ({
         solved,
         taps,
+        delayMs = 0,
       }) => {
         if (
           submittingRef.current ||
@@ -960,7 +961,7 @@ if (
 
         // Capture completion synchronously so rendering and network latency
         // cannot add time to a successful Colour Match / Number Sequence run.
-        const finishedAt = performance.now();
+        const finishedAt = performance.now() - Math.max(0, Number(delayMs) || 0);
         const elapsed = Math.max(
           0,
           finishedAt - (begunAtRef.current ?? finishedAt),
@@ -1813,7 +1814,7 @@ if (
       <WorldClientGame gameId={session.game_id} config={session.game_config} busy={busy} timerText={formatElapsed(officialDisplayMs)}
         timerCaption={championMode ? 'CHAMPION STOPWATCH - FASTEST VERIFIED TIME WINS' : 'OFFICIAL STOPWATCH'}
         label={championMode ? 'CHAMPION RUN' : 'OFFICIAL ATTEMPT'}
-        onComplete={(result) => { setClientScore({ solved: Boolean(result.solved), correct: result.correct, total: result.total }); submitOfficial({ solved: Boolean(result.solved), taps: [] }); }} />
+        onComplete={(result) => { setClientScore({ solved: Boolean(result.solved), correct: result.correct, total: result.total }); submitOfficial({ solved: Boolean(result.solved), taps: [], delayMs: result.delay_ms }); }} />
       <button type="button" className="fwv3-fullscreen-back" disabled={busy} onClick={onClose} aria-label="Back to world">‹ Back</button>
     </div>;
   }

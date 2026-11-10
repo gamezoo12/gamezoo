@@ -69,7 +69,7 @@ export function MemoryDuel({ config, onComplete, online }) {
       done.current = true; const won = g.roomWinner === me;
       sfx(won ? 'win' : 'lose');
       banter.say(0, won ? 'you_win' : 'bot_win', { big: true, force: true, event: won ? 'the human beat you at memory pairs' : 'you beat the human at memory pairs' });
-      setTimeout(() => onComplete({ solved: won, accuracy: Math.min(1, scores[me] / (g.cards.length / 2) + 0.4), duration_ms: Date.now() - start }), 1800);
+      { const end = Date.now(); setTimeout(() => onComplete({ solved: won, accuracy: Math.min(1, scores[me] / (g.cards.length / 2) + 0.4), duration_ms: end - start, delay_ms: Date.now() - end }), 1800); }
     }
   }, [g.ev.id]); // eslint-disable-line react-hooks/exhaustive-deps
 

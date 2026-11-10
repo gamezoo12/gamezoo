@@ -132,7 +132,7 @@ export function SnakeArena({ config, onComplete }) {
     sfx(won ? 'win' : 'lose');
     banter.say(0, won ? 'you_win' : 'bot_win', { big: true, force: true, event: won ? 'the human beat you at snake' : 'you beat the human at snake', detail: why || '' });
     const s = engine.S.current;
-    setTimeout(() => onComplete({ solved: won, accuracy: won ? Math.min(1, 0.4 + s.lives * 0.2) : Math.min(0.9, s.score[0] / engine.target), duration_ms: Date.now() - start }), 1800);
+    { const end = Date.now(); setTimeout(() => onComplete({ solved: won, accuracy: won ? Math.min(1, 0.4 + s.lives * 0.2) : Math.min(0.9, s.score[0] / engine.target), duration_ms: end - start, delay_ms: Date.now() - end }), 1800); }
   };
   const engine = useSnakeEngine({ level, onEvent: (e) => {
     if (e.kind === 'eat') { sfx(e.who === 0 ? 'pop' : 'step'); if (e.who === 1 && Math.random() < 0.35) banter.say(0, 'bot_good'); if (e.who === 0 && e.score[0] > e.score[1] + 1) banter.say(0, 'you_good'); }
