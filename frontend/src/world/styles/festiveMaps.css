@@ -73,12 +73,12 @@
 @keyframes pl-santa-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.1); } }
 
 /* Win: jolly dance + magic wand + crackers */
-.pl-santa.is-win .pl-santa-body { animation: pl-santa-dance .55s ease-in-out infinite; }
-.pl-santa.is-win .pl-santa-arm-r { animation: pl-santa-arm-up .55s ease-in-out infinite; }
-.pl-santa.is-win .pl-santa-arm-l { animation: pl-santa-arm-up-l .55s ease-in-out infinite; }
-.pl-santa.is-win .pl-santa-leg-l { transform-origin: 50% 0; animation: pl-santa-kick .55s ease-in-out infinite; }
-.pl-santa.is-win .pl-santa-leg-r { transform-origin: 50% 0; animation: pl-santa-kick .55s ease-in-out infinite reverse; }
-.pl-santa.is-win .pl-santa-wand { opacity: 1; }
+.pl-santa:is(.is-win, .is-dance) .pl-santa-body { animation: pl-santa-dance .55s ease-in-out infinite; }
+.pl-santa:is(.is-win, .is-dance) .pl-santa-arm-r { animation: pl-santa-arm-up .55s ease-in-out infinite; }
+.pl-santa:is(.is-win, .is-dance) .pl-santa-arm-l { animation: pl-santa-arm-up-l .55s ease-in-out infinite; }
+.pl-santa:is(.is-win, .is-dance) .pl-santa-leg-l { transform-origin: 50% 0; animation: pl-santa-kick .55s ease-in-out infinite; }
+.pl-santa:is(.is-win, .is-dance) .pl-santa-leg-r { transform-origin: 50% 0; animation: pl-santa-kick .55s ease-in-out infinite reverse; }
+.pl-santa:is(.is-win, .is-dance) .pl-santa-wand { opacity: 1; }
 @keyframes pl-santa-dance { 0%, 100% { transform: translateY(0) rotate(-7deg); } 50% { transform: translateY(-9px) rotate(7deg); } }
 @keyframes pl-santa-arm-up { 0%, 100% { transform: rotate(-70deg); } 50% { transform: rotate(-120deg); } }
 @keyframes pl-santa-arm-up-l { 0%, 100% { transform: rotate(70deg); } 50% { transform: rotate(120deg); } }
@@ -116,3 +116,26 @@
 @media (prefers-reduced-motion: reduce) {
   .pl-santa *, .pl-santa-cracker, .pl-santa-sparkles span { animation: none !important; }
 }
+
+/* Sleigh ride between levels */
+.pl-sleigh { position: absolute; left: 50%; bottom: -6px; width: 170px; height: 60px; overflow: visible; z-index: 4; transform-origin: 19% 50%; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .45)) drop-shadow(0 0 12px rgba(253, 224, 71, .45)); animation: pl-sleigh-bob .35s ease-in-out infinite; }
+.pl-sleigh g { transform-box: fill-box; }
+.pl-reindeer { animation: pl-reindeer-gallop .35s ease-in-out infinite; }
+.pl-reindeer-legs { transform-origin: 50% 0; animation: pl-reindeer-legs .35s ease-in-out infinite; }
+.pl-rudolph-nose { animation: pl-rudolph 0.6s ease-in-out infinite; filter: drop-shadow(0 0 4px #f87171); }
+@keyframes pl-sleigh-bob { 0%, 100% { margin-bottom: 0; } 50% { margin-bottom: 4px; } }
+@keyframes pl-reindeer-gallop { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-4px) rotate(-4deg); } }
+@keyframes pl-reindeer-legs { 0%, 100% { transform: skewX(18deg); } 50% { transform: skewX(-18deg); } }
+@keyframes pl-rudolph { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+.pl-santa.is-ride .pl-santa-svg { position: relative; z-index: 3; transform: translateY(-14px) scale(.82); }
+.pl-santa.is-ride .pl-santa-leg-l, .pl-santa.is-ride .pl-santa-leg-r { opacity: 0; }
+.pl-santa.is-ride .pl-santa-arm-r { animation: pl-santa-arm-up .7s ease-in-out infinite; }
+.pl-santa.is-ride .pl-santa-body { animation: pl-santa-bob .35s ease-in-out infinite; }
+
+.pl-santa-mute {
+  position: absolute; right: -16px; top: 4px; z-index: 5; pointer-events: auto; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 999px;
+  background: rgba(255, 255, 255, .95); color: #b91c1c; border: 2px solid #dc2626; box-shadow: 0 3px 8px rgba(0, 0, 0, .35);
+  transition: transform .15s ease;
+}
+.pl-santa-mute:hover { transform: scale(1.12); }

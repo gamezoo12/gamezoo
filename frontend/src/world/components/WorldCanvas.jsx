@@ -1940,7 +1940,7 @@ const ChampionshipSection = React.memo(function ChampionshipSection({
             }
             aria-label="Your avatar"
           >
-            <SantaAvatar />
+            <SantaAvatar left={progressAvatar.left} bottom={progressAvatar.bottom} />
             <span className="pl1000-avatar-head" />
 
             <span className="pl1000-avatar-body">
