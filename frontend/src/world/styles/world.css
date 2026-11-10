@@ -4779,6 +4779,7 @@ body [data-testid="site-header"] {
   body:has(.fwv3-overlay) .pl-world-primary-nav,
   body:has(.fwv3-overlay) .pl-world-map-tools,
   body:has(.fwv3-overlay) .pl-world-touch-hint { display: none !important; }
+  body:has(.fwv3-overlay) header { display: none !important; }
   body:has(.fwv3-overlay) .fwv3-overlay {
     position: fixed !important;
     inset: 0 !important;

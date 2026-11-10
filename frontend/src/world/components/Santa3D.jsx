@@ -1,5 +1,5 @@
-import { useMemo, useRef } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { useEffect, useMemo, useRef } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 
 const RED = '#d62828';
 const WHITE = '#fbfbfb';
@@ -198,17 +198,39 @@ function Ride({ dir }) {
   );
 }
 
+// Renders the small map Santa at ~30fps (and pauses when the tab is hidden) to keep the map smooth.
+function Ticker() {
+  const { invalidate } = useThree();
+  useEffect(() => {
+    const id = setInterval(() => { if (!document.hidden) invalidate(); }, 33);
+    return () => clearInterval(id);
+  }, [invalidate]);
+  return null;
+}
+
+function CameraRig({ riding }) {
+  const { camera } = useThree();
+  useEffect(() => {
+    camera.position.set(0, riding ? 1.2 : 0.5, riding ? 8.5 : 4.6);
+    camera.fov = riding ? 32 : 38;
+    camera.updateProjectionMatrix();
+  }, [riding, camera]);
+  return null;
+}
+
 // Real-time 3D Santa (procedural, no model files). dance: idle|twist|spin|moonwalk|disco|belly|wave|kick|ride|try
 export default function Santa3D({ dance = 'idle', dir = 1, className = '', testId = 'santa-3d', lite = false }) {
   const dpr = useMemo(() => (lite ? 1 : Math.min(2, window.devicePixelRatio || 1)), [lite]);
   const riding = dance === 'ride';
   return (
     <div className={className} data-testid={testId} data-dance={dance}>
-      <Canvas key={riding ? 'ride' : 'stand'} shadows={!lite} dpr={dpr} resize={{ offsetSize: true, scroll: false }} camera={riding ? { position: [0, 1.2, 8.5], fov: 32 } : { position: [0, 0.5, 4.6], fov: 38 }} gl={{ alpha: true, antialias: true }} style={{ background: 'transparent', pointerEvents: 'none' }}>
+      <Canvas frameloop={lite ? 'demand' : 'always'} shadows={!lite} dpr={dpr} resize={{ offsetSize: true, scroll: false }} camera={{ position: [0, 0.5, 4.6], fov: 38 }} gl={{ alpha: true, antialias: true }} style={{ background: 'transparent', pointerEvents: 'none' }}>
         <ambientLight intensity={0.75} />
         <hemisphereLight args={['#fff6e0', '#3b1d5e', 0.6]} />
         <directionalLight position={[2.5, 4, 3]} intensity={1.6} castShadow shadow-mapSize={[512, 512]} />
         <pointLight position={[-2, 1, 2]} intensity={0.8} color="#ffd27a" />
+        <CameraRig riding={riding} />
+        {lite && <Ticker />}
         {riding ? <Ride dir={dir} /> : <SantaModel dance={dance} />}
       </Canvas>
     </div>
