@@ -2216,6 +2216,36 @@ async def admin_set_board_style(payload: BoardStyleInput, request: Request):
     return data
 
 
+_SOUND_PACK_IDS = {
+    f"{i}-{m}"
+    for i in ("chime", "arcade", "flute", "synth", "bell", "marimba", "pluck", "bubble", "laser", "organ", "glass",
+              "bass-pop", "retro-8-bit", "kalimba", "soft-pad", "whistle", "toy-piano", "space", "festive-bells",
+              "wood-block")
+    for m in ("bright", "calm", "playful", "deep", "epic")
+}
+
+
+class SoundPackInput(BaseModel):
+    pack_id: Optional[str] = None
+
+
+@public_router.get("/sound-pack")
+async def public_sound_pack():
+    doc = await get_db().world_settings.find_one({"_id": "sound_pack", "season_id": WORLD_SEASON_ID}, {"_id": 0}) or {}
+    return {"pack_id": doc.get("pack_id")}
+
+
+@admin_router.put("/sound-pack")
+async def admin_set_sound_pack(payload: SoundPackInput, request: Request):
+    admin = await require_admin(request)
+    if payload.pack_id is not None and payload.pack_id not in _SOUND_PACK_IDS:
+        raise HTTPException(status_code=422, detail="Unknown sound pack")
+    await get_db().world_settings.update_one(
+        {"_id": "sound_pack", "season_id": WORLD_SEASON_ID},
+        {"$set": {"pack_id": payload.pack_id, "updated_at": _utcnow(), "updated_by": admin.get("user_id")}}, upsert=True)
+    return {"pack_id": payload.pack_id}
+
+
 _WORLD_THEME_IDS = {
     f"{name}-{style}"
     for name in ("royal-purple", "indigo", "ocean-blue", "sky", "teal", "mint", "emerald", "forest", "lime", "gold",

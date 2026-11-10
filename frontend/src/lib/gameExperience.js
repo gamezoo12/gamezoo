@@ -1,4 +1,5 @@
 import { playFile } from './soundFiles';
+import { activeSoundPack, playPack } from './soundPacks';
 import { arcadeExperience } from './arcadeMeta';
 
 export const RESULT_QUOTES = {
@@ -74,6 +75,8 @@ export function setGameSoundEnabled(enabled) {
 const FILE_KIND = { tap: 'click', correct: 'combo', incorrect: 'bad', countdown: 'tick', start: 'open', success: 'win', failure: 'lose' };
 export function playGameSound(kind = 'tap') {
   if (!gameSoundEnabled()) return;
+  const pack = activeSoundPack();
+  if (pack && FILE_KIND[kind] && playPack(pack, kind)) return;
   if (playFile(FILE_KIND[kind] || kind)) return;
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
   if (!AudioContextClass) return;

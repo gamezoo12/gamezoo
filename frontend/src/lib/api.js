@@ -568,6 +568,7 @@ export const worldAdminAPI = {
   setUnlimitedGames: (enabled) => api.put('/admin/world/unlimited-games', { enabled }).then(r => r.data),
   setUiTheme: (themeId) => api.put('/admin/world/ui-theme', { theme_id: themeId }).then(r => r.data),
   setBoardStyle: (data) => api.put('/admin/world/board-style', data).then(r => r.data),
+  setSoundPack: (packId) => api.put('/admin/world/sound-pack', { pack_id: packId }).then(r => r.data),
   setChampionAttemptRules: (data) => api.put('/admin/world/champion-attempt-rules', data).then(r => r.data),
 
   setStageLevelConfig: (data) =>
@@ -694,6 +695,7 @@ export const worldAPI = {
   unlimitedGames: () => api.get('/world/public/unlimited-games').then(r => r.data),
   uiTheme: () => api.get('/world/public/ui-theme').then(r => r.data),
   boardStyle: () => api.get('/world/public/board-style').then(r => r.data),
+  soundPack: () => api.get('/world/public/sound-pack').then(r => r.data),
   state: () =>
     api.get('/world/state').then(r => r.data),
 

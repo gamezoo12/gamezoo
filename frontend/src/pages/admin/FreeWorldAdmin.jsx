@@ -1,4 +1,5 @@
 import ChampionAttemptRules from '../../components/admin/ChampionAttemptRules';
+import SoundPackPicker from '../../components/admin/SoundPackPicker';
 import BoardStylePicker from '../../components/admin/BoardStylePicker';
 import WorldThemePicker from '../../components/admin/WorldThemePicker';
 import UnlimitedGamesToggle from '../../components/admin/UnlimitedGamesToggle';
@@ -735,6 +736,7 @@ export default function FreeWorldAdmin() {
       <UnlimitedGamesToggle />
       <WorldThemePicker />
       <BoardStylePicker />
+      <SoundPackPicker />
 
       <ChampionAttemptRules />
 
