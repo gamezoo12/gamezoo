@@ -562,7 +562,7 @@
     );
 
   color:
-    #ffffff;
+    var(--fw-on-accent);
 
   box-shadow:
     0 10px 24px
@@ -2198,3 +2198,5 @@ body:has([data-testid="full-gameplay-preview"]) [data-testid="global-back-button
 .fwv3-game-banner { margin-bottom: 14px; }
 .fwv3-stat-grid article > div { min-width: 0; }
 .fwv3-stat-grid strong { font-size: clamp(18px, 2.1vw, 34px); }
+
+.fwv3-card [data-testid="game-sound-toggle"] { background: var(--fw-card); color: var(--fw-ink); border-color: var(--fw-line); }

@@ -3,7 +3,7 @@ import { difficultyOf, lerpLevel, seeded, seededShuffle } from '../../../lib/dif
 import { Board3D, useFeedback } from './kit';
 import { MemoryTile } from './boards';
 
-const done = (onComplete, start, accuracy, counts) => onComplete({ solved: true, accuracy: Math.max(0.05, Math.min(1, accuracy)), duration_ms: Date.now() - start, ...counts });
+const done = (onComplete, start, accuracy, counts, end = Date.now()) => onComplete({ solved: true, accuracy: Math.max(0.05, Math.min(1, accuracy)), duration_ms: end - start, delay_ms: Date.now() - end, ...counts });
 
 // ---------- Memory Match: more pairs and faster flip-back as difficulty rises ----------
 export function PremiumMemory({ config, onComplete }) {
@@ -13,6 +13,7 @@ export function PremiumMemory({ config, onComplete }) {
   const [open, setOpen] = useState([]);
   const [moves, setMoves] = useState(0);
   const [start] = useState(Date.now);
+  const endRef = useRef(null);
   const [flash, fire] = useFeedback();
   const cols = pairs <= 6 ? 4 : pairs <= 10 ? 5 : 6;
   const flip = (i) => {
@@ -26,13 +27,14 @@ export function PremiumMemory({ config, onComplete }) {
     setMoves((m) => m + 1);
     const [a, b] = fl;
     const match = next[a].s === next[b].s;
+    if (match && next.filter((c) => c.done).length + 2 === next.length) endRef.current = Date.now();
     setTimeout(() => {
       fire(match ? 'good' : 'bad');
       setCards((p) => p.map((c, k) => (k === a || k === b ? (match ? { ...c, done: true } : { ...c, open: false }) : c)));
       setOpen([]);
     }, match ? 320 : lerpLevel(level, 800, 320));
   };
-  useEffect(() => { if (cards.every((c) => c.done)) done(onComplete, start, pairs / Math.max(moves, pairs), { correct: pairs, total: pairs }); }, [cards]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (cards.every((c) => c.done)) done(onComplete, start, pairs / Math.max(moves, pairs), { correct: pairs, total: pairs }, endRef.current || Date.now()); }, [cards]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <Board3D theme="memory" title="Memory Vault" level={level} flash={flash} stats={[['Pairs', `${cards.filter((c) => c.done).length / 2}/${pairs}`], ['Moves', moves]]}>
       <div className="grid gap-2 sm:gap-3" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>

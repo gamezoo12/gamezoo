@@ -45,7 +45,7 @@ export function LevelLeaderboardPanel({ gcNumber, boards, isMine }) {
           {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => {
             const on = enabled.some((b) => b.level === n);
             return <button key={n} type="button" disabled={!on} onClick={() => setLevel(n)} data-testid={`lb-level-btn-${n}`} title={on ? `Level ${n}` : 'No level leaderboard for this level'}
-              className={`flex h-11 items-center justify-center gap-1 rounded-xl text-sm font-black transition-colors ${n === level ? 'bg-[var(--fw-accent)] text-white shadow-lg' : on ? 'bg-[var(--fw-accent-soft)] text-[var(--fw-accent-strong)] hover:bg-[var(--fw-line)]' : 'cursor-not-allowed bg-slate-100 text-slate-400'}`}>
+              className={`flex h-11 items-center justify-center gap-1 rounded-xl text-sm font-black transition-colors ${n === level ? 'bg-[var(--fw-accent)] text-[var(--fw-on-accent)] shadow-lg' : on ? 'bg-[var(--fw-accent-soft)] text-[var(--fw-accent-strong)] hover:bg-[var(--fw-line)]' : 'cursor-not-allowed bg-slate-100 text-slate-400'}`}>
               {!on && <Lock size={11} />}L{n}</button>;
           })}
         </div>

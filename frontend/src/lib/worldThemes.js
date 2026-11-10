@@ -34,10 +34,27 @@ export const WORLD_THEMES = HUES.flatMap(([name, h, cap]) => STYLES.map((style) 
 
 export const themeById = (id) => WORLD_THEMES.find((t) => t.id === id) || WORLD_THEMES.find((t) => t.id === DEFAULT_THEME_ID);
 
+const luminance = (colour) => {
+  let r; let g; let b;
+  const m = /hsl\((\d+) (\d+)% (\d+)%\)/.exec(colour);
+  if (m) {
+    const [h, s, l] = [Number(m[1]), Number(m[2]) / 100, Number(m[3]) / 100];
+    const f = (n) => { const k = (n + h / 30) % 12; return l - s * Math.min(l, 1 - l) * Math.max(-1, Math.min(k - 3, 9 - k, 1)); };
+    [r, g, b] = [f(0), f(8), f(4)];
+  } else {
+    [r, g, b] = [1, 3, 5].map((i) => parseInt(colour.slice(i, i + 2), 16) / 255);
+  }
+  const lin = (c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+};
+// White text unless it would fall below ~3:1 contrast on the accent.
+const onAccent = (accent) => (1.05 / (luminance(accent) + 0.05) >= 3 ? '#ffffff' : '#0b1220');
+
 export const themeVars = (theme) => {
   const c = theme.colours;
   return { '--fw-accent': c.accent, '--fw-accent-strong': c.accentStrong, '--fw-accent-soft': c.accentSoft,
-    '--fw-ink': c.ink, '--fw-muted': c.muted, '--fw-card': c.card, '--fw-soft': c.soft, '--fw-line': c.line };
+    '--fw-ink': c.ink, '--fw-muted': c.muted, '--fw-card': c.card, '--fw-soft': c.soft, '--fw-line': c.line,
+    '--fw-on-accent': onAccent(c.accent) };
 };
 
 export function applyWorldTheme(id) {

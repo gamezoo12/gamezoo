@@ -2176,6 +2176,14 @@ async def admin_set_map_theme(payload: MapThemeInput, request: Request):
     return payload.model_dump()
 
 
+_WORLD_THEME_IDS = {
+    f"{name}-{style}"
+    for name in ("royal-purple", "indigo", "ocean-blue", "sky", "teal", "mint", "emerald", "forest", "lime", "gold",
+                 "amber", "sunset", "coral", "cherry", "ruby", "rose", "magenta", "orchid", "slate", "mocha")
+    for style in ("classic", "deep", "pastel", "neon", "midnight")
+}
+
+
 class WorldUiThemeInput(BaseModel):
     theme_id: str = Field(..., pattern="^[a-z0-9-]{3,40}$")
 
@@ -2189,6 +2197,8 @@ async def public_ui_theme():
 @admin_router.put("/ui-theme")
 async def admin_set_ui_theme(payload: WorldUiThemeInput, request: Request):
     admin = await require_admin(request)
+    if payload.theme_id not in _WORLD_THEME_IDS:
+        raise HTTPException(status_code=422, detail="Unknown theme")
     await get_db().world_settings.update_one(
         {"_id": "ui_theme", "season_id": WORLD_SEASON_ID},
         {"$set": {"theme_id": payload.theme_id, "updated_at": _utcnow(), "updated_by": admin.get("user_id")}}, upsert=True)

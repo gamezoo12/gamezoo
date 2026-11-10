@@ -124,7 +124,7 @@
   display: inline-flex; align-items: center; gap: 4px;
   height: 40px; padding: 0 15px; border: none; border-radius: 12px;
   font-size: 13px; font-weight: 900; letter-spacing: 0.3px; cursor: pointer;
-  color: #fff; background: linear-gradient(160deg, #8f6bff, var(--fw-accent));
+  color: var(--fw-on-accent); background: linear-gradient(160deg, var(--fw-accent-strong), var(--fw-accent));
   box-shadow: 0 8px 18px rgba(106, 63, 240, 0.32);
   transition: transform 0.12s ease, box-shadow 0.15s ease;
 }
@@ -222,7 +222,7 @@
 .pl-global-lb-tr.top-2 { background: linear-gradient(90deg, #f4f6fa, rgba(244, 246, 250, 0.2)); }
 .pl-global-lb-tr.top-3 { background: linear-gradient(90deg, #fbf1e7, rgba(251, 241, 231, 0.2)); }
 .pl-global-lb-tr.is-me {
-  background: linear-gradient(90deg, #efeaff, #f6f0ff) !important;
+  background: var(--fw-accent-soft) !important;
   box-shadow: inset 0 0 0 1.6px var(--fw-line);
 }
 .pl-global-lb-rankcell { display: inline-flex; align-items: center; gap: 6px; font-weight: 900; color: var(--fw-muted); }
@@ -233,7 +233,7 @@
 .pl-global-lb-rk.bronze { background: linear-gradient(160deg, #e6b483, #c67f3e); }
 .pl-global-lb-player { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .pl-global-lb-pn { min-width: 0; font-weight: 700; color: #2a2550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pl-global-lb-pn em { font-style: normal; margin-left: 6px; font-size: 9px; font-weight: 900; color: #fff; background: var(--fw-accent); padding: 1.5px 6px; border-radius: 999px; vertical-align: middle; }
+.pl-global-lb-pn em { font-style: normal; margin-left: 6px; font-size: 9px; font-weight: 900; color: var(--fw-on-accent); background: var(--fw-accent); padding: 1.5px 6px; border-radius: 999px; vertical-align: middle; }
 .pl-global-lb-champ { display: inline-flex; align-items: center; gap: 4px; font-weight: 800; color: var(--fw-accent); white-space: nowrap; }
 .pl-global-lb-champ svg { color: #a78bff; flex: 0 0 auto; }
 .pl-global-lb-time { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; color: #5a5578; white-space: nowrap; font-variant-numeric: tabular-nums; }

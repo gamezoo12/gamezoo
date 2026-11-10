@@ -813,3 +813,12 @@ Root causes fixed:
 ## 2026-06 Result score + Level popup cleanup
 - Client games now report correct/total; result screen shows real "correct / attempts" (e.g. Math Sprint 8 / 11), puzzles without counts show RESULT: Solved/Not solved. Server games unchanged.
 - Removed dashed purple bars from Level popup GAME tile; spacing + stat text fit polish. Tested (iteration_66: 100%).
+
+## 2026-06 Timer, Unlimited switch, Challenges tab, 100 themes, difficulty
+- Timer: client finish moment saved (server validates window -3000/+1500 ms, _finish_moment_ms); game end animations no longer add time (delay_ms).
+- Admin: Unlimited Games on/off (world_settings unlimited_games) hides FAB on /world.
+- Mobile paid view: Leaderboard tab -> Challenges (/my-account/winnings).
+- 100 Free World colour themes (lib/worldThemes.js, CSS vars --fw-*), admin preview + Apply (world_settings ui_theme, allow-listed ids), auto text contrast.
+- Level leaderboard "How to earn tokens" popover; heavier snow (72 flakes).
+- GC admin difficulty for Memory Match & Number Sequence (sequence board glow/reshuffle by difficulty).
+- Tested iteration_67 (backend 16/16, frontend 100%); contrast/allow-list/memory-timer follow-ups fixed after.
