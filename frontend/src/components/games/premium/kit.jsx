@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { playGameSound } from '../../../lib/gameExperience';
 import { difficultyName } from '../../../lib/difficulty';
+import { borderShadow, resolveBoardStyle, useBoardStyleConfig } from '../../../lib/boardStyles';
 
 export const THEMES = {
   memory: { from: '#2b0f5e', to: '#0d0630', accent: '#c084fc', glow: 'rgba(192,132,252,0.45)' },
@@ -13,15 +14,21 @@ export const THEMES = {
 };
 
 // Shared premium stage: tilted 3D board with lighting, reflections and a floor shadow.
-export function Board3D({ theme, title, level, stats = [], children, flash, bg, hue = 0 }) {
-  const t = THEMES[theme];
-  const ring = flash === 'good' ? '0 0 0 3px #34d399, 0 0 50px rgba(52,211,153,0.6)' : flash === 'bad' ? '0 0 0 3px #f43f5e, 0 0 50px rgba(244,63,94,0.6)' : `0 30px 80px ${t.glow}`;
+export function Board3D({ theme, title, level, stats = [], children, flash, bg, hue = 0, styleOverride }) {
+  const cfg = useBoardStyleConfig();
+  const custom = styleOverride === undefined ? resolveBoardStyle(cfg, theme) : styleOverride;
+  const t = custom || THEMES[theme];
+  const radius = custom ? custom.radius : 28;
+  const edge = custom ? borderShadow(custom, t.glow) : '';
+  const glowRing = `0 30px 80px ${t.glow}`;
+  const ring = flash === 'good' ? '0 0 0 3px #34d399, 0 0 50px rgba(52,211,153,0.6)' : flash === 'bad' ? '0 0 0 3px #f43f5e, 0 0 50px rgba(244,63,94,0.6)' : (edge ? `${edge}, ${glowRing}` : glowRing);
+  const base = `radial-gradient(120% 90% at 30% 0%, ${t.from}, ${t.to})`;
   return (
-    <div className="mx-auto w-full max-w-xl select-none" style={{ perspective: '1400px' }} data-testid={`premium-${theme}-board`}>
-      <div className="relative rounded-[28px] p-4 transition-[transform,box-shadow] duration-300 sm:p-6"
-        style={{ background: `radial-gradient(120% 90% at 30% 0%, ${t.from}, ${t.to})`, transform: `rotateX(10deg) ${flash === 'bad' ? 'translateX(-4px)' : ''}`, transformStyle: 'preserve-3d', boxShadow: ring }}>
-        {bg && <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[28px]"><img src={bg} alt="" className="h-full w-full scale-110 object-cover opacity-60 blur-[2px]" style={{ filter: `hue-rotate(${hue}deg) saturate(1.25)` }} /><div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/45 to-black/70" /></div>}
-        <div className="pointer-events-none absolute inset-0 rounded-[28px]" style={{ background: 'linear-gradient(160deg, rgba(255,255,255,0.16), transparent 40%)' }} />
+    <div className="mx-auto w-full max-w-xl select-none" style={{ perspective: '1400px' }} data-testid={`premium-${theme}-board`} data-board-style={custom?.id || 'classic'}>
+      <div className="relative p-4 transition-[transform,box-shadow] duration-300 sm:p-6"
+        style={{ borderRadius: radius, background: custom && custom.pattern !== 'none' ? `${custom.pattern}, ${base}` : base, transform: `rotateX(${custom ? custom.tilt : 10}deg) ${flash === 'bad' ? 'translateX(-4px)' : ''}`, transformStyle: 'preserve-3d', boxShadow: ring }}>
+        {bg && <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ borderRadius: radius }}><img src={bg} alt="" className="h-full w-full scale-110 object-cover opacity-60 blur-[2px]" style={{ filter: `hue-rotate(${hue}deg) saturate(1.25)` }} /><div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/45 to-black/70" /></div>}
+        <div className="pointer-events-none absolute inset-0" style={{ borderRadius: radius, background: 'linear-gradient(160deg, rgba(255,255,255,0.16), transparent 40%)' }} />
         <div className="relative mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="text-xs font-black uppercase tracking-[0.25em]" style={{ color: t.accent }}>{title}</div>
           {level != null && <span className="rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-widest" style={{ borderColor: t.accent, color: t.accent }} data-testid="game-difficulty-badge">Level {level} · {difficultyName(level)}</span>}

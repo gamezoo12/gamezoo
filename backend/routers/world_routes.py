@@ -2176,6 +2176,46 @@ async def admin_set_map_theme(payload: MapThemeInput, request: Request):
     return payload.model_dump()
 
 
+_BOARD_STYLE_NAMES = (
+    "Galaxy", "Nebula", "Starlight Night", "Cosmic Teal", "Supernova", "Neon Grid", "Synthwave", "Cyber Lime",
+    "Laser Pink", "Electric Blue", "Forest Moss", "Ocean Deep", "Coral Reef", "Desert Dune", "Arctic Ice",
+    "Royal Velvet", "Gold Leaf", "Black Diamond", "Rose Gold", "Emerald Vault", "Christmas Eve", "Candy Cane",
+    "Snowfall", "New Year Gold", "Winter Pine", "Arcade Cabinet", "Retro Checker", "Pinball", "Jukebox",
+    "VHS Sunset", "Carbon Fibre", "Brushed Steel", "Slate Board", "Wood Table", "Casino Felt", "Lava Core",
+    "Thunderstorm", "Toxic Glow", "Frostbite", "Solar Flare", "Bubblegum", "Lavender Mist", "Mint Cream",
+    "Peach Sorbet", "Cotton Candy", "Midnight Minimal", "Graphite", "Ink Blue", "Charcoal Glass", "Northern Lights",
+)
+_BOARD_STYLE_IDS = {"".join(c if c.isalnum() else "-" for c in n.lower()) for n in _BOARD_STYLE_NAMES}
+_BOARD_GAME_TYPES = {"memory", "target", "words", "math", "reaction", "party", "sweet"}
+
+
+class BoardStyleInput(BaseModel):
+    mode: str = Field(..., pattern="^(classic|single|by_type)$")
+    style_id: Optional[str] = None
+    by_type: dict[str, str] = Field(default_factory=dict)
+
+
+@public_router.get("/board-style")
+async def public_board_style():
+    doc = await get_db().world_settings.find_one({"_id": "board_style", "season_id": WORLD_SEASON_ID}, {"_id": 0}) or {}
+    return {"mode": doc.get("mode", "classic"), "style_id": doc.get("style_id"), "by_type": doc.get("by_type") or {}}
+
+
+@admin_router.put("/board-style")
+async def admin_set_board_style(payload: BoardStyleInput, request: Request):
+    admin = await require_admin(request)
+    if payload.mode == "single" and payload.style_id not in _BOARD_STYLE_IDS:
+        raise HTTPException(status_code=422, detail="Choose a board style")
+    if any(k not in _BOARD_GAME_TYPES or v not in _BOARD_STYLE_IDS for k, v in payload.by_type.items()):
+        raise HTTPException(status_code=422, detail="Unknown game type or board style")
+    data = {"mode": payload.mode, "style_id": payload.style_id if payload.mode == "single" else None,
+            "by_type": payload.by_type}
+    await get_db().world_settings.update_one(
+        {"_id": "board_style", "season_id": WORLD_SEASON_ID},
+        {"$set": {**data, "updated_at": _utcnow(), "updated_by": admin.get("user_id")}}, upsert=True)
+    return data
+
+
 _WORLD_THEME_IDS = {
     f"{name}-{style}"
     for name in ("royal-purple", "indigo", "ocean-blue", "sky", "teal", "mint", "emerald", "forest", "lime", "gold",
