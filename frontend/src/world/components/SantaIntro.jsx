@@ -38,7 +38,7 @@ function uniqueWish(name) {
   const [o, w, c] = k.split('-').map(Number);
   return { title: `${OPENERS[o]}, ${displayName(name)}!`, body: `Welcome to Prize League! ${WISHES[w].charAt(0).toUpperCase()}${WISHES[w].slice(1)}. ${CLOSERS[c]}`, clips: [`o${o}`, `w${w}`, `c${c}`] };
 }
-const threeDances = () => [...DANCES].sort(() => Math.random() - 0.5).slice(0, 3);
+const threeDances = () => [...DANCES].sort(() => Math.random() - 0.5);
 
 const INTRO_MS = 10000;
 // Full-screen Santa show when the map opens: random dances, song and a unique wish, then he flies to his spot.
@@ -62,12 +62,14 @@ export default function SantaIntro({ name, onDone }) {
   };
   useEffect(() => {
     sessionStorage.setItem('pl_santa_intro_seen', '1');
-    playSantaSong(() => { playJingle(INTRO_MS / 1000, SONG_NAMES[pick(SONG_NAMES)]); playVoice(wish.clips); });
-    const v = null;
-    const a = setTimeout(() => { setStep(1); playSfx('magic'); }, INTRO_MS / 3);
-    const b = setTimeout(() => { setStep(2); playSfx('pop'); }, (INTRO_MS * 2) / 3);
-    const c = setTimeout(leave, INTRO_MS);
-    return () => [v, a, b, c].forEach(clearTimeout);
+    const timers = [];
+    const fallback = () => { playJingle(INTRO_MS / 1000, SONG_NAMES[pick(SONG_NAMES)]); playVoice(wish.clips); timers.push(setTimeout(leave, INTRO_MS)); };
+    if (isSantaMuted()) timers.push(setTimeout(leave, INTRO_MS));
+    else playSantaSong(fallback, () => leave());
+    timers.push(setTimeout(leave, 65000));
+    const sfx = ['magic', 'pop'];
+    const cycle = setInterval(() => setStep((s) => { playSfx(sfx[s % 2]); return s + 1; }), 4000);
+    return () => { timers.forEach(clearTimeout); clearInterval(cycle); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const toggleMute = () => { const m = !muted; setMuted(m); setSantaMuted(m); if (!m) playSantaSong(); };
   return createPortal(
@@ -82,10 +84,10 @@ export default function SantaIntro({ name, onDone }) {
         <strong>{wish.title}</strong>
         <p>{wish.body}</p>
       </div>
-      <div ref={figure} className={`pl-santa-intro-figure pl-santa is-dance pl-dance-${dances[step]}`} data-dance={dances[step]} data-testid="santa-intro-figure"
+      <div ref={figure} className={`pl-santa-intro-figure pl-santa is-dance pl-dance-${dances[step % dances.length]}`} data-dance={dances[step % dances.length]} data-testid="santa-intro-figure"
         style={leaving ? { transform: `translate(${leaving.x}px, ${leaving.y}px) scale(${leaving.s})` } : undefined}>
         <span className="pl-santa-crackers">{Array.from({ length: 6 }, (_, i) => <span key={`${step}-${i}`} className="pl-santa-cracker" style={{ '--a': `${i * 60}deg`, '--c': ['#facc15', '#f43f5e', '#22d3ee', '#a3e635', '#f472b6', '#fb923c'][i], animationDelay: `${(i % 3) * 0.4}s` }} />)}</span>
-        <Santa3D dance={leaving ? 'wave' : dances[step]} className="pl-santa-3d" testId="santa-intro-3d" />
+        <Santa3D dance={leaving ? 'wave' : dances[step % dances.length]} className="pl-santa-3d" testId="santa-intro-3d" />
       </div>
     </div>,
     document.body,

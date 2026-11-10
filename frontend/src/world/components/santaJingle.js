@@ -92,7 +92,7 @@ export function playSfx(kind) {
 let song = null;
 const SONG_COUNT = 10;
 // Plays one of the pre-recorded sung Santa greetings (public/santa-songs). Returns false if it can't play.
-export function playSantaSong(onFail) {
+export function playSantaSong(onFail, onEnded) {
   if (isSantaMuted()) return;
   const recent = JSON.parse(localStorage.getItem('pl_santa_songs') || '[]');
   const pool = [...Array(SONG_COUNT).keys()].map((i) => i + 1).filter((n) => !recent.includes(n));
@@ -102,6 +102,7 @@ export function playSantaSong(onFail) {
   song = new Audio(`${process.env.PUBLIC_URL || ''}/santa-songs/song-${n}.mp3`);
   song.volume = 0;
   song.onerror = () => onFail?.();
+  song.onended = () => onEnded?.();
   song.play().then(() => {
     let v = 0;
     const fade = setInterval(() => { v = Math.min(1, v + 0.1); if (song) song.volume = v; if (v >= 1) clearInterval(fade); }, 80);
@@ -109,6 +110,7 @@ export function playSantaSong(onFail) {
     const retry = () => song?.play().catch(() => {});
     window.addEventListener('pointerdown', retry, { once: true });
     song.volume = 1;
+    onFail?.();
   });
 }
 export function softenSantaSong() {
