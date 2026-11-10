@@ -214,6 +214,10 @@
 /* 3D Santa canvas */
 .pl-santa-3d { width: 100%; height: 100%; pointer-events: none; }
 .pl-santa-3d canvas { pointer-events: none; }
-.pl2d-world[data-map-theme="festive"] .pl1000-progress-avatar .pl-santa { width: 110px; height: 120px; bottom: -12px; }
+.pl2d-world[data-map-theme="festive"] .pl1000-progress-avatar .pl-santa { width: 110px; height: 120px; bottom: -55px; }
+.pl2d-world[data-map-theme="festive"] .pl1000-progress-avatar .pl-santa.is-ride { width: 240px; height: 140px; bottom: -62px; }
+.pl2d-world[data-map-theme="festive"] .pl1000-progress-avatar > b { top: auto !important; bottom: 66px !important; z-index: 4; }
+.pl2d-world[data-map-theme="festive"] .pl1000-progress-avatar .pl-santa-say { margin-bottom: 28px; }
 .pl-santa-intro-figure.pl-santa { width: min(70vw, 340px); height: min(90vw, 420px); }
-.pl-santa.is-ride .pl-santa-3d { position: relative; z-index: 3; transform: translateY(-16px) scale(.85); }
+
+.pl2d-world[data-map-theme="festive"] .pl1000-progress-avatar .pl-santa-mute { right: auto; left: calc(50% + 32px); top: 6px; }
