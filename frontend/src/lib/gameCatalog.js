@@ -1,5 +1,6 @@
 // Mirrors backend routers/game_routes.py GAME_TYPES (authoritative 30-game registry).
 import { ARCADE_CATALOG } from './arcadeMeta';
+import { GAMES_V3_CATALOG } from '../components/games/premium/batch6';
 export const GAME_CATALOG = [
   { id: 'jigsaw_3x3', label: 'Image Jigsaw (3×3)', category: 'Puzzles' },
   { id: 'jigsaw_4x4', label: 'Image Jigsaw (4×4)', category: 'Puzzles' },
@@ -8,7 +9,7 @@ export const GAME_CATALOG = [
   { id: 'memory_match', label: 'Memory Match (pairs)', category: 'Memory' },
   { id: 'simon_says', label: 'Simon Says (sequence)', category: 'Memory' },
   { id: 'pattern_repeat', label: 'Pattern Repeat', category: 'Memory' },
-  { id: 'number_sequence', label: 'Number Sequence (1→20)', category: 'Reaction' },
+  { id: 'number_sequence', label: 'Number Sequence (1→N)', category: 'Reaction' },
   { id: 'target_tap', label: 'Target Tap (bullseye)', category: 'Reaction' },
   { id: 'reaction_time', label: 'Reaction Time', category: 'Reaction' },
   { id: 'whack_a_mole', label: 'Whack-a-Mole', category: 'Reaction' },
@@ -31,6 +32,7 @@ export const GAME_CATALOG = [
   { id: 'tf2048_mini', label: '2048 Mini (reach 32)', category: 'Strategy' },
   { id: 'minesweeper_mini', label: 'Minesweeper Mini (5×5)', category: 'Strategy' },
   { id: 'maze_solver', label: 'Maze Solver (7×7)', category: 'Strategy' },
+  ...GAMES_V3_CATALOG.map(({ id, label, category }) => ({ id, label, category })),
   ...ARCADE_CATALOG,
 ];
 

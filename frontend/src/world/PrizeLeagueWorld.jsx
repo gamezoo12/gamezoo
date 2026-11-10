@@ -381,7 +381,7 @@ export default function PrizeLeagueWorld() {
               game_id:
                 championGame?.game_id || 'number_sequence',
 
-              game_config: championGame
+              game_config: championGame?.game_id === 'colour_match'
                 ? {
                     colours: championGame.colours,
                     rounds: championGame.rounds,
@@ -390,9 +390,10 @@ export default function PrizeLeagueWorld() {
                 : {
                     ...(champion
                       ?.game_config || {}),
+                    ...(championGame?.game_config || {}),
 
                     target_number:
-                      30,
+                      championGame?.target_number || 30,
 
                     timer_mode:
                       'stopwatch',

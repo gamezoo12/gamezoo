@@ -4550,8 +4550,9 @@ async def _effective_level_config_base(
         if 2 <= colours <= len(WORLD_COLOUR_PALETTE) and 1 <= rounds <= 100:
             config = {**config, "game_id": "colour_match",
                       "game_config": {"colours": colours, "rounds": rounds, "timer_mode": "countdown"}}
-    elif selected == "number_sequence" and config.get("game_id") != "number_sequence":
-        config = {**config, "game_id": "number_sequence", "game_config": {"target_number": 20}}
+    elif selected == "number_sequence":
+        target = max(5, min(100, int(((row or {}).get("game_config") or {}).get("target_number") or 20)))
+        config = {**config, "game_id": "number_sequence", "game_config": {**(config.get("game_config") or {}), "target_number": target}}
     elif selected in _world_client_games():
         meta = _world_client_games()[selected]
         selected_game_config = (row or {}).get("game_config") or {}
@@ -4804,7 +4805,9 @@ async def _champion_game_for(db, contest_number) -> Optional[dict]:
             cfg = champion.get("game_config") or {}
             return {"game_id": "colour_match", "colours": int(cfg.get("colours", 6)), "rounds": int(cfg.get("rounds", 20))}
         if champion.get("game_id") in _world_client_games():
-            return {"game_id": champion["game_id"], "client_game": True}
+            return {"game_id": champion["game_id"], "client_game": True, "game_config": champion.get("game_config") or {}}
+        if champion.get("game_id") == "number_sequence" and (champion.get("game_config") or {}).get("target_number"):
+            return {"game_id": "number_sequence", "target_number": max(5, min(100, int(champion["game_config"]["target_number"])))}
     return _champion_colour_game(contest_number)
 
 
@@ -6610,7 +6613,10 @@ async def free_world_state(
     ) if active_contest and int(active_contest.get("contest_number") or 0) >= 4 else None
     if applied_champion_game and applied_champion_game.get("client_game"):
         champion_config = {**champion_config, "game_id": applied_champion_game["game_id"],
-                           "game_config": {"client_game": True, "timer_mode": "stopwatch"}}
+                           "game_config": {**applied_champion_game.get("game_config", {}), "client_game": True, "timer_mode": "stopwatch"}}
+    elif applied_champion_game and applied_champion_game["game_id"] == "number_sequence":
+        champion_config = {**champion_config, "game_id": "number_sequence",
+                           "game_config": {**(champion_config.get("game_config") or {}), "target_number": applied_champion_game["target_number"]}}
     elif applied_champion_game:
         champion_config = {
             **champion_config,
@@ -8998,6 +9004,9 @@ async def champion_session_start(
 
     # All Champion stages use Number Sequence 1-30 unless the contest is Colour Match.
     target = 30
+    selected_target = (selected_champion.get("game_config") or {}).get("target_number")
+    if selected_champion.get("game_id") == "number_sequence" and selected_target:
+        target = max(5, min(100, int(selected_target)))
     colour_questions = None
     colour_expected = None
     colour_game = _champion_colour_game(contest_number)
@@ -9165,6 +9174,7 @@ async def champion_session_start(
             }
             if colour_questions is not None
             else {
+                **(selected_champion.get("game_config") or {}),
                 "target_number":
                     target,
 

@@ -42,6 +42,7 @@ function GameFields({ row, onChange, disabled, options, onPreview }) {
   return <>
     <label><span className={labelClass}>Game</span><GamePicker className={fieldClass} disabled={disabled} value={row.game_id || ''} options={options} labels={gameNames} placeholder="Choose game" onChange={(v) => onChange({ game_id: v, game_config: {} })} testid={`gc-game-${row.level ?? 'champion'}`} /></label>
     {row.game_id === 'memory_match' && <label><span className={labelClass}>Card pairs</span><input className={fieldClass} disabled={disabled} type="number" min="2" max="16" value={cfg.pair_count ?? 6} onChange={(e) => setCfg({ pair_count: Number(e.target.value) })} /></label>}
+    {row.game_id === 'number_sequence' && <label><span className={labelClass}>Numbers to tap (1 → N)</span><input className={fieldClass} disabled={disabled} type="number" min="5" max="100" value={cfg.target_number ?? (row.level ? 20 : 30)} onChange={(e) => setCfg({ target_number: Number(e.target.value) })} data-testid={`gc-target-number-${row.level ?? 'champion'}`} /></label>}
     {row.game_id === 'colour_match' && <>
       <label><span className={labelClass}>Colours</span><input className={fieldClass} disabled={disabled} type="number" min="2" max="11" value={cfg.colours ?? 6} onChange={(e) => setCfg({ colours: Number(e.target.value) })} /></label>
       <label><span className={labelClass}>Rounds</span><input className={fieldClass} disabled={disabled} type="number" min="1" max="100" value={cfg.rounds ?? 10} onChange={(e) => setCfg({ rounds: Number(e.target.value) })} /></label>

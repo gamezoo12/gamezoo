@@ -14,7 +14,8 @@ SUPPORTED_GAMES = {"number_sequence", "colour_match", "memory_match"} | {
     "reaction_time", "trivia_quiz", "simon_says", "whack_a_mole", "odd_one_out", "color_match", "pattern_repeat",
     "sudoku_mini", "sequence_predict", "countdown_numbers", "word_ladder", "chess_mate_in_one", "tower_of_hanoi",
     "lights_out", "minesweeper_mini", "nonogram_mini", "tf2048_mini", "cryptogram", "anagram_finder",
-    "maze_solver", "spot_pattern",
+    "maze_solver", "spot_pattern", "pipe_connect", "ball_sort", "colour_flood", "code_breaker", "word_search",
+    "speed_typing", "quick_count", "shape_rotation", "path_memory", "stack_tower", "sum_hunt",
 }
 from services.arcade_catalog import ARCADE_GAME_TYPES  # noqa: E402
 SUPPORTED_GAMES |= {g["id"] for g in ARCADE_GAME_TYPES}

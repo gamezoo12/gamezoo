@@ -19,7 +19,7 @@ GAME_TYPES = [
     {'id': 'jigsaw_3x3',       'label': 'Image Jigsaw (3×3)',      'category': 'puzzle',   'target_time_s': 60,  'max_attempts': 3},
     {'id': 'jigsaw_4x4',       'label': 'Image Jigsaw (4×4)',      'category': 'puzzle',   'target_time_s': 90,  'max_attempts': 3},
     {'id': 'memory_match',     'label': 'Memory Match (pairs)',    'category': 'memory',   'target_time_s': 45,  'max_attempts': 3},
-    {'id': 'number_sequence',  'label': 'Number Sequence (1→20)',  'category': 'reaction', 'target_time_s': 30,  'max_attempts': 3},
+    {'id': 'number_sequence',  'label': 'Number Sequence (1→N)',  'category': 'reaction', 'target_time_s': 30,  'max_attempts': 3},
     {'id': 'slider_puzzle',    'label': '15-Slider Puzzle',        'category': 'puzzle',   'target_time_s': 120, 'max_attempts': 3},
     {'id': 'emoji_riddle',     'label': 'Emoji Riddle',            'category': 'trivia',   'target_time_s': 30,  'max_attempts': 3},
     {'id': 'target_tap',       'label': 'Target Tap (bullseye)',   'category': 'reaction', 'target_time_s': 20,  'max_attempts': 3},
@@ -49,6 +49,17 @@ GAME_TYPES = [
     {'id': 'spot_pattern',       'label': 'Spot the Pattern (Raven-style)', 'category': 'reasoning','target_time_s': 45,  'max_attempts': 3},
 ]
 from services.arcade_catalog import ARCADE_GAME_TYPES  # noqa: E402
+GAME_TYPES += [
+    {'id': gid, 'label': label, 'category': cat, 'target_time_s': t, 'max_attempts': 3}
+    for gid, label, cat, t in [
+        ('pipe_connect', 'Pipe Connect', 'logic', 90), ('ball_sort', 'Ball Sort', 'logic', 120),
+        ('colour_flood', 'Colour Flood', 'strategy', 90), ('code_breaker', 'Code Breaker', 'logic', 150),
+        ('word_search', 'Word Search', 'word', 120), ('speed_typing', 'Speed Typing', 'reaction', 60),
+        ('quick_count', 'Quick Count', 'memory', 45), ('shape_rotation', 'Shape Rotation', 'spatial', 60),
+        ('path_memory', 'Path Memory', 'memory', 60), ('stack_tower', 'Stack Tower', 'reaction', 60),
+        ('sum_hunt', 'Sum Hunt', 'math', 60),
+    ]
+]
 GAME_TYPES += ARCADE_GAME_TYPES
 GAME_TYPES += [
     {'id': 'pty_colour_cards', 'label': 'Colour Clash Cards', 'category': 'strategy', 'target_time_s': 150, 'max_attempts': 3, 'family': 'party'},
