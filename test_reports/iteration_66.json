@@ -1,0 +1,29 @@
+{
+  "summary": "Frontend-only verification of (1) real CORRECT score on Free World result screen and (2) removal of dashed purple bars from Level popup GAME tile. All requested checks PASS. Level popup (L41 Number Sequence, L44 Math Sprint, L45 Simon, L46 Sudoku, L47 2048 desktop+mobile): .fwv3-bars count = 0 everywhere, layout intact. Math Sprint official attempt (player1, L44) with 3 deliberate wrong answers -> 'CORRECT 8 / 11' (premium Math Sprint at this difficulty has 8 questions, so 8/(8+3) is correct; review request's '20 / 23' example assumes a 20-question variant). Simon Says L45 -> 'CORRECT 8 / 8'. Sudoku L46 (no counts passed) -> label 'RESULT', value 'Solved'. Number Sequence server game L41 (player_broke, with 1 out-of-order tap) -> 'CORRECT 20 / 20' (original regression behaviour preserved). Demo/practice Math Sprint completed and correctly returned to 'Ready to play?' with REPLAY DEMO / START ATTEMPT; no result grid in demo.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Level popup (desktop 1920)", "issues": ["FREE ATTEMPTS tile: 'UNLIMITED' text runs to/touches the right border of the tile (tight/overflowing at large font size)", "Hero card (SKILL GAME) and the instructions info box beneath it have no vertical gap - borders touch"]},
+      {"screen": "Level popup (mobile 390)", "issues": ["'LEVEL N' heading not visible at top of the popup on open (only close X visible); content starts with hero card"]},
+      {"screen": "Ready to play / result", "issues": ["Pre-attempt screen shows 'FREE ATTEMPTS 1' while result screen shows 'FREE LEFT UNLIMITED' - inconsistent wording (pre-existing)"]}
+    ]
+  },
+  "test_report_links": ["/app/tests/iter66_score_harness.py"],
+  "action_items": [
+    "Optional polish: fix 'UNLIMITED' tile text overflow and add gap between hero card and info box in Level popup",
+    "Optional: games that track wrong attempts but don't report counts (e.g. Sudoku tracks 'wrong', Lights Out/Minesweeper) could pass correct/total for richer results; currently they show 'Solved' which matches spec"
+  ],
+  "critical_code_review_comments": [
+    "FreeWorldNumberSequenceV3.jsx is 2809 lines - should be split (result page, retry modal, demo pages are separate concerns; retry-confirm-modal markup appears duplicated at ~2126 and ~2640)",
+    "clientScore is never reset to null (no setClientScore(null)); safe today only because the component unmounts on close (gameFlowOpen false in PrizeLeagueWorld). If a future flow keeps the component mounted across a client game -> server game transition, a stale client score would show. Consider resetting on attempt start.",
+    "Server games (number_sequence) show correctCount/target which ignores out-of-order taps (20/20 even with misses) - consistent with 'original' behaviour but inconsistent with client games now showing correct/(correct+wrong)"
+  ],
+  "updated_files": ["/app/tests/iter66_score_harness.py (new test helper only)"],
+  "success_rate": {"backend": "N/A (skipped)", "frontend": "100%"},
+  "seed_data_creation": "No records created. Progress side effects on seed users: player1@example.com advanced from L44 to L47 (completed L44 Math Sprint, L45 Simon, L46 Sudoku); player_broke@example.com completed L41 Number Sequence (now on L42).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Harness: exec(open('/app/tests/iter66_score_harness.py').read(), globals()); await login_player(page[, email]) logs in via API token (gz_token) + skips Santa intro; click_text(page, 'SKIP DEMO'|'PLAY DEMO'|'START ATTEMPT') clicks buttons via JS; solve_math(page, wrong=N) solves premium math sprint (math-question / math-option-{v}). Sudoku brute-force by clicking sudoku-key-1..n repeatedly. Number sequence tiles: seq-num-{n}. GC5 levels: L41 number_sequence, L42 colour_match, L43 memory_match, L44 math_sprint, L45 simon_says, L46 sudoku_mini, L47 tf2048_mini, L48 word_unscramble, L49 target_tap, L50 maze_solver. player1 now on L47, player_broke on L42, admin was on L46 (iter65). Only the current level opens a popup; completed levels are not replayable from the map. Simon solver in /app/tests/iter65_santa_harness.py."
+}
