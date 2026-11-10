@@ -139,3 +139,74 @@
   transition: transform .15s ease;
 }
 .pl-santa-mute:hover { transform: scale(1.12); }
+
+/* ===== Dance moves (random per show) ===== */
+.pl-santa.pl-dance-twist .pl-santa-body { animation: pl-d-twist .5s ease-in-out infinite; }
+.pl-santa.pl-dance-twist .pl-santa-arm-r { animation: pl-santa-arm-up .5s ease-in-out infinite; }
+.pl-santa.pl-dance-twist .pl-santa-arm-l { animation: pl-santa-arm-up-l .5s ease-in-out infinite reverse; }
+@keyframes pl-d-twist { 0%, 100% { transform: rotate(-12deg) skewX(6deg); } 50% { transform: rotate(12deg) skewX(-6deg); } }
+
+.pl-santa.pl-dance-spin .pl-santa-svg { animation: pl-d-spin 1.2s cubic-bezier(.4, 0, .3, 1) infinite; }
+.pl-santa.pl-dance-spin .pl-santa-arm-r, .pl-santa.pl-dance-spin .pl-santa-arm-l { animation: none; }
+@keyframes pl-d-spin { 0% { transform: translateY(0) rotateY(0); } 40% { transform: translateY(-28%) rotateY(180deg); } 70% { transform: translateY(0) rotateY(360deg); } 100% { transform: translateY(0) rotateY(360deg); } }
+
+.pl-santa.pl-dance-moonwalk .pl-santa-svg { animation: pl-d-moon 2.4s ease-in-out infinite; }
+.pl-santa.pl-dance-moonwalk .pl-santa-leg-l { transform-origin: 50% 0; animation: pl-d-slide .6s ease-in-out infinite; }
+.pl-santa.pl-dance-moonwalk .pl-santa-leg-r { transform-origin: 50% 0; animation: pl-d-slide .6s ease-in-out infinite reverse; }
+.pl-santa.pl-dance-moonwalk .pl-santa-hat { animation: pl-santa-hat .3s ease-in-out infinite; }
+@keyframes pl-d-moon { 0%, 100% { transform: translateX(-30%); } 50% { transform: translateX(30%) scaleX(-1); } }
+@keyframes pl-d-slide { 0%, 100% { transform: translateX(-3px) rotate(-14deg); } 50% { transform: translateX(3px) rotate(14deg); } }
+
+.pl-santa.pl-dance-disco .pl-santa-body { animation: pl-santa-hop .45s ease-in-out infinite; }
+.pl-santa.pl-dance-disco .pl-santa-arm-r { animation: pl-d-point .9s steps(1) infinite; }
+.pl-santa.pl-dance-disco .pl-santa-arm-l { animation: pl-d-point-l .9s steps(1) infinite; }
+.pl-santa.pl-dance-disco .pl-santa-svg { filter: drop-shadow(0 0 16px #f0abfc) drop-shadow(0 0 30px #67e8f9); }
+@keyframes pl-d-point { 0% { transform: rotate(-150deg); } 50% { transform: rotate(-20deg); } }
+@keyframes pl-d-point-l { 0% { transform: rotate(20deg); } 50% { transform: rotate(150deg); } }
+
+.pl-santa.pl-dance-belly .pl-santa-body { transform-origin: 50% 100%; animation: pl-d-belly .28s ease-in-out infinite; }
+.pl-santa.pl-dance-belly .pl-santa-head { transform-origin: 50% 100%; animation: pl-santa-hat .28s ease-in-out infinite; }
+@keyframes pl-d-belly { 0%, 100% { transform: scale(1.06, .94); } 50% { transform: scale(.95, 1.06) translateY(-3px); } }
+
+.pl-santa.pl-dance-wave .pl-santa-body { animation: pl-d-sway 1s ease-in-out infinite; }
+.pl-santa.pl-dance-wave .pl-santa-arm-r { animation: pl-d-wave .5s ease-in-out infinite; }
+.pl-santa.pl-dance-wave .pl-santa-arm-l { animation: pl-d-wave-l .5s ease-in-out infinite; }
+@keyframes pl-d-sway { 0%, 100% { transform: translateX(-4px) rotate(-5deg); } 50% { transform: translateX(4px) rotate(5deg); } }
+@keyframes pl-d-wave { 0%, 100% { transform: rotate(-150deg); } 50% { transform: rotate(-110deg); } }
+@keyframes pl-d-wave-l { 0%, 100% { transform: rotate(150deg); } 50% { transform: rotate(110deg); } }
+
+.pl-santa.pl-dance-kick .pl-santa-body { animation: pl-santa-hop .5s ease-in-out infinite; }
+.pl-santa.pl-dance-kick .pl-santa-leg-l { transform-origin: 50% 0; animation: pl-d-kick 1s ease-in-out infinite; }
+.pl-santa.pl-dance-kick .pl-santa-leg-r { transform-origin: 50% 0; animation: pl-d-kick 1s ease-in-out infinite .5s; }
+.pl-santa.pl-dance-kick .pl-santa-arm-r { animation: pl-santa-arm-up .5s ease-in-out infinite; }
+@keyframes pl-d-kick { 0%, 60%, 100% { transform: rotate(0); } 30% { transform: rotate(-55deg); } }
+
+/* ===== Full-screen Santa show on map open ===== */
+.pl-santa-intro {
+  position: fixed; inset: 0; z-index: 100000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+  background: radial-gradient(120% 80% at 50% 30%, rgba(127, 29, 29, .82), rgba(8, 12, 40, .94)); backdrop-filter: blur(6px);
+  animation: pl-intro-in .5s ease-out both; transition: background-color .8s ease, opacity .9s ease .2s;
+}
+.pl-santa-intro.is-leaving { background: transparent; backdrop-filter: none; pointer-events: none; }
+.pl-santa-intro.is-leaving .pl-santa-intro-figure, .pl-santa-intro.is-leaving .pl-santa-intro-card { animation: none; }
+.pl-santa-intro.is-leaving .pl-santa-intro-card, .pl-santa-intro.is-leaving .pl-santa-intro-sky, .pl-santa-intro.is-leaving .pl-santa-intro-controls { opacity: 0; transition: opacity .3s ease; }
+@keyframes pl-intro-in { from { opacity: 0; } to { opacity: 1; } }
+.pl-santa-intro-sky { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.pl-santa-intro-controls { position: absolute; top: 16px; right: 16px; display: flex; gap: 8px; z-index: 3; }
+.pl-santa-intro-controls button { width: 40px; height: 40px; border-radius: 999px; display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, .95); color: #b91c1c; border: 2px solid #dc2626; transition: transform .15s ease; }
+.pl-santa-intro-controls button:hover { transform: scale(1.08); }
+.pl-santa-intro-card {
+  position: relative; z-index: 2; max-width: min(88vw, 520px); text-align: center; padding: 16px 22px; border-radius: 22px;
+  background: rgba(255, 255, 255, .96); color: #7f1d1d; box-shadow: 0 20px 50px rgba(0, 0, 0, .45); border: 3px solid #facc15;
+  animation: pl-card-pop .5s cubic-bezier(.2, 1.6, .4, 1) .3s both;
+}
+.pl-santa-intro-card strong { display: block; font: 900 clamp(20px, 5vw, 30px)/1.15 Georgia, serif; color: #b91c1c; }
+.pl-santa-intro-card p { margin: 8px 0 0; font: 700 clamp(14px, 3.6vw, 17px)/1.4 system-ui, sans-serif; color: #334155; }
+.pl-santa-intro-figure.pl-santa {
+  display: block; position: relative; z-index: 2; width: min(46vw, 230px); height: min(66vw, 330px); left: auto; bottom: auto;
+  transition: transform 1s cubic-bezier(.6, -0.2, .4, 1.2); animation: pl-intro-drop .8s cubic-bezier(.2, 1.5, .4, 1) both;
+}
+.pl-santa-intro-figure .pl-santa-svg { filter: drop-shadow(0 0 24px rgba(255, 215, 120, .7)); }
+.pl-santa-intro-figure .pl-santa-crackers { top: 18%; transform: scale(2.4); }
+@keyframes pl-intro-drop { from { transform: translateY(-120vh) rotate(-20deg); } to { transform: none; } }
+@keyframes pl-card-pop { from { transform: scale(.3); opacity: 0; } to { transform: none; opacity: 1; } }

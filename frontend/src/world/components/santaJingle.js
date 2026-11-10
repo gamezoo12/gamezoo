@@ -1,48 +1,101 @@
-// Synthesised "Jingle Bells" (public-domain melody) with sleigh bells — no audio files needed.
-const MELODY = [
-  ['E5', 1], ['E5', 1], ['E5', 2], ['E5', 1], ['E5', 1], ['E5', 2], ['E5', 1], ['G5', 1], ['C5', 1.5], ['D5', 0.5], ['E5', 4],
-  ['F5', 1], ['F5', 1], ['F5', 1.5], ['F5', 0.5], ['F5', 1], ['E5', 1], ['E5', 1], ['E5', 0.5], ['E5', 0.5],
-  ['E5', 1], ['D5', 1], ['D5', 1], ['E5', 1], ['D5', 2], ['G5', 2],
-];
-const FREQ = { C5: 523.25, D5: 587.33, E5: 659.25, F5: 698.46, G5: 783.99 };
+// Synthesised public-domain festive tunes + sleigh bells + drum, and Santa's voice — no audio files needed.
+const SONGS = {
+  jingle: [['E5', 1], ['E5', 1], ['E5', 2], ['E5', 1], ['E5', 1], ['E5', 2], ['E5', 1], ['G5', 1], ['C5', 1.5], ['D5', 0.5], ['E5', 4],
+    ['F5', 1], ['F5', 1], ['F5', 1.5], ['F5', 0.5], ['F5', 1], ['E5', 1], ['E5', 1], ['E5', 0.5], ['E5', 0.5], ['E5', 1], ['D5', 1], ['D5', 1], ['E5', 1], ['D5', 2], ['G5', 2]],
+  wish: [['G4', 1], ['C5', 1], ['C5', 0.5], ['D5', 0.5], ['C5', 0.5], ['B4', 0.5], ['A4', 1], ['A4', 1], ['A4', 1], ['D5', 1], ['D5', 0.5], ['E5', 0.5], ['D5', 0.5], ['C5', 0.5],
+    ['B4', 1], ['G4', 1], ['G4', 1], ['E5', 1], ['E5', 0.5], ['F5', 0.5], ['E5', 0.5], ['D5', 0.5], ['C5', 1], ['A4', 1], ['G4', 0.5], ['G4', 0.5], ['A4', 1], ['D5', 1], ['B4', 1], ['C5', 2]],
+  deck: [['D5', 1.5], ['C5', 0.5], ['B4', 1], ['A4', 1], ['G4', 1], ['A4', 1], ['B4', 1], ['G4', 1], ['A4', 0.5], ['B4', 0.5], ['C5', 0.5], ['A4', 0.5], ['B4', 1.5], ['A4', 0.5], ['G4', 1], ['F#4', 1], ['G4', 2],
+    ['D5', 1.5], ['C5', 0.5], ['B4', 1], ['A4', 1], ['G4', 1], ['A4', 1], ['B4', 1], ['G4', 1]],
+  auld: [['D4', 1], ['G4', 1.5], ['G4', 0.5], ['G4', 1], ['B4', 1], ['A4', 1.5], ['G4', 0.5], ['A4', 1], ['B4', 0.5], ['A4', 0.5], ['G4', 1.5], ['G4', 0.5], ['B4', 1], ['D5', 1], ['E5', 3],
+    ['E5', 1], ['D5', 1.5], ['B4', 0.5], ['B4', 1], ['G4', 1], ['A4', 1.5], ['G4', 0.5], ['A4', 1], ['B4', 0.5], ['A4', 0.5], ['G4', 1.5], ['E4', 0.5], ['E4', 1], ['D4', 1], ['G4', 3]],
+};
+export const SONG_NAMES = Object.keys(SONGS);
+const SEMI = { C: -9, 'C#': -8, D: -7, 'D#': -6, E: -5, F: -4, 'F#': -3, G: -2, 'G#': -1, A: 0, 'A#': 1, B: 2 };
+const freq = (n) => { const m = n.match(/^([A-G]#?)(\d)$/); return 440 * 2 ** ((SEMI[m[1]] + (Number(m[2]) - 4) * 12) / 12); };
 const KEY = 'pl_santa_muted';
 let ctx = null;
+let master = null;
 let stopAt = 0;
 
 export const isSantaMuted = () => localStorage.getItem(KEY) === '1';
-export const setSantaMuted = (muted) => { localStorage.setItem(KEY, muted ? '1' : '0'); if (muted && ctx) { ctx.close(); ctx = null; } };
+export const setSantaMuted = (muted) => {
+  localStorage.setItem(KEY, muted ? '1' : '0');
+  if (muted) { if (ctx) { ctx.close(); ctx = null; master = null; stopAt = 0; } window.speechSynthesis?.cancel(); }
+};
 
-function bell(ac, t, gain) {
-  const len = 0.12;
+function audio() {
+  ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+  if (!master) { master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination); }
+  if (ctx.state === 'suspended') { ctx.resume(); window.addEventListener('pointerdown', () => ctx?.resume(), { once: true }); }
+  return ctx;
+}
+
+function noise(ac, t, len, filterType, f, gain) {
   const buf = ac.createBuffer(1, Math.floor(ac.sampleRate * len), ac.sampleRate);
   const d = buf.getChannelData(0);
   for (let i = 0; i < d.length; i += 1) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length) ** 3;
   const src = ac.createBufferSource(); src.buffer = buf;
-  const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 6000;
+  const fl = ac.createBiquadFilter(); fl.type = filterType; fl.frequency.value = f;
   const g = ac.createGain(); g.gain.value = gain;
-  src.connect(hp).connect(g).connect(ac.destination); src.start(t);
+  src.connect(fl).connect(g).connect(master); src.start(t);
+}
+function tone(ac, t, f, len, type, gain) {
+  const o = ac.createOscillator(); const g = ac.createGain();
+  o.type = type; o.frequency.value = f;
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+  o.connect(g).connect(master); o.start(t); o.stop(t + len + 0.02);
+}
+function kick(ac, t) {
+  const o = ac.createOscillator(); const g = ac.createGain();
+  o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.15);
+  g.gain.setValueAtTime(0.35, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+  o.connect(g).connect(master); o.start(t); o.stop(t + 0.22);
 }
 
-export function playJingle(seconds = 6) {
+export function playJingle(seconds = 6, song) {
   if (isSantaMuted()) return;
   try {
-    ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
-    if (ctx.state === 'suspended') ctx.resume();
-    const now = ctx.currentTime;
+    const ac = audio();
+    const now = ac.currentTime;
     if (now < stopAt) return;
-    const beat = 0.22;
+    const melody = SONGS[song] || SONGS[SONG_NAMES[Math.floor(Math.random() * SONG_NAMES.length)]];
+    const beat = song === 'auld' ? 0.34 : 0.24;
+    const voice = ['triangle', 'square', 'sine'][Math.floor(Math.random() * 3)];
     let t = now + 0.05;
-    for (const [note, len] of MELODY) {
-      if (t - now > seconds) break;
-      const o = ctx.createOscillator(); const g = ctx.createGain();
-      o.type = 'triangle'; o.frequency.value = FREQ[note];
-      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.18, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + len * beat * 0.95);
-      o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + len * beat);
-      t += len * beat;
+    for (let loop = 0; t - now < seconds && loop < 4; loop += 1) {
+      for (const [note, len] of melody) {
+        if (t - now > seconds) break;
+        tone(ac, t, freq(note), len * beat * 0.95, voice, voice === 'square' ? 0.07 : 0.16);
+        tone(ac, t, freq(note) / 2, len * beat * 0.9, 'sine', 0.06);
+        t += len * beat;
+      }
     }
-    for (let b = now + 0.05; b < t; b += beat) bell(ctx, b, 0.06);
+    for (let b = now + 0.05, i = 0; b < t; b += beat, i += 1) { noise(ac, b, 0.12, 'highpass', 6000, 0.05); if (i % 2 === 0) kick(ac, b); else noise(ac, b, 0.08, 'bandpass', 1800, 0.08); }
     stopAt = t;
   } catch {
     // Audio is optional.
   }
+}
+
+export function playSfx(kind) {
+  if (isSantaMuted()) return;
+  try {
+    const ac = audio(); const t = ac.currentTime + 0.02;
+    if (kind === 'magic') [1319, 1568, 1976, 2637].forEach((f, i) => tone(ac, t + i * 0.07, f, 0.35, 'sine', 0.12));
+    if (kind === 'pop') { noise(ac, t, 0.25, 'lowpass', 1200, 0.5); [880, 1320].forEach((f, i) => tone(ac, t + 0.05 + i * 0.05, f, 0.3, 'triangle', 0.08)); }
+    if (kind === 'whoosh') noise(ac, t, 0.6, 'bandpass', 900, 0.25);
+  } catch {
+    // Audio is optional.
+  }
+}
+
+export function santaSay(text) {
+  if (isSantaMuted() || !window.speechSynthesis) return;
+  const u = new SpeechSynthesisUtterance(text);
+  u.pitch = 0.55; u.rate = 0.92; u.volume = 0.95;
+  const voice = window.speechSynthesis.getVoices().find((v) => /en-GB|en_GB/.test(v.lang) && /male|daniel|george|arthur/i.test(v.name))
+    || window.speechSynthesis.getVoices().find((v) => /^en/.test(v.lang));
+  if (voice) u.voice = voice;
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(u);
 }

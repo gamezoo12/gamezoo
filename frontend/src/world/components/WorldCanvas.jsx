@@ -30,6 +30,7 @@ import InstallPrompt from './InstallPrompt';
 import '../styles/world2d.css';
 import '../styles/festiveMaps.css';
 import SantaAvatar from './SantaAvatar';
+import SantaIntro from './SantaIntro';
 
 const CHAMPIONSHIP_HEIGHT = 3500;
 const VIRTUAL_SECTION_OVERSCAN = 1;
@@ -2183,6 +2184,7 @@ export default function WorldCanvas({
   const { user } = useAuth();
 
   const [mapTheme, setMapTheme] = useState(() => { try { return JSON.parse(localStorage.getItem('pl_map_theme')) || { theme: 'festive', effects: true }; } catch { return { theme: 'festive', effects: true }; } });
+  const [santaIntroDone, setSantaIntroDone] = useState(false);
   useEffect(() => { worldAPI.mapTheme().then((t) => { setMapTheme(t); localStorage.setItem('pl_map_theme', JSON.stringify(t)); }).catch(() => {}); }, []);
 
   const [walletBalance, setWalletBalance] =
@@ -3441,6 +3443,10 @@ export default function WorldCanvas({
             YOU
           </small>
         </div>
+      )}
+
+      {mapTheme.theme === 'festive' && !santaIntroDone && !previewState && (
+        <SantaIntro name={(user?.name || '').split(' ')[0] || 'friend'} onDone={() => setSantaIntroDone(true)} />
       )}
 
       <div
