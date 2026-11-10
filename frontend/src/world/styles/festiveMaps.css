@@ -1,0 +1,49 @@
+/* Festive map theme (C1–C10): 4K Christmas & New Year maps + snow/fireworks overlay. */
+.pl2d-world[data-map-theme="festive"] .pl1000-section[data-championship="1"]  { background-image: url('../assets/festive/champ-1.jpg')  !important; }
+.pl2d-world[data-map-theme="festive"] .pl1000-section[data-championship="2"]  { background-image: url('../assets/festive/champ-2.jpg')  !important; }
+.pl2d-world[data-map-theme="festive"] .pl1000-section[data-championship="3"]  { background-image: url('../assets/festive/champ-3.jpg')  !important; }
+.pl2d-world[data-map-theme="festive"] .pl1000-section[data-championship="4"]  { background-image: url('../assets/festive/champ-4.jpg')  !important; }
+.pl2d-world[data-map-theme="festive"] .pl1000-section[data-championship="5"]  { background-image: url('../assets/festive/champ-5.jpg')  !important; }
+.pl2d-world[data-map-theme="festive"] .pl1000-section[data-championship="6"]  { background-image: url('../assets/festive/champ-6.jpg')  !important; }
+.pl2d-world[data-map-theme="festive"] .pl1000-section[data-championship="7"]  { background-image: url('../assets/festive/champ-7.jpg')  !important; }
+.pl2d-world[data-map-theme="festive"] .pl1000-section[data-championship="8"]  { background-image: url('../assets/festive/champ-8.jpg')  !important; }
+.pl2d-world[data-map-theme="festive"] .pl1000-section[data-championship="9"]  { background-image: url('../assets/festive/champ-9.jpg')  !important; }
+.pl2d-world[data-map-theme="festive"] .pl1000-section[data-championship="10"] { background-image: url('../assets/festive/champ-10.jpg') !important; }
+
+.pl-festive-fx { display: none; position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 1; }
+.pl2d-world[data-map-theme="festive"][data-map-effects="on"] .pl-festive-fx { display: block; }
+
+.pl-snow {
+  position: absolute; border-radius: 50%;
+  background: radial-gradient(circle, #fff 0%, rgba(255, 255, 255, 0.6) 60%, transparent 100%);
+  animation-name: pl-snow-fall; animation-timing-function: linear; animation-iteration-count: infinite;
+  will-change: transform;
+}
+@keyframes pl-snow-fall {
+  0% { transform: translate3d(0, 0, 0); opacity: 0; }
+  10% { opacity: 0.9; }
+  50% { transform: translate3d(18px, 40vh, 0); }
+  90% { opacity: 0.9; }
+  100% { transform: translate3d(-8px, 80vh, 0); opacity: 0; }
+}
+
+.pl-firework {
+  position: absolute; width: 6px; height: 6px; border-radius: 50%; opacity: 0;
+  animation: pl-firework-burst 6.5s ease-out infinite;
+  box-shadow:
+    0 -40px 0 var(--fw), 28px -28px 0 var(--fw), 40px 0 0 var(--fw), 28px 28px 0 var(--fw),
+    0 40px 0 var(--fw), -28px 28px 0 var(--fw), -40px 0 0 var(--fw), -28px -28px 0 var(--fw),
+    0 -22px 0 #fff, 22px 0 0 #fff, 0 22px 0 #fff, -22px 0 0 #fff;
+  filter: drop-shadow(0 0 6px var(--fw));
+}
+@keyframes pl-firework-burst {
+  0% { transform: scale(0.1); opacity: 0; }
+  6% { opacity: 1; }
+  22% { transform: scale(1.25); opacity: 0.9; }
+  34% { transform: scale(1.4) translateY(10px); opacity: 0; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pl-snow, .pl-firework { animation: none; display: none; }
+}

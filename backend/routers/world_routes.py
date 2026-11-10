@@ -2155,6 +2155,27 @@ async def admin_world_reset_extensions(request: Request):
     return {"championship_extensions": {}, "cleared": bool(before)}
 
 
+class MapThemeInput(BaseModel):
+    theme: str = Field(..., pattern="^(classic|festive)$")
+    effects: bool = True
+
+
+@public_router.get("/map-theme")
+async def public_map_theme():
+    doc = await get_db().world_settings.find_one({"_id": "map_theme", "season_id": WORLD_SEASON_ID}, {"_id": 0}) or {}
+    return {"theme": doc.get("theme", "festive"), "effects": bool(doc.get("effects", True))}
+
+
+@admin_router.put("/map-theme")
+async def admin_set_map_theme(payload: MapThemeInput, request: Request):
+    admin = await require_admin(request)
+    db = get_db()
+    await db.world_settings.update_one(
+        {"_id": "map_theme", "season_id": WORLD_SEASON_ID},
+        {"$set": {**payload.model_dump(), "updated_at": _utcnow(), "updated_by": admin.get("user_id")}}, upsert=True)
+    return payload.model_dump()
+
+
 class ChampionAttemptRulesInput(BaseModel):
     late_from_stage: int = Field(5, ge=2, le=WORLD_CONTEST_COUNT)
     early_free_attempts: int = Field(..., ge=0, le=20)

@@ -1,4 +1,5 @@
 import ChampionAttemptRules from '../../components/admin/ChampionAttemptRules';
+import MapThemeToggle from '../../components/admin/MapThemeToggle';
 
 import {
   useCallback,
@@ -726,6 +727,8 @@ export default function FreeWorldAdmin() {
           </table>
         </div>
       </section>
+
+      <MapThemeToggle />
 
       <ChampionAttemptRules />
 

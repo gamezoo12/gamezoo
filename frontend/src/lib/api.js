@@ -564,6 +564,7 @@ export const worldAdminAPI = {
   stageLevelConfig: () =>
     api.get('/admin/world/stage-level-config').then(r => r.data),
   championAttemptRules: () => api.get('/admin/world/champion-attempt-rules').then(r => r.data),
+  setMapTheme: (data) => api.put('/admin/world/map-theme', data).then(r => r.data),
   setChampionAttemptRules: (data) => api.put('/admin/world/champion-attempt-rules', data).then(r => r.data),
 
   setStageLevelConfig: (data) =>
@@ -686,6 +687,7 @@ export const worldGcCompetitionAdminAPI = {
 };
 
 export const worldAPI = {
+  mapTheme: () => api.get('/world/public/map-theme').then(r => r.data),
   state: () =>
     api.get('/world/state').then(r => r.data),
 
