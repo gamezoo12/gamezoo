@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Volume2, VolumeX } from 'lucide-react';
-import { isSantaMuted, playJingle, playSfx, santaSay, setSantaMuted } from './santaJingle';
+import { isSantaMuted, playJingle, playSfx, playVoice, setSantaMuted } from './santaJingle';
 
 const MOVES = ['twist', 'spin', 'moonwalk', 'disco', 'belly', 'wave', 'kick'];
-const CHEERS = ['Ho ho ho! Brilliant!', 'Jingle bells, what a win!', 'Ho ho! You’re on fire!', 'Merry wins to you!', 'Ho ho ho! Onwards!', 'Superb! The elves are dancing too!', 'Happy New Year, champion!'];
-const TRY_LINES = ['Ho ho! So close, try again!', 'Don’t give up, my friend!', 'Ho ho, the next one is yours!', 'Shake it off and go again!'];
 
 const SAYINGS = { win: 'Ho Ho Ho! Level done!', try: 'Ho ho! Try again!', ride: 'On, Dasher! On, Dancer!', dance: 'Ho Ho Ho! Next level!' };
 const RIDE_MS = 2600;
@@ -71,8 +69,8 @@ export default function SantaAvatar({ left, bottom }) {
   const [dir, setDir] = useState(1);
   const dance = useMemo(() => MOVES[Math.floor(Math.random() * MOVES.length)], [mode]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (mode === 'win' || mode === 'dance') { playSfx('pop'); santaSay(CHEERS[Math.floor(Math.random() * CHEERS.length)]); }
-    if (mode === 'try') santaSay(TRY_LINES[Math.floor(Math.random() * TRY_LINES.length)]);
+    if (mode === 'win' || mode === 'dance') { playSfx('pop'); playVoice([`h${Math.floor(Math.random() * 7)}`]); }
+    if (mode === 'try') playVoice([`t${Math.floor(Math.random() * 4)}`]);
     if (mode === 'ride') playSfx('whoosh');
   }, [mode]);
   const [muted, setMuted] = useState(isSantaMuted);

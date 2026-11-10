@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Volume2, VolumeX, X } from 'lucide-react';
 import { SantaFigure } from './SantaAvatar';
-import { SONG_NAMES, isSantaMuted, playJingle, playSfx, santaSay, setSantaMuted } from './santaJingle';
+import { SONG_NAMES, isSantaMuted, playJingle, playSfx, playVoice, setSantaMuted } from './santaJingle';
 
 export const DANCES = ['twist', 'spin', 'moonwalk', 'disco', 'belly', 'wave', 'kick'];
 const OPENERS = ['Ho Ho Ho', 'Ho ho, hello', 'Jingle jingle', 'Well hello there', 'Ho ho ho, look who’s here', 'Merry greetings', 'Sleigh bells ring', 'Twinkle twinkle', 'Hip hip hooray', 'Ho ho, welcome back'];
@@ -26,13 +26,17 @@ const WISHES = [
 const CLOSERS = ['Let’s play!', 'Go get that crown!', 'Ho ho, off you go!', 'Your next level awaits!', 'Make it magical!', 'Merry Christmas!', 'Happy New Year!', 'Have a cracking time!', 'Show them your skills!', 'Jingle all the way to the top!'];
 
 const pick = (a) => Math.floor(Math.random() * a.length);
+const displayName = (name) => {
+  const first = (name || '').trim().split(/\s+/)[0] || '';
+  return !first || /admin|gamezoo|test|user/i.test(first) ? 'Champion' : first;
+};
 function uniqueWish(name) {
   const seen = JSON.parse(localStorage.getItem('pl_santa_wishes') || '[]');
   let k;
   for (let i = 0; i < 30; i += 1) { k = `${pick(OPENERS)}-${pick(WISHES)}-${pick(CLOSERS)}`; if (!seen.includes(k)) break; }
   localStorage.setItem('pl_santa_wishes', JSON.stringify([k, ...seen].slice(0, 60)));
   const [o, w, c] = k.split('-').map(Number);
-  return { title: `${OPENERS[o]}, ${name}!`, body: `${WISHES[w].charAt(0).toUpperCase()}${WISHES[w].slice(1)}. ${CLOSERS[c]}` };
+  return { title: `${OPENERS[o]}, ${displayName(name)}!`, body: `Welcome to Prize League! ${WISHES[w].charAt(0).toUpperCase()}${WISHES[w].slice(1)}. ${CLOSERS[c]}`, clips: [`o${o}`, `w${w}`, `c${c}`] };
 }
 const threeDances = () => [...DANCES].sort(() => Math.random() - 0.5).slice(0, 3);
 
@@ -58,7 +62,7 @@ export default function SantaIntro({ name, onDone }) {
   };
   useEffect(() => {
     playJingle(INTRO_MS / 1000, SONG_NAMES[pick(SONG_NAMES)]);
-    const v = setTimeout(() => santaSay(`${wish.title} ${wish.body}`), 600);
+    const v = setTimeout(() => playVoice(wish.clips), 900);
     const a = setTimeout(() => { setStep(1); playSfx('magic'); }, INTRO_MS / 3);
     const b = setTimeout(() => { setStep(2); playSfx('pop'); }, (INTRO_MS * 2) / 3);
     const c = setTimeout(leave, INTRO_MS);

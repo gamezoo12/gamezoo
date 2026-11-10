@@ -20,7 +20,7 @@ let stopAt = 0;
 export const isSantaMuted = () => localStorage.getItem(KEY) === '1';
 export const setSantaMuted = (muted) => {
   localStorage.setItem(KEY, muted ? '1' : '0');
-  if (muted) { if (ctx) { ctx.close(); ctx = null; master = null; stopAt = 0; } window.speechSynthesis?.cancel(); }
+  if (muted) { voiceToken += 1; if (ctx) { ctx.close(); ctx = null; master = null; stopAt = 0; } window.speechSynthesis?.cancel(); }
 };
 
 function audio() {
@@ -60,7 +60,7 @@ export function playJingle(seconds = 6, song) {
     if (now < stopAt) return;
     const melody = SONGS[song] || SONGS[SONG_NAMES[Math.floor(Math.random() * SONG_NAMES.length)]];
     const beat = song === 'auld' ? 0.34 : 0.24;
-    const voice = ['triangle', 'square', 'sine'][Math.floor(Math.random() * 3)];
+    const voice = Math.random() < 0.5 ? 'triangle' : 'sine';
     let t = now + 0.05;
     for (let loop = 0; t - now < seconds && loop < 4; loop += 1) {
       for (const [note, len] of melody) {
@@ -87,6 +87,25 @@ export function playSfx(kind) {
   } catch {
     // Audio is optional.
   }
+}
+
+let voiceToken = 0;
+// Plays pre-recorded Santa voice clips (public/santa-voice/*.mp3) one after another, softening the music underneath.
+export function playVoice(clips) {
+  if (isSantaMuted() || !clips.length) return;
+  const token = ++voiceToken;
+  const duck = (v) => { if (master && ctx) master.gain.setTargetAtTime(v, ctx.currentTime, 0.15); };
+  const next = (i) => {
+    if (token !== voiceToken || isSantaMuted()) { duck(0.9); return; }
+    if (i >= clips.length) { duck(0.9); return; }
+    const a = new Audio(`${process.env.PUBLIC_URL || ''}/santa-voice/${clips[i]}.mp3`);
+    a.volume = 1;
+    a.onended = () => setTimeout(() => next(i + 1), 180);
+    a.onerror = () => next(i + 1);
+    duck(0.32);
+    a.play().catch(() => duck(0.9));
+  };
+  next(0);
 }
 
 export function santaSay(text) {
