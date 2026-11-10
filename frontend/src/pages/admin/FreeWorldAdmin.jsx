@@ -1,4 +1,5 @@
 import ChampionAttemptRules from '../../components/admin/ChampionAttemptRules';
+import UnlimitedGamesToggle from '../../components/admin/UnlimitedGamesToggle';
 import MapThemeToggle from '../../components/admin/MapThemeToggle';
 
 import {
@@ -729,6 +730,7 @@ export default function FreeWorldAdmin() {
       </section>
 
       <MapThemeToggle />
+      <UnlimitedGamesToggle />
 
       <ChampionAttemptRules />
 

@@ -10,7 +10,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Coins, Crown, Gamepad2, ListChecks, Trophy, Globe2, ChevronRight, Sparkles, Target, Zap as SpeedIcon } from 'lucide-react';
+import { Coins, Crown, Gift, Gamepad2, ListChecks, Trophy, Globe2, ChevronRight, Sparkles, Target, Zap as SpeedIcon } from 'lucide-react';
 import { contestsAPI, gamesAPI, ordersAPI } from '../../lib/api';
 import { tokenCount, tokens as fmtTokens } from '../../lib/format';
 import { useAuth } from '../../context/AuthContext';
@@ -25,12 +25,13 @@ import UnifiedLeaderboard from '../leaderboard/UnifiedLeaderboard';
 const TABS = [
   { id: 'contests', label: 'Home',       Icon: ListChecks },
   { id: 'free-world', label: 'Free World', Icon: Globe2, href: '/world' },
-  { id: 'leaderboard', label: 'Leaderboard', Icon: Trophy },
+  { id: 'challenges', label: 'Challenges', Icon: Gift, href: '/my-account/winnings' },
   { id: 'winners',     label: 'Winners',     Icon: Crown, href: '/winners' },
 ];
 
 export default function MobileHome() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [tab, setTab] = useState(() => {
     const p = new URLSearchParams(window.location.search).get('m');
     return TABS.find(t => t.id === p && !t.href) ? p : 'contests';
@@ -57,7 +58,7 @@ export default function MobileHome() {
               <button
                 key={id}
                 type="button"
-                onClick={() => { if (href) { navigate(href); return; } setTab(id); }}
+                onClick={() => { if (href) { navigate(id === 'challenges' && !user ? '/login' : href); return; } setTab(id); }}
                 data-testid={`mobile-tab-${id}`}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-bold tracking-wide transition ${active ? 'text-[#FFD54A] border-b-2 border-[#FFD54A]' : 'text-white border-b-2 border-transparent'}`}
               >

@@ -88,6 +88,8 @@ export default function PrizeLeagueWorld() {
   const [championMode, setChampionMode] =
     useState(false);
   const [flowStage, setFlowStage] = useState('instructions');
+  const [unlimitedOn, setUnlimitedOn] = useState(false);
+  useEffect(() => { worldAPI.unlimitedGames().then((r) => setUnlimitedOn(Boolean(r?.enabled))).catch(() => setUnlimitedOn(true)); }, []);
 
   const [futureGcModel, setFutureGcModel] = useState(null);
   const [worldPaused, setWorldPaused] = useState(null);
@@ -484,7 +486,7 @@ export default function PrizeLeagueWorld() {
       )}
 
       {/* Rounded-square entry point to the unlimited Special Challenges */}
-      <button
+      {unlimitedOn && <button
         type="button"
         onClick={() => navigate(user ? '/my-account/winnings' : '/login')}
         aria-label="Unlimited games — explore Special Challenges and win rewards"
@@ -501,7 +503,7 @@ export default function PrizeLeagueWorld() {
           <span className="pl-special-fab-title pl-special-fab-title-strong">GAMES</span>
           <span className="pl-special-fab-tag">PLAY · WIN · REPEAT</span>
         </span>
-      </button>
+      </button>}
 
 
       <div className="pl-world-vignette" />

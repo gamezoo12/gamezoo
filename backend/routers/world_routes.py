@@ -2176,6 +2176,25 @@ async def admin_set_map_theme(payload: MapThemeInput, request: Request):
     return payload.model_dump()
 
 
+class UnlimitedGamesInput(BaseModel):
+    enabled: bool
+
+
+@public_router.get("/unlimited-games")
+async def public_unlimited_games():
+    doc = await get_db().world_settings.find_one({"_id": "unlimited_games", "season_id": WORLD_SEASON_ID}, {"_id": 0}) or {}
+    return {"enabled": bool(doc.get("enabled", True))}
+
+
+@admin_router.put("/unlimited-games")
+async def admin_set_unlimited_games(payload: UnlimitedGamesInput, request: Request):
+    admin = await require_admin(request)
+    await get_db().world_settings.update_one(
+        {"_id": "unlimited_games", "season_id": WORLD_SEASON_ID},
+        {"$set": {"enabled": payload.enabled, "updated_at": _utcnow(), "updated_by": admin.get("user_id")}}, upsert=True)
+    return {"enabled": payload.enabled}
+
+
 class ChampionAttemptRulesInput(BaseModel):
     late_from_stage: int = Field(5, ge=2, le=WORLD_CONTEST_COUNT)
     early_free_attempts: int = Field(..., ge=0, le=20)
