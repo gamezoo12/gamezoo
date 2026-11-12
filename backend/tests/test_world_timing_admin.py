@@ -69,7 +69,7 @@ def test_normal_admin_cannot_read_or_write_world_timings_or_level_boards(monkeyp
     assert write_error.value.status_code == 403
 
     with pytest.raises(HTTPException) as board_error:
-        asyncio.run(admin_routes.admin_free_world_level_leaderboard(1, request))
+        asyncio.run(admin_routes.admin_free_world_level_leaderboard(1, 1, request))
     assert board_error.value.status_code == 403
 
 

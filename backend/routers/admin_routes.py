@@ -321,28 +321,19 @@ async def update_admin_free_world_timings(payload: dict, request: Request):
     return {'ok': True, 'changed': changed}
 
 
-@router.get('/leaderboards/free-world/levels/{level}')
-async def admin_free_world_level_leaderboard(level: int, request: Request, limit: int = 1000):
+@router.get('/leaderboards/free-world/{contest_number}/levels/{level}')
+async def admin_free_world_level_leaderboard(contest_number: int, level: int, request: Request, limit: int = 1000):
     await _require_role(request, ['super_admin'])
+    if not 1 <= contest_number <= 100:
+        raise HTTPException(status_code=400, detail='Invalid Free World Championship')
     if not 1 <= level <= 10:
         raise HTTPException(status_code=400, detail='Invalid Free World level')
     from deps import get_db
     db = get_db()
-    pipeline = [
-        {'$match': {'season_id': 'season-1', 'level': level}},
-        {'$sort': {'passed': -1, 'score': -1, 'duration_ms': 1, 'completed_at': 1}},
-        {'$group': {
-            '_id': '$user_id', 'user_id': {'$first': '$user_id'},
-            'score': {'$first': '$score'}, 'duration_ms': {'$first': '$duration_ms'},
-            'champion_stage': {'$first': '$champion_stage'},
-            'passed': {'$first': '$passed'}, 'attempts': {'$sum': 1},
-            'completed_at': {'$first': '$completed_at'},
-        }},
-        {'$match': {'passed': True}},
-        {'$sort': {'score': -1, 'duration_ms': 1, 'completed_at': 1}},
-        {'$limit': max(1, min(int(limit), 5000))},
-    ]
-    rows = await db.world_level_attempts.aggregate(pipeline).to_list(None)
+    rows = await db.world_gc_level_bests.find(
+        {'season_id': 'season-1', 'gc_number': contest_number, 'level_key': f'L{level}'},
+        {'_id': 0},
+    ).sort([('duration_ms', 1), ('completed_at', 1), ('user_id', 1)]).to_list(max(1, min(int(limit), 5000)))
     user_ids = list({row.get('user_id') for row in rows if row.get('user_id')})
     users = await db.users.find(
         {'user_id': {'$in': user_ids}},
@@ -350,10 +341,9 @@ async def admin_free_world_level_leaderboard(level: int, request: Request, limit
     ).to_list(len(user_ids)) if user_ids else []
     user_map = {user['user_id']: user for user in users}
     for rank, row in enumerate(rows, 1):
-        row.pop('_id', None)
         row['rank'] = rank
         row['user'] = user_map.get(row.get('user_id'), {})
-    return {'level': level, 'leaderboard': rows}
+    return {'contest_number': contest_number, 'level': level, 'leaderboard': rows}
 
 
 @router.get('/stats')

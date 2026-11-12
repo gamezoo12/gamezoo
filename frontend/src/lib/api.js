@@ -190,7 +190,7 @@ export const adminAPI = {
   leaderboardContests: () => api.get('/admin/leaderboards/contests').then(r => r.data),
   paidLeaderboard: (contestId) => api.get(`/admin/leaderboards/paid/${encodeURIComponent(contestId)}`).then(r => r.data),
   freeWorldLeaderboard: (contestNumber) => api.get(`/admin/leaderboards/free-world/${contestNumber}`).then(r => r.data),
-  freeWorldLevelLeaderboard: (level) => api.get(`/admin/leaderboards/free-world/levels/${level}`).then(r => r.data),
+  freeWorldLevelLeaderboard: (contestNumber, level) => api.get(`/admin/leaderboards/free-world/${contestNumber}/levels/${level}`).then(r => r.data),
   freeWorldTimings: () => api.get('/admin/free-world/timings').then(r => r.data),
   updateFreeWorldTimings: (payload) => api.put('/admin/free-world/timings', payload).then(r => r.data),
   overridePaidLeaderboardTime: (scoreId, payload) => api.put(`/admin/leaderboards/paid/${encodeURIComponent(scoreId)}/time`, payload).then(r => r.data),

@@ -47,8 +47,7 @@ export default function AdminLeaderboards() {
   const contestOptions = world === 'paid' ? sources.paid_contests : sources.free_world_contests;
 
   useEffect(() => {
-    const hasSelection = world === 'free' && freeBoardKind === 'level' || Boolean(contestId);
-    if (!hasSelection) {
+    if (!contestId) {
       setLeaderboard([]);
       return undefined;
     }
@@ -59,7 +58,7 @@ export default function AdminLeaderboards() {
       ? adminAPI.paidLeaderboard(contestId)
       : freeBoardKind === 'champion'
         ? adminAPI.freeWorldLeaderboard(contestId)
-        : adminAPI.freeWorldLevelLeaderboard(freeLevel);
+        : adminAPI.freeWorldLevelLeaderboard(contestId, freeLevel);
     request.then((data) => {
       if (!cancelled) setLeaderboard(data.leaderboard || []);
     }).catch((e) => {
@@ -123,8 +122,7 @@ export default function AdminLeaderboards() {
   };
 
   const refresh = async () => {
-    if (world === 'paid' && !contestId) return;
-    if (world === 'free' && freeBoardKind === 'champion' && !contestId) return;
+    if (!contestId) return;
     setLoadingBoard(true);
     setError('');
     try {
@@ -132,7 +130,7 @@ export default function AdminLeaderboards() {
         ? await adminAPI.paidLeaderboard(contestId)
         : freeBoardKind === 'champion'
           ? await adminAPI.freeWorldLeaderboard(contestId)
-          : await adminAPI.freeWorldLevelLeaderboard(freeLevel);
+          : await adminAPI.freeWorldLevelLeaderboard(contestId, freeLevel);
       setLeaderboard(data.leaderboard || []);
     } catch (e) {
       setError(e?.response?.data?.detail || 'Could not load this leaderboard.');
@@ -159,8 +157,24 @@ export default function AdminLeaderboards() {
           <button type="button" role="tab" aria-selected={world === 'paid'} onClick={() => { setWorld('paid'); setContestId(''); setSearch(''); }} className={`rounded-md px-4 py-2 text-sm font-bold ${world === 'paid' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>Paid World</button>
           {isSuperAdmin && <button type="button" role="tab" aria-selected={world === 'free'} onClick={() => { setWorld('free'); setContestId(''); setSearch(''); }} className={`rounded-md px-4 py-2 text-sm font-bold ${world === 'free' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>Free World</button>}
         </div>
-        {world === 'free' && <label className="min-w-52 flex-1 text-xs font-bold uppercase tracking-wide text-slate-500">
-          Leaderboard
+        {world === 'free' && <label className="min-w-64 flex-1 text-xs font-bold uppercase tracking-wide text-slate-500">
+          Championship
+          <select value={contestId} onChange={(event) => setContestId(event.target.value)} disabled={loadingSources} className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium normal-case tracking-normal text-slate-800">
+            <option value="">{loadingSources ? 'Loading contests…' : 'Select a contest'}</option>
+            {contestOptions.map((contest) => world === 'paid'
+              ? <option key={contest.contest_id} value={contest.contest_id}>{contest.title || contest.contest_id} · {contest.status || 'unknown'}</option>
+              : <option key={contest.contest_number} value={contest.contest_number}>Free World contest {contest.contest_number} · {contest.status || 'unknown'}</option>)}
+          </select>
+        </label>}
+        {world === 'paid' && <label className="min-w-64 flex-1 text-xs font-bold uppercase tracking-wide text-slate-500">
+          Contest
+          <select value={contestId} onChange={(event) => setContestId(event.target.value)} disabled={loadingSources} className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium normal-case tracking-normal text-slate-800">
+            <option value="">{loadingSources ? 'Loading contests…' : 'Select a contest'}</option>
+            {contestOptions.map((contest) => <option key={contest.contest_id} value={contest.contest_id}>{contest.title || contest.contest_id} · {contest.status || 'unknown'}</option>)}
+          </select>
+        </label>}
+        {world === 'free' && Boolean(contestId) && <label className="min-w-52 flex-1 text-xs font-bold uppercase tracking-wide text-slate-500">
+          Level
           <select value={freeBoardKind === 'champion' ? 'champion' : `level-${freeLevel}`} onChange={(event) => {
             const value = event.target.value;
             if (value === 'champion') setFreeBoardKind('champion');
@@ -170,21 +184,12 @@ export default function AdminLeaderboards() {
             {Array.from({ length: 10 }, (_, index) => <option key={index + 1} value={`level-${index + 1}`}>Normal Level {index + 1}</option>)}
           </select>
         </label>}
-        {(world === 'paid' || (world === 'free' && freeBoardKind === 'champion')) && <label className="min-w-64 flex-1 text-xs font-bold uppercase tracking-wide text-slate-500">
-          Contest
-          <select value={contestId} onChange={(event) => setContestId(event.target.value)} disabled={loadingSources} className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium normal-case tracking-normal text-slate-800">
-            <option value="">{loadingSources ? 'Loading contests…' : 'Select a contest'}</option>
-            {contestOptions.map((contest) => world === 'paid'
-              ? <option key={contest.contest_id} value={contest.contest_id}>{contest.title || contest.contest_id} · {contest.status || 'unknown'}</option>
-              : <option key={contest.contest_number} value={contest.contest_number}>Free World contest {contest.contest_number} · {contest.status || 'unknown'}</option>)}
-          </select>
-        </label>}
         <label className="relative min-w-56 flex-1 text-xs font-bold uppercase tracking-wide text-slate-500">
           Search players
           <Search className="absolute left-3 top-[34px] h-4 w-4 text-slate-400" />
           <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, email, ID or ticket" className="mt-1 block w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm font-medium normal-case tracking-normal text-slate-800" />
         </label>
-        <button type="button" onClick={refresh} disabled={((world === 'paid' || freeBoardKind === 'champion') && !contestId) || loadingBoard} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${loadingBoard ? 'animate-spin' : ''}`} /> Refresh</button>
+        <button type="button" onClick={refresh} disabled={!contestId || loadingBoard} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${loadingBoard ? 'animate-spin' : ''}`} /> Refresh</button>
       </div>
 
       {notice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">{notice}</p>}
