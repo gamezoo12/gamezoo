@@ -116,10 +116,34 @@ async def _verify_twilio_otp(phone: str, code: str) -> str:
     return await verify_twilio_otp(phone, code)
 
 
+async def _default_legacy_user_country(db, user: dict) -> None:
+    if (user.get('role') in _PRIVILEGED_ROLES or user.get('country_of_residence')
+            or not user.get('terms_accepted_at')):
+        return
+    await db.users.update_one(
+        {'user_id': user['user_id'], '$or': [
+            {'country_of_residence': {'$exists': False}},
+            {'country_of_residence': None},
+            {'country_of_residence': ''},
+        ]},
+        {'$set': {
+            'country_of_residence': 'GB',
+            'country_set_at': datetime.now(timezone.utc),
+            'country_set_source': 'legacy_uk_default',
+        }},
+    )
+    fresh = await db.users.find_one(
+        {'user_id': user['user_id']}, {'_id': 0, 'country_of_residence': 1},
+    )
+    if fresh and fresh.get('country_of_residence'):
+        user['country_of_residence'] = fresh['country_of_residence']
+
+
 async def _assert_login_allowed(db, user: dict) -> None:
     from services.country_policy import user_access
     if user.get('role') in _PRIVILEGED_ROLES:
         return
+    await _default_legacy_user_country(db, user)
     if user.get('country_of_residence') and not (await user_access(db, user))['permissions'].get('allow_login', True):
         raise HTTPException(status_code=403, detail='Login is not currently available in your country.')
 
@@ -994,6 +1018,7 @@ async def me(request: Request):
     from deps import get_db
     from services.country_policy import user_access
     db = get_db()
+    await _default_legacy_user_country(db, user)
     full = await db.users.find_one({'user_id': user['user_id']}, {'_id': 0, 'password_hash': 1})
     pending = await db.country_change_requests.find_one(
         {'user_id': user['user_id'], 'status': 'pending'}, {'_id': 0, 'requested_country': 1, 'created_at': 1})

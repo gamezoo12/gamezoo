@@ -946,5 +946,7 @@ export const countryAdminAPI = {
   otp: () => api.get('/admin/countries/otp').then(r => r.data),
   legalDrafts: () => api.get('/admin/countries/legal-drafts').then(r => r.data),
   userCountries: () => api.get('/admin/user-countries').then(r => r.data),
+  setUserCountry: (userId, country, reason) => api.put(`/admin/countries/users/${encodeURIComponent(userId)}/country`, { country, reason }).then(r => r.data),
+  bulkSetUserCountry: (user_ids, country, reason) => api.put('/admin/countries/users/bulk-country', { user_ids, country, reason }).then(r => r.data),
   exportCsv: (params) => api.get('/admin/countries/export', { params, responseType: 'blob' }).then(r => r.data),
 };

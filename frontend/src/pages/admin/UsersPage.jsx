@@ -1,13 +1,15 @@
 import CountryBadge, { CountryFilter, filterByCountry, useUserCountryMap } from '../../components/admin/CountryBadge';
+import CountrySelect from '../../components/CountrySelect';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { adminAPI } from '../../lib/api';
+import { adminAPI, countryAdminAPI } from '../../lib/api';
 import { Input } from '../../components/ui/input';
 import { Button } from '../../components/ui/button';
 import { useToast } from '../../hooks/use-toast';
+import { useAuth } from '../../context/AuthContext';
 import { gbp } from '../../lib/format';
 import {
-  Search, Users as UsersIcon, ShieldAlert, ShieldCheck,
+  Search, Users as UsersIcon, ShieldAlert, ShieldCheck, Globe2,
   Phone, Check, X, SlidersHorizontal, RotateCcw,
   Wallet, Trophy, Ticket, Gift, UserPlus, Coins, MessageSquare, CheckSquare, Square,
 } from 'lucide-react';
@@ -131,6 +133,8 @@ function Select({ value, onChange, children, testid }) {
 }
 
 export default function UsersPage() {
+  const { user: authUser } = useAuth();
+  const canEditCountry = ['admin', 'super_admin'].includes(authUser?.role);
   const [q, setQ] = useState('');
   const [countryFilter, setCountryFilter] = useState('');
   const [users, setUsers] = useState([]);
@@ -149,6 +153,11 @@ export default function UsersPage() {
   const [consentEvidence, setConsentEvidence] = useState('');
   const [bulkBusy, setBulkBusy] = useState(false);
   const [webPushBusyUserId, setWebPushBusyUserId] = useState('');
+  const [bulkCountry, setBulkCountry] = useState('GB');
+  const [editingCountryUserId, setEditingCountryUserId] = useState('');
+  const [editingCountry, setEditingCountry] = useState('GB');
+  const [countryReason, setCountryReason] = useState('');
+  const [countryBusy, setCountryBusy] = useState(false);
 
   const { toast } = useToast();
 
@@ -251,11 +260,20 @@ export default function UsersPage() {
       }
       if (!window.confirm(`Disable Web Push for ${userIds.length} selected users across all registered browsers?`)) return;
     }
+    if (bulkAction === 'country_change') {
+      if (!bulkCountry || bulkNote.trim().length < 10) {
+        toast({ title: 'Country and reason required', description: 'Choose a country and enter a reason of at least 10 characters.' });
+        return;
+      }
+      if (!window.confirm(`Change the country for ${userIds.length} selected users to ${bulkCountry}?`)) return;
+    }
 
     setBulkBusy(true);
     try {
       const batchId = bulkBatchId || newBulkBatchId();
-      const result = bulkAction === 'credit' && bulkCreditType === 'bonus'
+      const result = bulkAction === 'country_change'
+        ? await countryAdminAPI.bulkSetUserCountry(userIds, bulkCountry, bulkNote.trim())
+        : bulkAction === 'credit' && bulkCreditType === 'bonus'
         ? await adminAPI.creditBonus({
           batch_id: batchId,
           user_ids: userIds,
@@ -303,6 +321,31 @@ export default function UsersPage() {
           e?.response?.data?.detail ||
           'Unable to update role.',
       });
+    }
+  };
+
+  const editUserCountry = (user) => {
+    setEditingCountryUserId(user.user_id);
+    setEditingCountry(user.country_of_residence || 'GB');
+    setCountryReason('');
+  };
+
+  const saveUserCountry = async (user) => {
+    if (!editingCountry || countryReason.trim().length < 10) {
+      toast({ title: 'Country and reason required', description: 'Choose a country and enter a reason of at least 10 characters.' });
+      return;
+    }
+    setCountryBusy(true);
+    try {
+      await countryAdminAPI.setUserCountry(user.user_id, editingCountry, countryReason.trim());
+      toast({ title: 'Country updated', description: `${user.name || user.email || 'User'} is now assigned ${editingCountry}.` });
+      setEditingCountryUserId('');
+      setCountryReason('');
+      await load();
+    } catch (error) {
+      toast({ title: 'Country update failed', description: error?.response?.data?.detail || 'Please try again.' });
+    } finally {
+      setCountryBusy(false);
     }
   };
 
@@ -692,6 +735,9 @@ export default function UsersPage() {
           <Button type="button" variant="outline" onClick={() => openBulkAction('web_push_revoke')} disabled={!selectedUserIds.size}>
             Disable Web Push
           </Button>
+          {canEditCountry && <Button type="button" variant="outline" onClick={() => { openBulkAction('country_change'); setBulkCountry('GB'); }} disabled={!selectedUserIds.size}>
+            <Globe2 className="mr-2 h-4 w-4" /> Change country
+          </Button>}
           <Button type="button" variant="outline" className="border-rose-300 text-rose-700" onClick={removeAllBonusTokens} data-testid="remove-all-bonus-tokens">
             Remove bonus tokens (all users)
           </Button>
@@ -703,10 +749,12 @@ export default function UsersPage() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 className="font-bold text-slate-900">
-                {bulkAction === 'credit' ? 'Credit tokens' : bulkAction === 'sms_grant' ? 'Bulk SMS consent grant' : bulkAction === 'sms_revoke' ? 'Bulk SMS consent revoke' : bulkAction === 'web_push_grant' ? 'Bulk enable Web Push' : 'Bulk disable Web Push'}
+                {bulkAction === 'credit' ? 'Credit tokens' : bulkAction === 'sms_grant' ? 'Bulk SMS consent grant' : bulkAction === 'sms_revoke' ? 'Bulk SMS consent revoke' : bulkAction === 'web_push_grant' ? 'Bulk enable Web Push' : bulkAction === 'web_push_revoke' ? 'Bulk disable Web Push' : 'Bulk country change'}
               </h3>
               <p className="mt-1 text-xs text-slate-600">
-                {bulkAction === 'credit'
+                {bulkAction === 'country_change'
+                  ? `Set the residence country for selected users. Up to ${selectedUserIds.size} accounts can be changed in one batch; each change is audited.`
+                  : bulkAction === 'credit'
                   ? `Credit each selected wallet; up to ${selectedUserIds.size} users will receive the same amount. Choose the token type; bonus tokens may expire, purchased/general tokens keep their existing behavior.`
                   : bulkAction === 'sms_grant'
                     ? 'This records consent only; it does not send SMS. Verified phone and documented express opt-in are required.'
@@ -719,6 +767,19 @@ export default function UsersPage() {
             </div>
             <button type="button" onClick={() => setBulkAction('')} className="text-sm font-semibold text-slate-500 hover:text-slate-900">Close</button>
           </div>
+
+          {bulkAction === 'country_change' && canEditCountry && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="text-xs font-bold text-slate-600">
+                Country
+                <CountrySelect value={bulkCountry} onChange={setBulkCountry} testId="bulk-country-select" />
+              </label>
+              <label className="text-xs font-bold text-slate-600">
+                Reason (10+ characters)
+                <Input value={bulkNote} onChange={event => setBulkNote(event.target.value)} placeholder="Document why these countries are being updated" className="mt-1 bg-white" data-testid="bulk-country-reason" />
+              </label>
+            </div>
+          )}
 
           {bulkAction === 'credit' && (
             <div className="grid gap-3 sm:grid-cols-[180px_1fr]">
@@ -1155,6 +1216,26 @@ export default function UsersPage() {
                     <div className="font-mono text-[10px] text-slate-400 mt-1">
                       {u.user_id}
                     </div>
+                    {canEditCountry && !u.erased && (
+                      <div className="mt-2">
+                        {editingCountryUserId === u.user_id ? (
+                          <div className="w-56 space-y-2">
+                            <CountrySelect value={editingCountry} onChange={setEditingCountry} testId={`user-country-select-${u.user_id}`} />
+                            <Input value={countryReason} onChange={event => setCountryReason(event.target.value)} placeholder="Reason (10+ characters)" className="h-8 text-xs" data-testid={`user-country-reason-${u.user_id}`} />
+                            <div className="flex gap-2">
+                              <Button type="button" size="sm" onClick={() => saveUserCountry(u)} disabled={countryBusy} data-testid={`save-user-country-${u.user_id}`}>
+                                {countryBusy ? 'Saving…' : 'Save country'}
+                              </Button>
+                              <Button type="button" size="sm" variant="outline" onClick={() => setEditingCountryUserId('')} disabled={countryBusy}>Cancel</Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button type="button" className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-700 hover:underline" onClick={() => editUserCountry(u)} data-testid={`edit-user-country-${u.user_id}`}>
+                            <Globe2 className="h-3 w-3" /> Change country
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </td>
 
                   <td className="p-3">

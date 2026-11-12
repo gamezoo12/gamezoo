@@ -62,6 +62,83 @@ async def admin_user_countries(request: Request):
     return {'map': {u['user_id']: u.get('country_of_residence') async for u in rows if u.get('user_id')}}
 
 
+class AdminUserCountryInput(BaseModel):
+    country: str = Field(..., min_length=2, max_length=2)
+    reason: str = Field(..., min_length=10, max_length=500)
+
+
+class BulkAdminUserCountryInput(AdminUserCountryInput):
+    user_ids: list[str] = Field(..., min_length=1, max_length=200)
+
+
+@admin_router.put('/users/{user_id}/country')
+async def admin_set_user_country(user_id: str, inp: AdminUserCountryInput, request: Request):
+    admin = await require_admin(request)
+    if admin.get('role') not in ('admin', 'super_admin'):
+        raise HTTPException(status_code=403, detail='Only admin or super-admin can change user countries')
+    db = get_db()
+    code = _valid(inp.country)
+    current = await db.users.find_one({'user_id': user_id}, {'_id': 0, 'user_id': 1, 'country_of_residence': 1, 'erased': 1})
+    if not current:
+        raise HTTPException(status_code=404, detail='User not found')
+    if current.get('erased'):
+        raise HTTPException(status_code=400, detail='Erased users cannot be edited')
+    previous = current.get('country_of_residence')
+    if previous != code:
+        now = _now()
+        await db.users.update_one({'user_id': user_id}, {'$set': {
+            'country_of_residence': code, 'country_set_at': now, 'country_set_source': 'admin',
+        }})
+        await record_audit(db, admin, 'admin_user_country_change', [code],
+                           {'user_id': user_id, 'country': previous},
+                           {'country': code, 'reason': inp.reason.strip()})
+    return {'ok': True, 'user_id': user_id, 'country': code, 'unchanged': previous == code}
+
+
+@admin_router.put('/users/bulk-country')
+async def admin_bulk_set_user_country(inp: BulkAdminUserCountryInput, request: Request):
+    admin = await require_admin(request)
+    if admin.get('role') not in ('admin', 'super_admin'):
+        raise HTTPException(status_code=403, detail='Only admin or super-admin can change user countries')
+    db = get_db()
+    code = _valid(inp.country)
+    user_ids = list(dict.fromkeys(user_id.strip() for user_id in inp.user_ids if user_id.strip()))
+    if not user_ids:
+        raise HTTPException(status_code=400, detail='Select at least one user')
+    if len(user_ids) > 200:
+        raise HTTPException(status_code=400, detail='Bulk country changes are limited to 200 users')
+    users = await db.users.find(
+        {'user_id': {'$in': user_ids}},
+        {'_id': 0, 'user_id': 1, 'country_of_residence': 1, 'erased': 1},
+    ).to_list(len(user_ids))
+    by_id = {user['user_id']: user for user in users}
+    now = _now()
+    items = []
+    for user_id in user_ids:
+        current = by_id.get(user_id)
+        if not current:
+            items.append({'user_id': user_id, 'status': 'skipped', 'reason': 'User not found'})
+            continue
+        if current.get('erased'):
+            items.append({'user_id': user_id, 'status': 'skipped', 'reason': 'Account erased'})
+            continue
+        previous = current.get('country_of_residence')
+        if previous != code:
+            await db.users.update_one({'user_id': user_id}, {'$set': {
+                'country_of_residence': code, 'country_set_at': now, 'country_set_source': 'admin',
+            }})
+            await record_audit(db, admin, 'admin_user_country_change', [code],
+                               {'user_id': user_id, 'country': previous},
+                               {'country': code, 'reason': inp.reason.strip()})
+        items.append({'user_id': user_id, 'status': 'success', 'unchanged': previous == code})
+    return {
+        'succeeded': sum(item['status'] == 'success' for item in items),
+        'skipped': sum(item['status'] == 'skipped' for item in items),
+        'failed': 0,
+        'items': items,
+    }
+
+
 class CountryInput(BaseModel):
     country: str = Field(..., min_length=2, max_length=2)
     reason: Optional[str] = Field(default=None, max_length=500)
