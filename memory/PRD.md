@@ -839,3 +839,7 @@ Root causes fixed:
 - Country pages + all /api/admin/countries/* are super_admin only; /api/admin/user-countries for all staff powers CountryBadge in Users, User details, Orders, Payments, Wallets, Winners (incl. WinnersAllWorlds), Cash-out, Support.
 - T&C wording drafts (terms, competition-terms, privacy, age-eligibility) in Country Management → "T&C wording" tab; published legal docs untouched.
 - Tested iteration_70 (40/40 backend, frontend pass); Winners table badge + access-denied state added after.
+
+## 2026-06 Intl home ribbon + admin country filters
+- World Selector: overlay ribbon "Play free • Climb the leaderboards" over baked "Win cash" band for logged-in non-GB users (desktop/tablet/mobile art positions).
+- CountryFilter dropdown on Users, Wallets, Live Contest participants, Promotion participants, Orders, Payments, Token ledger (client-side on loaded rows). Tested iteration_71 (pass); empty states + orphan-wallet badge fixed after.

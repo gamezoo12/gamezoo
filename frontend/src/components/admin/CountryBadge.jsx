@@ -17,7 +17,7 @@ const flag = (code) => (code && code.length === 2 ? String.fromCodePoint(...[...
 // Small country badge for admin lists; pass `country` directly or a `userId` to look it up.
 export default function CountryBadge({ userId, country }) {
   const loaded = useSyncExternalStore(subscribe, () => map);
-  const code = country !== undefined ? country : (userId && loaded ? loaded[userId] : undefined);
+  const code = country !== undefined ? country : (userId && loaded ? (loaded[userId] ?? null) : undefined);
   if (code === undefined) return null;
   return (
     <span data-testid={`country-badge-${userId || code || 'none'}`} title={code ? `Country of residence: ${code}` : 'No country recorded'}

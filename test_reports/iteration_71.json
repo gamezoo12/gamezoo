@@ -1,0 +1,33 @@
+{
+  "summary": "Iteration 71 (frontend only). A) Intl ribbon on '/': the US user intl.tester1 sees world-selector-intl-ribbon 'PLAY FREE • CLIMB THE LEADERBOARDS' at 1920x800 (desktop art), 1000x1300 (tablet art) and 390x844 (mobile art). It was also checked at 1200, 1440, 1199, 768, 767 and 360. Text never overflows the pill (scrollWidth==clientWidth at every width). I compared crops with the ribbon hidden and shown: the ribbon is wider and as tall as the original green 'PLAY FREE • WIN CASH' band, with no original letters peeking out, and it lines up well with 'FREE WORLD' and the next line. pointer-events is none; elementFromPoint at the ribbon centre is the 'Enter Free World' hit button, and clicking there goes to /world. The UK player1 (country_access.country=GB) and logged-out visitors see no ribbon (original artwork). B) Country filters: users-country-filter has the options All/GB/US/UNSET. GB shows 1 row (GB badge), US shows 1 (US), UNSET shows 24 rows that all have the '—' badge, and All gives 26 back. wallets-country-filter: GB 1, US 1, UNSET 76, All 78. orders/payments filters render with GB/US/UNSET options; both tables are empty in preview ('No payments yet.'). contest-entries-country-filter renders after opening a live contest; all 7 APT test contests have 0 participants. promotion-entries-country-filter renders when the type is prize_draw; I switched the dropdown only and did not save. Participants are empty. transactions-country-filter (Analytics > Tokens & Revenue): All 8, GB 0, US 1 (user_9de461bdfc39 = intl.tester1), UNSET 7. No console or page errors on any page. The only error was a benign 401 from the pre-login session check on /admin/login.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "TokenAccountingPanel ledger", "issue": "If the country filter removes every loaded row (e.g. GB with 8 rows loaded), the table body is completely empty with no message. The 'No token transactions match these filters.' row only checks !ledger.transactions.length, not the filtered list.", "selector": "[data-testid=token-ledger-table] tbody", "priority": "LOW"},
+      {"component": "PromotionAdmin participants", "issue": "There is no empty-state row when the participants list is empty or filtered to nothing; only the header row shows.", "selector": "[data-testid=promotion-entries-country-filter] + div tbody", "priority": "LOW"},
+      {"component": "WalletAdmin country filter", "issue": "UNSET returns 76 rows but only 15 show the '—' badge. The other 61 wallets have no matching user doc (orphan wallets), so the map lookup gives undefined, they are counted as 'No country recorded', and CountryBadge renders nothing. This is inconsistent but harmless.", "selector": "[data-testid=wallets-country-filter]", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "World Selector mobile (<=390px)", "issues": ["The ribbon font is about 9.75px at 390 and about 9px at 360. It is readable but small, and the text almost touches the ✦ sparkles. This matches the size of the original artwork band, so it is optional polish."]},
+      {"screen": "Admin Users", "issues": ["The registration date filters use the native browser date input (mm/dd/yyyy) instead of the shadcn calendar. This was already there before this change."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "LOW: TokenAccountingPanel: show the empty-state row when the filtered rows are empty (use the filtered array length).",
+    "LOW: PromotionAdmin participants: add an empty-state row such as 'No matching participants'.",
+    "LOW (optional): WalletAdmin: orphan wallets (no user doc) appear under 'No country recorded' without a badge. Consider rendering '—' for them, or leave as is."
+  ],
+  "critical_code_review_comments": [
+    "CountryFilter options come from the global user-country map, so they list every country present among users, not only those in the current table. This is acceptable.",
+    "filterByCountry treats a userId missing from the map the same as UNSET. Fine, but this is why the orphan wallets fall into UNSET.",
+    "The ribbon is positioned with % and cqw per breakpoint and lines up well at every width tested (360-1920)."
+  ],
+  "updated_files": ["/app/test_reports/iteration_71.json"],
+  "success_rate": {"backend": "N/A (skipped)", "frontend": "100% of requested checks pass (3 low-priority empty-state/consistency notes)"},
+  "seed_data_creation": "None. intl.tester1 already had country_of_residence US. Promotion type was changed only in the UI dropdown and was not saved.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Login selectors: user /login uses login-email, login-password, email-submit; /admin/login uses input[name=email|password] and button[type=submit]. The intl tour skip is intl-tour-skip. The token ledger is under /admin/analytics, tab analytics-tab-tokens. The Promotion participants table only renders when promotion-type=prize_draw (switching the select without saving is enough). In preview, orders, payments, live-contest participants and promotion participants are all empty. The DB has 61 orphan wallets with no user doc."
+}

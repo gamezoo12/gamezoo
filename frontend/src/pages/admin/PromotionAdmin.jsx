@@ -957,6 +957,7 @@ export default function PromotionAdmin() {
             </thead>
 
             <tbody>
+              {!filterByCountry(people, countryFilter, countryMap, (p) => p.user?.user_id).length && <tr><td colSpan={8} className="py-6 text-center text-sm text-slate-500" data-testid="promotion-entries-empty">No matching participants.</td></tr>}
               {filterByCountry(people, countryFilter, countryMap, (p) => p.user?.user_id).map((p, i) => (
                 <tr
                   key={i}

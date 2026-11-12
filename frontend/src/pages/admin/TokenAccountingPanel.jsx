@@ -160,7 +160,7 @@ export default function TokenAccountingPanel({ compact = false, onOpenDetails, i
                 <td className="px-3 py-2">{row.status || 'posted'}</td>
                 <td className="max-w-64 px-3 py-2">{row.note || row.reason || '—'}<span className="block break-all font-mono text-slate-400">{row.ref_order_id || row.reference || row.tx_id}</span></td>
               </tr>)}
-              {!ledger?.transactions?.length && <tr><td colSpan="9" className="p-6 text-center text-slate-500">No token transactions match these filters.</td></tr>}
+              {!filterByCountry(ledger?.transactions || [], countryFilter, countryMap).length && <tr><td colSpan="9" className="p-6 text-center text-slate-500">No token transactions match these filters.</td></tr>}
             </tbody>
           </table>
         </div>
