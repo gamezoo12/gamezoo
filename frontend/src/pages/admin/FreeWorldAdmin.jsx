@@ -27,6 +27,7 @@ import {
 import { worldAdminAPI } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import { FreeWorldPauseControl } from '../../components/admin/FreeWorldPauseControl';
+import FreeWorldTimingSettings from '../../components/admin/FreeWorldTimingSettings';
 import { Button } from '../../components/ui/button';
 import { useToast } from '../../hooks/use-toast';
 
@@ -530,8 +531,7 @@ export default function FreeWorldAdmin() {
             Season Control
           </h1>
           <p className="text-sm text-slate-500 mt-2 max-w-3xl">
-            Locked 100-Championship season format. Level 1–10 and Champion
-            configuration are fixed in the backend and are not editable here.
+            Locked 100-Championship season format. Level 1–10 and Champion game rules are fixed here.
           </p>
         </div>
         <Button variant="outline" onClick={loadCore} disabled={busy}
@@ -542,6 +542,7 @@ export default function FreeWorldAdmin() {
       </div>
 
       {authUser?.role === 'super_admin' && <FreeWorldPauseControl />}
+      {authUser?.role === 'super_admin' && <FreeWorldTimingSettings />}
 
       {/* SECTION 1 — SEASON CONTROL */}
       <section className="rounded-2xl border border-slate-200 bg-white p-5"

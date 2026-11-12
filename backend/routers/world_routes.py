@@ -269,6 +269,17 @@ async def ensure_world_indexes():
         name="world_champion_prize_unique",
     )
 
+    await db.world_game_timing_settings.create_index(
+        [("season_id", 1), ("setting_key", 1)],
+        unique=True,
+        name="world_game_timing_setting_unique",
+    )
+
+    await db.world_game_timing_audit.create_index(
+        [("season_id", 1), ("created_at", -1)],
+        name="world_game_timing_audit_history",
+    )
+
     await db.world_contest_entries.create_index(
         [
             ("season_id", 1),
@@ -1248,7 +1259,7 @@ async def seed_world_engine(request: Request):
 
 @admin_router.get("/contests")
 async def admin_world_contests(request: Request):
-    await require_admin(request)
+    admin = await require_admin(request)
     db = get_db()
 
     contests = await db.world_global_contests.find(
@@ -1276,10 +1287,34 @@ async def admin_world_contests(request: Request):
             else None
         ),
         "contests": [
-            _clean_doc(row)
+            _admin_world_contest_view(row, admin)
             for row in contests
         ],
     }
+
+
+def _admin_world_contest_view(contest: dict, admin: dict) -> dict:
+    result = _clean_doc(contest)
+    if admin.get("role") == "super_admin":
+        return result
+    for key in ("game_config", "champion_config"):
+        config = result.get(key)
+        if isinstance(config, dict):
+            config.pop("time_limit_seconds", None)
+            config.pop("timer_mode", None)
+            nested_game = config.get("game_config")
+            if isinstance(nested_game, dict):
+                nested_game.pop("time_limit_seconds", None)
+                nested_game.pop("timer_mode", None)
+    for level in result.get("levels_config") or []:
+        if not isinstance(level, dict):
+            continue
+        level.pop("time_limit_seconds", None)
+        game_config = level.get("game_config")
+        if isinstance(game_config, dict):
+            game_config.pop("time_limit_seconds", None)
+            game_config.pop("timer_mode", None)
+    return result
 
 
 @admin_router.get(
@@ -1289,7 +1324,7 @@ async def admin_world_contest(
     contest_number: int,
     request: Request,
 ):
-    await require_admin(request)
+    admin = await require_admin(request)
 
     if (
         contest_number < 1
@@ -1321,7 +1356,7 @@ async def admin_world_contest(
             ),
         )
 
-    return _clean_doc(contest)
+    return _admin_world_contest_view(contest, admin)
 
 
 @admin_router.put(
@@ -1412,6 +1447,31 @@ async def update_admin_world_contest(
                 ],
         }
 
+    if admin.get("role") != "super_admin":
+        if "levels_config" in patch:
+            existing_levels = {int(row.get("level", 0)): row for row in existing.get("levels_config") or []}
+            for row in patch["levels_config"]:
+                level = int(row["level"])
+                old = existing_levels.get(level) or _default_world_level_config(level)
+                old_game = old.get("game_config") or {}
+                new_game = row.get("game_config") or {}
+                if (row.get("time_limit_seconds") != old.get("time_limit_seconds")
+                        or new_game.get("timer_mode") != old_game.get("timer_mode")
+                        or new_game.get("time_limit_seconds") != old_game.get("time_limit_seconds")):
+                    raise HTTPException(status_code=403, detail="Only Super Admin can manage Free World timing.")
+        if "champion_config" in patch:
+            old = existing.get("champion_config") or _default_world_champion_config()
+            new = patch["champion_config"]
+            if (new.get("time_limit_seconds") != old.get("time_limit_seconds")
+                    or (new.get("game_config") or {}).get("timer_mode") != (old.get("game_config") or {}).get("timer_mode")
+                    or (new.get("game_config") or {}).get("time_limit_seconds") != (old.get("game_config") or {}).get("time_limit_seconds")):
+                raise HTTPException(status_code=403, detail="Only Super Admin can manage Free World timing.")
+        if "game_config" in patch:
+            old_game = existing.get("game_config") or {}
+            new_game = patch["game_config"] or {}
+            if any(new_game.get(key) != old_game.get(key) for key in ("timer_mode", "time_limit_seconds")):
+                raise HTTPException(status_code=403, detail="Only Super Admin can manage Free World timing.")
+
     if (
         "winner_count" in patch
         and patch["winner_count"]
@@ -1464,7 +1524,7 @@ async def update_admin_world_contest(
         },
     )
 
-    return _clean_doc(updated)
+    return _admin_world_contest_view(updated, admin)
 
 
 @admin_router.post("/activate")
@@ -4980,19 +5040,26 @@ async def _effective_level_config(
         if active else None
     )
     colours = ((spec or {}).get("levels") or {}).get(int(level))
-    if not colours or config.get("gc_applied_model") == "every_level":
-        return config
-    return {
-        **config,
-        "game_id": "colour_match",
-        "demo_enabled": True,
-        "demo_skippable": True,
-        "game_config": {
-            "colours": int(colours),
-            "rounds": int(spec["level_rounds"]),
-            "timer_mode": (config.get("game_config") or {}).get("timer_mode", "countdown"),
-        },
-    }
+    if colours and config.get("gc_applied_model") != "every_level":
+        config = {
+            **config,
+            "game_id": "colour_match",
+            "demo_enabled": True,
+            "demo_skippable": True,
+            "game_config": {
+                "colours": int(colours),
+                "rounds": int(spec["level_rounds"]),
+                "timer_mode": (config.get("game_config") or {}).get("timer_mode", "countdown"),
+            },
+        }
+    if config.get("gc_applied_model") != "every_level":
+        timing = await db.world_game_timing_settings.find_one(
+            {"season_id": WORLD_SEASON_ID, "setting_key": f"L{int(level)}"},
+            {"_id": 0, "time_limit_seconds": 1},
+        )
+        if timing:
+            config = {**config, "time_limit_seconds": int(timing["time_limit_seconds"])}
+    return config
 
 
 class FreeWorldSessionStartInput(BaseModel):
@@ -9152,6 +9219,13 @@ async def champion_session_start(
     )
     selected_champion = (future_gc_config or {}).get("champion") or {}
     game_config.update(selected_champion.get("game_config") or {})
+    champion_timing = await db.world_game_timing_settings.find_one(
+        {"season_id": WORLD_SEASON_ID, "setting_key": "CHAMPION"},
+        {"_id": 0, "time_limit_seconds": 1},
+    )
+    if champion_timing:
+        game_config["timer_mode"] = "countdown"
+        game_config["time_limit_seconds"] = int(champion_timing["time_limit_seconds"])
 
     # All Champion stages use Number Sequence 1-30 unless the contest is Colour Match.
     target = 30
