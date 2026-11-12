@@ -926,6 +926,7 @@ export const countryAPI = {
   list: () => api.get('/countries').then(r => r.data),
   signupRules: (code) => api.get(`/countries/${code}/signup-rules`).then(r => r.data),
   suggest: () => api.get('/countries/suggest').then(r => r.data),
+  visitorAccess: () => api.get('/countries/visitor-access').then(r => r.data),
   setMine: (country) => api.post('/auth/country', { country }).then(r => r.data),
   requestChange: (country, reason) => api.post('/auth/country/change-request', { country, reason }).then(r => r.data),
 };

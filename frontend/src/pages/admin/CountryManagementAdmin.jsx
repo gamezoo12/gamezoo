@@ -182,6 +182,7 @@ export default function CountryManagementAdmin() {
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-extrabold text-slate-900"><Globe2 className="h-6 w-6 text-[#6C2BFF]" /> Country Management</h1>
         <p className="text-sm text-slate-500">Control what each country can do. Changes apply within seconds, no redeploy. Admin settings never override age, verified residency, KYC or payment-provider rules.</p>
+        <p className="mt-1 rounded-lg bg-sky-50 p-2 text-xs text-sky-900" data-testid="country-staff-exempt-note">Admin and staff accounts are not affected by these rules. To test a country&apos;s restrictions, use a normal player account from that country.</p>
         {data && <p className="mt-1 text-xs text-slate-500" data-testid="users-without-country">{data.users_without_country} users have no country recorded (prize features locked until they confirm).</p>}
       </div>
       {denied ? <p className="text-sm font-semibold text-red-600" data-testid="country-access-denied">Super Admin only.</p> : !data ? <p className="text-sm text-slate-500">Loading…</p> : (

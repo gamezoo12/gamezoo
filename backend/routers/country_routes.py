@@ -42,6 +42,18 @@ async def suggest_country(request: Request):
     return {'code': code if code in COUNTRIES else None}
 
 
+@public_router.get('/countries/visitor-access')
+async def visitor_access(request: Request):
+    """Logged-out visitors: browse/free-game/leaderboard rules for the edge-reported country (best guess)."""
+    from routers.acquisition_routes import _geo_country
+    code = _geo_country(request)
+    if code not in COUNTRIES:
+        return {'country': None, 'permissions': None}
+    p = await get_policy(get_db(), code)
+    keys = ('allow_browsing', 'allow_free_games', 'allow_leaderboards', 'allow_paid_browsing')
+    return {'country': code, 'permissions': {k: bool(p[k]) for k in keys}}
+
+
 @public_router.get('/admin/user-countries')
 async def admin_user_countries(request: Request):
     """user_id -> country map for admin country badges (all admin roles)."""

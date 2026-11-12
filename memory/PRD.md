@@ -843,3 +843,7 @@ Root causes fixed:
 ## 2026-06 Intl home ribbon + admin country filters
 - World Selector: overlay ribbon "Play free • Climb the leaderboards" over baked "Win cash" band for logged-in non-GB users (desktop/tablet/mobile art positions).
 - CountryFilter dropdown on Users, Wallets, Live Contest participants, Promotion participants, Orders, Payments, Token ledger (client-side on loaded rows). Tested iteration_71 (pass); empty states + orphan-wallet badge fixed after.
+
+## 2026-06 Country rules clarification
+- User tested on LIVE as admin → staff are exempt by design (user chose to keep). Note added on Country Management page.
+- Logged-out visitors: /api/countries/visitor-access uses edge geo header (cf-ipcountry / x-vercel-ip-country / x-country-code / cloudfront-viewer-country); CountryGate applies browsing/free games/leaderboards/paid browsing for guests. Preview/prod Cloudflare currently does NOT forward cf-ipcountry → guests unknown → allowed. Needs Cloudflare IP Geolocation header or an IP lookup service (backlog).

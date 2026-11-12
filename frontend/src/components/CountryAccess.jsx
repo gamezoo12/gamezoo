@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Globe2, ShieldAlert } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -53,9 +53,20 @@ const RULES = [
   [/^\/(paid-leagues|competitions|competition\/|cart|draw)/, 'allow_paid_browsing'],
 ];
 
-export function blockedPermission(user, pathname) {
-  const perms = user?.country_access?.permissions;
+let visitorPerms;
+function useVisitorPerms(active) {
+  const [perms, setPerms] = useState(visitorPerms);
+  useEffect(() => {
+    if (!active || visitorPerms !== undefined) return;
+    countryAPI.visitorAccess().then((r) => { visitorPerms = r?.permissions || null; setPerms(visitorPerms); }).catch(() => { visitorPerms = null; });
+  }, [active]);
+  return active ? perms : null;
+}
+
+export function blockedPermission(user, pathname, guestPerms) {
+  const perms = user ? user.country_access?.permissions : guestPerms;
   if (!perms || isStaff(user)) return null;
+  if (!user && /^\/(login|signup|register|legal|terms|privacy|admin)/.test(pathname)) return null;
   if (perms.allow_browsing === false && !pathname.startsWith('/my-account') && pathname !== '/login') return 'allow_browsing';
   for (const [re, perm] of RULES) {
     if (re.test(pathname)) return perm && perms[perm] === false ? perm : null;
@@ -63,18 +74,20 @@ export function blockedPermission(user, pathname) {
   return null;
 }
 
-const LABEL = { allow_browsing: 'Prize League', allow_free_games: 'Free games', allow_leaderboards: 'Leaderboards', allow_paid_browsing: 'Paid World' };
+const LABEL = { allow_browsing: "Prize League isn't", allow_free_games: "Free games aren't", allow_leaderboards: "Leaderboards aren't", allow_paid_browsing: "Paid World isn't" };
 
 export function CountryGate({ children }) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const { pathname } = useLocation();
-  const blocked = blockedPermission(user, pathname);
+  const guestPerms = useVisitorPerms(!user && !loading);
+  const blocked = blockedPermission(user, pathname, guestPerms);
   if (!blocked) return children;
   return (
     <div className="mx-auto max-w-lg px-6 py-24 text-center" data-testid="country-blocked">
       <ShieldAlert className="mx-auto mb-4 h-12 w-12 text-amber-500" />
-      <h1 className="text-2xl font-extrabold text-slate-900">{LABEL[blocked]} isn&apos;t available in your country</h1>
+      <h1 className="text-2xl font-extrabold text-slate-900">{LABEL[blocked]} available in your country</h1>
       <p className="mt-3 text-sm text-slate-600">{user?.country_access?.notice || 'This part of Prize League is not available where you live.'}</p>
+      {!user && <a href="/login" className="mt-4 inline-block text-sm font-bold text-[#6C2BFF] underline" data-testid="country-blocked-login">Already have an account? Log in</a>}
     </div>
   );
 }
