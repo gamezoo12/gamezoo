@@ -1,3 +1,4 @@
+import CountryBadge from './CountryBadge';
 import { useCallback, useEffect, useState } from 'react';
 import { History, Pencil, Wallet } from 'lucide-react';
 import { adminWinnersAllAPI } from '../../lib/api';
@@ -10,7 +11,7 @@ const BADGE = { credited: 'bg-emerald-100 text-emerald-700', pending: 'bg-amber-
 function Row({ r, onAdjust, onEdit, onHistory }) {
   return (
     <tr className="border-t border-slate-100 text-sm" data-testid={`wa-row-${r.record_id}`}>
-      <td className="p-3"><div className="font-semibold text-slate-900">{r.username ? `@${r.username}` : '—'}</div><div className="text-xs text-slate-500">{r.full_name || r.email || r.user_id}</div></td>
+      <td className="p-3"><div className="font-semibold text-slate-900">{r.username ? `@${r.username}` : '—'}<CountryBadge userId={r.user_id} /></div><div className="text-xs text-slate-500">{r.full_name || r.email || r.user_id}</div></td>
       <td className="p-3 text-slate-700">{r.contest}</td>
       <td className="p-3 text-slate-700">{r.rank ? `#${r.rank} place` : ''}{r.rank && r.ticket_number ? ' · ' : ''}{r.ticket_number ? `Ticket ${r.ticket_number}` : ''}{!r.rank && !r.ticket_number && '—'}</td>
       <td className="p-3 font-bold" data-testid={`wa-prize-${r.record_id}`}>{r.prize_amount.toFixed(2)}</td>

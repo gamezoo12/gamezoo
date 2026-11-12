@@ -22,8 +22,9 @@ export default function OtpSettingsAdmin() {
   const [otp, setOtp] = useState(null);
   const [q, setQ] = useState('');
   const [draft, setDraft] = useState({});
+  const [denied, setDenied] = useState(false);
   const load = useCallback(() => {
-    countryAdminAPI.policies().then(setPolicies).catch(() => {});
+    countryAdminAPI.policies().then(setPolicies).catch((e) => e?.response?.status === 403 && setDenied(true));
     countryAdminAPI.otp().then(setOtp).catch(() => {});
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -36,6 +37,7 @@ export default function OtpSettingsAdmin() {
       toast.success('OTP settings saved. Existing accounts keep the verification they signed up with.'); setDraft({}); load();
     } catch (e) { toast.error(e?.response?.data?.detail || 'Save failed'); }
   };
+  if (denied) return <p className="text-sm font-semibold text-red-600" data-testid="country-access-denied">Super Admin only.</p>;
   return (
     <div className="space-y-5" data-testid="otp-settings-page">
       <h1 className="flex items-center gap-2 text-2xl font-extrabold text-slate-900"><MessageSquare className="h-6 w-6 text-[#6C2BFF]" /> OTP &amp; SMS Costs</h1>

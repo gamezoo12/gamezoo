@@ -55,7 +55,8 @@ export default function CountryAnalyticsAdmin() {
   const [data, setData] = useState(null);
   const [group, setGroup] = useState(0);
   const [q, setQ] = useState('');
-  useEffect(() => { setData(null); countryAdminAPI.analytics(days).then(setData).catch(() => toast.error('Could not load analytics')); }, [days]);
+  const [denied, setDenied] = useState(false);
+  useEffect(() => { setData(null); countryAdminAPI.analytics(days).then(setData).catch((e) => (e?.response?.status === 403 ? setDenied(true) : toast.error('Could not load analytics'))); }, [days]);
   const rows = useMemo(() => (data?.countries || []).filter((r) => `${r.name} ${r.code}`.toLowerCase().includes(q.toLowerCase())), [data, q]);
   const cols = GROUPS[group][1];
   return (
@@ -67,7 +68,7 @@ export default function CountryAnalyticsAdmin() {
       </div>
       <div className="flex flex-wrap gap-2">{GROUPS.map(([g], i) => <button key={g} type="button" onClick={() => setGroup(i)} data-testid={`ca-group-${i}`}
         className={`rounded-full px-4 py-1.5 text-sm font-bold ${group === i ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'}`}>{g}</button>)}</div>
-      {!data ? <p className="text-sm text-slate-500">Loading…</p> : (
+      {denied ? <p className="text-sm font-semibold text-red-600" data-testid="country-access-denied">Super Admin only.</p> : !data ? <p className="text-sm text-slate-500">Loading…</p> : (
         <div className="overflow-auto rounded-xl border border-slate-200" data-testid="ca-table">
           <table className="w-full text-sm"><thead className="bg-slate-50 text-left"><tr><th className="p-2">Country</th>{cols.map(([k, l]) => <th key={k} className="p-2">{l}</th>)}
             {group === 0 && <><th className="p-2">Top sources</th><th className="p-2">Top landing pages</th></>}</tr></thead>

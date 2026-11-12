@@ -833,3 +833,9 @@ Root causes fixed:
 - Admin: /admin/settings/countries, /admin/analytics/countries (+CSV filters/export), /admin/settings/otp (per-country OTP, SMS daily cap/alerts, real Twilio usage).
 - Tested iteration_69 (27/29 backend; 1 HIGH fixed after: legacy DOB; copy/confirm/twilio dup fixes).
 - Backlog: country filter inside existing Users/Wallet/Contests admin tables (currently via Countries export panel); per-country SMS budget in GBP.
+
+## 2026-06 Follow-up: intl tour, badges, super-admin country pages
+- IntlWelcomeTour (4 steps, once per user, non-GB only). Google finalize pre-fills country from /api/countries/suggest (edge header; null in preview).
+- Country pages + all /api/admin/countries/* are super_admin only; /api/admin/user-countries for all staff powers CountryBadge in Users, User details, Orders, Payments, Wallets, Winners (incl. WinnersAllWorlds), Cash-out, Support.
+- T&C wording drafts (terms, competition-terms, privacy, age-eligibility) in Country Management → "T&C wording" tab; published legal docs untouched.
+- Tested iteration_70 (40/40 backend, frontend pass); Winners table badge + access-denied state added after.

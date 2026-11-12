@@ -174,7 +174,8 @@ function LegalDrafts() {
 
 export default function CountryManagementAdmin() {
   const [data, setData] = useState(null);
-  const load = useCallback(() => countryAdminAPI.policies().then(setData).catch((e) => toast.error(errText(e))), []);
+  const [denied, setDenied] = useState(false);
+  const load = useCallback(() => countryAdminAPI.policies().then(setData).catch((e) => { if (e?.response?.status === 403) setDenied(true); else toast.error(errText(e)); }), []);
   useEffect(() => { load(); }, [load]);
   return (
     <div className="space-y-5" data-testid="country-management-page">
@@ -183,7 +184,7 @@ export default function CountryManagementAdmin() {
         <p className="text-sm text-slate-500">Control what each country can do. Changes apply within seconds, no redeploy. Admin settings never override age, verified residency, KYC or payment-provider rules.</p>
         {data && <p className="mt-1 text-xs text-slate-500" data-testid="users-without-country">{data.users_without_country} users have no country recorded (prize features locked until they confirm).</p>}
       </div>
-      {!data ? <p className="text-sm text-slate-500">Loading…</p> : (
+      {denied ? <p className="text-sm font-semibold text-red-600" data-testid="country-access-denied">Super Admin only.</p> : !data ? <p className="text-sm text-slate-500">Loading…</p> : (
         <Tabs defaultValue="countries">
           <TabsList>
             <TabsTrigger value="countries" data-testid="tab-countries">Countries</TabsTrigger>
