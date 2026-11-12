@@ -1,3 +1,4 @@
+import { CountryFilter, filterByCountry, useUserCountryMap } from '../../components/admin/CountryBadge';
 import { useEffect, useState } from 'react';
 import { adminAPI } from '../../lib/api';
 
@@ -24,6 +25,8 @@ export default function TokenAccountingPanel({ compact = false, onOpenDetails, i
   const [userId, setUserId] = useState('');
   const [accounting, setAccounting] = useState(null);
   const [ledger, setLedger] = useState(null);
+  const [countryFilter, setCountryFilter] = useState('');
+  const countryMap = useUserCountryMap();
   const [skip, setSkip] = useState(0);
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
@@ -129,6 +132,7 @@ export default function TokenAccountingPanel({ compact = false, onOpenDetails, i
 
       {!compact && <>
         <div className="grid gap-3 rounded-lg border border-slate-200 bg-white p-3 md:grid-cols-3 xl:grid-cols-6">
+          <CountryFilter value={countryFilter} onChange={setCountryFilter} testId="transactions-country-filter" />
           <select aria-label="Token category" value={category} onChange={(event) => { setCategory(event.target.value); setSkip(0); }} className="h-9 rounded border px-2 text-sm">
             <option value="all">All categories</option>{CATEGORIES.map(([key, label]) => <option key={key} value={key}>{label}</option>)}<option value="unclassified">Unclassified legacy</option>
           </select>
@@ -145,7 +149,7 @@ export default function TokenAccountingPanel({ compact = false, onOpenDetails, i
               {['Date', 'User', 'Category', 'Source / type', 'From → to', 'World / contest', 'Amount', 'Status', 'Reason / reference'].map((heading) => <th key={heading} className="px-3 py-2">{heading}</th>)}
             </tr></thead>
             <tbody>
-              {(ledger?.transactions || []).map((row) => <tr key={row.tx_id} className="border-t border-slate-100">
+              {filterByCountry(ledger?.transactions || [], countryFilter, countryMap).map((row) => <tr key={row.tx_id} className="border-t border-slate-100">
                 <td className="whitespace-nowrap px-3 py-2">{dateText(row.created_at)}</td>
                 <td className="px-3 py-2"><span className="block">{row.user?.name || row.user?.email || row.user_id}</span><span className="font-mono text-slate-400">{row.user_id}</span></td>
                 <td className="px-3 py-2">{row.category}</td>

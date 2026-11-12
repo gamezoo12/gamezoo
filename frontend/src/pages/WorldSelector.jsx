@@ -2,9 +2,13 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/worldSelector.css';
 import { WelcomeBanner } from '../components/WelcomeBanner';
+import { useAuth } from '../context/AuthContext';
 
 export default function WorldSelector() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const country = user?.country_access?.country;
+  const intl = !!country && country !== 'GB';
 
   // Prefetch the heavy world chunks while the user is choosing, so the map
   // opens instantly on click instead of downloading its chunk first.
@@ -43,6 +47,12 @@ export default function WorldSelector() {
             draggable="false"
           />
         </picture>
+
+        {intl && (
+          <div className="world-selector-intl-ribbon" data-testid="world-selector-intl-ribbon">
+            <i>✦</i> Play free • Climb the leaderboards <i>✦</i>
+          </div>
+        )}
 
         <button
           type="button"

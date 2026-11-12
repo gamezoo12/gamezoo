@@ -1,3 +1,4 @@
+import { CountryFilter, filterByCountry, useUserCountryMap } from '../../components/admin/CountryBadge';
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 
@@ -38,7 +39,9 @@ export default function AdminLiveContests() {
     try { setDetails(await load(`${API}/${encodeURIComponent(id)}/participants`)); setError(''); }
     catch (e) { setError(e?.response?.data?.detail || e.message || 'Unable to load live contests'); }
   };
-  const people = (details?.participants || []).filter(p =>
+  const [countryFilter, setCountryFilter] = useState('');
+  const countryMap = useUserCountryMap();
+  const people = filterByCountry(details?.participants || [], countryFilter, countryMap).filter(p =>
     `${p.name || ''} ${p.username || ''} ${p.email || ''} ${p.user_id || ''} ${p.public_id || ''}`.toLowerCase().includes(query.toLowerCase())
   );
   return <div className="space-y-5">
@@ -62,6 +65,7 @@ export default function AdminLiveContests() {
       <p className="mb-3 text-sm text-slate-500">Click a participant to see every recorded ticket, order and price.</p>
       <input aria-label="Search participants" placeholder="Search name, username, email or user ID" value={query}
         onChange={e => setQuery(e.target.value)} className="mb-4 w-full rounded-lg border p-2 md:max-w-lg" />
+      <div className="mb-4"><CountryFilter value={countryFilter} onChange={setCountryFilter} testId="contest-entries-country-filter" /></div>
       <div className="space-y-3">
         {people.map(p => <div key={p.user_id} className="rounded-lg border">
           <button className="flex w-full flex-wrap items-center justify-between gap-2 p-3 text-left" onClick={() => setExpanded(expanded === p.user_id ? null : p.user_id)}>

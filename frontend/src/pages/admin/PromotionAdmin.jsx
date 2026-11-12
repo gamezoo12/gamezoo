@@ -1,3 +1,4 @@
+import { CountryFilter, filterByCountry, useUserCountryMap } from '../../components/admin/CountryBadge';
 import { useEffect, useState } from 'react';
 import { api, uploadsAPI } from '../../lib/api';
 
@@ -56,6 +57,8 @@ export default function PromotionAdmin() {
   const [cfg, setCfg] = useState(null);
   const [stats, setStats] = useState(null);
   const [people, setPeople] = useState([]);
+  const [countryFilter, setCountryFilter] = useState('');
+  const countryMap = useUserCountryMap();
   const [draw, setDraw] = useState(null);
   const [history, setHistory] = useState([]);
   const [manualWinner, setManualWinner] = useState(null);
@@ -938,6 +941,7 @@ export default function PromotionAdmin() {
           </div>
         </div>
 
+        <div className="mt-4"><CountryFilter value={countryFilter} onChange={setCountryFilter} testId="promotion-entries-country-filter" /></div>
         <div className="overflow-x-auto mt-4 2xl:mt-6">
           <table className="w-full 2xl:text-lg">
             <thead>
@@ -953,7 +957,7 @@ export default function PromotionAdmin() {
             </thead>
 
             <tbody>
-              {people.map((p, i) => (
+              {filterByCountry(people, countryFilter, countryMap, (p) => p.user?.user_id).map((p, i) => (
                 <tr
                   key={i}
                   className="border-b align-top"

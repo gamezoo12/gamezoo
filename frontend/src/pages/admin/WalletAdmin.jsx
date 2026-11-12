@@ -1,4 +1,4 @@
-import CountryBadge from '../../components/admin/CountryBadge';
+import CountryBadge, { CountryFilter, filterByCountry, useUserCountryMap } from '../../components/admin/CountryBadge';
 import { useEffect, useState } from 'react';
 import { adminWalletAPI } from '../../lib/api';
 import { gbp } from '../../lib/format';
@@ -51,7 +51,9 @@ export default function WalletAdmin() {
     } finally { setBusy(false); }
   };
 
-  const filtered = wallets.filter(w => {
+  const [countryFilter, setCountryFilter] = useState('');
+  const countryMap = useUserCountryMap();
+  const filtered = filterByCountry(wallets, countryFilter, countryMap).filter(w => {
     if (!q) return true;
     const qq = q.toLowerCase();
     return (w.email || '').toLowerCase().includes(qq) || (w.name || '').toLowerCase().includes(qq) || (w.user_id || '').toLowerCase().includes(qq);
@@ -82,6 +84,7 @@ export default function WalletAdmin() {
       {/* Search + table */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
         <div className="flex items-center gap-3 mb-4">
+          <CountryFilter value={countryFilter} onChange={setCountryFilter} testId="wallets-country-filter" />
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
             <Input

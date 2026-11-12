@@ -26,3 +26,27 @@ export default function CountryBadge({ userId, country }) {
     </span>
   );
 }
+
+export const useUserCountryMap = () => useSyncExternalStore(subscribe, () => map);
+
+// Keeps rows whose user matches the chosen country ('' = all, 'UNSET' = no country recorded).
+export function filterByCountry(rows, value, countryMap, getUserId = (r) => r.user_id, getCountry) {
+  if (!value || !rows) return rows;
+  return rows.filter((r) => {
+    const code = getCountry ? getCountry(r) : countryMap?.[getUserId(r)];
+    return value === 'UNSET' ? !code : code === value;
+  });
+}
+
+export function CountryFilter({ value, onChange, testId = 'country-filter' }) {
+  const m = useUserCountryMap();
+  const codes = [...new Set(Object.values(m || {}).filter(Boolean))].sort();
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)} data-testid={testId} aria-label="Filter by country"
+      className="h-9 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-800">
+      <option value="">All countries</option>
+      {codes.map((c) => <option key={c} value={c}>{flag(c)} {c}</option>)}
+      <option value="UNSET">No country recorded</option>
+    </select>
+  );
+}

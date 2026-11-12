@@ -1,4 +1,4 @@
-import CountryBadge from '../../components/admin/CountryBadge';
+import CountryBadge, { CountryFilter, filterByCountry, useUserCountryMap } from '../../components/admin/CountryBadge';
 import { useEffect, useState } from 'react';
 import { adminAPI } from '../../lib/api';
 import { gbp } from '../../lib/format';
@@ -18,6 +18,9 @@ export default function PaymentsPage() {
     catch (e) { toast({ title: 'Failed', description: e?.response?.data?.detail }); }
   };
 
+  const [countryFilter, setCountryFilter] = useState('');
+  const countryMap = useUserCountryMap();
+  const shown = filterByCountry(payments, countryFilter, countryMap);
   const total = payments.reduce((s, p) => s + (p.status === 'paid' ? p.total : 0), 0);
   const refunded = payments.filter(p => p.status === 'refunded').reduce((s, p) => s + p.total, 0);
 
@@ -31,6 +34,7 @@ export default function PaymentsPage() {
         <div className="bg-white rounded-xl border border-slate-100 p-4"><div className="text-xs text-slate-500">Transactions</div><div className="font-display font-bold text-xl">{payments.length}</div></div>
       </div>
 
+      <CountryFilter value={countryFilter} onChange={setCountryFilter} testId="payments-country-filter" />
       <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
         {payments.length === 0 ? (
           <div className="py-16 text-center text-slate-500 text-sm">No payments yet.</div>
@@ -38,7 +42,7 @@ export default function PaymentsPage() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-slate-600"><tr><th className="text-left p-3">Order</th><th className="text-left p-3">User</th><th className="text-left p-3">Items</th><th className="text-left p-3">Total</th><th className="text-left p-3">Method</th><th className="text-left p-3">Date</th><th className="text-left p-3">Status</th><th className="text-left p-3"></th></tr></thead>
             <tbody>
-              {payments.map(p => (
+              {shown.map(p => (
                 <tr key={p.order_id} className="border-t border-slate-100 hover:bg-slate-50">
                   <td className="p-3 text-[#6C2BFF] font-medium">#{p.order_id.slice(0, 10)}</td>
                   <td className="p-3">{p.user_name}<CountryBadge userId={p.user_id} /> <span className="text-xs text-slate-400">({p.user_email})</span></td>

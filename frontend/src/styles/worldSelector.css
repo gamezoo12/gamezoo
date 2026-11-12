@@ -125,3 +125,31 @@
     height: 39%;
   }
 }
+/* International players: cover the baked-in "Play free • Win cash" ribbon. */
+.world-selector-artwork { container-type: inline-size; }
+.world-selector-intl-ribbon {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6em;
+  border-radius: 0.5em;
+  background: linear-gradient(180deg, #4ade80 0%, #16a34a 100%);
+  box-shadow: 0 0 0 0.12em #bbf7d0 inset, 0 0.3em 1em rgba(22, 163, 74, 0.55);
+  color: #ffffff;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-shadow: 0 0.08em 0 rgba(0, 0, 0, 0.35);
+  left: 57.4%; top: 18.4%; width: 35%; height: 4.6%; font-size: 1.3cqw;
+}
+.world-selector-intl-ribbon i { color: #fef08a; font-style: normal; }
+@media (max-width: 1199px) {
+  .world-selector-intl-ribbon { left: 25%; top: 58.4%; width: 50%; height: 2.6%; font-size: 1.8cqw; }
+}
+@media (max-width: 767px) {
+  .world-selector-intl-ribbon { left: 20%; top: 55.4%; width: 60%; height: 2.4%; font-size: 2.5cqw; }
+}

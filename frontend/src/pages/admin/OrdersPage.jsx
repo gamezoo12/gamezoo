@@ -1,4 +1,4 @@
-import CountryBadge from '../../components/admin/CountryBadge';
+import CountryBadge, { CountryFilter, filterByCountry, useUserCountryMap } from '../../components/admin/CountryBadge';
 import { useEffect, useState } from 'react';
 import { adminAPI } from '../../lib/api';
 import { gbp } from '../../lib/format';
@@ -7,9 +7,13 @@ import { Receipt } from 'lucide-react';
 export default function OrdersPage() {
   const [orders, setOrders] = useState([]);
   useEffect(() => { adminAPI.orders().then(setOrders).catch(() => setOrders([])); }, []);
+  const [countryFilter, setCountryFilter] = useState('');
+  const countryMap = useUserCountryMap();
+  const shown = filterByCountry(orders, countryFilter, countryMap);
   return (
     <div className="space-y-4">
-      <h2 className="font-display text-2xl font-extrabold">Orders ({orders.length})</h2>
+      <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-display text-2xl font-extrabold">Orders ({shown.length})</h2>
+        <CountryFilter value={countryFilter} onChange={setCountryFilter} testId="orders-country-filter" /></div>
       <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
         {orders.length === 0 ? (
           <div className="py-16 text-center">
@@ -22,7 +26,7 @@ export default function OrdersPage() {
               <tr><th className="text-left p-3">Order ID</th><th className="text-left p-3">User</th><th className="text-left p-3">Items</th><th className="text-left p-3">Total</th><th className="text-left p-3">Date</th><th className="text-left p-3">Method</th></tr>
             </thead>
             <tbody>
-              {orders.map(o => (
+              {shown.map(o => (
                 <tr key={o.order_id} className="border-t border-slate-100 hover:bg-slate-50">
                   <td className="p-3 text-[#6C2BFF] font-medium">#{o.order_id.slice(0, 10)}</td>
                   <td className="p-3">{o.user_name}<CountryBadge userId={o.user_id} /> <span className="text-xs text-slate-400">({o.user_email})</span></td>

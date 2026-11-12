@@ -1,4 +1,4 @@
-import CountryBadge from '../../components/admin/CountryBadge';
+import CountryBadge, { CountryFilter, filterByCountry, useUserCountryMap } from '../../components/admin/CountryBadge';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { adminAPI } from '../../lib/api';
@@ -132,6 +132,7 @@ function Select({ value, onChange, children, testid }) {
 
 export default function UsersPage() {
   const [q, setQ] = useState('');
+  const [countryFilter, setCountryFilter] = useState('');
   const [users, setUsers] = useState([]);
   const [editing, setEditing] = useState(null);
   const [showFilters, setShowFilters] = useState(true);
@@ -378,7 +379,7 @@ export default function UsersPage() {
   const list = useMemo(() => {
     const term = q.trim().toLowerCase();
 
-    let result = users.filter(u => {
+    let result = filterByCountry(users, countryFilter, null, undefined, (u) => u.country_of_residence).filter(u => {
       if (term) {
         const searchable = [
           u.name,
@@ -603,7 +604,7 @@ export default function UsersPage() {
     });
 
     return result;
-  }, [users, q, filters]);
+  }, [users, q, filters, countryFilter]);
 
   const activeFilterCount = Object.entries(filters).filter(
     ([key, value]) => {
@@ -652,6 +653,7 @@ export default function UsersPage() {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2"><span className="text-xs font-bold text-slate-500">Country</span><CountryFilter value={countryFilter} onChange={setCountryFilter} testId="users-country-filter" /></div>
       <div className="relative">
         <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
 
