@@ -12,6 +12,7 @@ import { AuthProvider } from './context/AuthContext';
 import TermsGate from './components/TermsGate';
 import PhoneGate from './components/auth/PhoneGate';
 import { CountryGate, CountryPrompt } from './components/CountryAccess';
+import IntlWelcomeTour from './components/IntlWelcomeTour';
 import PromotionPopup from './components/PromotionPopup';
 import PromotionAuthBridge from './components/PromotionAuthBridge';
 import PromotionFloatingBadge from './components/PromotionFloatingBadge';
@@ -746,6 +747,7 @@ function App() {
 
           <PhoneGate />
           <CountryPrompt />
+          <IntlWelcomeTour />
 
 
           {/* Toast notifications */}

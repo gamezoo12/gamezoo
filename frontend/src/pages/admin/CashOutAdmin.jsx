@@ -1,3 +1,4 @@
+import CountryBadge from '../../components/admin/CountryBadge';
 import { useEffect, useState } from 'react';
 import { cashoutAPI } from '../../lib/api';
 import { useToast } from '../../hooks/use-toast';
@@ -128,7 +129,7 @@ export default function CashOutAdmin() {
               {rows.map((r) => (
                 <tr key={r.withdrawal_id} className="border-t border-slate-100">
                   <td className="py-2 font-mono text-xs">{r.withdrawal_id}</td>
-                  <td>{r.name || r.email}</td>
+                  <td>{r.name || r.email}<CountryBadge userId={r.user_id} /></td>
                   <td className="font-bold">{gbp(r.amount_gbp)}</td>
                   <td className="capitalize text-xs">{r.kyc_status_snapshot}</td>
                   <td className="capitalize">{r.status}</td>

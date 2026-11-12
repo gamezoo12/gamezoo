@@ -1,3 +1,4 @@
+import CountryBadge from '../../components/admin/CountryBadge';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { adminAPI } from '../../lib/api';
@@ -1142,7 +1143,7 @@ export default function UsersPage() {
 
                   <td className="p-3">
                     <div className="font-semibold text-slate-900">
-                      {u.name || '—'}
+                      {u.name || '—'}<CountryBadge userId={u.user_id} country={u.country_of_residence || null} />
                     </div>
 
                     <div className="text-xs text-slate-500">

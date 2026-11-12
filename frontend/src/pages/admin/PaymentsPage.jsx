@@ -1,3 +1,4 @@
+import CountryBadge from '../../components/admin/CountryBadge';
 import { useEffect, useState } from 'react';
 import { adminAPI } from '../../lib/api';
 import { gbp } from '../../lib/format';
@@ -40,7 +41,7 @@ export default function PaymentsPage() {
               {payments.map(p => (
                 <tr key={p.order_id} className="border-t border-slate-100 hover:bg-slate-50">
                   <td className="p-3 text-[#6C2BFF] font-medium">#{p.order_id.slice(0, 10)}</td>
-                  <td className="p-3">{p.user_name} <span className="text-xs text-slate-400">({p.user_email})</span></td>
+                  <td className="p-3">{p.user_name}<CountryBadge userId={p.user_id} /> <span className="text-xs text-slate-400">({p.user_email})</span></td>
                   <td className="p-3 text-slate-500">{p.items.length}</td>
                   <td className="p-3 font-semibold">{gbp(p.total)}</td>
                   <td className="p-3 text-slate-500">{p.method}</td>

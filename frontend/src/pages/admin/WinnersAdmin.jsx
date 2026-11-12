@@ -1,3 +1,4 @@
+import CountryBadge from '../../components/admin/CountryBadge';
 import { useEffect, useState } from 'react';
 import { adminAPI } from '../../lib/api';
 import { Button } from '../../components/ui/button';
@@ -68,7 +69,7 @@ export default function WinnersAdmin() {
             {winners.filter((w) => !w.paid_out && w.source !== 'draw_studio').map(w => (
               <div key={w.winner_id} className="rounded-xl border border-slate-100 p-3 text-sm">
                 <div className="font-bold">{w.prize_title}</div>
-                <div className="text-slate-500">{w.user_name} · Ticket #{w.ticket_number} · {gbp(w.prize_cash_amount ?? w.prize_amount)}</div>
+                <div className="text-slate-500">{w.user_name}<CountryBadge userId={w.user_id} /> · Ticket #{w.ticket_number} · {gbp(w.prize_cash_amount ?? w.prize_amount)}</div>
                 <Button size="sm" onClick={() => markPaid(w.winner_id)} className="mt-2 bg-[#6C2BFF] hover:bg-[#4A15D9]"><Check className="w-3.5 h-3.5 mr-1" />Mark PAID + credit wallet</Button>
               </div>
             ))}

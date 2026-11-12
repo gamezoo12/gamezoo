@@ -1,3 +1,4 @@
+import CountryBadge from '../../components/admin/CountryBadge';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, adminAPI, cashoutAPI } from '../../lib/api';
@@ -805,7 +806,7 @@ export default function UserDetailsPage() {
           </div>
           <div className="flex-1 min-w-0">
             <div className="font-display font-extrabold text-2xl break-words" data-testid="user-name">
-              {identity.name} {erased && <span className="text-red-200">· ERASED</span>}
+              {identity.name}<CountryBadge userId={user_id} /> {erased && <span className="text-red-200">· ERASED</span>}
             </div>
             <div className="text-white/85 text-sm flex items-start gap-2 break-all">
               <Mail className="w-3.5 h-3.5" /> {identity.email}

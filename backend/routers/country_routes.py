@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from auth import get_current_user, require_admin
+from auth import get_current_user, require_admin, require_super_admin
 from deps import get_db
 from services.country_policy import (COUNTRIES, INTERNATIONAL_NOTICE, INTL_DEFAULT, OTP_KEYS, PERM_KEYS, PERMISSIONS, UK, UK_DEFAULT,
                                      get_policy, invalidate_cache, record_audit, user_access)
@@ -32,6 +32,22 @@ async def country_signup_rules(code: str):
     p = await get_policy(get_db(), code)
     return {'code': code, 'allow_registration': p['allow_registration'], 'require_email_otp': p['require_email_otp'],
             'require_phone_otp': p['require_phone_otp'], 'prize_notice': None if code == UK else INTERNATIONAL_NOTICE}
+
+
+@public_router.get('/countries/suggest')
+async def suggest_country(request: Request):
+    """Best-guess country from the hosting edge, used only to pre-fill the selector."""
+    from routers.acquisition_routes import _geo_country
+    code = _geo_country(request)
+    return {'code': code if code in COUNTRIES else None}
+
+
+@public_router.get('/admin/user-countries')
+async def admin_user_countries(request: Request):
+    """user_id -> country map for admin country badges (all admin roles)."""
+    await require_admin(request)
+    rows = get_db().users.find({}, {'_id': 0, 'user_id': 1, 'country_of_residence': 1})
+    return {'map': {u['user_id']: u.get('country_of_residence') async for u in rows if u.get('user_id')}}
 
 
 class CountryInput(BaseModel):
@@ -87,7 +103,7 @@ async def _default_policy(db) -> dict:
 
 @admin_router.get('/policies')
 async def admin_policies(request: Request):
-    await require_admin(request)
+    await require_super_admin(request)
     db = get_db()
     default = await _default_policy(db)
     rows = {r['code']: r async for r in db.country_policies.find({}, {'_id': 0})}
@@ -130,7 +146,7 @@ def _needs_confirm(changes: dict, confirm: bool) -> None:
 
 @admin_router.put('/policies')
 async def admin_update_policies(inp: PolicyChanges, request: Request):
-    admin = await require_admin(request)
+    admin = await require_super_admin(request)
     db = get_db()
     codes = sorted({_valid(c) for c in inp.codes})
     if not codes:
@@ -148,7 +164,7 @@ async def admin_update_policies(inp: PolicyChanges, request: Request):
 
 @admin_router.put('/default')
 async def admin_update_default(inp: PolicyChanges, request: Request):
-    admin = await require_admin(request)
+    admin = await require_super_admin(request)
     db = get_db()
     changes = _clean_changes(inp.changes)
     _needs_confirm(changes, inp.confirm)
@@ -161,7 +177,7 @@ async def admin_update_default(inp: PolicyChanges, request: Request):
 
 @admin_router.post('/policies/reset')
 async def admin_reset_countries(inp: PolicyChanges, request: Request):
-    admin = await require_admin(request)
+    admin = await require_super_admin(request)
     db = get_db()
     codes = sorted({_valid(c) for c in inp.codes})
     await db.country_policies.delete_many({'code': {'$in': codes}})
@@ -172,7 +188,7 @@ async def admin_reset_countries(inp: PolicyChanges, request: Request):
 
 @admin_router.get('/audit')
 async def admin_audit(request: Request, limit: int = Query(100, ge=1, le=500)):
-    await require_admin(request)
+    await require_super_admin(request)
     rows = await get_db().country_policy_audit.find({}, {'_id': 0}).sort('at', -1).to_list(limit)
     return {'entries': rows}
 
@@ -180,7 +196,7 @@ async def admin_audit(request: Request, limit: int = Query(100, ge=1, le=500)):
 # ---------------- Admin: change requests ----------------
 @admin_router.get('/change-requests')
 async def admin_change_requests(request: Request, status: str = 'pending'):
-    await require_admin(request)
+    await require_super_admin(request)
     rows = await get_db().country_change_requests.find({'status': status}, {'_id': 0}).sort('created_at', -1).to_list(500)
     return {'requests': rows}
 
@@ -192,7 +208,7 @@ class DecisionInput(BaseModel):
 
 @admin_router.post('/change-requests/{request_id}')
 async def admin_decide_change(request_id: str, inp: DecisionInput, request: Request):
-    admin = await require_admin(request)
+    admin = await require_super_admin(request)
     db = get_db()
     req = await db.country_change_requests.find_one_and_update(
         {'request_id': request_id, 'status': 'pending'},
@@ -225,7 +241,7 @@ def _bump(table: dict, code: str, key: str, n: float = 1) -> None:
 
 @admin_router.get('/analytics')
 async def admin_country_analytics(request: Request, days: int = Query(30, ge=1, le=365)):
-    await require_admin(request)
+    await require_super_admin(request)
     db = get_db()
     since = _since(days)
     cmap = await _user_country_map(db)
@@ -311,7 +327,7 @@ async def admin_country_analytics(request: Request, days: int = Query(30, ge=1, 
 
 @admin_router.get('/growth')
 async def admin_country_growth(request: Request, days: int = Query(90, ge=7, le=730), country: Optional[str] = None):
-    await require_admin(request)
+    await require_super_admin(request)
     match = {'role': {'$nin': _STAFF}, 'created_at': {'$gte': _since(days)}}
     if country:
         match['country_of_residence'] = None if country == 'UNSET' else country.upper()
@@ -345,7 +361,7 @@ async def admin_country_export(request: Request, dataset: str = Query('users', p
                                verified: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None,
                                activity_days: Optional[int] = Query(None, ge=1, le=365),
                                permission: Optional[str] = None):
-    await require_admin(request)
+    await require_super_admin(request)
     db = get_db()
     parse = lambda s: datetime.fromisoformat(s).replace(tzinfo=timezone.utc) if s else None  # noqa: E731
     try:
@@ -416,7 +432,7 @@ async def _twilio_usage(period: str) -> dict:
 
 @admin_router.get('/otp')
 async def admin_otp_overview(request: Request):
-    await require_admin(request)
+    await require_super_admin(request)
     db = get_db()
     since = _since(1)
     month = _since(30)
@@ -432,3 +448,28 @@ async def admin_otp_overview(request: Request):
             'twilio_this_month': await _twilio_usage('ThisMonth'), 'twilio_last_month': await _twilio_usage('LastMonth'),
             'rules': {'resend_cooldown_seconds': 30, 'max_sends_per_15_min': 5},
             'note': 'Twilio does not report cost per destination country; costs are shown as billed account totals.'}
+
+
+_LEGAL_DRAFTS = {
+    'terms': ('Terms & Conditions', """## Access from outside the United Kingdom
+1. Prize League accepts registrations from users in many countries. You must give your true country of residence when you register, and you must keep it accurate.
+2. Prize competitions, paid contests, prize draws, wallet top-ups, prize claims and withdrawals are currently available only to eligible UK residents aged 18 or over who have verified their UK mobile number. Other features (such as browsing and non-prize games) may be available in your country, as shown in your account.
+3. Choosing a country does not by itself make you eligible for any prize. We may ask for proof of age, identity and residency (KYC) before you can enter, claim or withdraw, and we may refuse or cancel entries and prizes where eligibility cannot be confirmed.
+4. You must not give false residence information, use tools to hide your location in order to bypass restrictions, or open more than one account. If you do, we may close the account and void any entries or prizes.
+5. You can ask to change your country of residence from your account. Changes take effect only after we approve them and may require evidence.
+6. The features available in each country may change at any time to follow the law, payment-provider rules or our risk policies."""),
+    'competition-terms': ('Competition Terms', """## Eligibility by country
+Competitions, paid contests and prize draws are open only to UK residents aged 18 or over with a verified UK mobile number, unless we state otherwise for a specific country. Entries from users outside the eligible countries, or from users whose residency, age or identity cannot be verified, are void and no prize will be awarded. Free non-prize games do not give any entitlement to prizes."""),
+    'privacy': ('Privacy Policy', """## Country of residence and location data
+We collect the country of residence you give us when you register or when you confirm it in your account. We use it to decide which features are available to you, to meet legal and payment-provider requirements, and for anonymised country-level statistics. Our hosting provider may give us an approximate country for your visit based on your connection; we use this only for traffic statistics and to suggest a country on the sign-up form, never as proof of where you live. UK users also verify a mobile number by SMS through our provider Twilio; users in other countries verify by email only unless SMS verification is required for their country."""),
+    'age-eligibility': ('Age & Eligibility Policy', """## Residency
+Prize features are restricted to eligible UK residents aged 18 or over. Residency is based on the country you declare plus a verified UK mobile number, and may be checked further through KYC before prizes are paid. Administrators cannot override legal age, residency, KYC or payment-provider requirements."""),
+}
+
+
+@admin_router.get('/legal-drafts')
+async def admin_legal_drafts(request: Request):
+    """Suggested wording for review only; nothing is written to the legal documents."""
+    await require_super_admin(request)
+    return {'note': 'Draft wording for review by you or your lawyer. Copy into Legal Docs and publish only after review.',
+            'drafts': [{'slug': k, 'title': t, 'text': x} for k, (t, x) in _LEGAL_DRAFTS.items()]}

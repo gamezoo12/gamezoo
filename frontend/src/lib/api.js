@@ -925,6 +925,7 @@ export const announcementsAdminAPI = {
 export const countryAPI = {
   list: () => api.get('/countries').then(r => r.data),
   signupRules: (code) => api.get(`/countries/${code}/signup-rules`).then(r => r.data),
+  suggest: () => api.get('/countries/suggest').then(r => r.data),
   setMine: (country) => api.post('/auth/country', { country }).then(r => r.data),
   requestChange: (country, reason) => api.post('/auth/country/change-request', { country, reason }).then(r => r.data),
 };
@@ -939,5 +940,7 @@ export const countryAdminAPI = {
   decide: (id, approve, note) => api.post(`/admin/countries/change-requests/${id}`, { approve, note }).then(r => r.data),
   analytics: (days) => api.get('/admin/countries/analytics', { params: { days } }).then(r => r.data),
   otp: () => api.get('/admin/countries/otp').then(r => r.data),
+  legalDrafts: () => api.get('/admin/countries/legal-drafts').then(r => r.data),
+  userCountries: () => api.get('/admin/user-countries').then(r => r.data),
   exportCsv: (params) => api.get('/admin/countries/export', { params, responseType: 'blob' }).then(r => r.data),
 };

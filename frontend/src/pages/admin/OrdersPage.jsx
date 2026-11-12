@@ -1,3 +1,4 @@
+import CountryBadge from '../../components/admin/CountryBadge';
 import { useEffect, useState } from 'react';
 import { adminAPI } from '../../lib/api';
 import { gbp } from '../../lib/format';
@@ -24,7 +25,7 @@ export default function OrdersPage() {
               {orders.map(o => (
                 <tr key={o.order_id} className="border-t border-slate-100 hover:bg-slate-50">
                   <td className="p-3 text-[#6C2BFF] font-medium">#{o.order_id.slice(0, 10)}</td>
-                  <td className="p-3">{o.user_name} <span className="text-xs text-slate-400">({o.user_email})</span></td>
+                  <td className="p-3">{o.user_name}<CountryBadge userId={o.user_id} /> <span className="text-xs text-slate-400">({o.user_email})</span></td>
                   <td className="p-3 text-slate-500">{o.items.length} contest(s)</td>
                   <td className="p-3 font-semibold">{gbp(o.total)}</td>
                   <td className="p-3 text-slate-500">{new Date(o.created_at).toLocaleString('en-GB')}</td>

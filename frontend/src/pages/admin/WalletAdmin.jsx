@@ -1,3 +1,4 @@
+import CountryBadge from '../../components/admin/CountryBadge';
 import { useEffect, useState } from 'react';
 import { adminWalletAPI } from '../../lib/api';
 import { gbp } from '../../lib/format';
@@ -108,7 +109,7 @@ export default function WalletAdmin() {
               {filtered.map(w => (
                 <tr key={w.user_id} className="border-t border-slate-800 hover:bg-slate-800/50">
                   <td className="py-2">
-                    <div className="font-medium text-white">{w.name || w.email || w.user_id}</div>
+                    <div className="font-medium text-white">{w.name || w.email || w.user_id}<CountryBadge userId={w.user_id} /></div>
                     <div className="text-xs text-slate-500">{w.email}</div>
                   </td>
                   <td className="py-2 text-xs">

@@ -154,6 +154,24 @@ function AuditLog() {
   );
 }
 
+function LegalDrafts() {
+  const [data, setData] = useState(null);
+  useEffect(() => { countryAdminAPI.legalDrafts().then(setData).catch(() => {}); }, []);
+  if (!data) return null;
+  const copy = (t) => navigator.clipboard?.writeText(t).then(() => toast.success('Copied')).catch(() => toast.error('Copy failed'));
+  return (
+    <div className="space-y-3" data-testid="country-legal-drafts">
+      <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{data.note} Your published documents have not been changed.</p>
+      {data.drafts.map((d) => (
+        <div key={d.slug} className="rounded-xl border border-slate-200 p-4" data-testid={`legal-draft-${d.slug}`}>
+          <div className="mb-2 flex items-center justify-between"><b>{d.title}</b>
+            <Button size="sm" variant="outline" onClick={() => copy(d.text)} data-testid={`legal-draft-copy-${d.slug}`}>Copy wording</Button></div>
+          <pre className="whitespace-pre-wrap text-xs text-slate-700">{d.text}</pre>
+        </div>))}
+    </div>
+  );
+}
+
 export default function CountryManagementAdmin() {
   const [data, setData] = useState(null);
   const load = useCallback(() => countryAdminAPI.policies().then(setData).catch((e) => toast.error(errText(e))), []);
@@ -172,11 +190,13 @@ export default function CountryManagementAdmin() {
             <TabsTrigger value="default" data-testid="tab-default">Default policy</TabsTrigger>
             <TabsTrigger value="requests" data-testid="tab-requests"><UserCheck className="mr-1 h-3.5 w-3.5" />Change requests</TabsTrigger>
             <TabsTrigger value="history" data-testid="tab-history"><History className="mr-1 h-3.5 w-3.5" />Change history</TabsTrigger>
+            <TabsTrigger value="legal" data-testid="tab-legal">T&amp;C wording</TabsTrigger>
           </TabsList>
           <TabsContent value="countries"><PolicyTable data={data} reload={load} /></TabsContent>
           <TabsContent value="default"><DefaultPolicy data={data} reload={load} /></TabsContent>
           <TabsContent value="requests"><ChangeRequests /></TabsContent>
           <TabsContent value="history"><AuditLog /></TabsContent>
+          <TabsContent value="legal"><LegalDrafts /></TabsContent>
         </Tabs>
       )}
     </div>

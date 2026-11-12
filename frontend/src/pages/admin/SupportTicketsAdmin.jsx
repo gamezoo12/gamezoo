@@ -1,3 +1,4 @@
+import CountryBadge from '../../components/admin/CountryBadge';
 import { useCallback, useEffect, useState } from 'react';
 import { LifeBuoy, Sparkles, Search, Send, Plus, Trash2, Save, UserRound, Clock3, MessageSquareText, BookOpen, ArrowLeft } from 'lucide-react';
 import { adminAPI } from '../../lib/api';
@@ -188,7 +189,7 @@ export default function SupportTicketsAdmin() {
                 <div className="max-h-[70vh] overflow-y-auto">
                   {loading && <p className="p-6 text-center text-sm text-slate-500">Loading tickets…</p>}
                   {!loading && cases.map(ticket => <button type="button" key={ticket.case_id} onClick={() => setSelected(ticket)} className={`grid w-full grid-cols-[minmax(0,1fr)_auto] gap-3 border-b border-slate-100 px-3 py-3 text-left hover:bg-cyan-50/60 ${selected?.case_id === ticket.case_id ? 'bg-cyan-50' : ''}`} data-testid={`support-ticket-${ticket.case_id}`}>
-                    <span className="min-w-0"><span className="block truncate text-sm font-bold text-slate-900">{ticket.subject}</span><span className="mt-1 block truncate text-xs text-slate-500">{ticket.user_name || 'Guest'} · {ticket.user_email || 'No email'}</span><span className="mt-1 block font-mono text-[10px] text-slate-400">{ticket.case_id} · {ticket.category}</span></span>
+                    <span className="min-w-0"><span className="block truncate text-sm font-bold text-slate-900">{ticket.subject}</span><span className="mt-1 block truncate text-xs text-slate-500">{ticket.user_name || 'Guest'}{ticket.user_id && <CountryBadge userId={ticket.user_id} />} · {ticket.user_email || 'No email'}</span><span className="mt-1 block font-mono text-[10px] text-slate-400">{ticket.case_id} · {ticket.category}</span></span>
                     <span className="text-right"><span className={`block rounded-full px-2 py-1 text-[10px] font-bold ${ticket.priority === 'urgent' || ticket.priority === 'high' ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-600'}`}>{ticket.priority || 'normal'}</span><span className="mt-1 block text-[10px] text-slate-500">{(ticket.status || 'open').replace('_', ' ')}</span></span>
                   </button>)}
                   {!loading && !cases.length && <p className="p-8 text-center text-sm text-slate-500">No matching tickets.</p>}

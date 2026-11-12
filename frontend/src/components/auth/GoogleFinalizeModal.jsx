@@ -7,7 +7,7 @@ import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
 import { Phone, ShieldCheck, ArrowLeft, ArrowRight, Calendar, ScrollText } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { authAPI, api, offersAPI } from '../../lib/api';
+import { authAPI, api, countryAPI, offersAPI } from '../../lib/api';
 import useActiveOffer from '../../lib/useActiveOffer';
 import { useToast } from '../../hooks/use-toast';
 import PromotionsConsent, { EMPTY_PROMO } from '../account/PromotionsConsent';
@@ -35,7 +35,7 @@ export default function GoogleFinalizeModal({ open, onComplete, onSignOut }) {
   });
   const { offer } = useActiveOffer();
   const [data, setData] = useState({
-    dob: '', country: 'GB', phone: '', normalizedPhone: '', code: '', address: '', accept_terms: false, promo: { ...EMPTY_PROMO },
+    dob: '', country: '', phone: '', normalizedPhone: '', code: '', address: '', accept_terms: false, promo: { ...EMPTY_PROMO },
   });
   const { toast } = useToast();
 
@@ -64,6 +64,10 @@ export default function GoogleFinalizeModal({ open, onComplete, onSignOut }) {
 
   const set = (k, v) => setData((d) => ({ ...d, [k]: v }));
   const rules = useSignupRules(data.country);
+  useEffect(() => {
+    if (!open) return;
+    countryAPI.suggest().then((r) => r?.code && setData((d) => (d.country ? d : { ...d, country: r.code }))).catch(() => {});
+  }, [open]);
   const needPhone = rules ? rules.require_phone_otp : true;
 
   const submitDob = (e) => {
