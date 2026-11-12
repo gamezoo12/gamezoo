@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from auth import get_current_user, require_admin, require_super_admin
 from deps import get_db
-from services.country_policy import (COUNTRIES, INTERNATIONAL_NOTICE, INTL_DEFAULT, OTP_KEYS, PERM_KEYS, PERMISSIONS, UK, UK_DEFAULT,
+from services.country_policy import (COUNTRIES, DIAL_CODES, INTERNATIONAL_NOTICE, INTL_DEFAULT, OTP_KEYS, PERM_KEYS, PERMISSIONS, UK, UK_DEFAULT,
                                      get_policy, invalidate_cache, record_audit, user_access)
 
 public_router = APIRouter(prefix='/api', tags=['countries'])
@@ -23,7 +23,7 @@ _now = lambda: datetime.now(timezone.utc)  # noqa: E731
 
 @public_router.get('/countries')
 async def list_countries():
-    return {'countries': [{'code': c, 'name': n} for c, n in sorted(COUNTRIES.items(), key=lambda x: x[1])]}
+    return {'countries': [{'code': c, 'name': n, 'dial': DIAL_CODES.get(c)} for c, n in sorted(COUNTRIES.items(), key=lambda x: x[1])]}
 
 
 @public_router.get('/countries/{code}/signup-rules')

@@ -135,8 +135,9 @@ async def send_otp(inp: SendOtpInput):
     db = get_db()
     country = (inp.country or 'GB').upper()
     phone = normalize_phone(inp.phone, uk_only=(country == 'GB'))
-    if phone.startswith('+44'):
-        country = 'GB'
+    from services.country_policy import phone_matches_country
+    if inp.country and not phone_matches_country(phone, country):
+        raise HTTPException(status_code=400, detail='Your mobile number must match your country of residence.')
     await _sms_country_guard(db, country)
     await enforce_otp_rate_limit(db, {'phone': phone}, 'SMS codes')
     attempt = {'phone': phone, 'channel': 'sms', 'country': country, 'sent_at': datetime.now(timezone.utc)}

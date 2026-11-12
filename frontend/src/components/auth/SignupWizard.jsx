@@ -1,3 +1,4 @@
+import DialPhoneInput from '../DialPhoneInput';
 import CountrySelect, { useSignupRules } from '../CountrySelect';
 import { authAPI, api, offersAPI } from '../../lib/api';
 import { useEffect, useRef, useState } from 'react';
@@ -632,7 +633,7 @@ export default function SignupWizard() {
             <Label className="mb-1 block">
               Country of residence
             </Label>
-            <CountrySelect value={data.country} onChange={(code) => setData((c) => ({ ...c, country: code, normalizedPhone: '', phoneCode: '' }))} testId="signup-country" />
+            <CountrySelect value={data.country} onChange={(code) => setData((c) => ({ ...c, country: code, phone: '', normalizedPhone: '', phoneCode: '' }))} testId="signup-country" />
             {rules && !rules.require_phone_otp && <p className="mt-1 text-xs text-slate-500" data-testid="signup-country-hint">Email verification only — no phone number needed.</p>}
             {rules && !rules.allow_registration && <p className="mt-1 text-xs text-red-600">Registration is not currently available in this country.</p>}
           </div>
@@ -924,25 +925,23 @@ export default function SignupWizard() {
               Mobile number
             </Label>
 
-            <Input
-              data-testid="signup-phone"
-              type="tel"
+            <DialPhoneInput
+              testId="signup-phone"
+              country={data.country}
               value={data.phone}
-              onChange={(event) => {
+              onChange={(full) => {
                 setData((current) => ({
                   ...current,
-                  phone: event.target.value,
+                  phone: full,
                   normalizedPhone: '',
                   phoneCode: '',
                 }));
               }}
-              placeholder="+44 7700 900123"
               autoFocus
             />
 
             <p className="text-[11px] text-slate-500 mt-1">
-              International format e.g.
-              +447700900123
+              The country code comes from your country of residence.
             </p>
           </div>
 

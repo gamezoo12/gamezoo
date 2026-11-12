@@ -1,3 +1,4 @@
+import DialPhoneInput from '../DialPhoneInput';
 import CountrySelect, { useSignupRules } from '../CountrySelect';
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent } from '../ui/dialog';
@@ -219,8 +220,8 @@ export default function GoogleFinalizeModal({ open, onComplete, onSignOut }) {
             <p className="text-sm text-slate-500">Required to receive winner notifications and secure your account.</p>
             <div>
               <Label className="mb-1 block">Mobile number</Label>
-              <Input data-testid="gf-phone" type="tel" required value={data.phone} onChange={e => set('phone', e.target.value)} placeholder="+44 7700 900123" autoFocus />
-              <p className="text-[11px] text-slate-500 mt-1">International format e.g. +447700900123</p>
+              <DialPhoneInput testId="gf-phone" country={data.country} value={data.phone} onChange={(full) => set('phone', full)} autoFocus />
+              <p className="text-[11px] text-slate-500 mt-1">The country code comes from your country of residence.</p>
             </div>
             <Button data-testid="gf-send-otp" onClick={sendOtp} disabled={busy || data.phone.length < 8} className="w-full h-11 pl-btn-purple text-white font-bold">
               {busy ? 'Sending…' : 'Send verification code'}

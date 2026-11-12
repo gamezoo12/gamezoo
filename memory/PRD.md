@@ -847,3 +847,6 @@ Root causes fixed:
 ## 2026-06 Country rules clarification
 - User tested on LIVE as admin → staff are exempt by design (user chose to keep). Note added on Country Management page.
 - Logged-out visitors: /api/countries/visitor-access uses edge geo header (cf-ipcountry / x-vercel-ip-country / x-country-code / cloudfront-viewer-country); CountryGate applies browsing/free games/leaderboards/paid browsing for guests. Preview/prod Cloudflare currently does NOT forward cf-ipcountry → guests unknown → allowed. Needs Cloudflare IP Geolocation header or an IP lookup service (backlog).
+
+## 2026-06 Dial code auto-pick
+- DialPhoneInput: mobile field locked to country-of-residence dial code (DIAL_CODES in country_policy, /api/countries returns dial). Backend rejects OTP send/register/Google finalize when phone does not match country. Verified via screenshot (GB +44).

@@ -211,6 +211,9 @@ async def register(inp: RegisterInput, request: Request):
                 )
             raise
 
+        from services.country_policy import phone_matches_country
+        if country and not phone_matches_country(normalized_phone, country):
+            raise HTTPException(status_code=400, detail='Your mobile number must match your country of residence.')
         existing_phone = await db.users.find_one(
             {'phone': normalized_phone, 'phone_verified': True},
             {'_id': 1},
@@ -761,6 +764,9 @@ async def finalize_google_signup(inp: GoogleFinalizeInput, request: Request):
     _fin_set = {}
     if (inp.phone or '').strip() and (inp.otp_code or '').strip():
         normalized_phone = await _verify_twilio_otp(inp.phone, inp.otp_code)
+        from services.country_policy import phone_matches_country
+        if country and not phone_matches_country(normalized_phone, country):
+            raise HTTPException(status_code=400, detail='Your mobile number must match your country of residence.')
         other = await db.users.find_one(
             {'phone': normalized_phone, 'phone_verified': True, 'user_id': {'$ne': user['user_id']}},
             {'_id': 1},
