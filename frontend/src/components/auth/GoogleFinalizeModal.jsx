@@ -1,3 +1,4 @@
+import CountrySelect, { useSignupRules } from '../CountrySelect';
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent } from '../ui/dialog';
 import { Input } from '../ui/input';
@@ -34,7 +35,7 @@ export default function GoogleFinalizeModal({ open, onComplete, onSignOut }) {
   });
   const { offer } = useActiveOffer();
   const [data, setData] = useState({
-    dob: '', phone: '', normalizedPhone: '', code: '', address: '', accept_terms: false, promo: { ...EMPTY_PROMO },
+    dob: '', country: 'GB', phone: '', normalizedPhone: '', code: '', address: '', accept_terms: false, promo: { ...EMPTY_PROMO },
   });
   const { toast } = useToast();
 
@@ -62,6 +63,8 @@ export default function GoogleFinalizeModal({ open, onComplete, onSignOut }) {
   }, [open]);
 
   const set = (k, v) => setData((d) => ({ ...d, [k]: v }));
+  const rules = useSignupRules(data.country);
+  const needPhone = rules ? rules.require_phone_otp : true;
 
   const submitDob = (e) => {
     e.preventDefault();
@@ -71,14 +74,16 @@ export default function GoogleFinalizeModal({ open, onComplete, onSignOut }) {
       (today.getMonth() < dobDate.getMonth() || (today.getMonth() === dobDate.getMonth() && today.getDate() < dobDate.getDate())) ? 1 : 0
     );
     if (Number.isNaN(age) || age < 18) return toast({ title: 'You must be 18 or older' });
-    setStep(2);
+    if (!data.country) return toast({ title: 'Select your country of residence' });
+    if (rules && !rules.allow_registration) return toast({ title: 'Registration is not currently available in your country.' });
+    setStep(needPhone ? 2 : 4);
   };
 
   const sendOtp = async () => {
     if (data.phone.length < 8) return toast({ title: 'Enter a valid mobile number' });
     setBusy(true);
     try {
-      const r = await authAPI.otpSend(data.phone);
+      const r = await authAPI.otpSend(data.phone, data.country);
       setData((d) => ({ ...d, normalizedPhone: r.phone || data.phone }));
       setStep(3);
       setCooldown(30);
@@ -117,8 +122,9 @@ export default function GoogleFinalizeModal({ open, onComplete, onSignOut }) {
         sessionStorage.removeItem('pl_google_referral_code');
       }
       const r = await api.post('/auth/google/finalize', {
-        phone: data.normalizedPhone || data.phone,
-        otp_code: data.code,
+        phone: needPhone ? (data.normalizedPhone || data.phone) : null,
+        otp_code: needPhone ? data.code : null,
+        country_of_residence: data.country,
         accept_terms: true,
         dob: data.dob,
         address: data.address || null,
@@ -187,6 +193,11 @@ export default function GoogleFinalizeModal({ open, onComplete, onSignOut }) {
               {' '}on verified top-ups of at least £{offer.normal_topup_promo.minimum_gbp}.
             </p>}
             <div>
+              <Label className="mb-1 block">Country of residence</Label>
+              <CountrySelect value={data.country} onChange={(c) => set('country', c)} testId="gf-country" />
+              {rules?.prize_notice && <p className="mt-1 rounded-lg bg-amber-50 p-2 text-[11px] text-amber-900" data-testid="gf-intl-notice">{rules.prize_notice}</p>}
+            </div>
+            <div>
               <Label className="mb-1 block">Date of birth <span className="text-slate-400 text-xs font-normal">(18+ only)</span></Label>
               <Input data-testid="gf-dob" type="date" required value={data.dob} onChange={e => set('dob', e.target.value)} max={new Date().toISOString().slice(0, 10)} autoFocus />
             </div>
@@ -241,14 +252,14 @@ export default function GoogleFinalizeModal({ open, onComplete, onSignOut }) {
 
         {step === 4 && (
           <div className="space-y-3">
-            <button type="button" onClick={() => setStep(3)} className="text-slate-500 hover:text-slate-900 text-sm flex items-center gap-1"><ArrowLeft className="w-3 h-3" /> Back</button>
+            <button type="button" onClick={() => setStep(needPhone ? 3 : 1)} className="text-slate-500 hover:text-slate-900 text-sm flex items-center gap-1"><ArrowLeft className="w-3 h-3" /> Back</button>
             <div className="w-12 h-12 rounded-full bg-[#FFD54A]/20 flex items-center justify-center"><ScrollText className="w-6 h-6 text-[#6C2BFF]" /></div>
             <h3 className="font-display font-extrabold text-2xl text-slate-900">One last thing</h3>
             <p className="text-sm text-slate-500">Confirm you agree to our terms — required to finish signup.</p>
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600 max-h-40 overflow-auto">
               By ticking the box you agree to Prize League&apos;s{' '}
               <Link to="/terms" target="_blank" className="text-[#6C2BFF] underline">Terms &amp; Conditions</Link>,{' '}
-              <Link to="/privacy" target="_blank" className="text-[#6C2BFF] underline">Privacy Policy</Link>, and confirm you&apos;re 18+, a UK resident,
+              <Link to="/privacy" target="_blank" className="text-[#6C2BFF] underline">Privacy Policy</Link>, and confirm you&apos;re 18+, {data.country === 'GB' ? 'a UK resident' : 'the country of residence you selected is correct'},
               and play responsibly. Prizes are subject to KYC. Free postal entry is always available.
             </div>
             <label className="flex items-start gap-3 cursor-pointer select-none py-2">

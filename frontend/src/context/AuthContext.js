@@ -33,15 +33,17 @@ export function AuthProvider({ children }) {
     const r = await authAPI.login(data);
     localStorage.setItem('gz_token', r.token);
     setUser(r.user);
+    refresh();
     return r.user;
-  }, []);
+  }, [refresh]);
 
   const register = useCallback(async (data) => {
     const r = await authAPI.register(data);
     localStorage.setItem('gz_token', r.token);
     setUser(r.user);
+    refresh();
     return r.user;
-  }, []);
+  }, [refresh]);
 
   const logout = useCallback(async () => {
     try {
@@ -60,7 +62,7 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
-  const setGoogleUser = useCallback((u) => setUser(u), []);
+  const setGoogleUser = useCallback((u) => { setUser(u); if (u) refresh(); }, [refresh]);
 
   const value = useMemo(
     () => ({ user, loading, login, register, logout, refresh, setGoogleUser }),

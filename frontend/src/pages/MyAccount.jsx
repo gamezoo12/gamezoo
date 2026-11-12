@@ -1,3 +1,4 @@
+import ProfileCountry from '../components/ProfileCountry';
 import SetPasswordCard from '../components/account/SetPasswordCard';
 import { VerifiedReviewerBadge } from '../components/VerifiedReviewerBadge';
 import { useEffect, useState } from 'react';
@@ -475,6 +476,7 @@ export default function MyAccount() {
                 <Label>Date of birth</Label>
                 <Input data-testid="profile-dob" value={profile.dob || ''} disabled />
               </div>
+              <ProfileCountry />
               <div className="md:col-span-2">
                 <Label>Address</Label>
                 <Input data-testid="profile-address" value={profile.address || ''} onChange={e => setProfile(p => ({ ...p, address: e.target.value }))} placeholder="Street, city, postcode…" />

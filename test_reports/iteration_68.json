@@ -1,0 +1,35 @@
+{
+  "summary": "Iteration 68: tested the 50 Game Board Styles and 100 Game Sound Packs admin features, plus regressions. Backend: 29/29 pytest pass against the public URL (/app/tests/test_iter68_board_style_sound_pack.py + iter67 theme/unlimited, Submit-timer class deselected). Covered: GET board-style/sound-pack shapes; single vhs-sunset OK; single 'nope' / missing style_id / bad mode / by_type unknown key / by_type unknown style -> 422; by_type {memory:galaxy} persists with style_id null; pack retro-8-bit-epic OK, null OK, unknown -> 422; unauth and player -> 401/403. Every one of the 50 frontend board IDs and 100 frontend sound pack IDs is accepted by the backend whitelist, so there is no slug drift. Admin UI: 50 swatches with visible names; mode buttons and 7 type chips work; picking a swatch updates the preview's data-board-style right away (galaxy -> christmas-eve). by_type preview shows the defaults (memory royal-velvet, target lava-core, sweet bubblegum), and memory->galaxy shows on the chip. Apply shows 'Applied for all players.' and the API persists it. Sound: 101 buttons (100 packs + Original); selecting a pack shows 7 sound-try-* buttons; clicking all of them gives no console errors; Apply shows a message and the API persists it. Player (player1, /world, L48 Word Unscramble replay -> PLAY DEMO): with single christmas-eve, premium-words-board data-board-style=christmas-eve. With by_type {memory:galaxy, words:arctic-ice}, the board was arctic-ice. In Original look it was classic. Sound pack path checked with an AudioContext hook: with pack null, in-game taps created no oscillators (only recorded buffer sources). With retro-8-bit-epic, many oscillators were created. No page errors anywhere. Regression: Unlimited switch ON->OFF->ON works; theme section present (100 themes). Everything was restored at the end.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "PUT /api/admin/world/board-style", "issue": "by_type is validated and stored even when mode is classic/single (only style_id is cleared). Harmless, but leftover data sits in the DB."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "BoardStylePicker", "issue": "After switching modes (by_type, then back to single with the same applied style), Apply turns enabled ('Apply to all players') because cfg.by_type changed, although the result would be the same. Cosmetic.", "selector": "[data-testid=board-style-apply]", "priority": "LOW"}
+    ],
+    "integration_issues": [
+      {"flow": "Live propagation", "issue": "The board style config (boardStyles.js store) and the sound pack (soundPacks.js module-level fetch) load once per page load. Players with /world already open keep the old style/pack until they reload. Probably acceptable; consider refetching when a game opens.", "affected_selectors": ["[data-testid^=premium-]"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/tests/test_iter68_board_style_sound_pack.py", "/app/test_reports/pytest/iter68.xml"],
+  "action_items": [
+    "Optional: refetch board-style/sound-pack config when a game opens, so players with an open tab pick up admin changes",
+    "Optional: in BoardStylePicker, compare only the fields that matter for the current mode when computing dirty",
+    "Pre-existing: React warning '<span> cannot be a child of <option>' in the FreeWorldAdmin users filter select (around line 844)"
+  ],
+  "critical_code_review_comments": [
+    "The style and pack ID whitelists are duplicated between backend (_BOARD_STYLE_NAMES / _SOUND_PACK_IDS) and the frontend lists. They match today; the new test test_all_50/100_frontend_ids_accepted guards against drift.",
+    "backend/routers/world_routes.py is about 13.6k lines and should be split (board/sound/theme settings could go in their own router module).",
+    "soundPacks.js playPack makes new oscillators and gains per note and stops them correctly; audioCtx() resumes a suspended context. No leaks seen. Countdown/tap fall back to the 'tap' motif only for unknown kinds."
+  ],
+  "updated_files": ["/app/tests/test_iter68_board_style_sound_pack.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "None. Settings were changed temporarily and restored: board-style classic, sound-pack null, ui-theme royal-purple-classic, unlimited-games true (all checked via the public GET endpoints).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Run: cd /app/tests && python -m pytest test_iter68_board_style_sound_pack.py -c /dev/null --rootdir=/app/tests. player1's only playable node on /world is free-world-play-48 (L48 Word Unscramble replay; L49 is locked). Click it via JS, then get_by_role('button', name='PLAY DEMO'); the board is [data-testid=premium-words-board] with data-board-style. To verify sound pack usage headless, hook AudioContext.prototype.createOscillator/createBufferSource via add_init_script and count calls."
+}

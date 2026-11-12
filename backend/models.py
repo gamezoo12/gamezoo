@@ -225,6 +225,9 @@ class User(BaseModel):
     dob: Optional[str] = None  # ISO date YYYY-MM-DD
     address: Optional[str] = None
     terms_accepted_at: Optional[datetime] = None
+    country_of_residence: Optional[str] = None  # ISO 3166-1 alpha-2, self-declared at signup
+    country_set_at: Optional[datetime] = None
+    phone_otp_required: Optional[bool] = None  # snapshot of the country OTP rule at signup
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -253,6 +256,8 @@ class UserPublic(BaseModel):
     must_change_password: bool = False
     phone_verification_required: bool = False
     verified_reviewer: bool = False
+    country_of_residence: Optional[str] = None
+    phone_otp_required: Optional[bool] = None
 
 
 class RegisterInput(BaseModel):
@@ -262,9 +267,10 @@ class RegisterInput(BaseModel):
     # Both email and phone verification are mandatory for email/password
     # registration. The backend independently checks both Twilio Verify codes
     # before creating the account.
-    email_otp_code: str = Field(..., min_length=4, max_length=10)
-    phone: str = Field(..., min_length=6, max_length=32)
-    otp_code: str = Field(..., min_length=4, max_length=10)
+    email_otp_code: Optional[str] = Field(default=None, max_length=10)
+    phone: Optional[str] = Field(default=None, max_length=32)
+    otp_code: Optional[str] = Field(default=None, max_length=10)
+    country_of_residence: Optional[str] = Field(default=None, min_length=2, max_length=2)
     accept_terms: bool = Field(..., description="Must be true")
     dob: str = Field(..., description="YYYY-MM-DD, 18+ enforced server-side")
     address: Optional[str] = None

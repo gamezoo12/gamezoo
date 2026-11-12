@@ -228,6 +228,9 @@ class CashOutBody(BaseModel):
 @router.post("/request")
 async def create_cashout(body: CashOutBody, request: Request):
     user = await require_verified_user(request)
+    from services.country_policy import require_country_permission as _ccheck
+    from deps import get_db as _cdb
+    await _ccheck(_cdb(), user, 'allow_prize_claims')
     db = get_db()
 
     settings = await get_settings(db)

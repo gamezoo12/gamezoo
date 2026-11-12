@@ -13,6 +13,8 @@ import logging
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, HTTPException, Request
+from typing import Optional
+
 from pydantic import BaseModel, Field
 
 from auth import create_jwt, get_current_user
@@ -40,6 +42,7 @@ def _twilio_client():
 
 class SendOtpInput(BaseModel):
     phone: str = Field(..., min_length=6, max_length=32)
+    country: Optional[str] = Field(default=None, min_length=2, max_length=2)
 
 
 class VerifyOtpInput(BaseModel):
@@ -49,6 +52,26 @@ class VerifyOtpInput(BaseModel):
 
 class SendEmailOtpInput(BaseModel):
     email: str = Field(..., min_length=3, max_length=320)
+    country: Optional[str] = Field(default=None, min_length=2, max_length=2)
+
+
+async def _sms_country_guard(db, country: str) -> None:
+    """Blocks SMS to countries without phone OTP and enforces the per-country daily SMS cap."""
+    from services.country_policy import get_policy
+    policy = await get_policy(db, country)
+    if country != 'GB' and not policy.get('require_phone_otp'):
+        raise HTTPException(status_code=403, detail='SMS verification is not available for your country. Use email verification.')
+    limit = int(policy.get('sms_daily_limit') or 0)
+    since = datetime.now(timezone.utc) - timedelta(hours=24)
+    sent = await db.otp_attempts.count_documents({'channel': 'sms', 'country': country, 'sent_at': {'$gte': since}})
+    if limit and sent >= limit:
+        await db.sms_spend_alerts.insert_one({'country': country, 'kind': 'limit_reached', 'count': sent, 'limit': limit,
+                                              'at': datetime.now(timezone.utc)})
+        raise HTTPException(status_code=429, detail='SMS verification is temporarily unavailable. Please try again later.')
+    alert_at = int(policy.get('sms_alert_at') or 0)
+    if alert_at and sent + 1 == alert_at:
+        await db.sms_spend_alerts.insert_one({'country': country, 'kind': 'threshold', 'count': sent + 1, 'limit': limit,
+                                              'at': datetime.now(timezone.utc)})
 
 
 async def enforce_otp_rate_limit(db, query: dict, label: str = 'codes') -> None:
@@ -86,7 +109,8 @@ async def send_email_otp(inp: SendEmailOtpInput):
         raise HTTPException(status_code=400, detail='This email is already registered. Please log in or reset your password.')
     await enforce_otp_rate_limit(db, {'channel': 'email', 'email': email}, 'email codes')
     verification = await send_verification(email, 'email', 'signup')
-    await db.otp_attempts.insert_one({'channel': 'email', 'email': email, 'purpose': 'signup', 'sent_at': datetime.now(timezone.utc)})
+    await db.otp_attempts.insert_one({'channel': 'email', 'email': email, 'purpose': 'signup', 'sent_at': datetime.now(timezone.utc),
+                                      'country': (inp.country or '').upper() or None})
     return {'ok': True, 'status': verification.status, 'email': email, 'resend_after_seconds': 30}
 
 
@@ -109,15 +133,20 @@ async def send_otp(inp: SendOtpInput):
     from deps import get_db
     from otp_verify import send_verification
     db = get_db()
-    phone = normalize_phone(inp.phone, uk_only=True)
+    country = (inp.country or 'GB').upper()
+    phone = normalize_phone(inp.phone, uk_only=(country == 'GB'))
+    if phone.startswith('+44'):
+        country = 'GB'
+    await _sms_country_guard(db, country)
     await enforce_otp_rate_limit(db, {'phone': phone}, 'SMS codes')
+    attempt = {'phone': phone, 'channel': 'sms', 'country': country, 'sent_at': datetime.now(timezone.utc)}
 
     if os.environ.get('TEST_MODE') == '1' and not _is_prod():
-        await db.otp_attempts.insert_one({'phone': phone, 'sent_at': datetime.now(timezone.utc)})
+        await db.otp_attempts.insert_one(attempt)
         return {'ok': True, 'status': 'pending', 'phone': phone}
 
     v = await send_verification(phone, 'sms', 'phone_verification')
-    await db.otp_attempts.insert_one({'phone': phone, 'sent_at': datetime.now(timezone.utc)})
+    await db.otp_attempts.insert_one(attempt)
     return {'ok': True, 'status': v.status, 'phone': phone, 'resend_after_seconds': 30}
 
 
@@ -171,6 +200,9 @@ async def login_via_otp(inp: VerifyOtpInput):
     user = await db.users.find_one({'phone': phone, 'phone_verified': True}, {'_id': 0, 'password_hash': 0})
     if not user:
         raise HTTPException(status_code=404, detail='No account found for this phone. Please sign up first.')
+    from services.country_policy import user_access
+    if not (await user_access(db, user))['permissions'].get('allow_login', True):
+        raise HTTPException(status_code=403, detail='Login is not available in your country.')
 
     token = create_jwt(user['user_id'])
     return {

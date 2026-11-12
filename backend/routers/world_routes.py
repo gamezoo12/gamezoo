@@ -7254,6 +7254,9 @@ async def free_world_session_start(
     Attempt is consumed only when /session/begin succeeds.
     """
     user = await require_verified_user(request)
+    from services.country_policy import require_country_permission as _ccheck
+    from deps import get_db as _cdb
+    await _ccheck(_cdb(), user, 'allow_free_games')
     db = get_db()
     await _assert_world_not_paused(db)
     await _assert_legacy_competition_mode(db)
@@ -8894,6 +8897,9 @@ async def champion_session_start(
     user = await require_verified_user(
         request
     )
+    from services.country_policy import require_country_permission as _ccheck
+    from deps import get_db as _cdb
+    await _ccheck(_cdb(), user, 'allow_free_world_prizes')
 
     db = get_db()
     await _assert_world_not_paused(db)

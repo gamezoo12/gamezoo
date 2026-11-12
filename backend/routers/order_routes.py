@@ -37,6 +37,9 @@ def _validate_skill(c: dict, item) -> None:
 @router.post('/checkout')
 async def checkout(inp: CheckoutInput, request: Request):
     user = await require_verified_user(request)
+    from services.country_policy import require_country_permission as _ccheck
+    from deps import get_db as _cdb
+    await _ccheck(_cdb(), user, 'allow_paid_contests')
     if not inp.items:
         raise HTTPException(status_code=400, detail='Cart is empty')
 

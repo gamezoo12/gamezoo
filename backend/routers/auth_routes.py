@@ -116,6 +116,12 @@ async def _verify_twilio_otp(phone: str, code: str) -> str:
     return await verify_twilio_otp(phone, code)
 
 
+async def _assert_login_allowed(db, user: dict) -> None:
+    from services.country_policy import user_access
+    if user.get('country_of_residence') and not (await user_access(db, user))['permissions'].get('allow_login', True):
+        raise HTTPException(status_code=403, detail='Login is not currently available in your country.')
+
+
 # --- Endpoints ---------------------------------------------------------------
 @router.post('/register')
 async def register(inp: RegisterInput, request: Request):
@@ -141,11 +147,22 @@ async def register(inp: RegisterInput, request: Request):
             detail='Email already registered',
         )
 
+    from services.country_policy import COUNTRIES, get_policy
+    country = (inp.country_of_residence or '').upper() or None
+    if country and country not in COUNTRIES:
+        raise HTTPException(status_code=422, detail='Please choose a valid country of residence.')
+    # Legacy clients that send no country keep the original UK rules (email + phone OTP).
+    policy = await get_policy(db, country or 'GB')
+    if not policy['allow_registration']:
+        raise HTTPException(status_code=403, detail='Registration is not currently available in your country.')
+    need_email_otp = bool(policy['require_email_otp'])
+    need_phone_otp = bool(policy['require_phone_otp'])
+
     provided_email_otp = (
         inp.email_otp_code or ''
     ).strip()
 
-    if not provided_email_otp:
+    if need_email_otp and not provided_email_otp:
         raise HTTPException(
             status_code=422,
             detail='Email verification code is required',
@@ -153,51 +170,56 @@ async def register(inp: RegisterInput, request: Request):
 
     from otp_verify import verify_twilio_email_otp
 
-    try:
-        await verify_twilio_email_otp(
-            normalized_email,
-            provided_email_otp,
-        )
-    except HTTPException as exc:
-        if exc.status_code == 400:
-            raise HTTPException(
-                status_code=400,
-                detail='Email verification code is invalid or expired',
+    email_verified = False
+    if provided_email_otp:
+        try:
+            await verify_twilio_email_otp(
+                normalized_email,
+                provided_email_otp,
             )
-        raise
+            email_verified = True
+        except HTTPException as exc:
+            if exc.status_code == 400:
+                raise HTTPException(
+                    status_code=400,
+                    detail='Email verification code is invalid or expired',
+                )
+            raise
 
     provided_phone = (inp.phone or '').strip()
     provided_otp = (inp.otp_code or '').strip()
 
-    if not provided_phone:
+    if need_phone_otp and not provided_phone:
         raise HTTPException(status_code=422, detail='Phone number is required')
-    if not provided_otp:
+    if need_phone_otp and not provided_otp:
         raise HTTPException(status_code=422, detail='Phone verification code is required')
 
-    try:
-        normalized_phone = await _verify_twilio_otp(
-            provided_phone,
-            provided_otp,
+    normalized_phone = None
+    if provided_phone and provided_otp:
+        try:
+            normalized_phone = await _verify_twilio_otp(
+                provided_phone,
+                provided_otp,
+            )
+        except HTTPException as exc:
+            if exc.status_code == 400:
+                raise HTTPException(
+                    status_code=400,
+                    detail='Phone verification code is invalid or expired',
+                )
+            raise
+
+        existing_phone = await db.users.find_one(
+            {'phone': normalized_phone, 'phone_verified': True},
+            {'_id': 1},
         )
-    except HTTPException as exc:
-        if exc.status_code == 400:
+        if existing_phone:
             raise HTTPException(
                 status_code=400,
-                detail='Phone verification code is invalid or expired',
+                detail='This phone number is already registered.',
             )
-        raise
 
-    existing_phone = await db.users.find_one(
-        {'phone': normalized_phone, 'phone_verified': True},
-        {'_id': 1},
-    )
-    if existing_phone:
-        raise HTTPException(
-            status_code=400,
-            detail='This phone number is already registered.',
-        )
-
-    phone_verified = True
+    phone_verified = bool(normalized_phone)
 
     referred_by = None
     influencer_promo = None
@@ -245,8 +267,8 @@ async def register(inp: RegisterInput, request: Request):
 
     user = User(
         email=normalized_email,
-        email_verified=True,
-        email_verified_at=datetime.now(timezone.utc),
+        email_verified=email_verified,
+        email_verified_at=(datetime.now(timezone.utc) if email_verified else None),
         name=inp.name.strip(),
         username=username,
         public_id=public_id,
@@ -258,7 +280,10 @@ async def register(inp: RegisterInput, request: Request):
         signup_bonus_offer_eligible=True,
         phone=normalized_phone,
         phone_verified=phone_verified,
-        phone_verified_at=datetime.now(timezone.utc),
+        phone_verified_at=(datetime.now(timezone.utc) if phone_verified else None),
+        country_of_residence=country,
+        country_set_at=(registered_at if country else None),
+        phone_otp_required=need_phone_otp,
         sms_consent=bool(inp.sms_consent),
         sms_consent_at=(datetime.now(timezone.utc) if inp.sms_consent else None),
         marketing_email_consent=bool(inp.marketing_email_consent),
@@ -393,6 +418,7 @@ async def login(inp: LoginInput):
         raise HTTPException(status_code=401, detail='Invalid email or password')
     if user.get('suspended'):
         raise HTTPException(status_code=403, detail='This account has been suspended. Please contact support.')
+    await _assert_login_allowed(db, user)
     try:
         from datetime import datetime, timezone
         now = datetime.now(timezone.utc)
@@ -637,6 +663,7 @@ async def google_session(request: Request):
             'last_google_auth_at': datetime.now(timezone.utc),
         }, '$addToSet': {'login_methods': 'google'}})
         user = await db.users.find_one({'user_id': user['user_id']}, {'_id': 0})
+    await _assert_login_allowed(db, user)
 
     session_token = data['session_token']
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
@@ -669,8 +696,9 @@ async def google_session(request: Request):
 
 
 class GoogleFinalizeInput(BaseModel):
-    phone: str = Field(..., min_length=6, max_length=32)
-    otp_code: str = Field(..., min_length=4, max_length=10)
+    phone: Optional[str] = Field(default=None, max_length=32)
+    otp_code: Optional[str] = Field(default=None, max_length=10)
+    country_of_residence: Optional[str] = Field(default=None, min_length=2, max_length=2)
     accept_terms: bool
     dob: str = Field(..., description='YYYY-MM-DD')
     address: Optional[str] = None
@@ -719,25 +747,39 @@ async def finalize_google_signup(inp: GoogleFinalizeInput, request: Request):
             if not personal_referrer:
                 raise HTTPException(status_code=400, detail='Invalid referral or influencer promo code.')
 
-    normalized_phone = await _verify_twilio_otp(inp.phone, inp.otp_code)
+    from services.country_policy import COUNTRIES, get_policy
+    country = user.get('country_of_residence') or (inp.country_of_residence or '').upper() or None
+    if country and country not in COUNTRIES:
+        raise HTTPException(status_code=422, detail='Please choose a valid country of residence.')
+    policy = await get_policy(db, country or 'GB')
+    if is_new_google_signup and not policy['allow_registration']:
+        raise HTTPException(status_code=403, detail='Registration is not currently available in your country.')
+    need_phone_otp = bool(policy['require_phone_otp']) if is_new_google_signup else user.get('phone_otp_required') is not False
 
-    other = await db.users.find_one(
-        {'phone': normalized_phone, 'phone_verified': True, 'user_id': {'$ne': user['user_id']}},
-        {'_id': 1},
-    )
-    if other:
-        raise HTTPException(status_code=400, detail='This phone is already linked to another account')
+    _fin_set = {}
+    if (inp.phone or '').strip() and (inp.otp_code or '').strip():
+        normalized_phone = await _verify_twilio_otp(inp.phone, inp.otp_code)
+        other = await db.users.find_one(
+            {'phone': normalized_phone, 'phone_verified': True, 'user_id': {'$ne': user['user_id']}},
+            {'_id': 1},
+        )
+        if other:
+            raise HTTPException(status_code=400, detail='This phone is already linked to another account')
+        _fin_set.update({'phone': normalized_phone, 'phone_verified': True, 'phone_verified_at': datetime.now(timezone.utc)})
+    elif need_phone_otp and not phone_is_verified(user):
+        raise HTTPException(status_code=422, detail='Phone verification code is required')
 
     username = user.get('username') or await _generate_username(db, user['name'], inp.dob)
-    _fin_set = {
-        'phone': normalized_phone,
-        'phone_verified': True,
-        'phone_verified_at': datetime.now(timezone.utc),
+    if country and not user.get('country_of_residence'):
+        _fin_set.update({'country_of_residence': country, 'country_set_at': datetime.now(timezone.utc)})
+    if is_new_google_signup:
+        _fin_set['phone_otp_required'] = need_phone_otp
+    _fin_set.update({
         'dob': inp.dob,
         'address': (inp.address or None),
         'username': username,
         'terms_accepted_at': datetime.now(timezone.utc),
-    }
+    })
     if is_new_google_signup:
         if influencer_promo:
             _fin_set.update({
@@ -942,8 +984,13 @@ async def password_reset_confirm(inp: PasswordResetConfirmInput):
 async def me(request: Request):
     user = await get_current_user(request)
     from deps import get_db
-    full = await get_db().users.find_one({'user_id': user['user_id']}, {'_id': 0, 'password_hash': 1})
-    return {**_to_public(user), 'has_password': bool((full or {}).get('password_hash'))}
+    from services.country_policy import user_access
+    db = get_db()
+    full = await db.users.find_one({'user_id': user['user_id']}, {'_id': 0, 'password_hash': 1})
+    pending = await db.country_change_requests.find_one(
+        {'user_id': user['user_id'], 'status': 'pending'}, {'_id': 0, 'requested_country': 1, 'created_at': 1})
+    return {**_to_public(user), 'has_password': bool((full or {}).get('password_hash')),
+            'country_access': await user_access(db, user), 'country_change_pending': pending}
 
 
 @router.post('/logout')

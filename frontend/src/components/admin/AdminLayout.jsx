@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Package, ShoppingBag, Trophy, BarChart3, LogOut, Shield, CreditCard, Settings as SettingsIcon, ShieldCheck, Wallet as WalletIcon, Gamepad2, Menu, X, ClipboardList, FileText, Building2, Mailbox, Gift, Banknote, Bell, Medal, LifeBuoy, Handshake, CalendarCog, Megaphone } from 'lucide-react';
+import { LayoutDashboard, Users, Package, ShoppingBag, Trophy, BarChart3, LogOut, Shield, CreditCard, Settings as SettingsIcon, ShieldCheck, Wallet as WalletIcon, Gamepad2, Menu, X, ClipboardList, FileText, Building2, Mailbox, Gift, Banknote, Bell, Medal, LifeBuoy, Handshake, CalendarCog, Megaphone, Globe2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import PrizeLeagueLogo from '../layout/PrizeLeagueLogo';
 import MeeraChat from '../MeeraChat';
@@ -11,9 +11,12 @@ const LINKS = [
    { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
    { to: '/admin/users', label: 'Users', icon: Users },
    { to: '/admin/otp-diagnostics', label: 'OTP Diagnostics', icon: Shield },
-   { to: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
+   { to: '/admin/analytics', label: 'Analytics', icon: BarChart3, end: true },
+   { to: '/admin/analytics/countries', label: 'Analytics · Countries', icon: Globe2 },
    { to: '/admin/audit-logs', label: 'Audit logs', icon: ClipboardList },
-   { to: '/admin/settings', label: 'Settings', icon: SettingsIcon },
+   { to: '/admin/settings', label: 'Settings', icon: SettingsIcon, end: true },
+   { to: '/admin/settings/countries', label: 'Settings · Country Management', icon: Globe2 },
+   { to: '/admin/settings/otp', label: 'Settings · OTP & SMS Costs', icon: Shield },
    { to: '/admin/announcements', label: 'Announcement Management', icon: Megaphone, superOnly: true },
  ] },
  { group: 'Paid World', items: [

@@ -11,6 +11,7 @@ import { AuthProvider } from './context/AuthContext';
 
 import TermsGate from './components/TermsGate';
 import PhoneGate from './components/auth/PhoneGate';
+import { CountryGate, CountryPrompt } from './components/CountryAccess';
 import PromotionPopup from './components/PromotionPopup';
 import PromotionAuthBridge from './components/PromotionAuthBridge';
 import PromotionFloatingBadge from './components/PromotionFloatingBadge';
@@ -55,6 +56,9 @@ import WebPushPrompt from './components/WebPushPrompt';
 const AdminKyc = lazy(() => import('./pages/admin/KycPage'));
 const AdminPayments = lazy(() => import('./pages/admin/PaymentsPage'));
 const AdminSettings = lazy(() => import('./pages/admin/SettingsPage'));
+const CountryManagementAdmin = lazy(() => import('./pages/admin/CountryManagementAdmin'));
+const CountryAnalyticsAdmin = lazy(() => import('./pages/admin/CountryAnalyticsAdmin'));
+const OtpSettingsAdmin = lazy(() => import('./pages/admin/OtpSettingsAdmin'));
 const AdminRoles = lazy(() => import('./pages/admin/RolesPage'));
 const AdminWallets = lazy(() => import('./pages/admin/WalletAdmin'));
 const AdminGames = lazy(() => import('./pages/admin/GamesAdmin'));
@@ -198,6 +202,7 @@ function AppRouter() {
   return (
     <>
       <Suspense fallback={<RouteLoader />}>
+      <CountryGate>
       <Routes>
 
       {/* =========================
@@ -640,6 +645,9 @@ function AppRouter() {
           path="settings"
           element={<AdminSettings />}
         />
+        <Route path="settings/countries" element={<CountryManagementAdmin />} />
+        <Route path="settings/otp" element={<OtpSettingsAdmin />} />
+        <Route path="analytics/countries" element={<CountryAnalyticsAdmin />} />
 
         <Route
           path="audit-logs"
@@ -689,6 +697,7 @@ function AppRouter() {
       </Route>
 
       </Routes>
+      </CountryGate>
       </Suspense>
       <GlobalPageNavigation />
     </>
@@ -736,6 +745,7 @@ function App() {
           <TermsGate />
 
           <PhoneGate />
+          <CountryPrompt />
 
 
           {/* Toast notifications */}

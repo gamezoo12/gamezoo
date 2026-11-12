@@ -1,3 +1,4 @@
+import { PrizeRestrictionNotice } from '../components/CountryAccess';
 import { useEffect, useState } from 'react';
 import { gbp, tokens as fmtTokens, tokenCount } from '../lib/format';
 import { Button } from '../components/ui/button';
@@ -391,6 +392,7 @@ export default function Cart() {
       <div className="max-w-6xl mx-auto px-4 lg:px-8 py-8 md:py-10" data-testid="cart-page">
       <h1 className="font-display text-3xl md:text-4xl font-extrabold text-slate-900">Your Basket</h1>
       <p className="text-sm text-slate-500 mt-1">Tickets are only allocated after successful payment.</p>
+      <PrizeRestrictionNotice className="mt-3" />
 
       {items.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-2xl border border-slate-100 mt-8" data-testid="cart-empty">

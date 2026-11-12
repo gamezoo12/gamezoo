@@ -740,6 +740,9 @@ async def topup(inp: TopupInput, request: Request):
     if not _mock_wallet_topup_enabled():
         raise HTTPException(status_code=404, detail='Not found')
     user = await require_verified_user(request)
+    from services.country_policy import require_country_permission as _ccheck
+    from deps import get_db as _cdb
+    await _ccheck(_cdb(), user, 'allow_wallet_topups')
     db = get_db()
     tokens = int(inp.amount)
     r = await _apply_tx(db, user['user_id'], 'topup', float(tokens), note=f"Top-up {tokens} tokens (mock)")

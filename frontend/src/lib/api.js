@@ -38,6 +38,11 @@ api.interceptors.response.use(
     if (err?.response?.status === 403 && detail?.code === 'PHONE_VERIFICATION_REQUIRED') {
       window.dispatchEvent(new CustomEvent('pl:phone-required'));
     }
+    if (err?.response?.status === 403 && /^COUNTRY_/.test(detail?.code || '')) {
+      // Flatten so existing toasts show the readable notice instead of an object.
+      err.response.data.detail = detail.message;
+      err.response.data.country_code = detail.code;
+    }
     return Promise.reject(err);
   },
 );
@@ -49,9 +54,9 @@ export const authAPI = {
   logout: () => api.post('/auth/logout').then(r => r.data),
   setSmsConsent: (sms_consent) => api.post('/auth/preferences/sms-consent', { sms_consent }).then(r => r.data),
   googleSession: (sessionId) => api.post('/auth/session', {}, { headers: { 'X-Session-ID': sessionId } }).then(r => r.data),
-  emailOtpSend: (email) =>
-    api.post('/auth/otp/email/send', { email }).then(r => r.data),
-  otpSend: (phone) => api.post('/auth/otp/send', { phone }).then(r => r.data),
+  emailOtpSend: (email, country) =>
+    api.post('/auth/otp/email/send', { email, country: country || undefined }).then(r => r.data),
+  otpSend: (phone, country) => api.post('/auth/otp/send', { phone, country: country || undefined }).then(r => r.data),
   emailOtpCheck: (email, code) => api.post('/auth/otp/email/check', { email, code }).then(r => r.data),
   otpCheck: (phone, code) => api.post('/auth/otp/check', { phone, code }).then(r => r.data),
   otpVerifyBind: (phone, code) => api.post('/auth/otp/verify-bind', { phone, code }).then(r => r.data),
@@ -915,4 +920,24 @@ export const announcementsAdminAPI = {
   remove: (id) => api.delete(`/admin/announcements/${id}`).then(r => r.data),
   reorder: (ids) => api.post('/admin/announcements/reorder', { ids }).then(r => r.data),
   audit: () => api.get('/admin/announcements/audit').then(r => r.data),
+};
+
+export const countryAPI = {
+  list: () => api.get('/countries').then(r => r.data),
+  signupRules: (code) => api.get(`/countries/${code}/signup-rules`).then(r => r.data),
+  setMine: (country) => api.post('/auth/country', { country }).then(r => r.data),
+  requestChange: (country, reason) => api.post('/auth/country/change-request', { country, reason }).then(r => r.data),
+};
+
+export const countryAdminAPI = {
+  policies: () => api.get('/admin/countries/policies').then(r => r.data),
+  update: (codes, changes, confirm) => api.put('/admin/countries/policies', { codes, changes, confirm }).then(r => r.data),
+  updateDefault: (changes, confirm) => api.put('/admin/countries/default', { changes, confirm }).then(r => r.data),
+  reset: (codes) => api.post('/admin/countries/policies/reset', { codes }).then(r => r.data),
+  audit: () => api.get('/admin/countries/audit').then(r => r.data),
+  changeRequests: (status = 'pending') => api.get('/admin/countries/change-requests', { params: { status } }).then(r => r.data),
+  decide: (id, approve, note) => api.post(`/admin/countries/change-requests/${id}`, { approve, note }).then(r => r.data),
+  analytics: (days) => api.get('/admin/countries/analytics', { params: { days } }).then(r => r.data),
+  otp: () => api.get('/admin/countries/otp').then(r => r.data),
+  exportCsv: (params) => api.get('/admin/countries/export', { params, responseType: 'blob' }).then(r => r.data),
 };

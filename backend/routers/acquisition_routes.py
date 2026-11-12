@@ -192,6 +192,15 @@ async def _log_staff_activity(db, user: dict, kind: str, path: str, now: datetim
     })
 
 
+def _geo_country(request: Request):
+    """Edge-provided visitor country for traffic stats only (never proof of residence)."""
+    for h in ('cf-ipcountry', 'x-vercel-ip-country', 'x-country-code', 'cloudfront-viewer-country'):
+        v = (request.headers.get(h) or '').strip().upper()
+        if len(v) == 2 and v.isalpha() and v != 'XX':
+            return v
+    return None
+
+
 @public_router.post('/track')
 async def track_visit(payload: TrackInput, request: Request):
     from deps import get_db
@@ -242,6 +251,7 @@ async def track_visit(payload: TrackInput, request: Request):
         'screen': (payload.screen or '')[:40],
         'language': (payload.language or '')[:40],
         'day_key': day_key,
+        'geo_country': _geo_country(request),
         'created_at': now,
         'is_staff': False,
         'is_test': is_test_account(user),
@@ -334,6 +344,7 @@ async def track_page_view(payload: TrackPageViewInput, request: Request):
         {
             '$setOnInsert': {
                 'session_id': session_id, 'visitor_id': payload.visitor_id, 'started_at': now,
+                'geo_country': _geo_country(request),
                 'entry_path': route, 'entry_page_key': page_key,
                 'source_key': session['source_key'], 'medium': session['medium'],
                 'campaign': session['campaign'], 'referrer_host': session.get('referrer_host', ''),
@@ -444,7 +455,7 @@ async def attribute_registration(payload: AttributeInput, request: Request):
         raise HTTPException(status_code=401, detail='Not authenticated')
     if is_staff(user) or is_test_account(user):
         return {'attributed': False, 'reason': 'internal_account'}
-    if user.get('phone_verified') is not True or not user.get('terms_accepted_at'):
+    if (user.get('phone_verified') is not True and user.get('phone_otp_required') is not False) or not user.get('terms_accepted_at'):
         return {'attributed': False, 'reason': 'registration_incomplete'}
     now = _now()
     created = _as_utc(user.get('created_at'))

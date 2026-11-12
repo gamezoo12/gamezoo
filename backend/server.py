@@ -283,6 +283,7 @@ from routers.announcement_routes import public_router as announcement_public_rou
 from routers.uploads_routes import uploads_router
 from routers.winners_routes import winners_router
 from routers.twilio_routes import router as twilio_router
+from routers.country_routes import public_router as country_public_router, admin_router as country_admin_router
 from routers.captcha_routes import router as captcha_router
 from routers.support_routes import router as support_router, admin_router as admin_support_router
 from routers.legal_routes import public_router as legal_public_router, admin_router as legal_admin_router, ensure_legal_docs_seeded
@@ -310,6 +311,8 @@ from routers.promotion_routes import router as promotion_router, admin_router as
 from routers.promotion_draw_routes import router as promotion_draw_router
 from routers.promotion_source_analytics_routes import router as promotion_source_analytics_router
 
+app.include_router(country_public_router)
+app.include_router(country_admin_router)
 app.include_router(auth_router)
 app.include_router(push_router)
 app.include_router(winnings_router)

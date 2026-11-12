@@ -1,3 +1,4 @@
+import CountrySelect, { useSignupRules } from '../CountrySelect';
 import { authAPI, api, offersAPI } from '../../lib/api';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -76,6 +77,7 @@ export default function SignupWizard() {
     dob: '',
     password: '',
     phone: '',
+    country: 'GB',
     normalizedPhone: '',
     phoneCode: '',
     address: '',
@@ -197,6 +199,9 @@ export default function SignupWizard() {
   }, [phoneCooldown]);
 
 
+  const rules = useSignupRules(data.country);
+  const needPhone = rules ? rules.require_phone_otp : true;
+  const needEmail = rules ? rules.require_email_otp : true;
   const set = (key, value) => {
     setData((current) => ({
       ...current,
@@ -260,12 +265,15 @@ export default function SignupWizard() {
     event.preventDefault();
 
     if (!validateBasics()) return;
+    if (!data.country) return toast({ title: 'Select your country of residence' });
+    if (rules && !rules.allow_registration) return toast({ title: 'Registration is not currently available in your country.' });
+    if (!needEmail) { setData((c) => ({ ...c, normalizedEmail: c.email.trim().toLowerCase() })); setStep(needPhone ? 3 : 5); return; }
 
     setBusy(true);
 
     try {
       const result = await authAPI.emailOtpSend(
-        data.email.trim()
+        data.email.trim(), data.country
       );
 
       setData((current) => ({
@@ -304,7 +312,7 @@ export default function SignupWizard() {
 
     try {
       const result = await authAPI.emailOtpSend(
-        data.normalizedEmail || data.email
+        data.normalizedEmail || data.email, data.country
       );
 
       setEmailCooldown(30);
@@ -340,7 +348,7 @@ export default function SignupWizard() {
     setBusy(true);
     try {
       await authAPI.emailOtpCheck(data.normalizedEmail || data.email, data.emailCode);
-      setStep(3);
+      setStep(needPhone ? 3 : 5);
     } catch (error) {
       toast({ title: 'Email code not accepted', description: error?.response?.data?.detail || 'Please try again.' });
     } finally {
@@ -360,7 +368,7 @@ export default function SignupWizard() {
 
     try {
       const result = await authAPI.otpSend(
-        data.phone
+        data.phone, data.country
       );
 
       setData((current) => ({
@@ -433,8 +441,8 @@ export default function SignupWizard() {
     }
 
     if (
-      !data.normalizedEmail ||
-      data.emailCode.length !== 6
+      needEmail && (!data.normalizedEmail ||
+      data.emailCode.length !== 6)
     ) {
       setStep(2);
 
@@ -444,8 +452,8 @@ export default function SignupWizard() {
     }
 
     if (
-      !data.normalizedPhone ||
-      data.phoneCode.length !== 6
+      needPhone && (!data.normalizedPhone ||
+      data.phoneCode.length !== 6)
     ) {
       setStep(3);
 
@@ -472,12 +480,13 @@ export default function SignupWizard() {
 
     try {
       const payload = {
-        email: data.normalizedEmail,
-        email_otp_code: data.emailCode,
+        email: data.normalizedEmail || data.email.trim().toLowerCase(),
+        email_otp_code: needEmail ? data.emailCode : null,
         password: data.password,
         name: data.name,
-        phone: data.normalizedPhone,
-        otp_code: data.phoneCode,
+        phone: needPhone ? data.normalizedPhone : null,
+        otp_code: needPhone ? data.phoneCode : null,
+        country_of_residence: data.country,
         accept_terms: true,
         dob: data.dob,
         address: data.address || null,
@@ -617,6 +626,15 @@ export default function SignupWizard() {
                 placeholder="Alex Smith"
               />
             </div>
+          </div>
+
+          <div>
+            <Label className="mb-1 block">
+              Country of residence
+            </Label>
+            <CountrySelect value={data.country} onChange={(code) => setData((c) => ({ ...c, country: code, normalizedPhone: '', phoneCode: '' }))} testId="signup-country" />
+            {rules && !rules.require_phone_otp && <p className="mt-1 text-xs text-slate-500" data-testid="signup-country-hint">Email verification only — no phone number needed.</p>}
+            {rules && !rules.allow_registration && <p className="mt-1 text-xs text-red-600">Registration is not currently available in this country.</p>}
           </div>
 
           <div>
@@ -1035,12 +1053,14 @@ export default function SignupWizard() {
         <div className="space-y-3">
           <button
             type="button"
-            onClick={() => setStep(4)}
+            onClick={() => setStep(needPhone ? 4 : needEmail ? 2 : 1)}
             className="text-slate-500 hover:text-slate-900 text-sm flex items-center gap-1"
           >
             <ArrowLeft className="w-3 h-3" />
             Back
           </button>
+
+          {rules?.prize_notice && <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900" data-testid="signup-intl-notice">{rules.prize_notice}</p>}
 
           <div className="w-12 h-12 rounded-full bg-[#FFD54A]/20 flex items-center justify-center">
             <ScrollText className="w-6 h-6 text-[#6C2BFF]" />

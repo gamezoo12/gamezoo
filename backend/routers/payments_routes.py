@@ -168,6 +168,9 @@ class CheckoutRequest(BaseModel):
 @payments_router.post('/payments/wallet-topup/checkout')
 async def create_topup_checkout(req: CheckoutRequest, request: Request):
     user = await require_verified_user(request)
+    from services.country_policy import require_country_permission as _ccheck
+    from deps import get_db as _cdb
+    await _ccheck(_cdb(), user, 'allow_wallet_topups')
     stripe_mode = _require_stripe_configuration()
     site_origin = _checkout_site_origin()
     if req.lookup_key not in ALLOWED_TOPUP_KEYS:
@@ -244,6 +247,9 @@ async def create_custom_topup(req: CustomTopupRequest, request: Request):
     worth £1). Creates a Stripe Checkout Session with inline price_data.
     """
     user = await require_verified_user(request)
+    from services.country_policy import require_country_permission as _ccheck
+    from deps import get_db as _cdb
+    await _ccheck(_cdb(), user, 'allow_wallet_topups')
     stripe_mode = _require_stripe_configuration()
     site_origin = _checkout_site_origin()
     tokens = int(req.amount)

@@ -1,3 +1,4 @@
+import { PrizeRestrictionNotice } from '../components/CountryAccess';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -64,6 +65,7 @@ export default function Home() {
 
   return (
     <>
+      <PrizeRestrictionNotice className="mx-4 mt-3 md:mx-auto md:max-w-6xl" />
       {/* MOBILE */}
       <div className="md:hidden">
         <MobileHome />

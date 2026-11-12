@@ -143,6 +143,9 @@ def phone_gate_blocks(user: dict) -> bool:
     """True when this user must verify a mobile number before gameplay/payments."""
     if phone_is_verified(user) or user.get('role') in _STAFF_ROLES:
         return False
+    # Accounts created under an email-only country rule never need a phone OTP.
+    if user.get('phone_otp_required') is False:
+        return False
     # Google accounts must always verify; legacy email accounts stay exempt unless enforced.
     if user.get('method') == 'google':
         return True
