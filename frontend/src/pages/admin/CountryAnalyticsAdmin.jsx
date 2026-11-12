@@ -35,7 +35,7 @@ function ExportPanel() {
         <select className={sel} value={f.dataset} onChange={(e) => set('dataset', e.target.value)} data-testid="export-dataset">
           <option value="users">Users</option><option value="wallet">Wallet / transactions</option><option value="tickets">Contest tickets</option>
           <option value="promotions">Promotion entries</option><option value="withdrawals">Withdrawals</option></select>
-        <div className="flex gap-1"><CountrySelect value={f.country} onChange={(c) => set('country', c)} testId="export-country" />{f.country && <Button variant="ghost" onClick={() => set('country', '')}>×</Button>}</div>
+        <div className="flex gap-1"><CountrySelect value={f.country} onChange={(c) => set('country', c)} testId="export-country" placeholder="All countries" />{f.country && <Button variant="ghost" onClick={() => set('country', '')}>×</Button>}</div>
         <select className={sel} value={f.signup_method} onChange={(e) => set('signup_method', e.target.value)} data-testid="export-method"><option value="">Any signup method</option><option value="email">Email</option><option value="google">Google</option></select>
         <select className={sel} value={f.verified} onChange={(e) => set('verified', e.target.value)} data-testid="export-verified"><option value="">Any verification</option><option value="email">Email verified</option><option value="phone">Phone verified</option><option value="unverified">Phone not verified</option></select>
         <Input type="date" value={f.start} onChange={(e) => set('start', e.target.value)} data-testid="export-start" />

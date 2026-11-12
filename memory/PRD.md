@@ -822,3 +822,14 @@ Root causes fixed:
 - Level leaderboard "How to earn tokens" popover; heavier snow (72 flakes).
 - GC admin difficulty for Memory Match & Number Sequence (sequence board glow/reshuffle by difficulty).
 - Tested iteration_67 (backend 16/16, frontend 100%); contrast/allow-list/memory-timer follow-ups fixed after.
+
+## 2026-06 Worldwide registration & country management
+- Board styles (50) + sound packs (100) admin pickers (iteration_68 pass).
+- services/country_policy.py: central policy (GB defaults vs international default, per-country overrides in `country_policies`, default in `country_policy_settings`, audit `country_policy_audit`, 15s cache).
+- Signup: country selector (SignupWizard/GoogleFinalizeModal); GB = email+SMS OTP; others email only (phone optional). User stores country_of_residence + phone_otp_required snapshot (phone gate respects it).
+- Backend gates: orders checkout, wallet top-ups, cashout/withdraw, promotion join/claim, Free World champion start; login blocked per country (staff exempt).
+- Existing users w/o country: prompt (CountryPrompt), prize locked until set; change requests -> admin approval.
+- Verified resident: country + verified phone (+44 for GB) + 18+ (legacy users without DOB grandfathered).
+- Admin: /admin/settings/countries, /admin/analytics/countries (+CSV filters/export), /admin/settings/otp (per-country OTP, SMS daily cap/alerts, real Twilio usage).
+- Tested iteration_69 (27/29 backend; 1 HIGH fixed after: legacy DOB; copy/confirm/twilio dup fixes).
+- Backlog: country filter inside existing Users/Wallet/Contests admin tables (currently via Countries export panel); per-country SMS budget in GBP.

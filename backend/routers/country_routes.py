@@ -403,9 +403,12 @@ async def _twilio_usage(period: str) -> dict:
         if r.status_code != 200:
             return {'available': False, 'reason': f'Twilio returned {r.status_code}'}
         recs = [x for x in r.json().get('usage_records', [])
-                if any(k in (x.get('category') or '') for k in ('sms', 'verify')) and float(x.get('price') or 0) > 0]
+                if any(k in (x.get('category') or '') for k in ('sms', 'verify')) and float(x.get('price') or 0) > 0
+                and not (x.get('category') or '').startswith('experiment')]
+        recs.sort(key=lambda x: x.get('category') not in ('sms', 'verify'))
         return {'available': True, 'period': period, 'records': [
-            {'category': x['category'], 'description': x.get('description'), 'count': x.get('count'),
+            {'category': x['category'], 'is_total': x['category'] in ('sms', 'verify'),
+             'description': ('Total — ' if x['category'] in ('sms', 'verify') else '') + (x.get('description') or ''), 'count': x.get('count'),
              'price': float(x.get('price') or 0), 'unit': x.get('price_unit')} for x in recs]}
     except httpx.HTTPError as exc:
         return {'available': False, 'reason': type(exc).__name__}

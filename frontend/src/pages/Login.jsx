@@ -210,7 +210,7 @@ export default function Login() {
  </div>
  </div>
  </div>
- <p className="relative text-xs text-white/50">18+ only. Please play responsibly. UK residents only.</p>
+ <p className="relative text-xs text-white/50">18+ only. Please play responsibly. Prize competitions are for eligible UK residents.</p>
  </div>
 
  {/* Right form panel */}
@@ -235,7 +235,7 @@ export default function Login() {
  {mode === 'login' ? 'Welcome back!' : 'Create your free account'}
  </h1>
  <p className="text-sm text-slate-500 mb-5">
- {mode === 'login' ? 'Great to see you again.' : 'Create your account with mandatory mobile verification.'}
+ {mode === 'login' ? 'Great to see you again.' : 'Create your account — UK accounts also verify a mobile number.'}
  </p>
 
  <Button onClick={google} disabled={googleBusy} variant="outline" className="w-full h-11 gap-2 border-slate-200 hover:bg-slate-50 hover:border-[#6C2BFF]/40 font-semibold" data-testid="google-signin">

@@ -83,8 +83,11 @@ async def get_policy(db, code: str | None) -> dict:
 
 
 def _age_ok(dob: str | None) -> bool:
+    # Legacy accounts without a stored DOB confirmed 18+ at their original signup.
+    if not dob:
+        return True
     try:
-        d = date.fromisoformat(dob or '')
+        d = date.fromisoformat(dob)
     except ValueError:
         return False
     t = date.today()

@@ -118,6 +118,8 @@ async def _verify_twilio_otp(phone: str, code: str) -> str:
 
 async def _assert_login_allowed(db, user: dict) -> None:
     from services.country_policy import user_access
+    if user.get('role') in _PRIVILEGED_ROLES:
+        return
     if user.get('country_of_residence') and not (await user_access(db, user))['permissions'].get('allow_login', True):
         raise HTTPException(status_code=403, detail='Login is not currently available in your country.')
 

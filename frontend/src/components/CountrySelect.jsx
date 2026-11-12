@@ -25,7 +25,7 @@ export function useSignupRules(code) {
   return rules;
 }
 
-export default function CountrySelect({ value, onChange, testId = 'country-select', disabled }) {
+export default function CountrySelect({ value, onChange, testId = 'country-select', disabled, placeholder = 'Select your country of residence' }) {
   const countries = useCountries();
   const [open, setOpen] = useState(false);
   const current = countries.find((c) => c.code === value);
@@ -35,7 +35,7 @@ export default function CountrySelect({ value, onChange, testId = 'country-selec
         <button type="button" disabled={disabled} data-testid={testId}
           className="flex h-10 w-full items-center gap-2 rounded-md border border-input bg-background px-3 text-left text-sm disabled:opacity-60">
           <Globe2 className="h-4 w-4 shrink-0 text-slate-400" />
-          <span className="flex-1 truncate">{current ? `${current.name} (${current.code})` : 'Select your country of residence'}</span>
+          <span className="flex-1 truncate">{current ? `${current.name} (${current.code})` : placeholder}</span>
           <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
         </button>
       </PopoverTrigger>

@@ -1111,8 +1111,8 @@ export default function SignupWizard() {
               Privacy Policy
             </Link>
 
-            , and confirm you&apos;re 18+, a UK
-            resident, and play responsibly.
+            , and confirm you&apos;re 18+, {data.country === 'GB' ? 'a UK resident' : 'that the country of residence you selected is correct'},
+            and play responsibly.
             Prizes are subject to KYC. Free
             postal entry is always available.
           </div>

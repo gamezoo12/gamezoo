@@ -34,7 +34,7 @@ export function CountryPrompt() {
           <DialogTitle className="flex items-center gap-2"><Globe2 className="h-5 w-5 text-[#6C2BFF]" /> Confirm your country of residence</DialogTitle>
           <DialogDescription>We need this to show the features available where you live. Prize features stay locked until you confirm. You can keep browsing and playing free games.</DialogDescription>
         </DialogHeader>
-        <CountrySelect value={country} onChange={setCountry} testId="country-prompt-select" />
+        <CountrySelect value={country} onChange={(c) => { setCountry(c); setError(''); }} testId="country-prompt-select" />
         {error && <p className="text-xs text-red-600" data-testid="country-prompt-error">{error}</p>}
         <p className="text-[11px] text-slate-500">After confirming, changes need approval from our team.</p>
         <div className="flex gap-2">

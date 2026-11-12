@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/ta
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../../components/ui/alert-dialog';
 import { toast } from 'sonner';
 
+const PRIZE = ['allow_paid_contests', 'allow_free_world_prizes', 'allow_promo_draws', 'allow_wallet_topups', 'allow_prize_claims'];
 const errText = (e) => { const d = e?.response?.data?.detail; return typeof d === 'string' ? d : 'Request failed'; };
 const SHORT = { allow_registration: 'Register', allow_login: 'Login', allow_browsing: 'Browse', allow_free_games: 'Free games',
   allow_leaderboards: 'Leaderboards', allow_paid_browsing: 'Paid browse', allow_paid_contests: 'Paid contests',
@@ -16,11 +17,11 @@ const SHORT = { allow_registration: 'Register', allow_login: 'Login', allow_brow
 
 function useConfirm() {
   const [pending, setPending] = useState(null);
-  const ask = (msg, run) => setPending({ msg, run });
+  const ask = (msg, run, title = 'Disable access?') => setPending({ msg, run, title });
   const node = (
     <AlertDialog open={!!pending} onOpenChange={(o) => !o && setPending(null)}>
       <AlertDialogContent data-testid="country-confirm-dialog">
-        <AlertDialogHeader><AlertDialogTitle>Disable access?</AlertDialogTitle><AlertDialogDescription>{pending?.msg}</AlertDialogDescription></AlertDialogHeader>
+        <AlertDialogHeader><AlertDialogTitle>{pending?.title}</AlertDialogTitle><AlertDialogDescription>{pending?.msg}</AlertDialogDescription></AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel data-testid="country-confirm-cancel">Cancel</AlertDialogCancel>
           <AlertDialogAction data-testid="country-confirm-ok" onClick={() => { pending?.run(); setPending(null); }}>Yes, save</AlertDialogAction>
@@ -38,7 +39,13 @@ function PolicyTable({ data, reload }) {
   const [ask, confirmNode] = useConfirm();
   const rows = useMemo(() => data.countries.filter((c) => `${c.name} ${c.code}`.toLowerCase().includes(q.toLowerCase())), [data, q]);
   const val = (c, k) => (draft[c.code]?.[k] ?? c[k]);
-  const toggle = (c, k) => setDraft((d) => ({ ...d, [c.code]: { ...d[c.code], [k]: !val(c, k) } }));
+  const toggle = (c, k) => setDraft((d) => {
+    const next = { ...d[c.code], [k]: !val(c, k) };
+    if (next[k] === c[k]) delete next[k];
+    const out = { ...d, [c.code]: next };
+    if (!Object.keys(next).length) delete out[c.code];
+    return out;
+  });
   const bulk = (on) => {
     const codes = sel.size ? [...sel] : rows.map((r) => r.code);
     const perms = data.permissions.map((p) => p.key).filter((k) => !k.startsWith('require_'));
@@ -48,13 +55,16 @@ function PolicyTable({ data, reload }) {
     const groups = {};
     Object.entries(draft).forEach(([code, ch]) => { const key = JSON.stringify(ch); (groups[key] ||= []).push(code); });
     const disabling = Object.values(draft).some((ch) => Object.entries(ch).some(([k, v]) => k.startsWith('allow_') && v === false));
+    const prizeOn = Object.values(draft).some((ch) => PRIZE.some((k) => ch[k] === true));
     const run = async () => {
       try {
         for (const [key, codes] of Object.entries(groups)) await countryAdminAPI.update(codes, JSON.parse(key), true);
         toast.success('Country permissions saved'); setDraft({}); setSel(new Set()); reload();
       } catch (e) { toast.error(errText(e)); }
     };
-    if (disabling) ask('Some countries will lose access to features. Players in those countries will be blocked straight away.', run); else run();
+    if (disabling) ask('Some countries will lose access to features. Players in those countries will be blocked straight away.', run, 'Disable access?');
+    else if (prizeOn) ask(`You are turning on prize features (paid contests, prizes, draws, top-ups or claims) for ${Object.keys(draft).length} countries. Only do this where prize competitions are legal. Age, residency and KYC checks still apply.`, run, 'Enable prize features?');
+    else run();
   };
   const pick = (code) => setSel((s) => { const n = new Set(s); n.has(code) ? n.delete(code) : n.add(code); return n; });
   return (

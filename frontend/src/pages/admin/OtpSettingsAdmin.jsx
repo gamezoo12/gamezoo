@@ -11,7 +11,7 @@ function TwilioCosts({ title, usage }) {
     <div className="rounded-xl border border-slate-200 bg-white p-4" data-testid={`twilio-${title.replace(/\s/g, '-').toLowerCase()}`}>
       <p className="mb-2 font-bold">{title} — actual Twilio billing</p>
       {!usage?.available ? <p className="text-xs text-slate-500">Not available: {usage?.reason}</p> : (
-        <table className="w-full text-xs"><tbody>{usage.records.map((r) => <tr key={r.category} className="border-t">
+        <table className="w-full text-xs"><tbody>{usage.records.map((r) => <tr key={r.category} className={`border-t ${r.is_total ? 'bg-slate-50 font-bold' : ''}`}>
           <td className="p-1.5">{r.description}</td><td className="p-1.5">{r.count}</td><td className="p-1.5 font-semibold">{r.price.toFixed(2)} {r.unit?.toUpperCase()}</td></tr>)}</tbody></table>)}
     </div>
   );

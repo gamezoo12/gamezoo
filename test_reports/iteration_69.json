@@ -1,0 +1,50 @@
+{
+  "summary": "Iteration 69: tested the worldwide registration and country management system end to end. Backend: 29 pytest cases in /app/tests/test_iter69_country_system.py. 27 passed. 1 failure is a real issue (legacy UK user without dob stays prize-locked) and 1 is a false alarm (the /api/wallet/topup mock route returns 404 by design when mock top-ups are disabled). Everything else works: country list (250 ISO codes), signup rules for GB and US, the 403 block on international SMS, DE email-only signup, GB signup requiring a phone (422) then succeeding (200), 400 on a duplicate phone, 403 COUNTRY_RESTRICTED on orders/checkout, payments/wallet-topup/checkout, cashout/request, winnings/withdraw, promotion/join and world/champion/session/start. Free World /world/session/start is not blocked by country. POST /auth/country works once and returns 409 the second time. Country change request: pending, then 409, then admin list, approve, user becomes GB, audit entry written, and the user stays restricted. Admin policy PUT returns 428 without confirm and 200 with it. A FR user's login was blocked with 403 straight away and allowed again after reset. Default policy PUT gives 428/200/422 as expected. Audit, analytics, CSV export for all 5 datasets, the 422 on a bad dataset and the OTP overview (real Twilio usage records) all work. Non-admin gets 401/403. Frontend (Playwright): US signup shows the searchable country select and the 'Email verification only' hint, skips the phone steps, shows signup-intl-notice on the terms step and creates the account (redirects to /choose-world). GB (the default) goes to the phone step. The existing-user country-prompt shows, validates, saves (CA) and closes. prize-restriction-notice shows on /paid-leagues and /cart. The profile-country card shows US with a disabled 'Request change' button. Admin Country Management: 250 rows, search, checkbox/bulk labels, the toggle-then-save confirm dialog (cancelled) and all 4 tabs work. Country Analytics: 5 group tabs, day filter and CSV download work. OTP & SMS Costs: real Twilio billing tables and 250 per-country rows (GB phone on, US off). /world loads for player1 and the intl user.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "services/country_policy.py verified_resident() / GET /api/auth/me", "issue": "UK prize eligibility needs a valid 18+ dob. Legacy users have no dob: 20 of the 25 non-staff users in preview, including player1. player1 has country GB and a verified +44 phone but still gets COUNTRY_RESTRICTED with all prize permissions false, and the UI shows the 'available only to eligible UK residents' notice to a UK user. If production legacy users also lack dob, existing UK players will lose paid contests, top-ups and claims as soon as they confirm GB. Collect dob in the country prompt, or grandfather legacy verified-+44 users (for example, treat age as already checked at the old signup), and return a distinct restriction_code (e.g. DOB_REQUIRED) with a matching message.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "_assert_login_allowed", "issue": "Staff are not exempt from allow_login. An admin with country_of_residence set to a country whose login is disabled would be locked out of the admin panel."},
+      {"endpoint": "GET /api/admin/countries/otp", "issue": "Twilio records include both the parent 'sms' total (754) and its sub-categories, and experiment-uk-sms (729) duplicates sms-outbound-longcode (729). Admins can double count costs. Show the parent total separately, or hide the duplicate rows."},
+      {"endpoint": "Auth playbook", "issue": "Login returns a Bearer token stored in localStorage (no httpOnly cookie). There is no brute-force lockout on /api/auth/login, and CORS preflight shows allow-credentials true with no explicit allow-origin echo for a foreign origin. These were not introduced in this iteration."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "SignupWizard terms step", "issue": "The terms text is hardcoded 'confirm you're 18+, a UK resident, and play responsibly', even for US/DE signups, which contradicts the international flow. GoogleFinalizeModal already switches this text by country; SignupWizard should do the same.", "selector": "[data-testid='signup-terms-label']", "priority": "MEDIUM"},
+      {"component": "Login page copy", "issue": "The subtitle 'Create your account with mandatory mobile verification.' and the left panel footer 'UK residents only.' still show for international signups.", "selector": "pages/Login.jsx:213,238", "priority": "LOW"},
+      {"component": "CountryPrompt", "issue": "The 'Please choose a country.' error stays visible after a country is selected (it only clears on save).", "selector": "[data-testid='country-prompt-error']", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Admin Country Analytics export filter", "issues": ["The country picker placeholder reads 'Select your country of residence' (user-facing copy) inside the admin filters. It should read something like 'All countries'."]},
+      {"screen": "Admin Country Management", "issues": ["'Enable all' with nothing selected applies to every shown row (all 250 countries), turning on paid contests, top-ups and claims worldwide with no confirmation. Only disabling asks for confirmation. Add a confirm step when enabling prize permissions, or when the bulk action covers more than N countries."]},
+      {"screen": "/paid-leagues", "issues": ["The hero area below the notice is a large empty dark box for about 3 seconds after load (it may be a slow hero asset). Likely pre-existing."]}
+    ]
+  },
+  "test_report_links": ["/app/tests/test_iter69_country_system.py", "/app/test_reports/pytest/iter69_country.xml"],
+  "action_items": [
+    "HIGH: Fix legacy UK users without dob being prize-locked after confirming GB (collect dob in the country prompt, or grandfather them) and give it a distinct restriction code and message",
+    "Make the SignupWizard terms text country-aware (drop 'a UK resident' for non-GB), and update the Login subtitle and footer copy",
+    "Exempt staff roles from allow_login, or warn when an admin's own country gets login disabled",
+    "Remove duplicate or parent Twilio usage categories, or label them clearly, on the OTP costs page",
+    "Add a confirmation for bulk enabling prize permissions across many countries",
+    "Clear the country-prompt error when a country is selected; change the admin export country placeholder"
+  ],
+  "critical_code_review_comments": [
+    "country_policy._load uses a per-process 15s cache and invalidate_cache only clears the current worker. With several uvicorn workers or pods, other workers keep the old policy for up to 15s. This is acceptable as documented, but it is not 'immediate'.",
+    "PolicyTable.save sends rows even when a switch was toggled back to its original value, which creates unnecessary 'custom' rows and audit entries.",
+    "PolicyTable.save makes one PUT per change-group in sequence with no rollback, so a failure partway through leaves a partial save.",
+    "admin_country_export loads up to 50k users and then calls user_access per user when a permission filter is set. Fine for now, but it will be slow at scale.",
+    "/api/wallet/topup (dev mock) returns 404 before the country gate when the mock is disabled. This is expected and not a bug."
+  ],
+  "updated_files": ["/app/tests/test_iter69_country_system.py"],
+  "success_rate": {"backend": "96% (27/28 genuine; 1 real failure: legacy dob)", "frontend": "92% (all flows work; copy and UX issues only)"},
+  "test_credentials": "Used /app/memory/test_credentials.md: admin bachanta8@gmail.com, player1@example.com, intl.tester1@example.com. OTP approvals were seeded with /app/tests/seed_otp_approval.py (code 246810).",
+  "seed_data_creation": "Throwaway users newintl_*, ukuser_*, frtest_* and uiintl_* were created and then deleted by exact email. player1 is left with country_of_residence GB, as the brief preferred. intl.tester1 was restored to US and its change requests removed. The FR policy was reset (0 custom country_policies rows remain). The default policy doc now holds sms_alert_at:0, which equals the built-in default. No real SMS was sent; only Twilio email OTPs went to @example.com addresses.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run the suite with: cd /app/tests && python -m pytest test_iter69_country_system.py -c /dev/null -p no:xdist -q. The /app/backend/tests conftest skips live tests when the isolated services are not available, so the file lives in /app/tests. The suite changes and then restores intl.tester1's country to US and sets player1 to GB. Frontend login trick: set localStorage 'gz_token' from /api/auth/login. My Account profile is at the 'token-profile' tile. Promotion router prefix is /api/promotion (singular).",
+  "rca of the issue": "Legacy UK lock: user_access() makes prize permissions depend on verified_resident(), and that requires _age_ok(user.dob). Legacy accounts such as player1 have no dob, so _age_ok returns False and every PRIZE_PERM is False. restriction_code is still COUNTRY_RESTRICTED with the international notice, so UK users get a misleading message. Repro: login as player1, POST /api/auth/country {country:'GB'}, then GET /api/auth/me shows allow_paid_contests false. Mitigation: ask for dob in CountryPrompt (or ProfileCountry) when it is missing, or use a migration/grandfather flag, and return a dob-specific restriction code."
+}
