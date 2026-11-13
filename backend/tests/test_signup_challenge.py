@@ -62,10 +62,21 @@ def challenge(db, admin):
 def _play(h, att, taps=None, finished=True):
     board = att['board']
     taps = taps if taps is not None else list(range(1, board['target'] + 1))
-    time.sleep(0.3)
+    gap = 200
+    time.sleep(3 + gap * len(taps) / 1000)
     return requests.post(f"{API}/signup-challenge/attempts/{att['attempt_id']}/submit",
-                         json={'taps': taps, 'tap_ms': [100 * (i + 1) for i in range(len(taps))], 'duration_ms': 100 * len(taps) + 50,
+                         json={'taps': taps, 'tap_ms': [gap * (i + 1) for i in range(len(taps))], 'duration_ms': gap * len(taps) + 20,
                                'finished': finished}, headers=h)
+
+
+def test_forged_fast_time_rejected(db, challenge):
+    h, _ = _user(db)
+    requests.get(f'{API}/signup-challenge/me', headers=h)
+    att = requests.post(f'{API}/signup-challenge/attempts/start', json={'request_id': uuid.uuid4().hex}, headers=h).json()['attempt']
+    time.sleep(4)
+    r = requests.post(f"{API}/signup-challenge/attempts/{att['attempt_id']}/submit",
+                      json={'taps': list(range(1, 6)), 'tap_ms': [], 'duration_ms': 100, 'finished': True}, headers=h).json()
+    assert r['attempt']['status'] == 'failed' and r['attempt']['score'] is None
 
 
 def test_admin_rbac(db):
@@ -120,8 +131,8 @@ def test_full_flow_attempts_and_forfeit_rules(db, challenge):
     assert parallel.status_code == 409  # second device cannot open another attempt
     assert 'expected' not in a1['attempt']
     r = _play(h, a1['attempt']).json()
-    assert r['attempt']['status'] == 'completed' and 100 <= r['attempt']['score'] <= 2000 and r['remaining'] == 1
-    replay = _play(h, a1['attempt']).json()
+    assert r['attempt']['status'] == 'completed' and 900 <= r['attempt']['score'] <= 1100 and r['remaining'] == 1
+    replay = requests.post(f"{API}/signup-challenge/attempts/{a1['attempt']['attempt_id']}/submit", json={'taps': [1], 'tap_ms': [200], 'duration_ms': 200}, headers=h).json()
     assert replay['attempt']['score'] == r['attempt']['score'] and replay['remaining'] == 1
 
     # Refresh mid-attempt: the open attempt is lost, never refunded.
@@ -129,7 +140,7 @@ def test_full_flow_attempts_and_forfeit_rules(db, challenge):
     me = requests.get(f'{API}/signup-challenge/me', headers=h).json()
     assert me['remaining'] == 0 and me['participation']['status'] == 'completed'
     assert [a['status'] for a in me['attempts']] == ['completed', 'abandoned']
-    late = _play(h, a2['attempt']).json()
+    late = requests.post(f"{API}/signup-challenge/attempts/{a2['attempt']['attempt_id']}/submit", json={'taps': [1], 'tap_ms': [200], 'duration_ms': 200}, headers=h).json()
     assert late['attempt']['status'] == 'abandoned'
     assert requests.post(f'{API}/signup-challenge/attempts/start', json={'request_id': uuid.uuid4().hex}, headers=h).status_code == 409
     assert requests.post(f'{API}/signup-challenge/final-seen', headers=h).status_code == 200

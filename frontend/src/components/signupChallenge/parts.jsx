@@ -41,7 +41,7 @@ export function Intro({ state, demoLeft, busy, preview, onDemo, onStart, onScore
         </div>
         <div className="mt-4 grid grid-cols-3 gap-2">
           <Stat icon={Trophy} label="Total attempts" value={ch.attempts_allowed} testId="sc-total-attempts" />
-          <Stat icon={Repeat} label="Remaining" value={state.remaining} testId="sc-remaining-attempts" />
+          <Stat icon={Repeat} label="Remaining" value={state.real_block_reason ? 'Practice only' : state.remaining} testId="sc-remaining-attempts" />
           <Stat icon={Clock3} label="Time limit" value={`${ch.time_limit_s}s`} testId="sc-time-limit" />
         </div>
         <h2 className="mt-5 text-base font-black md:text-lg">How to play</h2>

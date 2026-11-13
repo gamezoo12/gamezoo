@@ -69,7 +69,7 @@ export default function SignupChallengeScreen({ initial, preview = false, onClos
   }, [attempt]);
 
   const closeClick = () => {
-    if (preview) return onClose();
+    if (preview || partial || state.participation.status === 'forfeited') return onClose();
     if (state.participation.status === 'completed' && stage !== 'real') return finish();
     track('close_click', { stage });
     setLeave(true);

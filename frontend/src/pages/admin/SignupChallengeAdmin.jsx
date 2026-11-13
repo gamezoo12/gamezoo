@@ -45,7 +45,7 @@ export default function SignupChallengeAdmin() {
     try {
       const r = await signupChallengeAdminAPI.list();
       setList(r.challenges); setEnabled(r.enabled);
-      setSel((cur) => r.challenges.find((c) => c.challenge_id === (pick || cur?.challenge_id)) || (pick === 'new' ? null : r.challenges[0] || null));
+      setSel((cur) => r.challenges.find((c) => c.challenge_id === (pick || cur?.challenge_id)) || (r.challenges.find((c) => c.status === 'published') || r.challenges[0] || null));
     } catch (e) { if (e?.response?.status === 403) setDenied(true); else toast.error(errText(e)); }
   }, []);
   useEffect(() => { load(); signupChallengeAdminAPI.games().then((r) => setGames(r.games)).catch(() => {}); }, [load]);

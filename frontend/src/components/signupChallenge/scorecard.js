@@ -27,7 +27,7 @@ function paint(ctx, d, w, h, logo, bg) {
   ctx.strokeStyle = 'rgba(255,213,74,0.55)'; ctx.lineWidth = 6; ctx.strokeRect(30, 30, w - 60, h - 60);
 
   ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
-  let y = sq ? 90 : 170;
+  let y = sq ? 90 : 300;
   if (logo) { const lh = sq ? 90 : 150; ctx.drawImage(logo, w / 2 - (lh * logo.width) / logo.height / 2, y, (lh * logo.width) / logo.height, lh); y += lh + 30; }
   const line = (text, size, color, weight = 900, gap = 1.35) => {
     ctx.font = `${weight} ${size}px "Arial Black", Arial, sans-serif`; ctx.fillStyle = color; y += size; ctx.fillText(text, w / 2, y); y += size * (gap - 1);
@@ -39,7 +39,7 @@ function paint(ctx, d, w, h, logo, bg) {
   line(`Game: ${d.game}`, sq ? 30 : 40, '#e9e3ff', 700, sq ? 1.6 : 1.9);
 
   const rows = d.attempts;
-  const rowH = sq ? Math.min(52, 300 / Math.max(rows.length, 1)) : Math.min(78, 520 / Math.max(rows.length, 1));
+  const rowH = sq ? Math.min(52, 300 / Math.max(rows.length, 1)) : Math.min(96, 640 / Math.max(rows.length, 1));
   ctx.font = `700 ${Math.round(rowH * 0.6)}px Arial, sans-serif`;
   rows.forEach((r) => {
     const best = r.best;

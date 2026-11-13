@@ -21,6 +21,9 @@ admin_router = APIRouter(prefix='/api/admin/signup-challenge', tags=['admin-sign
 SETTINGS_ID = 'signup_challenge'
 COUNTDOWN_MS = 3000
 GRACE_MS = 6000
+MAX_LATENCY_MS = 2000
+MIN_TAP_GAP_MS = 40
+MIN_AVG_TAP_MS = 150
 _now = lambda: datetime.now(timezone.utc)  # noqa: E731
 
 COLOUR_PALETTE = [
@@ -338,7 +341,10 @@ async def track_event(body: EventIn, request: Request):
         raise HTTPException(404, 'No signup challenge')
     meta = {k: v for k, v in list(body.meta.items())[:5] if isinstance(v, (str, int, float, bool))}
     if body.type == 'demo_start':
-        await db.signup_challenge_participations.update_one({'participation_id': part['participation_id']}, {'$inc': {'demo_runs': 1}})
+        capped = await db.signup_challenge_participations.update_one(
+            {'participation_id': part['participation_id'], 'demo_runs': {'$lt': part['snapshot'].get('demo_max_runs') or 3}}, {'$inc': {'demo_runs': 1}})
+        if not capped.modified_count:
+            raise HTTPException(409, {'code': 'DEMO_LIMIT', 'message': 'All practice runs are used.'})
         if part['status'] == 'eligible':
             await db.signup_challenge_participations.update_one({'participation_id': part['participation_id'], 'status': 'eligible'},
                                                                 {'$set': {'status': 'started'}})
@@ -423,13 +429,18 @@ def _score(a: dict, body: SubmitIn, server_ms: int) -> dict:
     """Score = verified finish time in ms (lower wins). Only fully finished runs get a time."""
     limit_ms = a['time_limit_s'] * 1000
     play_ms = max(0, server_ms - COUNTDOWN_MS)
-    # Client finish moment is trusted only within network tolerance of the server clock.
-    duration = body.duration_ms if body.duration_ms <= play_ms + 1500 else play_ms
-    duration = max(100, min(duration, limit_ms))
+    # Client finish moment is trusted only within network tolerance of the server clock; must also not be much shorter than the server clock (only network latency is allowed).
+    if body.duration_ms > play_ms + 1500 or body.duration_ms < play_ms - MAX_LATENCY_MS:
+        return {'valid': False, 'reason': 'timing_mismatch'}
+    duration = max(100, min(body.duration_ms, limit_ms))
     expected = a['expected']
     taps = body.taps[:len(expected)]
-    stamps = body.tap_ms[:len(body.taps)]
-    if stamps and (any(b < s for s, b in zip(stamps, stamps[1:])) or stamps[-1] > duration + 50 or (len(stamps) > 3 and duration < len(stamps) * 60)):
+    if len(taps) < len(expected):
+        return {'valid': False, 'reason': 'not_finished'}
+    stamps = body.tap_ms
+    gaps = [b - s for s, b in zip([0] + stamps, stamps)]
+    if (len(stamps) != len(body.taps) or any(g < MIN_TAP_GAP_MS for g in gaps) or (stamps and abs(stamps[-1] - duration) > 250)
+            or (len(stamps) >= 5 and duration < len(stamps) * MIN_AVG_TAP_MS)):
         return {'valid': False, 'reason': 'timing_invalid'}
     if a['game_id'] == 'number_sequence':
         if taps != expected[:len(taps)]:
@@ -438,8 +449,6 @@ def _score(a: dict, body: SubmitIn, server_ms: int) -> dict:
     else:
         correct = sum(1 for i, v in enumerate(taps) if v == expected[i])
         penalty = (len(taps) - correct) * 1000
-    if len(taps) < len(expected):
-        return {'valid': False, 'reason': 'not_finished'}
     return {'valid': True, 'score': int(duration + penalty), 'duration_ms': int(duration), 'correct': correct, 'total': len(expected),
             'finished': True}
 
@@ -696,7 +705,9 @@ async def admin_participants(challenge_id: str, request: Request, status: Option
         m['status'] = status
     if not include_excluded:
         m['excluded'] = {'$ne': True}
-    parts = await db.signup_challenge_participations.find(m, {'_id': 0, 'snapshot': 0}).to_list(5000)
+    parts = await db.signup_challenge_participations.find(m, {'_id': 0}).to_list(5000)
+    for p in parts:
+        p['attempts_allowed'] = p.pop('snapshot', {}).get('attempts_allowed')
     uids = [p['user_id'] for p in parts]
     users = {u['user_id']: u async for u in db.users.find({'user_id': {'$in': uids}}, {'_id': 0, 'user_id': 1, 'email': 1, 'name': 1, 'public_id': 1})}
     attempts: dict = {}

@@ -44,7 +44,7 @@ export function ParticipantsPanel({ challengeId }) {
                   <td className="px-3 py-2 font-bold">{p.provisional_rank ? `#${p.provisional_rank}` : '-'}</td>
                   <td className="px-3 py-2"><div className="font-semibold">{p.name || p.display_name}{p.excluded && <span className="ml-1 rounded bg-slate-200 px-1 text-[10px]">staff/test</span>}</div><div className="text-xs text-slate-500">{p.email} · {p.public_id} · {p.country}</div></td>
                   <td className="px-3 py-2">{p.status}</td>
-                  <td className="px-3 py-2">{p.attempts_finished}/{p.attempts_used}</td>
+                  <td className="px-3 py-2">{p.attempts_finished}/{p.attempts_allowed}</td>
                   <td className="px-3 py-2 font-bold">{p.best_score ? `${(p.best_score / 1000).toFixed(3)}s` : '-'}</td>
                   <td className="px-3 py-2 text-xs">{uk(p.created_at)}</td>
                   <td className="px-3 py-2"><Button size="sm" variant="ghost" onClick={() => setOpen(open === p.participation_id ? null : p.participation_id)} data-testid={`sc-admin-part-history-${p.participation_id}`}>History</Button></td>

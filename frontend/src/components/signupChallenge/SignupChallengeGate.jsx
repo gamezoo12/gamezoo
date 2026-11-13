@@ -26,6 +26,12 @@ export default function SignupChallengeGate() {
   const { pathname } = useLocation();
   const [data, setData] = useState(null);
   const [closed, setClosed] = useState(false);
+  const [, bump] = useState(0);
+  useEffect(() => {
+    const on = () => bump((n) => n + 1);
+    window.addEventListener('pl-intl-tour-done', on);
+    return () => window.removeEventListener('pl-intl-tour-done', on);
+  }, []);
   useReferralCapture();
   const intl = user?.country_access?.country && user.country_access.country !== 'GB';
   const tourPending = intl && (() => { try { return localStorage.getItem(`pl_intl_tour_done_${user.user_id}`) !== '1'; } catch { return false; } })();

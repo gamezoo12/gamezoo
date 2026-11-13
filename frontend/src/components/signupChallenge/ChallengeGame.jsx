@@ -35,7 +35,7 @@ export function practiceScore(gameId, run, expected) {
   return run.duration_ms + run.taps.filter((v, i) => v !== expected[i]).length * 1000;
 }
 
-const fmt = (ms) => `${(Math.max(0, ms) / 1000).toFixed(ms < 10000 ? 1 : 0)}s`;
+const fmt = (ms) => `${(Math.max(0, ms) / 1000).toFixed(3)}s`;
 
 export function ChallengeGame({ gameId, board, timeLimitS, onDone, practice = false }) {
   const limitMs = timeLimitS * 1000;
@@ -61,12 +61,16 @@ export function ChallengeGame({ gameId, board, timeLimitS, onDone, practice = fa
 
   useEffect(() => {
     if (count > 0) return undefined;
-    const iv = setInterval(() => {
+    let raf;
+    const tick = () => {
       const l = limitMs - (performance.now() - run.current.t0);
       setLeft(l);
-      if (l <= 0) finish(false);
-    }, 100);
-    return () => clearInterval(iv);
+      if (l <= 0) finish(false); else if (!run.current.done) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    // Background tabs pause animation frames; this keeps time-limit expiry exact.
+    const iv = setInterval(() => { if (limitMs - (performance.now() - run.current.t0) <= 0) finish(false); }, 250);
+    return () => { cancelAnimationFrame(raf); clearInterval(iv); };
   }, [count, limitMs, finish]);
 
   const stamp = (v) => { const r = run.current; r.taps.push(v); r.tap_ms.push(Math.round(performance.now() - r.t0)); };
@@ -95,7 +99,7 @@ export function ChallengeGame({ gameId, board, timeLimitS, onDone, practice = fa
     <div className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-3" data-testid="sc-game">
       <div className="flex items-center justify-between">
         {practice && <span className="rounded-full bg-sky-400/20 px-3 py-1 text-[11px] font-black uppercase tracking-widest text-sky-200" data-testid="sc-practice-badge">Practice mode</span>}
-        <span className={`ml-auto inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 font-mono text-lg font-black ${urgent ? 'animate-pulse bg-rose-500 text-white' : 'bg-white/10 text-white'}`} data-testid="sc-timer">
+        <span className={`ml-auto inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 min-w-[8.5rem] justify-center font-mono text-lg font-black tabular-nums ${urgent ? 'animate-pulse bg-rose-500 text-white' : 'bg-white/10 text-white'}`} data-testid="sc-timer">
           <Clock3 className="h-4 w-4" />{fmt(left)}
         </span>
       </div>

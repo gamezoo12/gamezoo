@@ -26,6 +26,7 @@ export default function IntlWelcomeTour() {
   const finish = (go) => {
     try { localStorage.setItem(KEY(user.user_id), '1'); } catch { /* storage unavailable */ }
     setClosed(true);
+    window.dispatchEvent(new Event('pl-intl-tour-done'));
     if (go) nav('/world');
   };
   const { Icon, title, body } = STEPS[step];

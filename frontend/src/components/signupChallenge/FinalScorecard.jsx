@@ -51,7 +51,7 @@ export function FinalScorecard({ state, partial, preview, onFinish }) {
         <p className="text-xs font-black uppercase tracking-[0.3em] text-amber-200">{partial ? 'Partial results' : 'Challenge complete'}</p>
         <h2 className="sc-gold text-4xl font-black" data-testid="sc-final-best">BEST TIME: {tm(p.best_score)}</h2>
         <p className="text-sm text-white/70">{partial ? 'You left the challenge early. Your completed attempts are saved and still count.' : `All ${ch.attempts_allowed} attempts complete. Times are verified by Prize League.`}</p>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <Btn icon={Download} gold onClick={() => save('story')} testId="sc-save-scorecard">Save Scorecard</Btn>
           <Btn icon={Download} onClick={() => save('square')} testId="sc-save-square">Save Square</Btn>
           <Btn icon={MessageCircle} onClick={whatsapp} testId="sc-share-whatsapp">Share to WhatsApp</Btn>
@@ -100,7 +100,7 @@ function useScorecardShare(card, message, preview, tag = 'scorecard') {
   const whatsapp = async () => {
     track('share_whatsapp', preview);
     if (await nativeShare('square')) return;
-    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noopener');
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`, '_blank', 'noopener');
     toast.message('Tip: save the scorecard first, then attach it in WhatsApp.');
   };
   const instagram = async () => {
