@@ -269,17 +269,6 @@ async def ensure_world_indexes():
         name="world_champion_prize_unique",
     )
 
-    await db.world_game_timing_settings.create_index(
-        [("season_id", 1), ("setting_key", 1)],
-        unique=True,
-        name="world_game_timing_setting_unique",
-    )
-
-    await db.world_game_timing_audit.create_index(
-        [("season_id", 1), ("created_at", -1)],
-        name="world_game_timing_audit_history",
-    )
-
     await db.world_contest_entries.create_index(
         [
             ("season_id", 1),
@@ -5052,13 +5041,6 @@ async def _effective_level_config(
                 "timer_mode": (config.get("game_config") or {}).get("timer_mode", "countdown"),
             },
         }
-    if config.get("gc_applied_model") != "every_level":
-        timing = await db.world_game_timing_settings.find_one(
-            {"season_id": WORLD_SEASON_ID, "setting_key": f"L{int(level)}"},
-            {"_id": 0, "time_limit_seconds": 1},
-        )
-        if timing:
-            config = {**config, "time_limit_seconds": int(timing["time_limit_seconds"])}
     return config
 
 
@@ -9219,13 +9201,6 @@ async def champion_session_start(
     )
     selected_champion = (future_gc_config or {}).get("champion") or {}
     game_config.update(selected_champion.get("game_config") or {})
-    champion_timing = await db.world_game_timing_settings.find_one(
-        {"season_id": WORLD_SEASON_ID, "setting_key": "CHAMPION"},
-        {"_id": 0, "time_limit_seconds": 1},
-    )
-    if champion_timing:
-        game_config["timer_mode"] = "countdown"
-        game_config["time_limit_seconds"] = int(champion_timing["time_limit_seconds"])
 
     # All Champion stages use Number Sequence 1-30 unless the contest is Colour Match.
     target = 30

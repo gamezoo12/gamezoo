@@ -310,6 +310,7 @@ from routers.cashout_routes import router as cashout_router, admin_router as cas
 from routers.promotion_routes import router as promotion_router, admin_router as promotion_admin_router
 from routers.promotion_draw_routes import router as promotion_draw_router
 from routers.promotion_source_analytics_routes import router as promotion_source_analytics_router
+from routers.signup_challenge_routes import router as signup_challenge_router, admin_router as signup_challenge_admin_router, ensure_signup_challenge_indexes
 
 app.include_router(country_public_router)
 app.include_router(country_admin_router)
@@ -399,6 +400,18 @@ app.include_router(promotion_router)
 app.include_router(promotion_admin_router)
 app.include_router(promotion_draw_router)
 app.include_router(promotion_source_analytics_router)
+app.include_router(signup_challenge_router)
+app.include_router(signup_challenge_admin_router)
+
+
+@app.on_event('startup')
+async def _ensure_signup_challenge_indexes():
+    async def _bg():
+        try:
+            await ensure_signup_challenge_indexes(get_db())
+        except Exception as e:
+            logger.warning('[startup] signup challenge index setup failed: %s', str(e)[:160])
+    _spawn(_bg())
 
 
 @app.on_event('startup')

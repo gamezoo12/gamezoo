@@ -37,6 +37,7 @@ const LINKS = [
    { to: '/admin/world-gc-settings', label: 'GC Competition Settings', icon: CalendarCog, superOnly: true },
   { to: '/admin/leaderboards', label: 'Leaderboard', icon: Medal, superOnly: true },
    { to: '/admin/special-challenge', label: 'Special Challenge', icon: Trophy },
+   { to: '/admin/signup-challenge', label: 'Signup Challenge', icon: Gift, superOnly: true },
    { to: '/admin/free-games', label: 'Free Games (Stats & Ads)', icon: Gamepad2 },
  ] },
  { group: 'Operations', items: [

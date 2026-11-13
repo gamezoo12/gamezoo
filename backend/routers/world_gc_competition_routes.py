@@ -535,10 +535,16 @@ async def click_future_memory_match_card(session_id: str, body: MemoryMatchClick
 
 async def future_gc_leaderboard_rows(db, gc_number: int, level_key: str, user_id: str | None = None):
     base = {"season_id": SEASON_ID, "gc_number": gc_number, "level_key": level_key}
-    rows = await db.world_gc_level_bests.find(base, {"_id": 0}).sort(
-        [("duration_ms", 1), ("completed_at", 1), ("user_id", 1)],
-    ).to_list(1000)
+    rows = await db.world_gc_level_bests.aggregate([
+        {"$match": base},
+        {"$set": {"effective_duration_ms": {"$ifNull": ["$duration_ms_override", "$duration_ms"]}}},
+        {"$sort": {"effective_duration_ms": 1, "completed_at": 1, "user_id": 1}},
+        {"$limit": 1000},
+    ]).to_list(None)
     for rank, row in enumerate(rows, 1):
+        row.pop("_id", None)
+        row["original_duration_ms"] = row.get("duration_ms")
+        row["duration_ms"] = row.pop("effective_duration_ms", row.get("duration_ms"))
         row["rank"] = rank
     from services.verified_reviewer import mark_verified_reviewers
     await mark_verified_reviewers(db, rows)
@@ -546,16 +552,40 @@ async def future_gc_leaderboard_rows(db, gc_number: int, level_key: str, user_id
     rank = None
     gap = None
     if mine:
-        earlier = {**base, "$or": [
-            {"duration_ms": {"$lt": mine["duration_ms"]}},
-            {"duration_ms": mine["duration_ms"], "completed_at": {"$lt": mine["completed_at"]}},
-            {"duration_ms": mine["duration_ms"], "completed_at": mine["completed_at"], "user_id": {"$lt": user_id}},
-        ]}
-        rank = await db.world_gc_level_bests.count_documents(earlier) + 1
-        faster = await db.world_gc_level_bests.find(earlier, {"_id": 0, "duration_ms": 1}).sort(
-            [("duration_ms", -1), ("completed_at", -1), ("user_id", -1)],
-        ).limit(1).to_list(1)
-        gap = max(0, int(mine["duration_ms"]) - int(faster[0]["duration_ms"])) if faster else None
+        mine["original_duration_ms"] = mine.get("duration_ms")
+        mine["duration_ms"] = int(mine.get("duration_ms_override", mine.get("duration_ms", 0)))
+        mine["rank"] = next((row["rank"] for row in rows if row.get("user_id") == user_id), None)
+        if mine["rank"] is None:
+            earlier_pipeline = [
+                {"$match": base},
+                {"$set": {"effective_duration_ms": {"$ifNull": ["$duration_ms_override", "$duration_ms"]}}},
+                {"$match": {"$or": [
+                    {"effective_duration_ms": {"$lt": mine["duration_ms"]}},
+                    {"effective_duration_ms": mine["duration_ms"], "completed_at": {"$lt": mine["completed_at"]}},
+                    {"effective_duration_ms": mine["duration_ms"], "completed_at": mine["completed_at"], "user_id": {"$lt": user_id}},
+                ]}},
+                {"$count": "count"},
+            ]
+            earlier = await db.world_gc_level_bests.aggregate(earlier_pipeline).to_list(1)
+            mine["rank"] = (earlier[0]["count"] if earlier else 0) + 1
+        rank = mine["rank"]
+        faster = next((row for row in rows if row["rank"] == rank - 1), None)
+        if faster is None and rank > 1:
+            faster_pipeline = [
+                {"$match": base},
+                {"$set": {"effective_duration_ms": {"$ifNull": ["$duration_ms_override", "$duration_ms"]}}},
+                {"$match": {"$or": [
+                    {"effective_duration_ms": {"$lt": mine["duration_ms"]}},
+                    {"effective_duration_ms": mine["duration_ms"], "completed_at": {"$lt": mine["completed_at"]}},
+                    {"effective_duration_ms": mine["duration_ms"], "completed_at": mine["completed_at"], "user_id": {"$lt": user_id}},
+                ]}},
+                {"$sort": {"effective_duration_ms": -1, "completed_at": -1, "user_id": -1}},
+                {"$limit": 1},
+                {"$project": {"_id": 0, "duration_ms": "$effective_duration_ms"}},
+            ]
+            faster_rows = await db.world_gc_level_bests.aggregate(faster_pipeline).to_list(1)
+            faster = faster_rows[0] if faster_rows else None
+        gap = max(0, int(mine["duration_ms"]) - int(faster["duration_ms"])) if faster else None
         mine["rank"] = rank
     return {"rows": rows, "mine": mine, "rank": rank,
             "personal_best_ms": mine.get("duration_ms") if mine else None, "gap_to_next_ms": gap}

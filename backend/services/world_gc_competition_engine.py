@@ -41,9 +41,16 @@ async def _freeze_level(db, config: dict, level_key: str, now: datetime) -> dict
     if existing:
         return existing
 
-    rows = await db.world_gc_level_bests.find(
-        key, {"_id": 0},
-    ).sort([("duration_ms", 1), ("completed_at", 1), ("user_id", 1)]).limit(5).to_list(5)
+    rows = await db.world_gc_level_bests.aggregate([
+        {"$match": key},
+        {"$set": {"effective_duration_ms": {"$ifNull": ["$duration_ms_override", "$duration_ms"]}}},
+        {"$sort": {"effective_duration_ms": 1, "completed_at": 1, "user_id": 1}},
+        {"$limit": 5},
+        {"$unset": "_id"},
+    ]).to_list(5)
+    for row in rows:
+        row["original_duration_ms"] = row.get("duration_ms")
+        row["duration_ms"] = row.pop("effective_duration_ms", row.get("duration_ms"))
     if level_key == "champion" and len(rows) < 5:
         return None
 

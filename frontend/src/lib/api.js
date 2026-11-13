@@ -191,8 +191,7 @@ export const adminAPI = {
   paidLeaderboard: (contestId) => api.get(`/admin/leaderboards/paid/${encodeURIComponent(contestId)}`).then(r => r.data),
   freeWorldLeaderboard: (contestNumber) => api.get(`/admin/leaderboards/free-world/${contestNumber}`).then(r => r.data),
   freeWorldLevelLeaderboard: (contestNumber, level) => api.get(`/admin/leaderboards/free-world/${contestNumber}/levels/${level}`).then(r => r.data),
-  freeWorldTimings: () => api.get('/admin/free-world/timings').then(r => r.data),
-  updateFreeWorldTimings: (payload) => api.put('/admin/free-world/timings', payload).then(r => r.data),
+  overrideFreeWorldLevelLeaderboardTime: (contestNumber, level, userId, payload) => api.put(`/admin/leaderboards/free-world/${contestNumber}/levels/${level}/${encodeURIComponent(userId)}/time`, payload).then(r => r.data),
   overridePaidLeaderboardTime: (scoreId, payload) => api.put(`/admin/leaderboards/paid/${encodeURIComponent(scoreId)}/time`, payload).then(r => r.data),
   overrideFreeWorldLeaderboardTime: (scoreId, payload) => api.put(`/admin/leaderboards/free-world/${encodeURIComponent(scoreId)}/time`, payload).then(r => r.data),
   updateContest: (id, data) => api.put(`/admin/contests/${id}`, data).then(r => r.data),
@@ -949,4 +948,29 @@ export const countryAdminAPI = {
   setUserCountry: (userId, country, reason) => api.put(`/admin/countries/users/${encodeURIComponent(userId)}/country`, { country, reason }).then(r => r.data),
   bulkSetUserCountry: (user_ids, country, reason) => api.put('/admin/countries/users/bulk-country', { user_ids, country, reason }).then(r => r.data),
   exportCsv: (params) => api.get('/admin/countries/export', { params, responseType: 'blob' }).then(r => r.data),
+};
+
+export const signupChallengeAPI = {
+  me: () => api.get('/signup-challenge/me').then(r => r.data),
+  event: (type, meta = {}) => api.post('/signup-challenge/event', { type, meta }).then(r => r.data).catch(() => null),
+  start: (request_id) => api.post('/signup-challenge/attempts/start', { request_id }).then(r => r.data),
+  submit: (id, body) => api.post(`/signup-challenge/attempts/${id}/submit`, body).then(r => r.data),
+  forfeit: () => api.post('/signup-challenge/forfeit').then(r => r.data),
+  finalSeen: () => api.post('/signup-challenge/final-seen').then(r => r.data),
+  visit: (code, visitor_id) => api.post('/signup-challenge/visit', { code, visitor_id }).then(r => r.data).catch(() => null),
+  referralSignup: (code) => api.post('/signup-challenge/referral-signup', { code }).then(r => r.data).catch(() => null),
+};
+
+export const signupChallengeAdminAPI = {
+  games: () => api.get('/admin/signup-challenge/games').then(r => r.data),
+  settings: () => api.get('/admin/signup-challenge/settings').then(r => r.data),
+  setEnabled: (enabled) => api.put('/admin/signup-challenge/settings', { enabled }).then(r => r.data),
+  list: () => api.get('/admin/signup-challenge/challenges').then(r => r.data),
+  create: (body) => api.post('/admin/signup-challenge/challenges', body).then(r => r.data),
+  update: (id, body) => api.put(`/admin/signup-challenge/challenges/${id}`, body).then(r => r.data),
+  setStatus: (id, status) => api.post(`/admin/signup-challenge/challenges/${id}/status`, { status }).then(r => r.data),
+  assign: (id, email) => api.post(`/admin/signup-challenge/challenges/${id}/assign`, { email }).then(r => r.data),
+  participants: (id, params) => api.get(`/admin/signup-challenge/challenges/${id}/participants`, { params }).then(r => r.data),
+  analytics: (id, params) => api.get(`/admin/signup-challenge/challenges/${id}/analytics`, { params }).then(r => r.data),
+  audit: (challenge_id) => api.get('/admin/signup-challenge/audit', { params: { challenge_id } }).then(r => r.data),
 };

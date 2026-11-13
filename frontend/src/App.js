@@ -13,6 +13,7 @@ import TermsGate from './components/TermsGate';
 import PhoneGate from './components/auth/PhoneGate';
 import { CountryGate, CountryPrompt } from './components/CountryAccess';
 import IntlWelcomeTour from './components/IntlWelcomeTour';
+import SignupChallengeGate from './components/signupChallenge/SignupChallengeGate';
 import PromotionPopup from './components/PromotionPopup';
 import PromotionAuthBridge from './components/PromotionAuthBridge';
 import PromotionFloatingBadge from './components/PromotionFloatingBadge';
@@ -58,6 +59,7 @@ const AdminKyc = lazy(() => import('./pages/admin/KycPage'));
 const AdminPayments = lazy(() => import('./pages/admin/PaymentsPage'));
 const AdminSettings = lazy(() => import('./pages/admin/SettingsPage'));
 const CountryManagementAdmin = lazy(() => import('./pages/admin/CountryManagementAdmin'));
+const SignupChallengeAdmin = lazy(() => import('./pages/admin/SignupChallengeAdmin'));
 const CountryAnalyticsAdmin = lazy(() => import('./pages/admin/CountryAnalyticsAdmin'));
 const OtpSettingsAdmin = lazy(() => import('./pages/admin/OtpSettingsAdmin'));
 const AdminRoles = lazy(() => import('./pages/admin/RolesPage'));
@@ -647,6 +649,7 @@ function AppRouter() {
           element={<AdminSettings />}
         />
         <Route path="settings/countries" element={<CountryManagementAdmin />} />
+        <Route path="signup-challenge" element={<SignupChallengeAdmin />} />
         <Route path="settings/otp" element={<OtpSettingsAdmin />} />
         <Route path="analytics/countries" element={<CountryAnalyticsAdmin />} />
 
@@ -748,6 +751,7 @@ function App() {
           <PhoneGate />
           <CountryPrompt />
           <IntlWelcomeTour />
+          <SignupChallengeGate />
 
 
           {/* Toast notifications */}

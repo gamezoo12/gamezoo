@@ -244,83 +244,6 @@ async def override_free_world_leaderboard_time(score_id: str, payload: dict, req
     return await _override_leaderboard_time('world_champion_scores', score_id, payload, request, True)
 
 
-_FREE_WORLD_LEVEL_TIMING_DEFAULTS = {
-    **{f'L{level}': seconds for level, seconds in enumerate((60, 55, 50, 45, 40, 35, 30, 25, 20, 18), 1)},
-    'CHAMPION': 75,
-}
-
-
-@router.get('/free-world/timings')
-async def admin_free_world_timings(request: Request):
-    admin = await _require_role(request, ['super_admin'])
-    from deps import get_db
-    db = get_db()
-    stored = await db.world_game_timing_settings.find(
-        {'season_id': 'season-1'}, {'_id': 0, 'setting_key': 1, 'time_limit_seconds': 1},
-    ).to_list(11)
-    settings = dict(_FREE_WORLD_LEVEL_TIMING_DEFAULTS)
-    settings.update({row['setting_key']: int(row['time_limit_seconds']) for row in stored})
-    audit = await db.world_game_timing_audit.find(
-        {'season_id': 'season-1'}, {'_id': 0},
-    ).sort('created_at', -1).to_list(100)
-    for row in audit:
-        row.pop('_id', None)
-    return {'settings': settings, 'history': audit, 'actor_user_id': admin.get('user_id')}
-
-
-@router.put('/free-world/timings')
-async def update_admin_free_world_timings(payload: dict, request: Request):
-    admin = await _require_role(request, ['super_admin'])
-    settings = payload.get('settings')
-    reason = str(payload.get('reason') or '').strip()
-    if not isinstance(settings, dict) or not settings:
-        raise HTTPException(status_code=400, detail='Provide at least one timing setting.')
-    if len(reason) < 10:
-        raise HTTPException(status_code=400, detail='A reason of at least 10 characters is required.')
-
-    changes = []
-    for key, raw_value in settings.items():
-        if key not in _FREE_WORLD_LEVEL_TIMING_DEFAULTS:
-            raise HTTPException(status_code=400, detail=f'Unknown Free World level: {key}')
-        if isinstance(raw_value, bool):
-            raise HTTPException(status_code=400, detail=f'Invalid time limit for {key}.')
-        try:
-            seconds = int(raw_value)
-        except (TypeError, ValueError):
-            raise HTTPException(status_code=400, detail=f'Invalid time limit for {key}.')
-        maximum = 1800 if key == 'CHAMPION' else 900
-        if seconds < 5 or seconds > maximum:
-            raise HTTPException(status_code=400, detail=f'{key} time limit must be 5-{maximum} seconds.')
-        changes.append((key, seconds))
-
-    from deps import get_db
-    db = get_db()
-    now = datetime.now(timezone.utc)
-    changed = []
-    for key, seconds in changes:
-        current = await db.world_game_timing_settings.find_one(
-            {'season_id': 'season-1', 'setting_key': key}, {'_id': 0, 'time_limit_seconds': 1},
-        )
-        previous = int((current or {}).get('time_limit_seconds', _FREE_WORLD_LEVEL_TIMING_DEFAULTS[key]))
-        if previous == seconds:
-            continue
-        await db.world_game_timing_settings.update_one(
-            {'season_id': 'season-1', 'setting_key': key},
-            {'$set': {'time_limit_seconds': seconds, 'updated_at': now,
-                      'updated_by': admin.get('user_id')}},
-            upsert=True,
-        )
-        await db.world_game_timing_audit.insert_one({
-            'season_id': 'season-1', 'setting_key': key,
-            'previous_time_limit_seconds': previous, 'time_limit_seconds': seconds,
-            'reason': reason, 'actor_user_id': admin.get('user_id'),
-            'actor_email': admin.get('email'), 'created_at': now,
-        })
-        changed.append({'setting_key': key, 'previous_time_limit_seconds': previous,
-                        'time_limit_seconds': seconds})
-    return {'ok': True, 'changed': changed}
-
-
 @router.get('/leaderboards/free-world/{contest_number}/levels/{level}')
 async def admin_free_world_level_leaderboard(contest_number: int, level: int, request: Request, limit: int = 1000):
     await _require_role(request, ['super_admin'])
@@ -330,10 +253,13 @@ async def admin_free_world_level_leaderboard(contest_number: int, level: int, re
         raise HTTPException(status_code=400, detail='Invalid Free World level')
     from deps import get_db
     db = get_db()
-    rows = await db.world_gc_level_bests.find(
-        {'season_id': 'season-1', 'gc_number': contest_number, 'level_key': f'L{level}'},
-        {'_id': 0},
-    ).sort([('duration_ms', 1), ('completed_at', 1), ('user_id', 1)]).to_list(max(1, min(int(limit), 5000)))
+    rows = await db.world_gc_level_bests.aggregate([
+        {'$match': {'season_id': 'season-1', 'gc_number': contest_number, 'level_key': f'L{level}'}},
+        {'$set': {'effective_duration_ms': {'$ifNull': ['$duration_ms_override', '$duration_ms']}}},
+        {'$sort': {'effective_duration_ms': 1, 'completed_at': 1, 'user_id': 1}},
+        {'$limit': max(1, min(int(limit), 5000))},
+        {'$unset': '_id'},
+    ]).to_list(None)
     user_ids = list({row.get('user_id') for row in rows if row.get('user_id')})
     users = await db.users.find(
         {'user_id': {'$in': user_ids}},
@@ -341,9 +267,55 @@ async def admin_free_world_level_leaderboard(contest_number: int, level: int, re
     ).to_list(len(user_ids)) if user_ids else []
     user_map = {user['user_id']: user for user in users}
     for rank, row in enumerate(rows, 1):
+        row['original_duration_ms'] = row.get('duration_ms')
+        row['duration_ms'] = row.pop('effective_duration_ms', row.get('duration_ms'))
         row['rank'] = rank
         row['user'] = user_map.get(row.get('user_id'), {})
     return {'contest_number': contest_number, 'level': level, 'leaderboard': rows}
+
+
+@router.put('/leaderboards/free-world/{contest_number}/levels/{level}/{user_id}/time')
+async def override_free_world_level_time(contest_number: int, level: int, user_id: str, payload: dict, request: Request):
+    admin = await _require_role(request, ['super_admin'])
+    if not 1 <= contest_number <= 100 or not 1 <= level <= 10:
+        raise HTTPException(status_code=400, detail='Invalid Free World Championship or level')
+    duration_ms = payload.get('duration_ms')
+    reason = str(payload.get('reason') or '').strip()
+    if isinstance(duration_ms, bool) or not isinstance(duration_ms, int) or not 100 <= duration_ms <= 1200000:
+        raise HTTPException(status_code=400, detail='Time must be between 100 and 1,200,000 milliseconds')
+    if len(reason) < 10:
+        raise HTTPException(status_code=400, detail='A reason of at least 10 characters is required')
+    from deps import get_db
+    db = get_db()
+    key = {'season_id': 'season-1', 'gc_number': contest_number, 'level_key': f'L{level}', 'user_id': user_id}
+    score = await db.world_gc_level_bests.find_one(key, {'_id': 0})
+    if not score:
+        raise HTTPException(status_code=404, detail='Normal Level leaderboard record not found')
+    previous = int(score.get('duration_ms_override', score.get('duration_ms', 0)))
+    if previous == duration_ms:
+        return {'ok': True, 'unchanged': True, 'duration_ms': duration_ms}
+    now = datetime.now(timezone.utc)
+    await db.world_gc_level_bests.update_one(key, {'$set': {
+        'duration_ms_override': duration_ms,
+        'duration_override_reason': reason,
+        'duration_override_at': now,
+        'duration_override_by': admin.get('user_id'),
+    }})
+    await db.leaderboard_override_audit.insert_one({
+        'score_id': score.get('session_id') or score.get('attempt_id') or user_id,
+        'world': 'free_world',
+        'contest_number': contest_number,
+        'level': level,
+        'level_key': f'L{level}',
+        'user_id': user_id,
+        'previous_duration_ms': previous,
+        'duration_ms': duration_ms,
+        'reason': reason,
+        'actor_user_id': admin.get('user_id'),
+        'actor_email': admin.get('email'),
+        'created_at': now,
+    })
+    return {'ok': True, 'previous_duration_ms': previous, 'duration_ms': duration_ms}
 
 
 @router.get('/stats')

@@ -67,7 +67,7 @@ export default function AdminLeaderboards() {
     return () => { cancelled = true; };
   }, [world, contestId, freeBoardKind, freeLevel]);
 
-  const showTimeOverrides = isSuperAdmin && (world === 'paid' || freeBoardKind === 'champion');
+  const showTimeOverrides = isSuperAdmin;
 
   const visibleRows = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -79,7 +79,7 @@ export default function AdminLeaderboards() {
   }, [leaderboard, search]);
 
   const beginEdit = (row) => {
-    setEditingId(row.score_id);
+    setEditingId(row.score_id || row.user_id);
     setDurationSeconds(seconds(row.duration_ms));
     setReason('');
     setNotice('');
@@ -107,12 +107,15 @@ export default function AdminLeaderboards() {
     try {
       const payload = { duration_ms: milliseconds, reason: reason.trim() };
       if (world === 'paid') await adminAPI.overridePaidLeaderboardTime(row.score_id, payload);
+      else if (freeBoardKind === 'level') await adminAPI.overrideFreeWorldLevelLeaderboardTime(contestId, freeLevel, row.user_id, payload);
       else await adminAPI.overrideFreeWorldLeaderboardTime(row.score_id, payload);
-      setNotice('Leaderboard time updated and audit logged.');
+      setNotice('Leaderboard result time updated and audit logged.');
       cancelEdit();
       const data = world === 'paid'
         ? await adminAPI.paidLeaderboard(contestId)
-        : await adminAPI.freeWorldLeaderboard(contestId);
+        : freeBoardKind === 'champion'
+          ? await adminAPI.freeWorldLeaderboard(contestId)
+          : await adminAPI.freeWorldLevelLeaderboard(contestId, freeLevel);
       setLeaderboard(data.leaderboard || []);
     } catch (e) {
       setError(e?.response?.data?.detail || 'Could not update this time.');
@@ -205,7 +208,8 @@ export default function AdminLeaderboards() {
               const name = row.user?.name || row.user?.username || row.user_name || 'Player';
               const identity = row.user?.email || row.user?.public_id || row.user_id;
               const rowId = row.score_id || `${row.ticket_id || row.user_id}-${world}`;
-              const editable = showTimeOverrides && Boolean(row.score_id);
+              const editId = row.score_id || row.user_id;
+              const editable = showTimeOverrides && Boolean(editId);
               return (
                 <tr key={rowId} className="align-top hover:bg-slate-50/70">
                   <td className="px-4 py-3 font-black tabular-nums">#{row.rank}</td>
@@ -215,7 +219,7 @@ export default function AdminLeaderboards() {
                   <td className="px-4 py-3 text-right tabular-nums">
                     <span className="font-bold">{seconds(row.duration_ms)}s</span>
                     {row.duration_ms_override != null && <div className="mt-1 text-xs text-amber-700">Original {seconds(row.original_duration_ms)}s</div>}
-                    {editingId === row.score_id && (
+                    {editingId === editId && (
                       <div className="mt-3 w-72 space-y-2 text-left">
                         <input aria-label="Override time in seconds" type="number" min="0.1" max="1200" step="0.01" value={durationSeconds} onChange={(event) => setDurationSeconds(event.target.value)} className="w-full rounded-md border px-2 py-1.5 text-sm" />
                         <textarea aria-label="Override reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Reason (at least 10 characters)" rows={2} className="w-full rounded-md border px-2 py-1.5 text-sm" />
@@ -227,7 +231,7 @@ export default function AdminLeaderboards() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">{row.attempts ?? '—'}</td>
-                  {showTimeOverrides && <td className="px-4 py-3 text-right">{editable && editingId !== row.score_id && <button type="button" onClick={() => beginEdit(row)} className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100"><Clock3 className="h-3.5 w-3.5" /> Edit time</button>}</td>}
+                  {showTimeOverrides && <td className="px-4 py-3 text-right">{editable && editingId !== editId && <button type="button" onClick={() => beginEdit(row)} className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100"><Clock3 className="h-3.5 w-3.5" /> Edit time</button>}</td>}
                 </tr>
               );
             })}
@@ -236,7 +240,7 @@ export default function AdminLeaderboards() {
         </table>
       </div>
       {loadingBoard && <p className="text-center text-sm text-slate-500" role="status">Loading leaderboard…</p>}
-      {showTimeOverrides && <p className="text-xs text-slate-500">Timer edits affect leaderboard ranking, retain the original verified time, and are recorded with your reason in the audit log.</p>}
+      {showTimeOverrides && <p className="text-xs text-slate-500">Time corrections affect leaderboard ranking, retain the original result, and are recorded with your reason in the audit log.</p>}
     </div>
   );
 }

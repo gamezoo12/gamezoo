@@ -27,7 +27,6 @@ import {
 import { worldAdminAPI } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import { FreeWorldPauseControl } from '../../components/admin/FreeWorldPauseControl';
-import FreeWorldTimingSettings from '../../components/admin/FreeWorldTimingSettings';
 import { Button } from '../../components/ui/button';
 import { useToast } from '../../hooks/use-toast';
 
@@ -542,7 +541,6 @@ export default function FreeWorldAdmin() {
       </div>
 
       {authUser?.role === 'super_admin' && <FreeWorldPauseControl />}
-      {authUser?.role === 'super_admin' && <FreeWorldTimingSettings />}
 
       {/* SECTION 1 — SEASON CONTROL */}
       <section className="rounded-2xl border border-slate-200 bg-white p-5"
