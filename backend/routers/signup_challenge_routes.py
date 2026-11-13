@@ -36,13 +36,13 @@ SUPPORTED_GAMES = {
         'label': 'Number Sequence', 'defaults': {'target': 20},
         'how_to': ['Tap the numbers in order from 1 upwards as fast as you can.',
                    'A wrong tap does not count, keep going.',
-                   'Finish every number before the timer ends for a speed bonus.'],
+                   'Your score is your finish time: the fastest time wins.'],
     },
     'colour_match': {
         'label': 'Colour Match', 'defaults': {'colours': 6, 'rounds': 20},
         'how_to': ['A colour word appears in a different ink colour.',
                    'Tap the colour of the INK, not the word.',
-                   'Correct answers score points, answer every round before time ends for a speed bonus.'],
+                   'Your score is your finish time: answer every round, each wrong answer adds 1 second.'],
     },
 }
 UNSUPPORTED_REASON = 'Scores are reported by the browser, the server cannot verify them yet.'
@@ -93,8 +93,8 @@ class ChallengeIn(BaseModel):
     uk_only: bool = True
     winner_count: int = Field(1, ge=1, le=100)
     prize_distribution: list[PrizeTier] = Field(default_factory=lambda: [PrizeTier(rank=1, prize='£50')])
-    ranking_method: Literal['highest_score'] = 'highest_score'
-    tie_break: Literal['fastest_time', 'earliest_finish'] = 'fastest_time'
+    ranking_method: Literal['fastest_time'] = 'fastest_time'
+    tie_break: Literal['earliest_finish'] = 'earliest_finish'
     whatsapp_url: str = Field('https://chat.whatsapp.com/I6L15DZ3r9FD4NEaNPDesL', max_length=300)
     instagram_url: str = Field('https://www.instagram.com/prizeleague', max_length=300)
     share_url: str = Field('https://www.prizeleague.co.uk', max_length=300)
@@ -204,7 +204,7 @@ async def _close_stale_attempts(db, part: dict) -> None:
     async for a in cur:
         await db.signup_challenge_attempts.update_one(
             {'attempt_id': a['attempt_id'], 'status': 'in_progress'},
-            {'$set': {'status': 'abandoned', 'score': 0, 'finished_at': now, 'close_reason': 'left_mid_attempt'}})
+            {'$set': {'status': 'abandoned', 'score': None, 'finished_at': now, 'close_reason': 'left_mid_attempt'}})
     await _refresh_participation(db, part['participation_id'])
 
 
@@ -213,8 +213,8 @@ async def _refresh_participation(db, pid: str) -> dict:
     attempts = await db.signup_challenge_attempts.find({'participation_id': pid}, {'_id': 0}).sort('attempt_no', 1).to_list(20)
     done = [a for a in attempts if a['status'] != 'in_progress']
     valid = [a for a in done if a['status'] == 'completed']
-    best = sorted(valid, key=lambda a: (-a['score'], a['duration_ms'], a['finished_at']))[:1]
-    upd = {'attempts_finished': len(done), 'best_score': best[0]['score'] if best else 0,
+    best = sorted(valid, key=lambda a: (a['score'], a['finished_at']))[:1]
+    upd = {'attempts_finished': len(done), 'best_score': best[0]['score'] if best else None,
            'best_duration_ms': best[0]['duration_ms'] if best else None, 'best_at': best[0]['finished_at'] if best else None,
            'best_attempt_id': best[0]['attempt_id'] if best else None, 'updated_at': _now()}
     status = part['status']
@@ -235,7 +235,7 @@ async def _new_participation(db, ch: dict, user: dict, source: str) -> dict | No
     doc = {
         'participation_id': 'SCP-' + secrets.token_hex(10).upper(), 'challenge_id': ch['challenge_id'], 'user_id': user['user_id'],
         'display_name': (user.get('name') or 'Player').split(' ')[0][:20], 'status': 'eligible', 'source': source,
-        'snapshot': _snapshot(ch), 'attempts_used': 0, 'attempts_finished': 0, 'best_score': 0, 'demo_runs': 0,
+        'snapshot': _snapshot(ch), 'attempts_used': 0, 'attempts_finished': 0, 'best_score': None, 'demo_runs': 0,
         'share_code': secrets.token_urlsafe(6), 'excluded': _excluded(user), 'country': user.get('country_of_residence'),
         'user_created_at': _as_utc(user.get('created_at')), 'created_at': _now(), 'dismissed_at': None,
     }
@@ -410,7 +410,7 @@ def _build_attempt(part: dict, request_id: str) -> dict:
     return {'attempt_id': 'SCA-' + secrets.token_hex(12).upper(), 'participation_id': part['participation_id'],
             'challenge_id': part['challenge_id'], 'user_id': part['user_id'], 'attempt_no': part['attempts_used'],
             'request_id': request_id, 'game_id': snap['game_id'], 'game_config': cfg, 'board': board, 'expected': expected,
-            'time_limit_s': snap['time_limit_s'], 'status': 'in_progress', 'score': 0, 'started_at': _now(),
+            'time_limit_s': snap['time_limit_s'], 'status': 'in_progress', 'score': None, 'started_at': _now(),
             'excluded': part.get('excluded', False)}
 
 
@@ -420,31 +420,28 @@ def _attempt_payload(a: dict) -> dict:
 
 
 def _score(a: dict, body: SubmitIn, server_ms: int) -> dict:
+    """Score = verified finish time in ms (lower wins). Only fully finished runs get a time."""
     limit_ms = a['time_limit_s'] * 1000
     play_ms = max(0, server_ms - COUNTDOWN_MS)
     # Client finish moment is trusted only within network tolerance of the server clock.
     duration = body.duration_ms if body.duration_ms <= play_ms + 1500 else play_ms
     duration = max(100, min(duration, limit_ms))
     expected = a['expected']
-    if a['game_id'] == 'number_sequence':
-        taps = body.taps[:len(expected)]
-        if taps != expected[:len(taps)]:
-            return {'valid': False, 'reason': 'sequence_mismatch'}
-        correct, total = len(taps), len(expected)
-        finished = correct == total
-        score = correct * 100 + ((limit_ms - duration) // 10 if finished else 0)
-    else:
-        answers = body.taps[:len(expected)]
-        correct = sum(1 for i, v in enumerate(answers) if v == expected[i])
-        wrong = len(answers) - correct
-        total = len(expected)
-        finished = len(answers) == total
-        score = max(0, correct * 100 - wrong * 25) + ((limit_ms - duration) // 10 if finished and correct else 0)
+    taps = body.taps[:len(expected)]
     stamps = body.tap_ms[:len(body.taps)]
     if stamps and (any(b < s for s, b in zip(stamps, stamps[1:])) or stamps[-1] > duration + 50 or (len(stamps) > 3 and duration < len(stamps) * 60)):
         return {'valid': False, 'reason': 'timing_invalid'}
-    return {'valid': True, 'score': int(score), 'duration_ms': int(duration if finished else limit_ms),
-            'correct': correct, 'total': total, 'finished': finished}
+    if a['game_id'] == 'number_sequence':
+        if taps != expected[:len(taps)]:
+            return {'valid': False, 'reason': 'sequence_mismatch'}
+        correct, penalty = len(taps), 0
+    else:
+        correct = sum(1 for i, v in enumerate(taps) if v == expected[i])
+        penalty = (len(taps) - correct) * 1000
+    if len(taps) < len(expected):
+        return {'valid': False, 'reason': 'not_finished'}
+    return {'valid': True, 'score': int(duration + penalty), 'duration_ms': int(duration), 'correct': correct, 'total': len(expected),
+            'finished': True}
 
 
 @router.post('/attempts/{attempt_id}/submit')
@@ -458,14 +455,14 @@ async def submit_attempt(attempt_id: str, body: SubmitIn, request: Request):
         now = _now()
         server_ms = int((now - _as_utc(a['started_at'])).total_seconds() * 1000)
         if server_ms > a['time_limit_s'] * 1000 + COUNTDOWN_MS + GRACE_MS:
-            upd = {'status': 'expired', 'score': 0, 'finished_at': now, 'close_reason': 'time_limit'}
+            upd = {'status': 'expired', 'score': None, 'finished_at': now, 'close_reason': 'time_limit'}
         else:
             r = _score(a, body, server_ms)
             if r['valid']:
                 upd = {'status': 'completed', 'score': r['score'], 'duration_ms': r['duration_ms'], 'correct': r['correct'],
                        'total': r['total'], 'finished': r['finished'], 'finished_at': now, 'server_elapsed_ms': server_ms, 'verified': True}
             else:
-                upd = {'status': 'failed', 'score': 0, 'finished_at': now, 'close_reason': r['reason']}
+                upd = {'status': 'expired' if r['reason'] == 'not_finished' else 'failed', 'score': None, 'finished_at': now, 'close_reason': r['reason']}
         res = await db.signup_challenge_attempts.update_one({'attempt_id': attempt_id, 'status': 'in_progress'}, {'$set': upd})
         if res.modified_count:
             await _event(db, a['challenge_id'], user, 'attempt_complete', {'attempt_no': a['attempt_no'], 'status': upd['status']})
@@ -486,7 +483,7 @@ async def forfeit(request: Request):
     now = _now()
     # A running attempt is closed without score; finished attempt scores are kept.
     await db.signup_challenge_attempts.update_many({'participation_id': part['participation_id'], 'status': 'in_progress'},
-                                                   {'$set': {'status': 'abandoned', 'score': 0, 'finished_at': now, 'close_reason': 'forfeit'}})
+                                                   {'$set': {'status': 'abandoned', 'score': None, 'finished_at': now, 'close_reason': 'forfeit'}})
     await _refresh_participation(db, part['participation_id'])
     terminal = part['status'] in ('completed', 'expired')
     upd = {'dismissed_at': now} if terminal else {'status': 'forfeited', 'forfeited_at': now, 'dismissed_at': now}
@@ -683,10 +680,7 @@ async def admin_assign(challenge_id: str, body: AssignIn, request: Request):
 
 
 def _rank_key(tie: str):
-    if tie == 'earliest_finish':
-        return lambda p: (-(p.get('best_score') or 0), _as_utc(p.get('best_at')) or datetime.max.replace(tzinfo=timezone.utc))
-    return lambda p: (-(p.get('best_score') or 0), p.get('best_duration_ms') or 10**12,
-                      _as_utc(p.get('best_at')) or datetime.max.replace(tzinfo=timezone.utc))
+    return lambda p: (p.get('best_score'), _as_utc(p.get('best_at')) or datetime.max.replace(tzinfo=timezone.utc))
 
 
 @admin_router.get('/challenges/{challenge_id}/participants')
@@ -717,7 +711,7 @@ async def admin_participants(challenge_id: str, request: Request, status: Option
             continue
         out.append({**p, 'email': u.get('email'), 'name': u.get('name'), 'public_id': u.get('public_id'),
                     'attempts': attempts.get(p['participation_id'], [])})
-    ranked = sorted([p for p in out if (p.get('best_score') or 0) > 0 and not p.get('excluded')], key=_rank_key(ch.get('tie_break')))
+    ranked = sorted([p for p in out if p.get('best_score') and not p.get('excluded')], key=_rank_key(ch.get('tie_break')))
     for i, p in enumerate(ranked):
         p['provisional_rank'] = i + 1
     out.sort(key=lambda p: (p.get('provisional_rank') or 10**6, -(p['created_at'].timestamp() if p.get('created_at') else 0)))
@@ -763,7 +757,7 @@ async def admin_analytics(challenge_id: str, request: Request, date_from: Option
         am['user_id'] = pm['user_id']
     if rng:
         am['finished_at'] = rng
-    agg = await db.signup_challenge_attempts.aggregate([{'$match': am}, {'$group': {'_id': None, 'avg': {'$avg': '$score'}, 'max': {'$max': '$score'}, 'n': {'$sum': 1}}}]).to_list(1)
+    agg = await db.signup_challenge_attempts.aggregate([{'$match': am}, {'$group': {'_id': None, 'avg': {'$avg': '$score'}, 'max': {'$min': '$score'}, 'n': {'$sum': 1}}}]).to_list(1)
     sources = await db.acquisition_attributions.distinct('source_key', {'user_id': {'$in': await db.signup_challenge_participations.distinct('user_id', {'challenge_id': challenge_id})}})
     return {
         'challenge_id': challenge_id, 'game_id': ch['game_id'], 'sources': sorted(sources),
@@ -772,7 +766,7 @@ async def admin_analytics(challenge_id: str, request: Request, date_from: Option
         'demo_starts': c('demo_start'), 'demo_completions': c('demo_complete'),
         'real_starts': u('real_start'), 'attempt_completions': per_attempt,
         'all_attempts_completed': c('all_complete'), 'close_clicks': c('close_click'), 'forfeits': c('forfeit_confirmed'),
-        'avg_score': round(agg[0]['avg'], 1) if agg else 0, 'highest_score': agg[0]['max'] if agg else 0, 'scored_attempts': agg[0]['n'] if agg else 0,
+        'avg_time_ms': round(agg[0]['avg']) if agg else None, 'best_time_ms': agg[0]['max'] if agg else None, 'scored_attempts': agg[0]['n'] if agg else 0,
         'scorecard_downloads': c('scorecard_download') + c('scorecard_download_story') + c('scorecard_download_square'),
         'whatsapp_share_clicks': c('share_whatsapp'), 'instagram_share_clicks': c('share_instagram'), 'native_share_clicks': c('share_native'),
         'community_clicks': c('community_whatsapp') + c('instagram_page'), 'copy_link_clicks': c('copy_link') + c('copy_caption') + c('copy_invite'),

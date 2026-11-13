@@ -13,10 +13,10 @@ const toLocal = (iso) => { if (!iso) return ''; const d = new Date(iso); return 
 const toIso = (v) => (v ? new Date(v).toISOString() : null);
 
 export const BLANK = {
-  title: 'WELCOME CHALLENGE', description: 'Play our skill game and post the highest verified score to win.', prize_type: 'cash', prize_amount_gbp: 50,
+  title: 'WELCOME CHALLENGE', description: 'Tap 1 to 20 as fast as you can. The fastest verified time wins.', prize_type: 'cash', prize_amount_gbp: 50,
   prize_label: '£50 GIVEAWAY', prize_description: '', game_id: 'number_sequence', game_config: { target: 20 }, attempts_allowed: 3, time_limit_s: 60,
   demo_enabled: true, demo_time_limit_s: 30, demo_max_runs: 3, how_to_play: [], start_at: null, end_at: null, eligible_signups_from: null,
-  uk_only: true, winner_count: 1, prize_distribution: [{ rank: 1, prize: '£50' }], ranking_method: 'highest_score', tie_break: 'fastest_time',
+  uk_only: true, winner_count: 1, prize_distribution: [{ rank: 1, prize: '£50' }], ranking_method: 'fastest_time', tie_break: 'earliest_finish',
   whatsapp_url: 'https://chat.whatsapp.com/I6L15DZ3r9FD4NEaNPDesL', instagram_url: 'https://www.instagram.com/prizeleague', share_url: 'https://www.prizeleague.co.uk',
   background_url: '', scorecard_bg_url: '', rules_text: '', legal_reviewed: false,
 };
@@ -88,7 +88,7 @@ export default function ChallengeEditor({ initial, games, onSaved, onPreview }) 
           </select>
         </Field>
         {f.game_id === 'number_sequence'
-          ? <Field label="Numbers to tap (5-50)"><Input type="number" min="5" max="50" value={f.game_config?.target ?? 20} onChange={(e) => cfg('target', e.target.value)} data-testid="sc-admin-cfg-target" /></Field>
+          ? <Field label="Tap 1 to N (N = 5-50, default 20)"><Input type="number" min="5" max="50" value={f.game_config?.target ?? 20} onChange={(e) => cfg('target', e.target.value)} data-testid="sc-admin-cfg-target" /></Field>
           : <>
             <Field label="Colours (2-11)"><Input type="number" min="2" max="11" value={f.game_config?.colours ?? 6} onChange={(e) => cfg('colours', e.target.value)} data-testid="sc-admin-cfg-colours" /></Field>
             <Field label="Rounds (5-40)"><Input type="number" min="5" max="40" value={f.game_config?.rounds ?? 20} onChange={(e) => cfg('rounds', e.target.value)} data-testid="sc-admin-cfg-rounds" /></Field>
@@ -114,10 +114,8 @@ export default function ChallengeEditor({ initial, games, onSaved, onPreview }) 
           <Textarea rows={3} defaultValue={tiers} key={f.challenge_id || 'new'} data-testid="sc-admin-distribution"
             onBlur={(e) => set('prize_distribution', e.target.value.split('\n').map((l) => l.split(':')).filter((p) => p.length > 1 && Number(p[0]) > 0 && p.slice(1).join(':').trim()).map((p) => ({ rank: Number(p[0]), prize: p.slice(1).join(':').trim() })))} />
         </Field>
-        <Field label="Winner method / tie-break" hint="Winner = highest verified score.">
-          <select className={sel} value={f.tie_break} onChange={(e) => set('tie_break', e.target.value)} data-testid="sc-admin-tie-break">
-            <option value="fastest_time">Tie: faster time, then earliest finish</option><option value="earliest_finish">Tie: earliest finish</option>
-          </select>
+        <Field label="Winner method / tie-break" hint="Score = finish time. Unfinished runs get no time.">
+          <p className="rounded-md border bg-slate-50 px-3 py-2 text-sm" data-testid="sc-admin-tie-break">Fastest verified time wins · tie: earliest finish</p>
         </Field>
       </section>
 

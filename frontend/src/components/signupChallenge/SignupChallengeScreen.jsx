@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 import { toast } from 'sonner';
 import { signupChallengeAPI } from '../../lib/api';
 import { ChallengeGame, makePracticeBoard, practiceScore } from './ChallengeGame';
-import { AttemptResult, Intro, LeaveDialog, ScoresList, num } from './parts';
+import { AttemptResult, Intro, LeaveDialog, ScoresList, tm } from './parts';
 import { FinalScorecard } from './FinalScorecard';
 import './signupChallenge.css';
 
@@ -33,7 +33,7 @@ export default function SignupChallengeScreen({ initial, preview = false, onClos
     setStage('demo'); track('demo_start');
   };
   const demoDone = useCallback((run) => {
-    setDemoResult({ score: practiceScore(ch.game_id, run, demo?.expected, ch.demo_time_limit_s * 1000), finished: run.finished, ms: run.duration_ms });
+    setDemoResult({ score: practiceScore(ch.game_id, run, demo?.expected), finished: run.finished });
     setStage('demo_result'); track('demo_complete');
   }, [ch, demo, track]);
 
@@ -105,9 +105,9 @@ export default function SignupChallengeScreen({ initial, preview = false, onClos
         {stage === 'demo_result' && demoResult && (
           <div className="sc-card sc-rise mx-auto w-full max-w-md p-6 text-center" data-testid="sc-demo-result">
             <p className="text-xs font-black uppercase tracking-[0.3em] text-sky-200">Practice mode</p>
-            <p className="mt-3 text-[11px] font-bold uppercase tracking-widest text-white/55">Practice score</p>
-            <p className="text-6xl font-black" data-testid="sc-practice-score">{num(demoResult.score)}</p>
-            <p className="mt-2 text-sm text-white/65">{demoResult.finished ? `Finished in ${(demoResult.ms / 1000).toFixed(2)}s.` : 'Time ran out.'} Practice scores never count for the giveaway.</p>
+            <p className="mt-3 text-[11px] font-bold uppercase tracking-widest text-white/55">Practice time</p>
+            <p className="text-6xl font-black" data-testid="sc-practice-score">{tm(demoResult.score)}</p>
+            <p className="mt-2 text-sm text-white/65">{demoResult.finished ? 'Your time is your score: faster is better.' : 'Time ran out before you finished.'} Practice times never count for the giveaway.</p>
             <div className="mt-6 grid gap-2">
               <button type="button" className="sc-btn sc-btn-gold" disabled={busy || preview || !state.can_play_real} onClick={startReal} data-testid="sc-demo-start-real">START REAL CHALLENGE</button>
               <button type="button" className="sc-btn sc-btn-ghost" disabled={demoLeft <= 0} onClick={startDemo} data-testid="sc-demo-again">PRACTICE AGAIN</button>

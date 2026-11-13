@@ -28,12 +28,11 @@ export function makePracticeBoard(gameId, cfg = {}) {
   return { board: { questions }, expected };
 }
 
-export function practiceScore(gameId, run, expected, limitMs) {
-  const bonus = Math.floor(Math.max(0, limitMs - run.duration_ms) / 10);
-  if (gameId === 'number_sequence') return run.taps.length * 100 + (run.finished ? bonus : 0);
-  const correct = run.taps.filter((v, i) => v === expected[i]).length;
-  const wrong = run.taps.length - correct;
-  return Math.max(0, correct * 100 - wrong * 25) + (run.finished && correct ? bonus : 0);
+// Practice "score" is the finish time in ms (null when not finished); colour mistakes add 1s each.
+export function practiceScore(gameId, run, expected) {
+  if (!run.finished) return null;
+  if (gameId === 'number_sequence') return run.duration_ms;
+  return run.duration_ms + run.taps.filter((v, i) => v !== expected[i]).length * 1000;
 }
 
 const fmt = (ms) => `${(Math.max(0, ms) / 1000).toFixed(ms < 10000 ? 1 : 0)}s`;

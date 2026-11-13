@@ -120,7 +120,7 @@ def test_full_flow_attempts_and_forfeit_rules(db, challenge):
     assert parallel.status_code == 409  # second device cannot open another attempt
     assert 'expected' not in a1['attempt']
     r = _play(h, a1['attempt']).json()
-    assert r['attempt']['status'] == 'completed' and r['attempt']['score'] > 500 and r['remaining'] == 1
+    assert r['attempt']['status'] == 'completed' and 100 <= r['attempt']['score'] <= 2000 and r['remaining'] == 1
     replay = _play(h, a1['attempt']).json()
     assert replay['attempt']['score'] == r['attempt']['score'] and replay['remaining'] == 1
 
@@ -141,11 +141,19 @@ def test_invalid_sequence_scores_zero_and_forfeit(db, challenge):
     requests.get(f'{API}/signup-challenge/me', headers=h)
     a = requests.post(f'{API}/signup-challenge/attempts/start', json={'request_id': uuid.uuid4().hex}, headers=h).json()
     r = _play(h, a['attempt'], taps=[2, 1, 3, 4, 5]).json()
-    assert r['attempt']['status'] == 'failed' and r['attempt']['score'] == 0
+    assert r['attempt']['status'] == 'failed' and r['attempt']['score'] is None
     f = requests.post(f'{API}/signup-challenge/forfeit', headers=h).json()
     assert f['participation']['status'] == 'forfeited' and f['remaining'] == 0
     assert requests.get(f'{API}/signup-challenge/me', headers=h).json()['show'] is False
     assert requests.post(f'{API}/signup-challenge/attempts/start', json={'request_id': uuid.uuid4().hex}, headers=h).status_code in (404, 409)
+
+
+def test_unfinished_run_has_no_time(db, challenge):
+    h, _ = _user(db)
+    requests.get(f'{API}/signup-challenge/me', headers=h)
+    a = requests.post(f'{API}/signup-challenge/attempts/start', json={'request_id': uuid.uuid4().hex}, headers=h).json()
+    r = _play(h, a['attempt'], taps=[1, 2, 3], finished=False).json()
+    assert r['attempt']['status'] == 'expired' and r['attempt']['score'] is None and r['participation']['best_score'] is None
 
 
 def test_intl_demo_only(db, challenge):
@@ -173,4 +181,4 @@ def test_participants_and_analytics(admin, challenge):
     p = requests.get(f'{API}/admin/signup-challenge/challenges/{challenge}/participants', headers=admin).json()
     assert p['participants'] and p['participants'][0].get('provisional_rank') == 1
     a = requests.get(f'{API}/admin/signup-challenge/challenges/{challenge}/analytics', headers=admin).json()
-    assert a['eligible_signups'] >= 4 and a['demo_starts'] >= 1 and a['forfeits'] >= 1 and a['highest_score'] > 0
+    assert a['eligible_signups'] >= 4 and a['demo_starts'] >= 1 and a['forfeits'] >= 1 and a['best_time_ms'] > 0

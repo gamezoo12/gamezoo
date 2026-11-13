@@ -3,7 +3,7 @@ import { Copy, Download, Instagram, Link2, MessageCircle, Share2, Users } from '
 import { toast } from 'sonner';
 import { signupChallengeAPI } from '../../lib/api';
 import { downloadBlob, renderScorecard } from './scorecard';
-import { num } from './parts';
+import { tm } from './parts';
 
 const track = (type, preview) => { if (!preview) signupChallengeAPI.event(type); };
 
@@ -27,11 +27,11 @@ export function FinalScorecard({ state, partial, preview, onFinish }) {
   const [img, setImg] = useState(null);
   const [igHelp, setIgHelp] = useState(false);
   const link = `${(ch.share_url || 'https://www.prizeleague.co.uk').replace(/\/$/, '')}/?sc=${p.share_code || ''}`;
-  const message = `🏆 I just played the Prize League ${titleCase(ch.title)}!\n🎮 My best score: ${num(p.best_score)}\n💷 ${ch.prize_label}!\nThink you can beat my score?\nJoin here: ${link}`;
+  const message = `🏆 I just played the Prize League ${titleCase(ch.title)}!\n⏱️ My best time: ${tm(p.best_score)}\n💷 ${ch.prize_label}!\nThink you can beat my time?\nJoin here: ${link}`;
   const card = useMemo(() => ({
     title: ch.title, prize: ch.prize_label, name: p.display_name || 'Player', game: ch.game_label, url: link, bgUrl: ch.scorecard_bg_url,
-    best: p.best_score || 0, partial,
-    attempts: state.attempts.map((a) => ({ no: a.attempt_no, label: a.status === 'completed' ? num(a.score) : a.status.toUpperCase(), best: a.attempt_id === p.best_attempt_id })),
+    best: tm(p.best_score), partial,
+    attempts: state.attempts.map((a) => ({ no: a.attempt_no, label: a.status === 'completed' ? tm(a.score) : a.status.toUpperCase(), best: a.attempt_id === p.best_attempt_id })),
   }), [ch, p, state.attempts, partial, link]);
 
   useEffect(() => {
@@ -75,8 +75,8 @@ export function FinalScorecard({ state, partial, preview, onFinish }) {
       </div>
       <div className="flex flex-1 flex-col gap-3">
         <p className="text-xs font-black uppercase tracking-[0.3em] text-amber-200">{partial ? 'Partial results' : 'Challenge complete'}</p>
-        <h2 className="sc-gold text-4xl font-black" data-testid="sc-final-best">BEST SCORE: {num(p.best_score)}</h2>
-        <p className="text-sm text-white/70">{partial ? 'You left the challenge early. Your completed attempts are saved and still count.' : `All ${ch.attempts_allowed} attempts complete. Scores are verified by Prize League.`}</p>
+        <h2 className="sc-gold text-4xl font-black" data-testid="sc-final-best">BEST TIME: {tm(p.best_score)}</h2>
+        <p className="text-sm text-white/70">{partial ? 'You left the challenge early. Your completed attempts are saved and still count.' : `All ${ch.attempts_allowed} attempts complete. Times are verified by Prize League.`}</p>
         <div className="grid grid-cols-2 gap-2">
           <Btn icon={Download} gold onClick={() => save('story')} testId="sc-save-scorecard">Save Scorecard</Btn>
           <Btn icon={Download} onClick={() => save('square')} testId="sc-save-square">Save Square</Btn>

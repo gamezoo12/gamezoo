@@ -4,6 +4,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 
 export const num = (n) => Number(n || 0).toLocaleString('en-GB');
 export const secs = (ms) => (ms == null ? '-' : `${(ms / 1000).toFixed(2)}s`);
+export const tm = (ms) => (ms == null ? '--' : `${(ms / 1000).toFixed(3)}s`);
 
 export function Brand({ ch }) {
   return (
@@ -77,15 +78,16 @@ export function AttemptResult({ attempt, state, onRetry, onScores, onClose, onFi
     <div className="sc-card sc-rise mx-auto w-full max-w-md p-6 text-center" data-testid="sc-attempt-result">
       <p className="text-xs font-black uppercase tracking-[0.3em] text-amber-200">Attempt {attempt.attempt_no} of {ch.attempts_allowed}</p>
       <h2 className="sc-gold mt-2 text-3xl font-black">{ok ? 'ATTEMPT COMPLETED!' : attempt.status === 'expired' ? 'TIME EXPIRED' : 'ATTEMPT NOT VALID'}</h2>
-      <p className="mt-5 text-[11px] font-bold uppercase tracking-widest text-white/55">Your score</p>
-      <p className="text-6xl font-black" data-testid="sc-result-score">{num(attempt.score)}</p>
+      <p className="mt-5 text-[11px] font-bold uppercase tracking-widest text-white/55">Your time (score)</p>
+      <p className="text-6xl font-black" data-testid="sc-result-score">{ok ? tm(attempt.score) : '--'}</p>
+      {!ok && <p className="mt-1 text-xs text-white/60">{attempt.status === 'expired' ? 'Not every number was tapped before time ran out, so no time was recorded.' : 'This run could not be verified, so no time was recorded.'}</p>}
       <div className="mt-5 grid grid-cols-2 gap-2 text-left text-sm">
-        {[['Time taken', ok ? secs(attempt.duration_ms) : '-', 'sc-result-time'], ['Best score', num(state.participation.best_score), 'sc-result-best'],
+        {[['Correct', ok ? `${attempt.correct}/${attempt.total}` : '-', 'sc-result-time'], ['Best time', tm(state.participation.best_score), 'sc-result-best'],
           ['Total attempts', ch.attempts_allowed, 'sc-result-total'], ['Remaining', state.remaining, 'sc-result-remaining']].map(([k, v, id]) => (
           <div key={k} className="rounded-xl bg-white/[0.06] p-3"><p className="text-[10px] font-bold uppercase tracking-widest text-white/50">{k}</p><p className="text-lg font-black" data-testid={id}>{v}</p></div>
         ))}
       </div>
-      {ok && attempt.total ? <p className="mt-3 text-xs text-white/60">{attempt.correct} / {attempt.total} correct, verified by Prize League</p> : null}
+      {ok ? <p className="mt-3 text-xs text-white/60">Time verified by Prize League. Fastest time wins.</p> : null}
       <div className="mt-6 grid gap-2">
         {last
           ? <button type="button" className="sc-btn sc-btn-gold" onClick={onFinal} data-testid="sc-open-final">SEE FINAL SCORECARD</button>
@@ -108,7 +110,7 @@ export function ScoresList({ state, onBack }) {
         {state.attempts.map((a) => (
           <li key={a.attempt_id} className={`flex items-center justify-between rounded-xl px-4 py-3 ${a.attempt_id === best ? 'bg-amber-300/15 ring-1 ring-amber-300/60' : 'bg-white/[0.06]'}`} data-testid={`sc-score-row-${a.attempt_no}`}>
             <span className="font-bold">Attempt {a.attempt_no}</span>
-            <span className="text-right"><span className="block text-lg font-black">{num(a.score)}</span><span className="text-[11px] uppercase text-white/50">{a.status === 'completed' ? secs(a.duration_ms) : a.status}</span></span>
+            <span className="text-right"><span className="block text-lg font-black">{a.status === 'completed' ? tm(a.score) : '--'}</span><span className="text-[11px] uppercase text-white/50">{a.status === 'completed' ? 'verified' : a.status}</span></span>
           </li>
         ))}
       </ul>

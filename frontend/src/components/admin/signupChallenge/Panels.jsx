@@ -36,7 +36,7 @@ export function ParticipantsPanel({ challengeId }) {
       {data?.note && <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800">{data.note} Winners: {data.winner_count}. {data.prize_distribution?.map((t) => `#${t.rank} ${t.prize}`).join(' · ')}</p>}
       <div className="overflow-x-auto rounded-xl border">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr>{['Rank', 'Player', 'Status', 'Attempts', 'Best score', 'Best time', 'Joined', ''].map((h) => <th key={h} className="px-3 py-2">{h}</th>)}</tr></thead>
+          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr>{['Rank', 'Player', 'Status', 'Attempts', 'Best time (score)', 'Joined', ''].map((h) => <th key={h} className="px-3 py-2">{h}</th>)}</tr></thead>
           <tbody>
             {(data?.participants || []).map((p) => (
               <Fragment key={p.participation_id}>
@@ -45,19 +45,18 @@ export function ParticipantsPanel({ challengeId }) {
                   <td className="px-3 py-2"><div className="font-semibold">{p.name || p.display_name}{p.excluded && <span className="ml-1 rounded bg-slate-200 px-1 text-[10px]">staff/test</span>}</div><div className="text-xs text-slate-500">{p.email} · {p.public_id} · {p.country}</div></td>
                   <td className="px-3 py-2">{p.status}</td>
                   <td className="px-3 py-2">{p.attempts_finished}/{p.attempts_used}</td>
-                  <td className="px-3 py-2 font-bold">{(p.best_score || 0).toLocaleString('en-GB')}</td>
-                  <td className="px-3 py-2">{p.best_duration_ms ? `${(p.best_duration_ms / 1000).toFixed(2)}s` : '-'}</td>
+                  <td className="px-3 py-2 font-bold">{p.best_score ? `${(p.best_score / 1000).toFixed(3)}s` : '-'}</td>
                   <td className="px-3 py-2 text-xs">{uk(p.created_at)}</td>
                   <td className="px-3 py-2"><Button size="sm" variant="ghost" onClick={() => setOpen(open === p.participation_id ? null : p.participation_id)} data-testid={`sc-admin-part-history-${p.participation_id}`}>History</Button></td>
                 </tr>
                 {open === p.participation_id && (
-                  <tr className="bg-slate-50"><td colSpan={8} className="px-3 py-2 text-xs">
-                    {p.attempts.length ? p.attempts.map((a) => <div key={a.attempt_id}>Attempt {a.attempt_no}: {a.status} · score {a.score} · {a.duration_ms ? `${(a.duration_ms / 1000).toFixed(2)}s` : '-'} · {a.correct ?? '-'}/{a.total ?? '-'} · started {uk(a.started_at)}{a.close_reason ? ` · ${a.close_reason}` : ''}</div>) : 'No real attempts yet.'}
+                  <tr className="bg-slate-50"><td colSpan={7} className="px-3 py-2 text-xs">
+                    {p.attempts.length ? p.attempts.map((a) => <div key={a.attempt_id}>Attempt {a.attempt_no}: {a.status} · time {a.score ? `${(a.score / 1000).toFixed(3)}s` : '-'} · {a.correct ?? '-'}/{a.total ?? '-'} · started {uk(a.started_at)}{a.close_reason ? ` · ${a.close_reason}` : ''}</div>) : 'No real attempts yet.'}
                   </td></tr>
                 )}
               </Fragment>
             ))}
-            {data && !data.participants.length && <tr><td colSpan={8} className="px-3 py-6 text-center text-slate-400">No participants yet.</td></tr>}
+            {data && !data.participants.length && <tr><td colSpan={7} className="px-3 py-6 text-center text-slate-400">No participants yet.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -69,7 +68,7 @@ const CARDS = [
   ['eligible_signups', 'Eligible signups'], ['impressions', 'Challenge impressions'], ['unique_viewers', 'Unique viewers'],
   ['demo_starts', 'Demo starts'], ['demo_completions', 'Demo completions'], ['real_starts', 'Real challenge starts'],
   ['all_attempts_completed', 'Completed all attempts'], ['close_clicks', 'Close (X) clicks'], ['forfeits', 'Confirmed forfeits'],
-  ['avg_score', 'Average score'], ['highest_score', 'Highest score'], ['scored_attempts', 'Verified attempts'],
+  ['avg_time_ms', 'Average time'], ['best_time_ms', 'Fastest time'], ['scored_attempts', 'Verified attempts'],
   ['scorecard_downloads', 'Scorecard downloads'], ['whatsapp_share_clicks', 'WhatsApp share clicks'], ['instagram_share_clicks', 'Instagram share clicks'],
   ['native_share_clicks', 'Native share sheet'], ['community_clicks', 'Community link clicks'], ['copy_link_clicks', 'Copy link / caption'],
   ['referral_visits', 'Referral link visits'], ['referral_signups', 'Signups from shared links'],
@@ -97,7 +96,7 @@ export function AnalyticsPanel({ challengeId }) {
         <span className="ml-auto text-xs text-slate-500">Game: {a?.game_id}</span>
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-5">
-        {CARDS.map(([k, label]) => <div key={k} className="rounded-xl border bg-white p-3" data-testid={`sc-admin-an-${k}`}><p className="text-[11px] font-semibold uppercase text-slate-500">{label}</p><p className="text-2xl font-black">{a ? (a[k] ?? 0).toLocaleString('en-GB') : '…'}</p></div>)}
+        {CARDS.map(([k, label]) => <div key={k} className="rounded-xl border bg-white p-3" data-testid={`sc-admin-an-${k}`}><p className="text-[11px] font-semibold uppercase text-slate-500">{label}</p><p className="text-2xl font-black">{a ? (k.endsWith('_ms') ? (a[k] ? `${(a[k] / 1000).toFixed(3)}s` : '-') : (a[k] ?? 0).toLocaleString('en-GB')) : '…'}</p></div>)}
       </div>
       <div className="rounded-xl border p-3 text-sm" data-testid="sc-admin-an-attempts">
         <p className="font-semibold">Attempt completions</p>

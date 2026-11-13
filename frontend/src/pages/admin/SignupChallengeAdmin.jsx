@@ -13,7 +13,7 @@ const BADGE = { draft: 'bg-slate-100 text-slate-700', published: 'bg-emerald-100
 
 function previewState(f, game, card) {
   const n = Number(f.attempts_allowed) || 1;
-  const attempts = card ? Array.from({ length: n }, (_, i) => ({ attempt_id: `p${i}`, attempt_no: i + 1, status: 'completed', score: 1250 + i * 450, duration_ms: 20000 - i * 1500 })) : [];
+  const attempts = card ? Array.from({ length: n }, (_, i) => ({ attempt_id: `p${i}`, attempt_no: i + 1, status: 'completed', score: 18500 - i * 1200, duration_ms: 18500 - i * 1200 })) : [];
   return {
     challenge: { ...f, challenge_id: f.challenge_id || 'preview', game_label: game?.label || f.game_id, how_to_play: (f.how_to_play || []).filter((s) => s.trim()).length ? f.how_to_play.filter((s) => s.trim()) : game?.how_to || [] },
     participation: card
