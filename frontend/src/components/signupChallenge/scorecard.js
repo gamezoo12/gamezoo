@@ -51,7 +51,7 @@ function paint(ctx, d, w, h, logo, bg) {
     y += rowH;
   });
   ctx.textAlign = 'center'; y += sq ? 20 : 50;
-  line(`BEST TIME: ${d.best}`, sq ? 56 : 84, '#FFD54A', 900, 1.45);
+  line(`${d.headline || 'BEST TIME'}: ${d.best}`, sq ? 56 : 84, '#FFD54A', 900, 1.45);
   if (d.partial) line('Partial results - challenge left early', sq ? 24 : 32, '#fda4af', 700);
   line('Think you can beat my time?', sq ? 32 : 46, '#ffffff', 800, sq ? 1.4 : 1.8);
   ctx.font = `800 ${sq ? 30 : 40}px Arial, sans-serif`; ctx.fillStyle = '#c4b5fd';

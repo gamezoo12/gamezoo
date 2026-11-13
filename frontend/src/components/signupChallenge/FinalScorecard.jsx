@@ -25,9 +25,8 @@ export function FinalScorecard({ state, partial, preview, onFinish }) {
   const ch = state.challenge;
   const p = state.participation;
   const [img, setImg] = useState(null);
-  const [igHelp, setIgHelp] = useState(false);
-  const link = `${(ch.share_url || 'https://www.prizeleague.co.uk').replace(/\/$/, '')}/?sc=${p.share_code || ''}`;
-  const message = `🏆 I just played the Prize League ${titleCase(ch.title)}!\n⏱️ My best time: ${tm(p.best_score)}\n💷 ${ch.prize_label}!\nThink you can beat my time?\nJoin here: ${link}`;
+  const link = shareLink(ch, p);
+  const message = shareMessage(ch, tm(p.best_score), link, 'My best time');
   const card = useMemo(() => ({
     title: ch.title, prize: ch.prize_label, name: p.display_name || 'Player', game: ch.game_label, url: link, bgUrl: ch.scorecard_bg_url,
     best: tm(p.best_score), partial,
@@ -41,32 +40,7 @@ export function FinalScorecard({ state, partial, preview, onFinish }) {
     return () => url && URL.revokeObjectURL(url);
   }, [card, preview]);
 
-  const save = async (format) => {
-    const b = await renderScorecard(card, format);
-    downloadBlob(b, `prize-league-scorecard-${format}.png`);
-    track(`scorecard_download_${format}`, preview);
-    toast.success('Scorecard saved');
-  };
-  const nativeShare = async (format) => {
-    const b = await renderScorecard(card, format);
-    const file = new File([b], `prize-league-scorecard-${format}.png`, { type: 'image/png' });
-    if (navigator.canShare?.({ files: [file] })) {
-      try { await navigator.share({ files: [file], text: message }); track('share_native', preview); return true; } catch { return true; }
-    }
-    return false;
-  };
-  const whatsapp = async () => {
-    track('share_whatsapp', preview);
-    if (await nativeShare('square')) return;
-    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noopener');
-    toast.message('Tip: save the scorecard first, then attach it in WhatsApp.');
-  };
-  const instagram = async () => {
-    track('share_instagram', preview);
-    if (await nativeShare('story')) return;
-    await save('story');
-    setIgHelp(true);
-  };
+  const { save, whatsapp, instagram, igHelp } = useScorecardShare(card, message, preview);
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 md:flex-row md:items-start" data-testid="sc-final-scorecard">
@@ -87,14 +61,91 @@ export function FinalScorecard({ state, partial, preview, onFinish }) {
           {ch.whatsapp_url && <Btn icon={Users} onClick={() => { track('community_whatsapp', preview); window.open(ch.whatsapp_url, '_blank', 'noopener'); }} testId="sc-join-whatsapp">Join WhatsApp Community</Btn>}
           {ch.instagram_url && <Btn icon={Share2} onClick={() => { track('instagram_page', preview); window.open(ch.instagram_url, '_blank', 'noopener'); }} testId="sc-open-instagram">Open Our Instagram</Btn>}
         </div>
-        {igHelp && (
-          <p className="rounded-2xl border border-pink-300/30 bg-pink-500/10 p-3 text-sm text-pink-50" data-testid="sc-instagram-help">
-            Your story image has been saved. Open Instagram, tap + then Story, and choose the saved Prize League scorecard from your photos. Nothing is posted automatically.
-          </p>
-        )}
+        {igHelp && <IgHelp />}
         <button type="button" className="sc-btn sc-btn-gold mt-2" onClick={onFinish} data-testid="sc-finish-button">FINISH</button>
         <p className="text-[11px] text-white/45">Sharing is optional and never changes your score or eligibility.</p>
       </div>
+    </div>
+  );
+}
+
+const shareLink = (ch, p) => `${(ch.share_url || 'https://www.prizeleague.co.uk').replace(/\/$/, '')}/?sc=${p.share_code || ''}`;
+const shareMessage = (ch, time, link, label) => `🏆 I just played the Prize League ${titleCase(ch.title)}!\n⏱️ ${label}: ${time}\n💷 ${ch.prize_label}!\nThink you can beat my time?\nJoin here: ${link}`;
+
+function IgHelp() {
+  return (
+    <p className="rounded-2xl border border-pink-300/30 bg-pink-500/10 p-3 text-sm text-pink-50" data-testid="sc-instagram-help">
+      Your story image has been saved. Open Instagram, tap + then Story, and choose the saved Prize League scorecard from your photos. Nothing is posted automatically.
+    </p>
+  );
+}
+
+function useScorecardShare(card, message, preview, tag = 'scorecard') {
+  const [igHelp, setIgHelp] = useState(false);
+  const save = async (format) => {
+    const b = await renderScorecard(card, format);
+    downloadBlob(b, `prize-league-${tag}-${format}.png`);
+    track(`scorecard_download_${format}`, preview);
+    toast.success('Scorecard saved');
+  };
+  const nativeShare = async (format) => {
+    const b = await renderScorecard(card, format);
+    const file = new File([b], `prize-league-${tag}-${format}.png`, { type: 'image/png' });
+    if (navigator.canShare?.({ files: [file] })) {
+      try { await navigator.share({ files: [file], text: message }); track('share_native', preview); } catch { /* user cancelled */ }
+      return true;
+    }
+    return false;
+  };
+  const whatsapp = async () => {
+    track('share_whatsapp', preview);
+    if (await nativeShare('square')) return;
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noopener');
+    toast.message('Tip: save the scorecard first, then attach it in WhatsApp.');
+  };
+  const instagram = async () => {
+    track('share_instagram', preview);
+    if (await nativeShare('story')) return;
+    await save('story');
+    setIgHelp(true);
+  };
+  return { save, whatsapp, instagram, igHelp };
+}
+
+// Auto-generated scorecard + share buttons for a single completed attempt.
+export function AttemptShare({ state, attempt, preview }) {
+  const ch = state.challenge;
+  const p = state.participation;
+  const link = shareLink(ch, p);
+  const time = tm(attempt.score);
+  const card = useMemo(() => ({
+    title: ch.title, prize: ch.prize_label, name: p.display_name || 'Player', game: ch.game_label, url: link, bgUrl: ch.scorecard_bg_url,
+    headline: `ATTEMPT ${attempt.attempt_no} TIME`, best: time, partial: false,
+    attempts: state.attempts.filter((a) => a.attempt_no <= attempt.attempt_no)
+      .map((a) => ({ no: a.attempt_no, label: a.status === 'completed' ? tm(a.score) : a.status.toUpperCase(), best: a.attempt_id === attempt.attempt_id })),
+  }), [ch, p, state.attempts, attempt, link, time]);
+  const message = shareMessage(ch, time, link, `My attempt ${attempt.attempt_no} time`);
+  const { save, whatsapp, instagram, igHelp } = useScorecardShare(card, message, preview, `attempt-${attempt.attempt_no}`);
+  const [img, setImg] = useState(null);
+  useEffect(() => {
+    let url;
+    renderScorecard(card, 'square').then((b) => { if (b) { url = URL.createObjectURL(b); setImg(url); } });
+    return () => url && URL.revokeObjectURL(url);
+  }, [card]);
+  return (
+    <div className="sc-card sc-rise mx-auto mt-4 w-full max-w-md p-4" data-testid="sc-attempt-share">
+      <div className="flex items-center gap-3">
+        <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-amber-300/40 bg-black/30">
+          {img && <img src={img} alt={`Attempt ${attempt.attempt_no} scorecard`} className="h-full w-full object-cover" data-testid="sc-attempt-card-image" />}
+        </div>
+        <p className="text-sm text-white/80">Your attempt {attempt.attempt_no} scorecard is ready. Save it or share it now.</p>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <Btn icon={Download} gold onClick={() => save('story')} testId="sc-attempt-save">Save</Btn>
+        <Btn icon={MessageCircle} onClick={whatsapp} testId="sc-attempt-whatsapp">WhatsApp</Btn>
+        <Btn icon={Instagram} onClick={instagram} testId="sc-attempt-instagram">Instagram</Btn>
+      </div>
+      {igHelp && <div className="mt-3"><IgHelp /></div>}
     </div>
   );
 }

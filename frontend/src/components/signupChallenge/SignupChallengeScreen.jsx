@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { signupChallengeAPI } from '../../lib/api';
 import { ChallengeGame, makePracticeBoard, practiceScore } from './ChallengeGame';
 import { AttemptResult, Intro, LeaveDialog, ScoresList, tm } from './parts';
-import { FinalScorecard } from './FinalScorecard';
+import { AttemptShare, FinalScorecard } from './FinalScorecard';
 import './signupChallenge.css';
 
 const errMsg = (e) => { const d = e?.response?.data?.detail; return typeof d === 'string' ? d : d?.message || 'Something went wrong, please try again.'; };
@@ -87,12 +87,6 @@ export default function SignupChallengeScreen({ initial, preview = false, onClos
     onClose();
   };
 
-  useEffect(() => {
-    if (stage !== 'result' || state.remaining > 0) return undefined;
-    const t = setTimeout(() => setStage('final'), 3500);
-    return () => clearTimeout(t);
-  }, [stage, state.remaining]);
-
   const demoLeft = Math.max(0, (ch.demo_max_runs || 3) - demoRuns);
   return (
     <div className="sc-root" role="dialog" aria-modal="true" aria-label="Welcome Challenge" data-testid="signup-challenge-screen">
@@ -117,7 +111,12 @@ export default function SignupChallengeScreen({ initial, preview = false, onClos
         )}
         {stage === 'real' && attempt && <ChallengeGame key={attempt.attempt_id} gameId={attempt.game_id} board={attempt.board} timeLimitS={attempt.time_limit_s} onDone={realDone} />}
         {stage === 'submitting' && <p className="text-center text-lg font-black text-amber-200" data-testid="sc-submitting">Verifying your score…</p>}
-        {stage === 'result' && result && <AttemptResult attempt={result} state={state} onRetry={startReal} onScores={() => setStage('scores')} onClose={closeClick} onFinal={() => setStage('final')} />}
+        {stage === 'result' && result && (
+          <div>
+            <AttemptResult attempt={result} state={state} onRetry={startReal} onScores={() => setStage('scores')} onClose={closeClick} onFinal={() => setStage('final')} />
+            {result.status === 'completed' && <AttemptShare state={state} attempt={result} preview={preview} />}
+          </div>
+        )}
         {stage === 'scores' && <ScoresList state={state} onBack={() => setStage(state.participation.status === 'completed' ? 'final' : 'intro')} />}
         {stage === 'final' && <FinalScorecard state={state} partial={partial} preview={preview} onFinish={finish} />}
       </main>
