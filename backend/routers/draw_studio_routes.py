@@ -32,7 +32,7 @@ RESULTS = "draw_studio_results"
 AUDIO = "draw_studio_audio"
 AUDIT = "draw_studio_audit"
 AUDIO_SLOTS = ("entry", "music", "heartbeat", "countdown", "drumroll", "reveal", "announcement", "celebration")
-REWARD_TYPES = ("winnings", "bonus")
+REWARD_TYPES = ("winnings", "bonus", "other")
 AUDIO_TYPES = {"audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/wave", "audio/ogg", "audio/webm",
                "audio/aac", "audio/mp4", "audio/x-m4a"}
 ALGORITHM = "hmac-sha256-rejection-v1"
@@ -79,7 +79,8 @@ async def _promotion(db, pid: str) -> Optional[dict]:
 async def _contest(db, cid: str) -> dict:
     await close_expired_contests(db)
     c = await db.contests.find_one({"contest_id": cid}, {"_id": 0, "contest_id": 1, "title": 1, "prize_amount": 1,
-                                                          "prize_bonus_tokens": 1, "status": 1})
+                                                          "prize_bonus_tokens": 1, "other_prize_value": 1,
+                                                          "other_prize_description": 1, "prize_type": 1, "status": 1})
     if c:
         return {**c, "prize_amount": prize_value(c), "kind": "paid_world"}
     p = await _promotion(db, cid)
@@ -147,8 +148,9 @@ async def _upsert_winners(db, plan: dict, result: dict):
             "prize_amount": amount, "reward_type": reward_type,
             "prize_cash_amount": amount if reward_type == "winnings" else 0.0,
             "prize_bonus_tokens": amount if reward_type == "bonus" else 0.0,
+            "other_prize_description": cfg.get("other_prize_description") if reward_type == "other" else None,
             "proposed_amount": amount, "proposed_reward_type": reward_type,
-            "prize_title": f"{plan.get('contest_title') or 'Prize draw'} — {cfg['name']}", "drawn_at": result["drawn_at"],
+            "prize_title": cfg.get("other_prize_description") if reward_type == "other" else f"{plan.get('contest_title') or 'Prize draw'} — {cfg['name']}", "drawn_at": result["drawn_at"],
             "paid_out": False, "payment_status": "pending", "approval_status": "pending", "edit_history": [],
             "source": "draw_studio", "draw_plan_id": plan["plan_id"], "draw_round_index": result["round_index"],
             "draw_round_name": cfg["name"], "draw_result_id": result["result_id"]}}, upsert=True)
@@ -158,7 +160,8 @@ class RoundIn(BaseModel):
     name: str = Field(..., min_length=1, max_length=80)
     prize_amount: float = Field(..., gt=0, le=1_000_000)
     num_winners: int = Field(..., ge=1, le=100)
-    reward_type: Literal["winnings", "bonus"] = "winnings"
+    reward_type: Literal["winnings", "bonus", "other"] = "winnings"
+    other_prize_description: str = Field(default="", max_length=500)
     load_duration_s: int = Field(default=12, ge=3, le=300)
     mix_duration_s: int = Field(default=15, ge=3, le=300)
     reveal_duration_s: int = Field(default=10, ge=3, le=120)
@@ -188,6 +191,8 @@ async def _validate(db, contest: dict, rounds: list[dict], pool_size: int):
         raise HTTPException(status_code=422, detail=f"Total prizes {budget:.2f} exceed the contest's published prize value {published:.2f} (cash + bonus tokens)")
     used = 0
     for i, r in enumerate(rounds):
+        if r.get("reward_type") == "other" and not (r.get("other_prize_description") or "").strip():
+            raise HTTPException(status_code=422, detail=f"Round {i + 1} needs an Other prize description")
         available = pool_size - (0 if r["allow_previous_winners"] else used)
         if r["num_winners"] > available:
             raise HTTPException(status_code=422, detail=f"Round {i + 1} needs {r['num_winners']} winners but only {available} eligible tickets remain")
@@ -207,7 +212,8 @@ async def list_contests(request: Request):
     await require_super_admin(request)
     db = get_db()
     await close_expired_contests(db)
-    contests = await db.contests.find({}, {"_id": 0, "contest_id": 1, "title": 1, "prize_amount": 1, "prize_bonus_tokens": 1, "status": 1,
+    contests = await db.contests.find({}, {"_id": 0, "contest_id": 1, "title": 1, "prize_amount": 1, "prize_bonus_tokens": 1,
+                                           "other_prize_value": 1, "other_prize_description": 1, "prize_type": 1, "status": 1,
                                            "tickets_sold": 1, "tickets_total": 1, "end_date": 1, "winners_published": 1}).sort("created_at", -1).to_list(500)
     for c in contests:
         c["prize_amount"] = prize_value(c)
@@ -556,7 +562,10 @@ async def announce_round(plan_id: str, round_index: int, request: Request):
     plan = await db[PLANS].find_one({"plan_id": plan_id}, {"_id": 0, "rounds": 1, "contest_title": 1})
     cfg = plan["rounds"][round_index]
     names = ", ".join(f"#{w['ticket_number']} {w['display_name']}" for w in result["winners"])
-    text = (cfg.get("announcement_text") or f"{cfg['name']} winner{'s' if len(result['winners']) > 1 else ''}: {{winners}} — " + (f"{cfg['prize_amount']:g} bonus tokens" if cfg.get('reward_type') == 'bonus' else f"£{cfg['prize_amount']:.2f}"))
+    reward_text = (cfg.get("other_prize_description") if cfg.get("reward_type") == "other"
+                   else f"{cfg['prize_amount']:g} bonus tokens" if cfg.get("reward_type") == "bonus"
+                   else f"£{cfg['prize_amount']:.2f}")
+    text = cfg.get("announcement_text") or f"{cfg['name']} winner{'s' if len(result['winners']) > 1 else ''}: {{winners}} — {reward_text}"
     text = text.replace("{winners}", names)
     from routers.announcement_routes import AnnouncementIn, create_announcement
 

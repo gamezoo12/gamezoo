@@ -1507,15 +1507,40 @@ async def create_contest_api(payload: dict, request: Request):
     tag_map = {'jackpot': 'Jackpot', 'instant-wins': 'Instant Wins', 'prize-draws': 'Prize Draws', 'new-games': 'New Game'}
     prize_amount = float(payload.get('prize_amount', 100) or 0)
     prize_bonus_tokens = float(payload.get('prize_bonus_tokens') or 0)
-    if prize_amount < 0 or prize_bonus_tokens < 0:
+    other_prize_value = float(payload.get('other_prize_value') or 0)
+    other_prize_description = str(payload.get('other_prize_description') or '').strip() or None
+    if other_prize_description and len(other_prize_description) > 500:
+        raise HTTPException(status_code=400, detail='Other prize description must be at most 500 characters')
+    prize_type = payload.get('prize_type') or ('mixed' if prize_amount and prize_bonus_tokens else 'bonus' if prize_bonus_tokens else 'cash')
+    if prize_type not in {'cash', 'bonus', 'mixed', 'other'}:
+        raise HTTPException(status_code=400, detail='Invalid prize type')
+    if prize_type == 'cash':
+        prize_bonus_tokens = 0
+        other_prize_value = 0
+        other_prize_description = None
+    elif prize_type == 'bonus':
+        prize_amount = 0
+        other_prize_value = 0
+        other_prize_description = None
+    elif prize_type == 'mixed':
+        other_prize_value = 0
+        other_prize_description = None
+    else:
+        prize_amount = 0
+        prize_bonus_tokens = 0
+        if not other_prize_description or other_prize_value <= 0:
+            raise HTTPException(status_code=400, detail='Other prizes need a description and estimated value')
+    if prize_amount < 0 or prize_bonus_tokens < 0 or other_prize_value < 0:
         raise HTTPException(status_code=400, detail='Prize values cannot be negative')
-    if prize_amount == 0 and prize_bonus_tokens == 0:
-        raise HTTPException(status_code=400, detail='A cash or winning bonus-token prize is required')
+    if prize_amount == 0 and prize_bonus_tokens == 0 and other_prize_value == 0:
+        raise HTTPException(status_code=400, detail='A prize is required')
     prize_labels = []
     if prize_amount:
         prize_labels.append(f'£{prize_amount:g} cash')
     if prize_bonus_tokens:
         prize_labels.append(f'{prize_bonus_tokens:g} winning bonus tokens')
+    if other_prize_description:
+        prize_labels.append(f'{other_prize_description} (est. £{other_prize_value:g})')
 
     try:
         contest = Contest(
@@ -1528,10 +1553,14 @@ async def create_contest_api(payload: dict, request: Request):
             tickets_total=int(payload.get('tickets_total') or 150),
             prize_amount=prize_amount,
             prize_bonus_tokens=prize_bonus_tokens,
+            prize_type=prize_type,
+            other_prize_description=other_prize_description,
+            other_prize_value=other_prize_value,
             bonus_token_limit_per_user=payload.get('bonus_token_limit_per_user'),
+            winning_bonus_token_limit_per_user=payload.get('winning_bonus_token_limit_per_user'),
             end_date=end_date_val,
             image=payload.get('image') or 'https://images.pexels.com/photos/928187/pexels-photo-928187.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
-            jackpot=bool(payload.get('jackpot')) or prize_amount >= 250,
+            jackpot=bool(payload.get('jackpot')) or prize_amount + prize_bonus_tokens + other_prize_value >= 250,
             featured=bool(payload.get('featured')),
             skill_question=SkillQuestion(
                 q=sk['q'], options=list(sk['options']), answer=sk['answer'],
@@ -1609,7 +1638,8 @@ async def update_contest_full(contest_id: str, payload: dict, request: Request):
     from deps import get_db
     db = get_db()
     allowed = {'title', 'subtitle', 'category', 'tag', 'image', 'price', 'tickets_total',
-               'prize_amount', 'prize_bonus_tokens', 'bonus_token_limit_per_user', 'end_date', 'jackpot', 'featured', 'status', 'public_coming_soon', 'skill_question',
+               'prize_amount', 'prize_bonus_tokens', 'prize_type', 'other_prize_description', 'other_prize_value',
+               'bonus_token_limit_per_user', 'winning_bonus_token_limit_per_user', 'end_date', 'jackpot', 'featured', 'status', 'public_coming_soon', 'skill_question',
                'skill_question_type', 'skill_question_difficulty',
                'game_type', 'game_config', 'entry_mode', 'max_attempts', 'attempts_per_ticket',
                'leaderboard_visibility', 'winner_selection_method',
@@ -1631,18 +1661,27 @@ async def update_contest_full(contest_id: str, payload: dict, request: Request):
                 updates[k] = datetime.fromisoformat(v.replace('Z', '+00:00'))
             except Exception:
                 continue
-        elif k == 'bonus_token_limit_per_user':
+        elif k in {'bonus_token_limit_per_user', 'winning_bonus_token_limit_per_user'}:
             from pydantic import TypeAdapter, Field
             from typing import Annotated
             try:
                 updates[k] = TypeAdapter(Annotated[float, Field(ge=0, multiple_of=0.01, allow_inf_nan=False)] | None).validate_python(v)
             except ValidationError:
-                raise HTTPException(status_code=400, detail='Bonus Token limit must be a non-negative number or empty')
-        elif k in {'price', 'prize_amount', 'prize_bonus_tokens'}:
+                raise HTTPException(status_code=400, detail='Token limit must be a non-negative number or empty')
+        elif k in {'price', 'prize_amount', 'prize_bonus_tokens', 'other_prize_value'}:
             amount = float(v)
             if k != 'price' and amount < 0:
                 raise HTTPException(status_code=400, detail='Prize values cannot be negative')
             updates[k] = amount
+        elif k == 'prize_type':
+            if v not in {'cash', 'bonus', 'mixed', 'other'}:
+                raise HTTPException(status_code=400, detail='Invalid prize type')
+            updates[k] = v
+        elif k == 'other_prize_description':
+            description = str(v or '').strip()
+            if len(description) > 500:
+                raise HTTPException(status_code=400, detail='Other prize description must be at most 500 characters')
+            updates[k] = description or None
         elif k in {'tickets_total', 'num_prizes', 'max_tickets_per_user'}:
             try:
                 updates[k] = int(v)
@@ -1674,25 +1713,32 @@ async def update_contest_full(contest_id: str, payload: dict, request: Request):
     if not updates:
         raise HTTPException(status_code=400, detail='No valid fields to update')
     bonus_limit_changed = False
-    if 'bonus_token_limit_per_user' in updates:
-        current = await db.contests.find_one({'contest_id': contest_id}, {'_id': 0, 'bonus_token_limit_per_user': 1, 'status': 1})
+    limit_fields = {'bonus_token_limit_per_user', 'winning_bonus_token_limit_per_user'}
+    if limit_fields & updates.keys():
+        current = await db.contests.find_one({'contest_id': contest_id}, {'_id': 0, **{key: 1 for key in limit_fields}, 'status': 1})
         if current is None:
             raise HTTPException(status_code=404, detail='Contest not found')
-        bonus_limit_changed = updates['bonus_token_limit_per_user'] != current.get('bonus_token_limit_per_user')
+        bonus_limit_changed = any(updates[key] != current.get(key) for key in limit_fields & updates.keys())
         if bonus_limit_changed and (current.get('status') == 'live'
                                     or await db.tickets.find_one({'contest_id': contest_id}, {'_id': 1})):
             raise HTTPException(status_code=409, detail='Bonus Token limit cannot be changed after a contest goes live or entries begin')
-    if {'prize_amount', 'prize_bonus_tokens'} & updates.keys():
+    if {'prize_amount', 'prize_bonus_tokens', 'prize_type', 'other_prize_description', 'other_prize_value'} & updates.keys():
         current = await db.contests.find_one(
             {'contest_id': contest_id},
-            {'_id': 0, 'prize_amount': 1, 'prize_bonus_tokens': 1},
+            {'_id': 0, 'prize_amount': 1, 'prize_bonus_tokens': 1, 'prize_type': 1,
+             'other_prize_description': 1, 'other_prize_value': 1},
         )
         if not current:
             raise HTTPException(status_code=404, detail='Contest not found')
         cash = float(updates.get('prize_amount', current.get('prize_amount') or 0))
         bonus = float(updates.get('prize_bonus_tokens', current.get('prize_bonus_tokens') or 0))
-        if cash + bonus <= 0:
-            raise HTTPException(status_code=400, detail='A cash or winning bonus-token prize is required')
+        other_value = float(updates.get('other_prize_value', current.get('other_prize_value') or 0))
+        other_description = updates.get('other_prize_description', current.get('other_prize_description'))
+        prize_type = updates.get('prize_type', current.get('prize_type') or ('mixed' if cash and bonus else 'bonus' if bonus else 'cash'))
+        if prize_type == 'other' and (not other_description or other_value <= 0):
+            raise HTTPException(status_code=400, detail='Other prizes need a description and estimated value')
+        if prize_type != 'other' and cash + bonus <= 0:
+            raise HTTPException(status_code=400, detail='A cash or Winning Bonus Token prize is required')
     if 'game_config' in updates:
         cfg = updates['game_config'] if isinstance(updates['game_config'], dict) else {}
         if 'difficulty' in cfg:

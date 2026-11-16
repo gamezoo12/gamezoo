@@ -34,5 +34,6 @@ async def close_expired_contests(db) -> int:
 
 
 def prize_value(c: dict) -> float:
-    """Total prize pool for draw budgeting: cash prize plus winning bonus tokens."""
-    return round(float(c.get('prize_amount') or 0) + float(c.get('prize_bonus_tokens') or 0), 2)
+    """Total declared prize value for contest and draw budgeting."""
+    return round(float(c.get('prize_amount') or 0) + float(c.get('prize_bonus_tokens') or 0)
+                 + float(c.get('other_prize_value') or 0), 2)

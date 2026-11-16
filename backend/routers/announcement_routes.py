@@ -20,6 +20,8 @@ COLLECTION = "site_announcements"
 AUDIT = "site_announcement_audit"
 BADGE_SETTINGS = "promotion_badge"
 BADGE_DEFAULTS = {"enabled": True, "text": "", "url": "/my-account/promotions"}
+TICKER_SETTINGS = "ticker"
+DEFAULT_TICKER_DURATION_SECONDS = 30
 FALLBACKS = [
     {"id": "default:skill", "text": "Play Skill-Based Games", "icon": "🎉"},
     {"id": "default:contests", "text": "Enter Exciting Contests", "icon": "⚡"},
@@ -112,6 +114,10 @@ class BadgeSettingsIn(BaseModel):
     url: str = Field(default="/my-account/promotions", max_length=500)
 
 
+class TickerSettingsIn(BaseModel):
+    duration_seconds: int = Field(ge=10, le=120)
+
+
 class GeneratedAnnouncementIn(BaseModel):
     text: str = Field(min_length=1)
     enabled: bool = True
@@ -122,6 +128,14 @@ class GeneratedAnnouncementIn(BaseModel):
 async def _badge_settings(db):
     doc = await db.site_announcement_settings.find_one({"_id": BADGE_SETTINGS}, {"_id": 0, "enabled": 1, "text": 1, "url": 1})
     return {**BADGE_DEFAULTS, **(doc or {})}
+
+
+async def _ticker_settings(db):
+    doc = await db.site_announcement_settings.find_one({"_id": TICKER_SETTINGS}, {"_id": 0, "duration_seconds": 1}) or {}
+    duration = doc.get("duration_seconds")
+    if isinstance(duration, bool) or not isinstance(duration, int) or not 10 <= duration <= 120:
+        duration = DEFAULT_TICKER_DURATION_SECONDS
+    return {"duration_seconds": duration}
 
 
 def _validated(body: AnnouncementIn) -> dict:
@@ -222,7 +236,8 @@ async def public_announcements():
     public_overrides = {key: (value if not value.get("deleted") and value.get("enabled", True) and value.get("published", True)
                               else {field: value.get(field) for field in ("deleted", "enabled", "published")})
                         for key, value in overrides.items()}
-    return {"announcements": announcements, "fallbacks": [item for item in fallbacks if item], "ticker_overrides": public_overrides}
+    return {"announcements": announcements, "fallbacks": [item for item in fallbacks if item],
+            "ticker_overrides": public_overrides, "ticker_settings": await _ticker_settings(db)}
 
 
 @public_router.get("/promotion-badge")
@@ -242,6 +257,24 @@ async def list_announcements(request: Request):
 async def admin_badge_settings(request: Request):
     await require_super_admin(request)
     return await _badge_settings(get_db())
+
+
+@admin_router.get("/ticker-settings")
+async def admin_ticker_settings(request: Request):
+    await require_super_admin(request)
+    return await _ticker_settings(get_db())
+
+
+@admin_router.put("/ticker-settings")
+async def save_ticker_settings(body: TickerSettingsIn, request: Request):
+    admin = await require_super_admin(request)
+    db = get_db()
+    previous = await _ticker_settings(db)
+    updated = {"duration_seconds": body.duration_seconds}
+    if updated != previous:
+        await db.site_announcement_settings.update_one({"_id": TICKER_SETTINGS}, {"$set": updated}, upsert=True)
+        await _audit(db, TICKER_SETTINGS, "ticker_settings", admin, previous=previous, new=updated)
+    return updated
 
 
 @admin_router.get("/generated")

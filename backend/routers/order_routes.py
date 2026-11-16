@@ -1,4 +1,7 @@
 from services.contest_lifecycle import is_expired
+from bisect import bisect_right
+import asyncio
+import secrets
 from fastapi import APIRouter, HTTPException, Request
 from datetime import datetime, timezone, timedelta
 
@@ -7,9 +10,47 @@ from deps import get_db
 from models import CheckoutInput, Order, Ticket
 from routers.wallet_routes import _apply_tx, _get_or_create_wallet
 from skill_challenge import verify_challenge
-from pymongo.errors import DuplicateKeyError
+from pymongo import ReturnDocument
+from pymongo.errors import BulkWriteError, DuplicateKeyError
 
 router = APIRouter(prefix='/api/orders', tags=['orders'])
+
+
+def _choose_random_ticket_numbers(total: int, occupied: set[int], quantity: int) -> list[int]:
+    used = sorted(number for number in occupied if isinstance(number, int) and not isinstance(number, bool)
+                  and 1 <= number <= total)
+    available = total - len(used)
+    if quantity < 0 or quantity > available:
+        raise HTTPException(status_code=409, detail='Not enough unassigned ticket numbers are available for this contest.')
+    ranks = secrets.SystemRandom().sample(range(available), quantity)
+    selected = []
+    for rank in ranks:
+        left, right = 1, total
+        while left < right:
+            midpoint = (left + right) // 2
+            if midpoint - bisect_right(used, midpoint) >= rank + 1:
+                right = midpoint
+            else:
+                left = midpoint + 1
+        selected.append(left)
+    return selected
+
+
+async def _lock_contest_ticket_allocation(db, contest_id: str, token: str) -> None:
+    for _attempt in range(100):
+        now = datetime.now(timezone.utc)
+        try:
+            lock = await db.paid_contest_ticket_locks.find_one_and_update(
+                {'_id': contest_id, '$or': [{'expires_at': {'$lte': now}}, {'expires_at': {'$exists': False}}]},
+                {'$set': {'token': token, 'expires_at': now + timedelta(minutes=5)}},
+                upsert=True, return_document=ReturnDocument.AFTER,
+            )
+            if lock and lock.get('token') == token:
+                return
+        except DuplicateKeyError:
+            pass
+        await asyncio.sleep(0.05)
+    raise HTTPException(status_code=409, detail='Ticket allocation is busy. Please try checkout again.')
 
 
 def _validate_skill(c: dict, item) -> None:
@@ -34,17 +75,19 @@ def _validate_skill(c: dict, item) -> None:
         raise HTTPException(status_code=400, detail=f'Incorrect skill answer for: {c["title"]}')
 
 
-def _allocate_contest_bonus(order_items: list[dict], contest_by_id: dict, prior_usage: dict) -> list[float]:
+def _allocate_contest_token(order_items: list[dict], contest_by_id: dict, prior_usage: dict, cap_field: str) -> list[float]:
+    usage_field = ('bonus_tokens_used' if cap_field == 'bonus_token_limit_per_user'
+                   else 'winning_bonus_tokens_used')
     remaining = {}
     limits = []
     for item in order_items:
         contest_id = item['contest_id']
-        cap = contest_by_id[contest_id].get('bonus_token_limit_per_user')
+        cap = contest_by_id[contest_id].get(cap_field)
         if cap is None:
             limits.append(round(float(item['line_total']), 2))
             continue
         if contest_id not in remaining:
-            remaining[contest_id] = max(0.0, round(float(cap) - float(prior_usage.get(contest_id, 0)), 2))
+            remaining[contest_id] = max(0.0, round(float(cap) - float(prior_usage.get(contest_id, {}).get(usage_field, 0)), 2))
         allowance = min(round(float(item['line_total']), 2), remaining[contest_id])
         limits.append(allowance)
         remaining[contest_id] = round(remaining[contest_id] - allowance, 2)
@@ -97,7 +140,6 @@ async def checkout(inp: CheckoutInput, request: Request):
     lock_id = f"paid_checkout:{user['user_id']}"
     lock_token = sig
     try:
-        from pymongo import ReturnDocument
         lock = await db.paid_checkout_locks.find_one_and_update(
             {'_id': lock_id, '$or': [
                 {'expires_at': {'$lte': now}},
@@ -111,6 +153,8 @@ async def checkout(inp: CheckoutInput, request: Request):
     if not lock or lock.get('token') != lock_token:
         raise HTTPException(status_code=409, detail='Another checkout is processing. Please try again shortly.')
 
+    allocation_locks = []
+    allocation_token = secrets.token_hex(16)
     try:
         order_items = []
         total = 0.0
@@ -168,18 +212,31 @@ async def checkout(inp: CheckoutInput, request: Request):
             )
 
         capped_contests = [contest_id for contest_id, contest in contest_by_id.items()
-                           if contest.get('bonus_token_limit_per_user') is not None]
+                   if contest.get('bonus_token_limit_per_user') is not None
+                   or contest.get('winning_bonus_token_limit_per_user') is not None]
         prior_usage = {}
         if capped_contests:
             rows = await db.orders.aggregate([
                 {'$match': {'user_id': user['user_id'], 'status': 'paid', 'items.contest_id': {'$in': capped_contests}}},
                 {'$unwind': '$items'},
                 {'$match': {'items.contest_id': {'$in': capped_contests}}},
-                {'$group': {'_id': '$items.contest_id', 'bonus_used': {'$sum': {'$ifNull': ['$items.bonus_tokens_used', 0]}}}},
+                {'$group': {'_id': '$items.contest_id',
+                            'bonus_tokens_used': {'$sum': {'$ifNull': ['$items.bonus_tokens_used', 0]}},
+                            'winning_bonus_tokens_used': {'$sum': {'$ifNull': ['$items.winning_bonus_tokens_used', 0]}}}},
             ]).to_list(None)
-            prior_usage = {row['_id']: row['bonus_used'] for row in rows}
-        bonus_allowances = _allocate_contest_bonus(order_items, contest_by_id, prior_usage)
-        bonus_limit = round(sum(bonus_allowances), 2) if capped_contests else None
+            prior_usage = {row['_id']: row for row in rows}
+        bonus_allowances = _allocate_contest_token(order_items, contest_by_id, prior_usage, 'bonus_token_limit_per_user')
+        winning_bonus_allowances = _allocate_contest_token(order_items, contest_by_id, prior_usage, 'winning_bonus_token_limit_per_user')
+        bonus_limit = round(sum(bonus_allowances), 2) if any(contest_by_id[cid].get('bonus_token_limit_per_user') is not None for cid in capped_contests) else None
+        winning_bonus_limit = round(sum(winning_bonus_allowances), 2) if any(contest_by_id[cid].get('winning_bonus_token_limit_per_user') is not None for cid in capped_contests) else None
+
+        for contest_id in sorted(contest_by_id):
+            await _lock_contest_ticket_allocation(db, contest_id, allocation_token)
+            allocation_locks.append(contest_id)
+        occupied_by_contest = {}
+        for contest_id in contest_by_id:
+            rows = await db.tickets.find({'contest_id': contest_id}, {'_id': 0, 'ticket_number': 1}).to_list(None)
+            occupied_by_contest[contest_id] = {row['ticket_number'] for row in rows if isinstance(row.get('ticket_number'), int)}
 
         # Pass 2: ATOMIC ticket reservations. Each `$inc` is guarded by a filter
         # on `tickets_sold` so two buyers can't oversell the last N tickets. If
@@ -207,15 +264,19 @@ async def checkout(inp: CheckoutInput, request: Request):
                 if not res:
                     # Someone beat us to the last tickets between pass 1 and now.
                     raise HTTPException(status_code=409, detail=f'Tickets just sold out for {c["title"]}. Please refresh and try again.')
-                base = res.get('tickets_sold', 0)
-                reserved.append((c['contest_id'], base, item.qty))
-                for n in range(item.qty):
-                    tickets_to_insert.append(Ticket(
+                reserved.append((c['contest_id'], res.get('tickets_sold', 0), item.qty))
+                occupied = occupied_by_contest[c['contest_id']]
+                numbers = _choose_random_ticket_numbers(int(res['tickets_total']), occupied, item.qty)
+                occupied.update(numbers)
+                for number in numbers:
+                    ticket = Ticket(
                         order_id=order.order_id,
                         user_id=user['user_id'],
                         contest_id=c['contest_id'],
-                        ticket_number=base + n + 1,
-                    ).model_dump())
+                        ticket_number=number,
+                    ).model_dump()
+                    ticket['_id'] = f"ticket-number:{c['contest_id']}:{number}"
+                    tickets_to_insert.append(ticket)
 
             # Debit wallet ATOMICALLY (find_one_and_update with balance guard).
             # If insufficient (a race between check and here), this raises 400
@@ -223,14 +284,19 @@ async def checkout(inp: CheckoutInput, request: Request):
             # returns without raising we own an unbalanced debit and MUST refund
             # it if any later step fails.
             debit = await _apply_tx(db, user['user_id'], 'spend', -total, note=f'Order {order.order_id}',
-                                    ref_order_id=order.order_id, bonus_limit=bonus_limit)
+                                    ref_order_id=order.order_id, bonus_limit=bonus_limit,
+                                    winning_bonus_limit=winning_bonus_limit)
             debit_applied = True
 
             bonus_remaining = round(abs(float(debit['tx'].get('bonus_amount') or 0)), 2)
-            for item, allowance in zip(order.items, bonus_allowances):
-                used = min(allowance, bonus_remaining)
-                item['bonus_tokens_used'] = used
-                bonus_remaining = round(bonus_remaining - used, 2)
+            winning_bonus_remaining = round(abs(float(debit['tx'].get('winning_bonus_amount') or 0)), 2)
+            for item, bonus_allowance, winning_bonus_allowance in zip(order.items, bonus_allowances, winning_bonus_allowances):
+                bonus_used = min(bonus_allowance, bonus_remaining)
+                winning_bonus_used = min(winning_bonus_allowance, winning_bonus_remaining)
+                item['bonus_tokens_used'] = bonus_used
+                item['winning_bonus_tokens_used'] = winning_bonus_used
+                bonus_remaining = round(bonus_remaining - bonus_used, 2)
+                winning_bonus_remaining = round(winning_bonus_remaining - winning_bonus_used, 2)
 
             order_doc = order.model_dump()
             order_doc['basket_sig'] = basket_sig
@@ -245,8 +311,12 @@ async def checkout(inp: CheckoutInput, request: Request):
                     raise HTTPException(status_code=409, detail='Duplicate checkout detected — the other tab already completed this purchase.')
                 raise
             if tickets_to_insert:
-                await db.tickets.insert_many(tickets_to_insert)
+                try:
+                    await db.tickets.insert_many(tickets_to_insert)
+                except (DuplicateKeyError, BulkWriteError):
+                    raise HTTPException(status_code=409, detail='Ticket allocation changed during checkout. Please try again.')
         except HTTPException:
+            await db.tickets.delete_many({'order_id': order.order_id})
             # Roll back any reservations we already made this request.
             for contest_id, _base, qty in reserved:
                 await db.contests.update_one({'contest_id': contest_id}, {'$inc': {'tickets_sold': -qty}})
@@ -266,6 +336,7 @@ async def checkout(inp: CheckoutInput, request: Request):
                     _lg.exception('CRITICAL: failed to auto-refund debited wallet after checkout error user=%s order=%s amount=%.2f', user['user_id'], order.order_id, total)
             raise
         except Exception:
+            await db.tickets.delete_many({'order_id': order.order_id})
             for contest_id, _base, qty in reserved:
                 await db.contests.update_one({'contest_id': contest_id}, {'$inc': {'tickets_sold': -qty}})
             if debit_applied:
@@ -344,6 +415,8 @@ async def checkout(inp: CheckoutInput, request: Request):
         }
 
     finally:
+        for contest_id in allocation_locks:
+            await db.paid_contest_ticket_locks.delete_one({'_id': contest_id, 'token': allocation_token})
         await db.paid_checkout_locks.delete_one({'_id': lock_id, 'token': lock_token})
 
 @router.get('/mine')

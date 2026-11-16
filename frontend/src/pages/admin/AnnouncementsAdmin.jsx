@@ -62,14 +62,16 @@ export default function AnnouncementsAdmin() {
   const [audit, setAudit] = useState([]);
   const [form, setForm] = useState(empty);
   const [badge, setBadge] = useState({ enabled: true, text: '', url: '/my-account/promotions' });
+  const [tickerDuration, setTickerDuration] = useState(30);
   const [editingId, setEditingId] = useState(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    const [list, log, badgeSettings, generatedItems] = await Promise.all([api.list(), api.audit().catch(() => ({ items: [] })), api.badgeSettings(), api.generated()]);
+    const [list, log, badgeSettings, generatedItems, tickerSettings] = await Promise.all([api.list(), api.audit().catch(() => ({ items: [] })), api.badgeSettings(), api.generated(), api.tickerSettings()]);
     setItems(list.announcements); setAudit(log.items); setBadge(badgeSettings); setGenerated(generatedItems.items || []);
+    setTickerDuration(tickerSettings.duration_seconds);
   }, []);
   useEffect(() => { load().catch((e) => setError(errText(e))); }, [load]);
 
@@ -111,6 +113,14 @@ export default function AnnouncementsAdmin() {
         <p className="mt-1 text-sm text-slate-500">Messages shown in the scrolling ticker under the site header. Automatic winner announcements are unaffected. Times are Europe/London.</p></header>
       {error && <div role="alert" className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800" data-testid="announcement-error">{error}</div>}
       {notice && <div role="status" className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</div>}
+
+      <section className="space-y-3 rounded-lg border border-slate-200 bg-white p-4" data-testid="announcement-ticker-settings">
+        <h2 className="font-bold text-slate-900">Scroll speed</h2>
+        <label htmlFor="announcement-ticker-duration" className="block text-sm font-semibold text-slate-700">{tickerDuration} seconds per loop</label>
+        <input id="announcement-ticker-duration" type="range" min="10" max="120" step="5" value={tickerDuration} onChange={(event) => setTickerDuration(Number(event.target.value))} className="w-full max-w-md accent-[#6C2BFF]" data-testid="announcement-ticker-duration" />
+        <div className="flex max-w-md justify-between text-xs text-slate-500"><span>Faster</span><span>Slower</span></div>
+        <button type="button" disabled={busy} className="h-10 rounded-md bg-slate-900 px-4 text-sm font-bold text-white disabled:opacity-50" onClick={() => run(async () => { await api.saveTickerSettings(tickerDuration); window.dispatchEvent(new Event('pl:announcement-ticker-updated')); }, 'Scroll speed saved.')} data-testid="announcement-ticker-save">Save speed</button>
+      </section>
 
       <section className="space-y-3 rounded-lg border border-slate-200 bg-white p-4" data-testid="promotion-badge-settings">
         <h2 className="font-bold text-slate-900">Promotion icon</h2>

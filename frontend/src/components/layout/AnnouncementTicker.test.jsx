@@ -30,6 +30,19 @@ const render = async (mode) => {
 };
 
 describe('AnnouncementTicker', () => {
+  it('applies the configured scroll duration and refreshes it when settings change', async () => {
+    const get = jest.spyOn(api, 'get').mockResolvedValue({ data: {
+      announcements: [], ticker_settings: { duration_seconds: 65 },
+    } });
+    try {
+      const el = await render('promo');
+      expect(el.querySelector('.pl-marquee-track').style.animationDuration).toBe('65s');
+      get.mockResolvedValue({ data: { announcements: [], ticker_settings: { duration_seconds: 90 } } });
+      await act(async () => { window.dispatchEvent(new Event('pl:announcement-ticker-updated')); });
+      expect(el.querySelector('.pl-marquee-track').style.animationDuration).toBe('90s');
+    } finally { get.mockRestore(); }
+  });
+
   it('shows managed announcements with working internal and external links', async () => {
     const el = await render('promo');
     expect(el.textContent).toContain('Big Friday draw');

@@ -27,7 +27,11 @@ class Contest(BaseModel):
     tickets_total: int = 150
     prize_amount: float = 100.0
     prize_bonus_tokens: float = 0.0
+    prize_type: Literal['cash', 'bonus', 'mixed', 'other'] = 'cash'
+    other_prize_description: Optional[str] = Field(default=None, max_length=500)
+    other_prize_value: float = Field(default=0, ge=0, allow_inf_nan=False)
     bonus_token_limit_per_user: Optional[float] = Field(default=None, ge=0, multiple_of=0.01, allow_inf_nan=False)
+    winning_bonus_token_limit_per_user: Optional[float] = Field(default=None, ge=0, multiple_of=0.01, allow_inf_nan=False)
     end_date: datetime
     image: str
     jackpot: bool = False
@@ -177,6 +181,11 @@ class ContestPublic(BaseModel):
     tickets_total: int
     prize_amount: float
     prize_bonus_tokens: float = 0.0
+    prize_type: Literal['cash', 'bonus', 'mixed', 'other'] = 'cash'
+    other_prize_description: Optional[str] = Field(default=None, max_length=500)
+    other_prize_value: float = 0.0
+    bonus_token_limit_per_user: Optional[float] = None
+    winning_bonus_token_limit_per_user: Optional[float] = None
     end_date: datetime
     image: str
     jackpot: bool

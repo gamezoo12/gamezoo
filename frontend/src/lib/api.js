@@ -941,6 +941,8 @@ export const announcementsAdminAPI = {
   updateGenerated: (id, body) => api.put(`/admin/announcements/generated/${encodeURIComponent(id)}`, body).then(r => r.data),
   badgeSettings: () => api.get('/admin/announcements/promotion-badge').then(r => r.data),
   saveBadgeSettings: (body) => api.put('/admin/announcements/promotion-badge', body).then(r => r.data),
+  tickerSettings: () => api.get('/admin/announcements/ticker-settings').then(r => r.data),
+  saveTickerSettings: (duration_seconds) => api.put('/admin/announcements/ticker-settings', { duration_seconds }).then(r => r.data),
   create: (body) => api.post('/admin/announcements', body).then(r => r.data),
   update: (id, body) => api.put(`/admin/announcements/${id}`, body).then(r => r.data),
   action: (id, action) => api.post(`/admin/announcements/${id}/${action}`).then(r => r.data),

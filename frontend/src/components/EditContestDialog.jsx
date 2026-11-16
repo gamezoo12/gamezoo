@@ -61,8 +61,9 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
   const isCreate = mode === 'create';
   const emptyForm = {
     title: '', subtitle: '', category: 'prize-draws', image: '',
-    price: 1, tickets_total: 150, prize_amount: 100, prize_bonus_tokens: 0,
-    bonus_token_limit_per_user: '',
+    price: 1, tickets_total: 150, prize_amount: 100, prize_bonus_tokens: 0, prize_type: 'cash',
+    other_prize_description: '', other_prize_value: 0,
+    bonus_token_limit_per_user: '', winning_bonus_token_limit_per_user: '',
     end_date: new Date(Date.now() + 7 * 86400000).toISOString(),
     jackpot: false, featured: false, status: 'draft',
     public_coming_soon: false,
@@ -108,7 +109,13 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
   const removeImage = () => { upd('image', ''); setUploadErr(''); };
 
   useEffect(() => {
-    if (open) setForm(isCreate ? emptyForm : (contest || {}));
+    if (!open) return;
+    if (isCreate) { setForm(emptyForm); return; }
+    const current = contest || {};
+    const inferredType = current.prize_type || (current.other_prize_description ? 'other'
+      : Number(current.prize_amount || 0) && Number(current.prize_bonus_tokens || 0) ? 'mixed'
+        : Number(current.prize_bonus_tokens || 0) ? 'bonus' : 'cash');
+    setForm({ ...current, prize_type: inferredType });
   }, [contest, open, isCreate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isCreate && !contest) return null;
@@ -289,10 +296,15 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
         image: form.image,
         price: Number.isFinite(Number(form.price)) ? Number(form.price) : 0,
         tickets_total: parseInt(form.tickets_total, 10) || 100,
-        prize_amount: Number.isFinite(Number(form.prize_amount)) ? Number(form.prize_amount) : 100,
-        prize_bonus_tokens: Number.isFinite(Number(form.prize_bonus_tokens)) ? Number(form.prize_bonus_tokens) : 0,
+        prize_type: form.prize_type || 'cash',
+        prize_amount: ['cash', 'mixed'].includes(form.prize_type || 'cash') && Number.isFinite(Number(form.prize_amount)) ? Number(form.prize_amount) : 0,
+        prize_bonus_tokens: ['bonus', 'mixed'].includes(form.prize_type || 'cash') && Number.isFinite(Number(form.prize_bonus_tokens)) ? Number(form.prize_bonus_tokens) : 0,
+        other_prize_description: form.prize_type === 'other' ? String(form.other_prize_description || '').trim() : '',
+        other_prize_value: form.prize_type === 'other' && Number.isFinite(Number(form.other_prize_value)) ? Number(form.other_prize_value) : 0,
         bonus_token_limit_per_user: form.bonus_token_limit_per_user === '' || form.bonus_token_limit_per_user == null
           ? null : Number(form.bonus_token_limit_per_user),
+        winning_bonus_token_limit_per_user: form.winning_bonus_token_limit_per_user === '' || form.winning_bonus_token_limit_per_user == null
+          ? null : Number(form.winning_bonus_token_limit_per_user),
         end_date: form.end_date,
         jackpot: !!form.jackpot,
         featured: !!form.featured,
@@ -582,7 +594,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                 </div>
 
                 <div>
-                  <Label>Bonus Token limit per user</Label>
+                  <Label>Max Bonus Tokens per user to enter</Label>
                   <Input
                     type="number"
                     min="0"
@@ -593,7 +605,22 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                     placeholder="Unlimited"
                     data-testid="real-bonus-token-limit"
                   />
-                  <p className="mt-1 text-xs text-slate-500">Across all purchases in this contest. Blank means unlimited; 0 prevents Bonus Token use. Locked once the contest is live or has entries.</p>
+                  <p className="mt-1 text-xs text-slate-500">Promotional Bonus Tokens, across all purchases. Blank means unlimited; 0 prevents use.</p>
+                </div>
+
+                <div>
+                  <Label>Max Winning Bonus Tokens per user to enter</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.winning_bonus_token_limit_per_user ?? ''}
+                    disabled={!isCreate && (form.status === 'live' || Number(form.tickets_sold || 0) > 0)}
+                    onChange={e => upd('winning_bonus_token_limit_per_user', e.target.value)}
+                    placeholder="Unlimited"
+                    data-testid="real-winning-bonus-token-limit"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">Winning Bonus Tokens are separate from promotional Bonus Tokens. Blank means unlimited; 0 prevents use. Both limits lock when the contest goes live or gets entries.</p>
                 </div>
 
                 <div>
@@ -630,8 +657,18 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                 <h3 className="text-base font-black text-slate-900">3. Prize Settings</h3>
               </div>
 
+              <label className="block max-w-sm">
+                <Label>Prize type</Label>
+                <select className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm" value={form.prize_type || 'cash'} onChange={event => upd('prize_type', event.target.value)} data-testid="real-prize-type">
+                  <option value="cash">Cash prize</option>
+                  <option value="bonus">Winning Bonus Tokens</option>
+                  <option value="mixed">Cash + Winning Bonus Tokens</option>
+                  <option value="other">Other prize</option>
+                </select>
+              </label>
+
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div>
+                {['cash', 'mixed'].includes(form.prize_type || 'cash') && <div>
                   <Label>Cash prize (£)</Label>
                   <Input
                     type="number"
@@ -641,9 +678,9 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                     onChange={e => upd('prize_amount', e.target.value)}
                     data-testid="real-prize-value"
                   />
-                </div>
+                </div>}
 
-                <div>
+                {['bonus', 'mixed'].includes(form.prize_type || 'cash') && <div>
                   <Label>Winning Bonus Tokens</Label>
                   <Input
                     type="number"
@@ -653,7 +690,18 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                     onChange={e => upd('prize_bonus_tokens', e.target.value)}
                     data-testid="real-prize-bonus-tokens"
                   />
-                </div>
+                </div>}
+
+                {form.prize_type === 'other' && <>
+                  <div>
+                    <Label>Other prize description</Label>
+                    <Input value={form.other_prize_description || ''} onChange={event => upd('other_prize_description', event.target.value)} placeholder="e.g. Tablet, car, mobile phone" maxLength={500} data-testid="real-other-prize-description" />
+                  </div>
+                  <div>
+                    <Label>Estimated prize value (£)</Label>
+                    <Input type="number" min="0.01" step="0.01" value={form.other_prize_value ?? 0} onChange={event => upd('other_prize_value', event.target.value)} data-testid="real-other-prize-value" />
+                  </div>
+                </>}
 
                 <div>
                   <Label>Number of Winners</Label>

@@ -2,7 +2,7 @@ import { Plus, Trash2 } from 'lucide-react';
 
 const cell = 'h-9 w-full rounded-lg border border-white/10 bg-[#0b0724] px-2 text-sm text-white focus:border-amber-300 focus:outline-none disabled:opacity-60';
 export const newRound = (n) => ({ name: n === 1 ? 'Grand Prize' : `Prize ${n}`, prize_amount: 50, num_winners: 1, reward_type: 'winnings', load_duration_s: 12,
-  mix_duration_s: 15, reveal_duration_s: 10, announcement_text: '', allow_previous_winners: false });
+  mix_duration_s: 15, reveal_duration_s: 10, announcement_text: '', other_prize_description: '', allow_previous_winners: false });
 export const normaliseRounds = (rounds) => rounds.map((r, i) => ({ ...newRound(i + 1), ...r }));
 
 const num = (min, max) => (v) => Math.max(min, Math.min(max, Number(v) || min));
@@ -16,11 +16,12 @@ function RoundRow({ r, i, update, remove, locked, drawn }) {
   return (
     <tr className="border-t border-white/5" data-testid={`draw-round-${i}`}>
       <td className="px-2 py-2 text-sm font-black text-amber-300">{i + 1}{drawn && <span className="ml-1 text-[9px] text-emerald-300">DRAWN</span>}</td>
-      {COLS.map(([key, , parse, width]) => (
+      {COLS.map(([key, label, parse, width]) => (
         <td key={key} className={`px-1 py-2 ${width}`}>
           {key === 'reward_type'
-            ? <select className={cell} disabled={locked} value={r.reward_type} onChange={(e) => update(i, { reward_type: e.target.value })} data-testid={`draw-round-reward-${i}`}><option value="winnings">Winnings Tokens</option><option value="bonus">Bonus Tokens</option></select>
-            : <input className={cell} disabled={locked} type={parse === 'text' ? 'text' : 'number'} maxLength={80} value={r[key]}
+            ? <div className="space-y-1"><select className={cell} disabled={locked} value={r.reward_type} onChange={(e) => update(i, { reward_type: e.target.value })} data-testid={`draw-round-reward-${i}`}><option value="winnings">Winnings Tokens</option><option value="bonus">Bonus Tokens</option><option value="other">Other prize</option></select>
+              {r.reward_type === 'other' && <input className={cell} disabled={locked} type="text" maxLength={500} placeholder="e.g. tablet, car, mobile" value={r.other_prize_description || ''} onChange={(e) => update(i, { other_prize_description: e.target.value })} data-testid={`draw-round-other-prize-${i}`} />}</div>
+            : <input className={cell} disabled={locked} type={parse === 'text' ? 'text' : 'number'} maxLength={80} aria-label={key === 'prize_amount' && r.reward_type === 'other' ? 'Estimated other prize value in pounds' : label} value={r[key]}
               onChange={(e) => update(i, { [key]: parse === 'text' ? e.target.value : e.target.value === '' ? '' : Number(e.target.value) })}
               onBlur={(e) => parse !== 'text' && update(i, { [key]: parse(e.target.value) })} data-testid={`draw-round-${key}-${i}`} />}
         </td>
@@ -49,7 +50,7 @@ export function RoundsEditor({ rounds, setRounds, locked, results }) {
       <div className="overflow-x-auto rounded-xl border border-white/10">
         <table className="w-full min-w-[880px] text-left">
           <thead className="bg-white/5 text-[10px] font-black uppercase tracking-wider text-indigo-200/70">
-            <tr><th className="px-2 py-2">#</th>{COLS.map(([k, label]) => <th key={k} className="px-1 py-2">{label}</th>)}<th className="px-2 py-2">Earlier winners</th><th /></tr>
+            <tr><th className="px-2 py-2">#</th>{COLS.map(([k, label]) => <th key={k} className="px-1 py-2">{k === 'prize_amount' && rounds.some((round) => round.reward_type === 'other') ? 'Value £' : label}</th>)}<th className="px-2 py-2">Earlier winners</th><th /></tr>
           </thead>
           <tbody>{rounds.map((r, i) => <RoundRow key={i} r={r} i={i} update={update} remove={remove} locked={locked} drawn={Boolean(results?.[i])} />)}</tbody>
         </table>

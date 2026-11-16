@@ -9,7 +9,7 @@ from pydantic import ValidationError
 import deps
 from models import Contest
 from routers import admin_routes
-from routers.order_routes import _allocate_contest_bonus
+from routers.order_routes import _allocate_contest_token
 from routers.wallet_routes import _split_debit
 
 
@@ -25,14 +25,23 @@ def test_bonus_allowance_is_shared_across_contest_lines_and_prior_orders():
         'unlimited': {},
         'none': {'bonus_token_limit_per_user': 0},
     }
-    assert _allocate_contest_bonus(items, contests, {'limited': 1}) == [3, 4, 1, 0]
-    assert _allocate_contest_bonus(items, contests, {'limited': 5}) == [0, 4, 0, 0]
+    assert _allocate_contest_token(items, contests, {'limited': {'bonus_tokens_used': 1}}, 'bonus_token_limit_per_user') == [3, 4, 1, 0]
+    assert _allocate_contest_token(items, contests, {'limited': {'bonus_tokens_used': 5}}, 'bonus_token_limit_per_user') == [0, 4, 0, 0]
+
+
+def test_bonus_and_winning_bonus_allowances_are_independent():
+    items = [{'contest_id': 'limited', 'line_total': 10}]
+    contests = {'limited': {'bonus_token_limit_per_user': 2, 'winning_bonus_token_limit_per_user': 5}}
+    assert _allocate_contest_token(items, contests, {}, 'bonus_token_limit_per_user') == [2]
+    assert _allocate_contest_token(items, contests, {}, 'winning_bonus_token_limit_per_user') == [5]
+    assert _allocate_contest_token(items, contests, {'limited': {'winning_bonus_tokens_used': 3}}, 'winning_bonus_token_limit_per_user') == [2]
 
 
 def test_wallet_split_keeps_capped_bonus_separate_from_purchased_balance():
     assert _split_debit(20, 10, 3, 2, 0, 12, 4) == (4, 3, 0)
     assert _split_debit(20, 10, 3, 2, 0, 12, 0) == (0, 3, 2)
     assert _split_debit(20, 10, 3, 2, 0, 12) == (10, 2, 0)
+    assert _split_debit(20, 10, 8, 2, 0, 12, 4, 3) == (4, 3, 2)
 
 
 @pytest.mark.parametrize('value', [-1, float('inf'), 0.001])
@@ -56,11 +65,43 @@ def test_admin_can_create_contest_with_limit_but_cannot_change_it_after_launch(m
 
     created = asyncio.run(admin_routes.create_contest_api({
         'title': 'Limited contest', 'status': 'draft', 'bonus_token_limit_per_user': 3,
+        'winning_bonus_token_limit_per_user': 5,
     }, SimpleNamespace()))
     assert created['contest']['bonus_token_limit_per_user'] == 3
+    assert created['contest']['winning_bonus_token_limit_per_user'] == 5
     assert db.contests.insert_one.await_args.args[0]['bonus_token_limit_per_user'] == 3
+    assert db.contests.insert_one.await_args.args[0]['winning_bonus_token_limit_per_user'] == 5
 
     with pytest.raises(HTTPException) as error:
         asyncio.run(admin_routes.update_contest_full('contest-1', {'bonus_token_limit_per_user': 5}, SimpleNamespace()))
     assert error.value.status_code == 409
     db.contests.update_one.assert_not_awaited()
+
+
+def test_contest_model_accepts_both_token_limits():
+    contest = Contest.model_validate({
+        'slug': 'limits', 'title': 'Limits', 'end_date': '2027-01-01T00:00:00Z', 'image': 'image',
+        'skill_question': {'q': 'Q', 'options': ['A'], 'answer': 'A'},
+        'bonus_token_limit_per_user': 2, 'winning_bonus_token_limit_per_user': 5,
+    })
+    assert contest.bonus_token_limit_per_user == 2
+    assert contest.winning_bonus_token_limit_per_user == 5
+
+
+def test_admin_can_create_non_wallet_other_prize(monkeypatch):
+    db = MagicMock()
+    db.contests.insert_one = AsyncMock()
+    monkeypatch.setattr(deps, 'get_db', lambda: db)
+    monkeypatch.setattr(admin_routes, 'require_admin', AsyncMock(return_value={'role': 'admin'}))
+
+    result = asyncio.run(admin_routes.create_contest_api({
+        'title': 'Tablet draw', 'status': 'draft', 'prize_type': 'other',
+        'other_prize_description': 'Tablet', 'other_prize_value': 800,
+    }, SimpleNamespace()))
+
+    contest = db.contests.insert_one.await_args.args[0]
+    assert contest['prize_type'] == 'other'
+    assert contest['other_prize_description'] == 'Tablet'
+    assert contest['other_prize_value'] == 800
+    assert contest['prize_amount'] == contest['prize_bonus_tokens'] == 0
+    assert result['contest']['jackpot'] is True

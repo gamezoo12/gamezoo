@@ -22,7 +22,10 @@ export function ContestCard({ c, tab, onOpen, index }) {
         <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-black/50 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-amber-200 backdrop-blur">
           <Icon className="h-3 w-3" />{c.kind === 'draw' ? 'Prize draw' : 'Skill leaderboard'}
         </span>
-        {(Number(c.prize_amount) > 0 || Number(c.prize_bonus_tokens) > 0) && (
+        {c.prize_type === 'other' ? <div className="absolute bottom-3 left-3 right-3 font-display font-extrabold text-amber-300 drop-shadow">
+          <div className="text-lg">{c.other_prize_description}</div>
+          {Number(c.other_prize_value) > 0 && <div className="text-xs">Estimated value {gbp(c.other_prize_value)}</div>}
+        </div> : (Number(c.prize_amount) > 0 || Number(c.prize_bonus_tokens) > 0) && (
           <div className="absolute bottom-3 left-3 right-3 font-display font-extrabold text-amber-300 drop-shadow">
             {Number(c.prize_amount) > 0 && <div className="text-2xl">{gbp(c.prize_amount)}</div>}
             {Number(c.prize_bonus_tokens) > 0 && <div className="text-sm">{Number(c.prize_bonus_tokens).toLocaleString('en-GB')} Winning Bonus Tokens</div>}

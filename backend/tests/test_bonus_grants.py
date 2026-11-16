@@ -107,6 +107,25 @@ def test_contest_bonus_cap_uses_other_funds_and_rejects_insufficient_eligible_ba
     run_db(safe_db, run)
 
 
+def test_contest_winning_bonus_cap_uses_other_funds_and_rejects_excess(safe_db, user):
+    async def run(db):
+        await _get_or_create_wallet(db, user)
+        await _apply_tx(db, user, 'topup', 5)
+        await _apply_tx(db, user, 'paid_prize_bonus', 10)
+        spent = await _apply_tx(db, user, 'spend', -7, winning_bonus_limit=3)
+        assert spent['tx']['winning_bonus_amount'] == -3
+        assert spent['tx']['purchased_amount'] == -4
+        before = await db.wallets.find_one({'user_id': user}, {'_id': 0})
+        with pytest.raises(HTTPException) as error:
+            await _apply_tx(db, user, 'spend', -3, winning_bonus_limit=1)
+        assert error.value.status_code == 400
+        after = await db.wallets.find_one({'user_id': user}, {'_id': 0})
+        assert after['balance'] == before['balance']
+        assert after['winning_bonus'] == before['winning_bonus']
+
+    run_db(safe_db, run)
+
+
 def test_checkout_tracks_contest_bonus_limit_across_mixed_and_repeat_orders(safe_db, user, monkeypatch):
     import deps
     import notifications
@@ -176,6 +195,182 @@ def test_checkout_tracks_contest_bonus_limit_across_mixed_and_repeat_orders(safe
             await db.orders.delete_many({'user_id': user})
             await db.contests.delete_many({'contest_id': {'$in': [contest_id, unlimited_id]}})
             await db.paid_checkout_locks.delete_many({'_id': f'paid_checkout:{user}'})
+
+    run_db(safe_db, run)
+
+
+def test_checkout_tracks_separate_bonus_and_winning_bonus_limits(safe_db, user, monkeypatch):
+    import deps
+    import notifications
+    from models import CheckoutInput
+    from routers import order_routes, referral_routes
+    from services import country_policy
+
+    contest_id = f'{user}_dual_limit'
+    async def verified(_request):
+        return {'user_id': user, 'role': 'user'}
+
+    async def no_op(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(order_routes, 'require_verified_user', verified)
+    monkeypatch.setattr(country_policy, 'require_country_permission', no_op)
+    monkeypatch.setattr(notifications, 'notify', no_op)
+    monkeypatch.setattr(referral_routes, 'record_contest_entry', no_op)
+
+    async def run(db):
+        monkeypatch.setattr(order_routes, 'get_db', lambda: db)
+        monkeypatch.setattr(deps, 'get_db', lambda: db)
+        await db.contests.insert_one({'contest_id': contest_id, 'title': 'Dual limit', 'image': '', 'status': 'live',
+                                      'entry_mode': 'random_tickets', 'price': 10, 'tickets_total': 100, 'tickets_sold': 0,
+                                      'bonus_token_limit_per_user': 2, 'winning_bonus_token_limit_per_user': 3})
+        try:
+            await _apply_tx(db, user, 'topup', 15)
+            await _apply_tx(db, user, 'signup_bonus', 10)
+            await _apply_tx(db, user, 'paid_prize_bonus', 10)
+            item = {'contest_id': contest_id, 'qty': 1, 'skill_answer': ''}
+            first = await order_routes.checkout(CheckoutInput(items=[item]), SimpleNamespace())
+            first_order = await db.orders.find_one({'order_id': first['order_id']}, {'_id': 0})
+            assert first_order['items'][0]['bonus_tokens_used'] == 2
+            assert first_order['items'][0]['winning_bonus_tokens_used'] == 3
+            await db.orders.update_one({'order_id': first['order_id']},
+                                       {'$set': {'created_at': datetime.now(timezone.utc) - timedelta(minutes=1),
+                                                 'idempotency_sig': f"old-{first['order_id']}"}})
+            second = await order_routes.checkout(CheckoutInput(items=[item]), SimpleNamespace())
+            second_order = await db.orders.find_one({'order_id': second['order_id']}, {'_id': 0})
+            assert second_order['items'][0]['bonus_tokens_used'] == 0
+            assert second_order['items'][0]['winning_bonus_tokens_used'] == 0
+        finally:
+            await db.tickets.delete_many({'contest_id': contest_id})
+            await db.orders.delete_many({'user_id': user})
+            await db.contests.delete_one({'contest_id': contest_id})
+            await db.paid_contest_ticket_locks.delete_one({'_id': contest_id})
+            await db.paid_checkout_locks.delete_one({'_id': f'paid_checkout:{user}'})
+
+    run_db(safe_db, run)
+
+
+def test_random_ticket_allocation_concurrent_buyers_and_refund_reuse(safe_db, user, monkeypatch):
+    import deps
+    import notifications
+    from models import CheckoutInput
+    from routers import admin_routes, order_routes, referral_routes
+    from services import country_policy
+
+    contest_id = f'{user}_random'
+    second_user = f'{user}_second'
+
+    class FixedRandom:
+        def sample(self, population, quantity):
+            return [population[len(population) - index - 1] for index in range(quantity)]
+
+    async def verified(request):
+        return {'user_id': request.user_id, 'role': 'user'}
+
+    async def no_op(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(order_routes.secrets, 'SystemRandom', FixedRandom)
+    monkeypatch.setattr(order_routes, 'require_verified_user', verified)
+    monkeypatch.setattr(admin_routes, '_require_role', no_op)
+    monkeypatch.setattr(country_policy, 'require_country_permission', no_op)
+    monkeypatch.setattr(notifications, 'notify', no_op)
+    monkeypatch.setattr(referral_routes, 'record_contest_entry', no_op)
+
+    async def run(db):
+        monkeypatch.setattr(order_routes, 'get_db', lambda: db)
+        monkeypatch.setattr(deps, 'get_db', lambda: db)
+        await db.users.insert_one({'user_id': second_user, 'email': f'{second_user}@example.test', 'role': 'user'})
+        await db.contests.insert_one({'contest_id': contest_id, 'title': 'Random', 'image': '', 'status': 'live',
+                                      'entry_mode': 'random_tickets', 'price': 1, 'tickets_total': 100, 'tickets_sold': 1})
+        await db.tickets.insert_one({'contest_id': contest_id, 'user_id': 'legacy', 'ticket_number': 100})
+        try:
+            await _apply_tx(db, user, 'topup', 50)
+            await _apply_tx(db, second_user, 'topup', 50)
+            purchase = CheckoutInput(items=[{'contest_id': contest_id, 'qty': 20, 'skill_answer': ''}])
+            first, second = await asyncio.gather(
+                order_routes.checkout(purchase, SimpleNamespace(user_id=user)),
+                order_routes.checkout(purchase, SimpleNamespace(user_id=second_user)),
+            )
+            rows = await db.tickets.find({'contest_id': contest_id}, {'_id': 0}).to_list(None)
+            numbers = [row['ticket_number'] for row in rows]
+            assert len(numbers) == len(set(numbers)) == 41
+            assert min(numbers) > 20 and max(numbers) == 100
+            first_numbers = {row['ticket_number'] for row in rows if row.get('order_id') == first['order_id']}
+            second_numbers = {row['ticket_number'] for row in rows if row.get('order_id') == second['order_id']}
+            assert len(first_numbers) == len(second_numbers) == 20
+            await admin_routes.refund_order(first['order_id'], SimpleNamespace())
+            await db.orders.update_one({'order_id': first['order_id']},
+                                       {'$set': {'created_at': datetime.now(timezone.utc) - timedelta(minutes=1),
+                                                 'idempotency_sig': f"old-{first['order_id']}"}})
+            replacement = await order_routes.checkout(purchase, SimpleNamespace(user_id=user))
+            replacement_rows = await db.tickets.find({'order_id': replacement['order_id']}, {'_id': 0}).to_list(None)
+            assert {row['ticket_number'] for row in replacement_rows} == first_numbers
+            assert {row['ticket_number'] for row in await db.tickets.find({'order_id': second['order_id']}, {'_id': 0}).to_list(None)} == second_numbers
+        finally:
+            await db.tickets.delete_many({'contest_id': contest_id})
+            await db.orders.delete_many({'user_id': {'$in': [user, second_user]}})
+            await db.contests.delete_one({'contest_id': contest_id})
+            await db.paid_contest_ticket_locks.delete_one({'_id': contest_id})
+            await db.paid_checkout_locks.delete_many({'_id': {'$in': [f'paid_checkout:{user}', f'paid_checkout:{second_user}']}})
+            await db.wallets.delete_one({'user_id': second_user})
+            await db.wallet_tx.delete_many({'user_id': second_user})
+            await db.users.delete_one({'user_id': second_user})
+
+    run_db(safe_db, run)
+
+
+def test_random_ticket_allocation_rolls_back_partial_insert(safe_db, user, monkeypatch):
+    import deps
+    from motor.motor_asyncio import AsyncIOMotorCollection
+    from pymongo.errors import BulkWriteError
+    from models import CheckoutInput
+    from routers import order_routes
+    from services import country_policy
+
+    contest_id = f'{user}_rollback'
+
+    async def verified(_request):
+        return {'user_id': user, 'role': 'user'}
+
+    async def no_op(*_args, **_kwargs):
+        return None
+
+    original_insert_many = AsyncIOMotorCollection.insert_many
+
+    async def partial_insert(collection, documents, *args, **kwargs):
+        if collection.name == 'tickets':
+            await collection.insert_one(documents[0])
+            raise BulkWriteError({'writeErrors': [{'code': 11000, 'index': 1}], 'nInserted': 1})
+        return await original_insert_many(collection, documents, *args, **kwargs)
+
+    monkeypatch.setattr(order_routes, 'require_verified_user', verified)
+    monkeypatch.setattr(country_policy, 'require_country_permission', no_op)
+    monkeypatch.setattr(AsyncIOMotorCollection, 'insert_many', partial_insert)
+
+    async def run(db):
+        monkeypatch.setattr(order_routes, 'get_db', lambda: db)
+        monkeypatch.setattr(deps, 'get_db', lambda: db)
+        await db.contests.insert_one({'contest_id': contest_id, 'title': 'Rollback', 'image': '', 'status': 'live',
+                                      'entry_mode': 'random_tickets', 'price': 1, 'tickets_total': 100, 'tickets_sold': 0})
+        try:
+            await _apply_tx(db, user, 'topup', 10)
+            with pytest.raises(HTTPException) as error:
+                await order_routes.checkout(CheckoutInput(items=[
+                    {'contest_id': contest_id, 'qty': 2, 'skill_answer': ''},
+                ]), SimpleNamespace())
+            assert error.value.status_code == 409
+            assert await db.tickets.count_documents({'contest_id': contest_id}) == 0
+            assert (await db.contests.find_one({'contest_id': contest_id}))['tickets_sold'] == 0
+            assert (await db.wallets.find_one({'user_id': user}))['balance'] == 10
+            assert (await db.orders.find_one({'user_id': user}))['status'] == 'refunded'
+            assert await db.paid_contest_ticket_locks.find_one({'_id': contest_id}) is None
+        finally:
+            await db.tickets.delete_many({'contest_id': contest_id})
+            await db.orders.delete_many({'user_id': user})
+            await db.contests.delete_one({'contest_id': contest_id})
+            await db.paid_contest_ticket_locks.delete_one({'_id': contest_id})
+            await db.paid_checkout_locks.delete_one({'_id': f'paid_checkout:{user}'})
 
     run_db(safe_db, run)
 

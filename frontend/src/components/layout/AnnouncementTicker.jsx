@@ -34,6 +34,7 @@ export default function AnnouncementTicker({ mode = 'promo' }) {
   const [contestNumber, setContestNumber] = useState(null);
   const [fallbacks, setFallbacks] = useState(null);
   const [tickerOverrides, setTickerOverrides] = useState({});
+  const [durationSeconds, setDurationSeconds] = useState(30);
   const [feedLoaded, setFeedLoaded] = useState(false);
 
   // Super Admin-managed announcements; the server already filters by status/schedule/expiry.
@@ -43,12 +44,15 @@ export default function AnnouncementTicker({ mode = 'promo' }) {
         setManaged(Array.isArray(r.data?.announcements) ? r.data.announcements : []);
         setFallbacks(Array.isArray(r.data?.fallbacks) ? r.data.fallbacks : null);
         setTickerOverrides(r.data?.ticker_overrides || {});
+        const duration = r.data?.ticker_settings?.duration_seconds;
+        setDurationSeconds(Number.isInteger(duration) && duration >= 10 && duration <= 120 ? duration : 30);
         setFeedLoaded(true);
       })
       .catch(() => {});
     load();
+    window.addEventListener('pl:announcement-ticker-updated', load);
     const t = setInterval(load, 60000);
-    return () => clearInterval(t);
+    return () => { clearInterval(t); window.removeEventListener('pl:announcement-ticker-updated', load); };
   }, []);
 
   useEffect(() => {
@@ -124,7 +128,7 @@ export default function AnnouncementTicker({ mode = 'promo' }) {
       data-testid="announcement-ticker"
       aria-label={showWinners ? 'Championship winners' : 'Announcements'}
     >
-      <div className="pl-marquee-track py-2.5">
+      <div className="pl-marquee-track py-2.5" style={{ animationDuration: `${durationSeconds}s` }}>
         {chunk}
         {chunk}
       </div>

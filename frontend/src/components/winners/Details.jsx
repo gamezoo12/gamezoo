@@ -29,7 +29,7 @@ export function WinnersDetail({ cid }) {
               {w.round_name && <span>{w.round_name}</span>}
             </div>
           </div>
-          <div className="text-right font-display font-extrabold text-amber-300">{Number(w.prize_amount) > 0 && gbp(w.prize_amount)}{Number(w.prize_bonus_tokens) > 0 && <div className="text-[11px] font-bold text-amber-200/80">+{w.prize_bonus_tokens} bonus</div>}</div>
+          <div className="text-right font-display font-extrabold text-amber-300">{w.reward_type === 'other' ? <><div>{w.other_prize_description}</div><div className="text-[11px] font-bold text-amber-200/80">Estimated value {gbp(w.prize_amount)}</div></> : <>{Number(w.prize_amount) > 0 && gbp(w.prize_amount)}{Number(w.prize_bonus_tokens) > 0 && <div className="text-[11px] font-bold text-amber-200/80">+{w.prize_bonus_tokens} bonus</div>}</>}</div>
         </li>
       ))}
     </ul>

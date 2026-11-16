@@ -401,6 +401,11 @@ export default function CompetitionDetail() {
                 c.max_tickets_per_user &&
                   ['Maximum entries per user', `${c.max_tickets_per_user} tickets per person.`],
 
+                c.bonus_token_limit_per_user != null &&
+                  ['Bonus Token entry limit', `${c.bonus_token_limit_per_user} promotional Bonus Tokens per person across all entries.`],
+                c.winning_bonus_token_limit_per_user != null &&
+                  ['Winning Bonus Token entry limit', `${c.winning_bonus_token_limit_per_user} Winning Bonus Tokens per person across all entries.`],
+
                 c.free_postal_entry_available &&
                   ['Free postal entry availability', 'Available for this competition.'],
 
@@ -418,6 +423,7 @@ export default function CompetitionDetail() {
                   ['Draw / result date', new Date(c.draw_date).toLocaleString('en-GB')],
 
                 c.prize_details && ['Prize details', c.prize_details],
+                c.prize_type === 'other' && c.other_prize_description && ['Prize', `${c.other_prize_description}${Number(c.other_prize_value) > 0 ? ` (estimated value ${gbp(c.other_prize_value)})` : ''}`],
                 c.num_prizes != null && ['Number of prizes', String(c.num_prizes)],
                 c.prize_values && ['Prize values', c.prize_values],
                 c.winner_method && ['Winner determination', c.winner_method],

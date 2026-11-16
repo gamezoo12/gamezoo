@@ -160,7 +160,8 @@ async def _ensure_untracked_bonus(db, user_id: str, wallet: dict) -> dict:
 
 
 def _split_debit(balance: float, bonus: float, winning_bonus: float, withdrawable: float,
-                 withdrawable_pending: float, amount: float, bonus_limit: Optional[float] = None):
+                 withdrawable_pending: float, amount: float, bonus_limit: Optional[float] = None,
+                 winning_bonus_limit: Optional[float] = None):
     """Return (d_bonus, d_winning_bonus, d_withdrawable) in the protected spend order:
     bonus -> winning bonus -> top-up -> winning (withdrawable). Reserved cash-out funds
     (withdrawable_pending) are never spendable. Top-up is derived
@@ -172,7 +173,8 @@ def _split_debit(balance: float, bonus: float, winning_bonus: float, withdrawabl
     pending = max(0.0, round(withdrawable_pending, 2))
     d_bonus = min(bonus, amt, max(0.0, round(bonus_limit, 2)) if bonus_limit is not None else amt)
     rem = round(amt - d_bonus, 2)
-    d_wb = min(winning_bonus, rem)
+    d_wb = min(winning_bonus, rem,
+               max(0.0, round(winning_bonus_limit, 2)) if winning_bonus_limit is not None else rem)
     rem = round(rem - d_wb, 2)
     purchased = max(0.0, round(balance - bonus - winning_bonus - withdrawable - pending, 2))
     d_purch = min(purchased, rem)
@@ -291,7 +293,8 @@ def _source_inc_for_credit(kind: str, delta: float) -> dict:
 
 
 async def _apply_tx(db, user_id: str, kind: str, amount: float, note: str = '', ref_order_id: Optional[str] = None,
-                    bonus_limit: Optional[float] = None) -> dict:
+                    bonus_limit: Optional[float] = None,
+                    winning_bonus_limit: Optional[float] = None) -> dict:
     """Apply a delta to the wallet atomically and record a transaction.
 
     Uses `find_one_and_update` with `$inc` so concurrent writers cannot
@@ -335,10 +338,12 @@ async def _apply_tx(db, user_id: str, kind: str, amount: float, note: str = '', 
             bon_usable = min(max(0.0, round(bon - blocked, 2)), round(legacy_bonus + tracked_bonus, 2))
             if round(eff_bal - wp, 2) + 1e-9 < amt:
                 raise HTTPException(status_code=400, detail='Insufficient wallet balance')
-            d_bonus, d_wb, d_wd = _split_debit(eff_bal, bon_usable, wbn, wd, wp, amt, bonus_limit)
+            d_bonus, d_wb, d_wd = _split_debit(
+                eff_bal, bon_usable, wbn, wd, wp, amt, bonus_limit, winning_bonus_limit,
+            )
             available_purchased = max(0.0, round(eff_bal - bon_usable - wbn - wd - wp, 2))
-            if bonus_limit is not None and round(amt - d_bonus - d_wb - d_wd, 2) > available_purchased + 0.001:
-                raise HTTPException(status_code=400, detail='Insufficient eligible wallet balance after the contest Bonus Token limit.')
+            if (bonus_limit is not None or winning_bonus_limit is not None) and round(amt - d_bonus - d_wb - d_wd, 2) > available_purchased + 0.001:
+                raise HTTPException(status_code=400, detail='Insufficient eligible wallet balance after the contest token limits.')
             reservation_id = uuid.uuid4().hex if d_bonus > 0 else ''
             reserved = await reserve_from_grants(db, user_id, d_bonus, reservation_id, now) if d_bonus > 0 else []
             grant_debit = round(sum(amount for _, amount in reserved), 2)

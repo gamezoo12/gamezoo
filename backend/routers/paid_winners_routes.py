@@ -18,7 +18,7 @@ PUB = "paid_winner_publication"
 COMPLETED = ["closed", "drawn", "archived"]
 OFFICIAL = {"approved", "credited"}
 MAX_MEDIA = 150 * 1024 * 1024
-Wallet = Literal["winnings", "bonus", "winning_bonus", "topup"]
+Wallet = Literal["winnings", "bonus", "winning_bonus", "topup", "other"]
 
 
 def _now():
@@ -42,7 +42,8 @@ def _official(w: dict) -> bool:
 
 async def _contests(db, cid: Optional[str] = None) -> list[dict]:
     q = {"status": {"$in": COMPLETED}, "contest_id": cid or {"$not": {"$regex": "^promo_"}}}
-    cs = await db.contests.find(q, {"_id": 0, "contest_id": 1, "title": 1, "image": 1, "prize_amount": 1, "prize_bonus_tokens": 1, "end_date": 1,
+    cs = await db.contests.find(q, {"_id": 0, "contest_id": 1, "title": 1, "image": 1, "prize_amount": 1, "prize_bonus_tokens": 1,
+                                    "prize_type": 1, "other_prize_description": 1, "other_prize_value": 1, "end_date": 1,
                                     "game_type": 1, "status": 1}).to_list(500)
     ids = [c["contest_id"] for c in cs]
     pubs = {p["contest_id"]: p async for p in db[PUB].find({"contest_id": {"$in": ids}}, {"_id": 0})}
@@ -122,6 +123,66 @@ async def approve(winner_id: str, body: ApproveIn, request: Request):
     studio = w.get("source") == "draw_studio"
     if studio and w.get("approval_status") not in (None, "pending", "approved"):
         raise HTTPException(status_code=409, detail="Reward is not awaiting approval")
+    if studio and w.get("reward_type") == "other":
+        if body.wallet != "other":
+            raise HTTPException(status_code=400, detail="Other prizes must be fulfilled as a physical or manually delivered prize")
+        now = _now()
+        lock = await db.winners.update_one(
+            {"winner_id": winner_id, "paid_out": {"$ne": True}, "credit_lock": {"$ne": True}},
+            {"$set": {"credit_lock": True}},
+        )
+        if lock.modified_count != 1:
+            fresh = await db.winners.find_one({"winner_id": winner_id}, {"_id": 0})
+            if fresh and fresh.get("paid_out"):
+                return {"winner": fresh, "idempotent_replay": True}
+            raise HTTPException(status_code=409, detail="This prize is already being fulfilled")
+        try:
+            await db.winners.update_one({"winner_id": winner_id, "paid_out": {"$ne": True}}, {"$set": {
+                "approval_status": "credited", "paid_out": True, "payment_status": "fulfilled",
+                "credited_at": now, "fulfilled_at": now, "fulfilled_by_user_id": admin.get("user_id"),
+                "fulfilled_by_email": admin.get("email"), "credited_wallet": "other", "reward_type": "other",
+            }})
+            await _audit(db, admin, "other_prize_fulfilled", winner_id=winner_id, contest_id=w.get("contest_id"),
+                         user_id=w.get("user_id"), description=w.get("other_prize_description"))
+            from routers.draw_studio_routes import _audit as studio_audit
+            await studio_audit(db, "other_prize_fulfilled", admin, plan_id=w.get("draw_plan_id"), winner_id=winner_id,
+                               description=w.get("other_prize_description"))
+            return {"winner": await db.winners.find_one({"winner_id": winner_id}, {"_id": 0}),
+                    "wallet_label": "Other prize fulfilled", "idempotent_replay": False}
+        finally:
+            await db.winners.update_one({"winner_id": winner_id}, {"$unset": {"credit_lock": ""}})
+    if body.wallet == "other":
+        raise HTTPException(status_code=400, detail="Only Draw Studio Other prizes can be marked fulfilled")
+    if studio and w.get("reward_type") == "other":
+        if body.wallet != "other":
+            raise HTTPException(status_code=400, detail="Other prizes must be fulfilled as a physical or manually delivered prize")
+        now = _now()
+        lock = await db.winners.update_one(
+            {"winner_id": winner_id, "paid_out": {"$ne": True}, "credit_lock": {"$ne": True}},
+            {"$set": {"credit_lock": True}},
+        )
+        if lock.modified_count != 1:
+            fresh = await db.winners.find_one({"winner_id": winner_id}, {"_id": 0})
+            if fresh and fresh.get("paid_out"):
+                return {"winner": fresh, "idempotent_replay": True}
+            raise HTTPException(status_code=409, detail="This prize is already being fulfilled")
+        try:
+            await db.winners.update_one({"winner_id": winner_id, "paid_out": {"$ne": True}}, {"$set": {
+                "approval_status": "credited", "paid_out": True, "payment_status": "fulfilled",
+                "credited_at": now, "fulfilled_at": now, "fulfilled_by_user_id": admin.get("user_id"),
+                "fulfilled_by_email": admin.get("email"), "credited_wallet": "other", "reward_type": "other",
+            }})
+            await _audit(db, admin, "other_prize_fulfilled", winner_id=winner_id, contest_id=w.get("contest_id"),
+                         user_id=w.get("user_id"), description=w.get("other_prize_description"))
+            from routers.draw_studio_routes import _audit as studio_audit
+            await studio_audit(db, "other_prize_fulfilled", admin, plan_id=w.get("draw_plan_id"), winner_id=winner_id,
+                               description=w.get("other_prize_description"))
+            return {"winner": await db.winners.find_one({"winner_id": winner_id}, {"_id": 0}),
+                    "wallet_label": "Other prize fulfilled", "idempotent_replay": False}
+        finally:
+            await db.winners.update_one({"winner_id": winner_id}, {"$unset": {"credit_lock": ""}})
+    if body.wallet == "other":
+        raise HTTPException(status_code=400, detail="Only Draw Studio Other prizes can be marked fulfilled")
     amount = round(float(w.get("approved_amount") or w.get("prize_amount") or 0), 2)
     extra = 0.0 if studio else round(float(w.get("prize_bonus_tokens") or 0), 2)
     if amount <= 0 and extra <= 0:
@@ -430,6 +491,8 @@ def _card(c: dict) -> dict:
     p = c["publication"]
     return {"contest_id": c["contest_id"], "title": c.get("title"), "kind": c["kind"], "prize_amount": c.get("prize_amount"),
             "prize_bonus_tokens": c.get("prize_bonus_tokens", 0),
+            "prize_type": c.get("prize_type"), "other_prize_description": c.get("other_prize_description"),
+            "other_prize_value": c.get("other_prize_value", 0),
             "end_date": c["end_date"].replace(tzinfo=timezone.utc).isoformat() if isinstance(c.get("end_date"), datetime) else c.get("end_date"),
             "image": c.get("image"), "cover_id": (p.get("cover") or {}).get("media_id")}
 
@@ -456,6 +519,7 @@ async def public_winners(cid: str):
     rows = await db.winners.find({"contest_id": cid}, {"_id": 0}).sort([("draw_round_index", 1), ("drawn_at", 1)]).to_list(500)
     ws = [{"name": _mask(w.get("user_name")), "ticket_number": w.get("ticket_number"), "prize_amount": w.get("prize_amount"),
            "prize_bonus_tokens": w.get("prize_bonus_tokens") if w.get("source") != "draw_studio" else 0,
+            "reward_type": w.get("reward_type"), "other_prize_description": w.get("other_prize_description"),
            "round_name": w.get("draw_round_name"), "drawn_at": w.get("drawn_at"),
            "source": "draw" if w.get("source") == "draw_studio" else "leaderboard"} for w in rows if _official(w)]
     return {"contest": _card(c), "winners": ws}
