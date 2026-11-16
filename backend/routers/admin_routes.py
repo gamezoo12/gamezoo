@@ -1528,6 +1528,7 @@ async def create_contest_api(payload: dict, request: Request):
             tickets_total=int(payload.get('tickets_total') or 150),
             prize_amount=prize_amount,
             prize_bonus_tokens=prize_bonus_tokens,
+            bonus_token_limit_per_user=payload.get('bonus_token_limit_per_user'),
             end_date=end_date_val,
             image=payload.get('image') or 'https://images.pexels.com/photos/928187/pexels-photo-928187.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
             jackpot=bool(payload.get('jackpot')) or prize_amount >= 250,
@@ -1608,7 +1609,7 @@ async def update_contest_full(contest_id: str, payload: dict, request: Request):
     from deps import get_db
     db = get_db()
     allowed = {'title', 'subtitle', 'category', 'tag', 'image', 'price', 'tickets_total',
-               'prize_amount', 'prize_bonus_tokens', 'end_date', 'jackpot', 'featured', 'status', 'public_coming_soon', 'skill_question',
+               'prize_amount', 'prize_bonus_tokens', 'bonus_token_limit_per_user', 'end_date', 'jackpot', 'featured', 'status', 'public_coming_soon', 'skill_question',
                'skill_question_type', 'skill_question_difficulty',
                'game_type', 'game_config', 'entry_mode', 'max_attempts', 'attempts_per_ticket',
                'leaderboard_visibility', 'winner_selection_method',
@@ -1630,6 +1631,13 @@ async def update_contest_full(contest_id: str, payload: dict, request: Request):
                 updates[k] = datetime.fromisoformat(v.replace('Z', '+00:00'))
             except Exception:
                 continue
+        elif k == 'bonus_token_limit_per_user':
+            from pydantic import TypeAdapter, Field
+            from typing import Annotated
+            try:
+                updates[k] = TypeAdapter(Annotated[float, Field(ge=0, multiple_of=0.01, allow_inf_nan=False)] | None).validate_python(v)
+            except ValidationError:
+                raise HTTPException(status_code=400, detail='Bonus Token limit must be a non-negative number or empty')
         elif k in {'price', 'prize_amount', 'prize_bonus_tokens'}:
             amount = float(v)
             if k != 'price' and amount < 0:
@@ -1665,6 +1673,15 @@ async def update_contest_full(contest_id: str, payload: dict, request: Request):
 
     if not updates:
         raise HTTPException(status_code=400, detail='No valid fields to update')
+    bonus_limit_changed = False
+    if 'bonus_token_limit_per_user' in updates:
+        current = await db.contests.find_one({'contest_id': contest_id}, {'_id': 0, 'bonus_token_limit_per_user': 1, 'status': 1})
+        if current is None:
+            raise HTTPException(status_code=404, detail='Contest not found')
+        bonus_limit_changed = updates['bonus_token_limit_per_user'] != current.get('bonus_token_limit_per_user')
+        if bonus_limit_changed and (current.get('status') == 'live'
+                                    or await db.tickets.find_one({'contest_id': contest_id}, {'_id': 1})):
+            raise HTTPException(status_code=409, detail='Bonus Token limit cannot be changed after a contest goes live or entries begin')
     if {'prize_amount', 'prize_bonus_tokens'} & updates.keys():
         current = await db.contests.find_one(
             {'contest_id': contest_id},
@@ -1692,8 +1709,13 @@ async def update_contest_full(contest_id: str, payload: dict, request: Request):
         if changed and (await db.tickets.find_one({'contest_id': contest_id}, {'_id': 1})
                         or await db.game_scores.find_one({'contest_id': contest_id}, {'_id': 1})):
             raise HTTPException(status_code=409, detail='The game and difficulty are locked because paid entries or gameplay have started')
-    r = await db.contests.update_one({'contest_id': contest_id}, {'$set': updates})
+    contest_filter = {'contest_id': contest_id}
+    if bonus_limit_changed:
+        contest_filter['status'] = {'$ne': 'live'}
+    r = await db.contests.update_one(contest_filter, {'$set': updates})
     if r.matched_count == 0:
+        if bonus_limit_changed:
+            raise HTTPException(status_code=409, detail='Contest changed while updating the Bonus Token limit')
         raise HTTPException(status_code=404, detail='Contest not found')
     return {'ok': True, 'updates': list(updates.keys())}
 

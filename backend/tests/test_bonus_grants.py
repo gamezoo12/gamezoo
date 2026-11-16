@@ -5,6 +5,7 @@ import asyncio
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from motor.motor_asyncio import AsyncIOMotorClient
 
 import pytest
@@ -84,6 +85,98 @@ def test_ten_bonus_spend_four_then_only_six_expire(safe_db, user):
         assert result['expired'] == 0
         assert (await db.wallets.find_one({'user_id': user}))['balance'] == 40
         assert await db.wallet_tx.count_documents({'user_id': user, 'kind': 'bonus_expiry'}) == 1
+    run_db(safe_db, run)
+
+
+def test_contest_bonus_cap_uses_other_funds_and_rejects_insufficient_eligible_balance(safe_db, user):
+    async def run(db):
+        await _get_or_create_wallet(db, user)
+        await _apply_tx(db, user, 'topup', 5)
+        await _apply_tx(db, user, 'signup_bonus', 10)
+        spent = await _apply_tx(db, user, 'spend', -7, bonus_limit=3)
+        assert spent['tx']['bonus_amount'] == -3
+        assert spent['tx']['purchased_amount'] == -4
+        before = await db.wallets.find_one({'user_id': user}, {'_id': 0})
+        with pytest.raises(HTTPException) as error:
+            await _apply_tx(db, user, 'spend', -3, bonus_limit=1)
+        assert error.value.status_code == 400
+        after = await db.wallets.find_one({'user_id': user}, {'_id': 0})
+        assert after['balance'] == before['balance']
+        assert after['bonus'] == before['bonus']
+
+    run_db(safe_db, run)
+
+
+def test_checkout_tracks_contest_bonus_limit_across_mixed_and_repeat_orders(safe_db, user, monkeypatch):
+    import deps
+    import notifications
+    from models import CheckoutInput
+    from routers import order_routes, referral_routes
+    from services import country_policy
+
+    contest_id = f'{user}_limited'
+    unlimited_id = f'{user}_unlimited'
+
+    async def verified(_request):
+        return {'user_id': user, 'role': 'user'}
+
+    async def no_op(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(order_routes, 'require_verified_user', verified)
+    monkeypatch.setattr(country_policy, 'require_country_permission', no_op)
+    monkeypatch.setattr(notifications, 'notify', no_op)
+    monkeypatch.setattr(referral_routes, 'record_contest_entry', no_op)
+
+    async def run(db):
+        monkeypatch.setattr(order_routes, 'get_db', lambda: db)
+        monkeypatch.setattr(deps, 'get_db', lambda: db)
+        await db.contests.insert_many([
+            {'contest_id': contest_id, 'title': 'Limited', 'image': '', 'status': 'live',
+             'entry_mode': 'random_tickets', 'price': 2, 'tickets_total': 100, 'tickets_sold': 0,
+             'bonus_token_limit_per_user': 3},
+            {'contest_id': unlimited_id, 'title': 'Unlimited', 'image': '', 'status': 'live',
+             'entry_mode': 'random_tickets', 'price': 2, 'tickets_total': 100, 'tickets_sold': 0},
+        ])
+        try:
+            await _apply_tx(db, user, 'topup', 10)
+            await _apply_tx(db, user, 'signup_bonus', 10)
+            first = await order_routes.checkout(CheckoutInput(items=[
+                {'contest_id': contest_id, 'qty': 1, 'skill_answer': ''},
+                {'contest_id': unlimited_id, 'qty': 1, 'skill_answer': ''},
+            ]), SimpleNamespace())
+            second = await order_routes.checkout(CheckoutInput(items=[
+                {'contest_id': contest_id, 'qty': 2, 'skill_answer': ''},
+            ]), SimpleNamespace())
+            first_order = await db.orders.find_one({'order_id': first['order_id']}, {'_id': 0})
+            second_order = await db.orders.find_one({'order_id': second['order_id']}, {'_id': 0})
+            assert [item['bonus_tokens_used'] for item in first_order['items']] == [2, 2]
+            assert second_order['items'][0]['bonus_tokens_used'] == 1
+            third = await order_routes.checkout(CheckoutInput(items=[
+                {'contest_id': contest_id, 'qty': 3, 'skill_answer': ''},
+            ]), SimpleNamespace())
+            third_order = await db.orders.find_one({'order_id': third['order_id']}, {'_id': 0})
+            assert third_order['items'][0]['bonus_tokens_used'] == 0
+            with pytest.raises(HTTPException) as error:
+                await order_routes.checkout(CheckoutInput(items=[
+                    {'contest_id': contest_id, 'qty': 1, 'skill_answer': ''},
+                ]), SimpleNamespace())
+            assert error.value.status_code == 400
+            assert await db.tickets.count_documents({'user_id': user, 'contest_id': contest_id}) == 6
+            await _apply_tx(db, user, 'refund', first['total'], ref_order_id=first['order_id'])
+            await db.orders.update_one({'order_id': first['order_id']}, {'$set': {'status': 'refunded'}})
+            await _apply_tx(db, user, 'topup', 5)
+            after_refund = await order_routes.checkout(CheckoutInput(items=[
+                {'contest_id': contest_id, 'qty': 4, 'skill_answer': ''},
+            ]), SimpleNamespace())
+            refunded_order = await db.orders.find_one({'order_id': after_refund['order_id']}, {'_id': 0})
+            assert refunded_order['items'][0]['bonus_tokens_used'] == 2
+        finally:
+            await db.tickets.delete_many({'user_id': user})
+            await db.orders.delete_many({'user_id': user})
+            await db.contests.delete_many({'contest_id': {'$in': [contest_id, unlimited_id]}})
+            await db.paid_checkout_locks.delete_many({'_id': f'paid_checkout:{user}'})
+
     run_db(safe_db, run)
 
 

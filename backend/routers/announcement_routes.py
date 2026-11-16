@@ -29,13 +29,13 @@ FALLBACKS = [
 _TAGS = re.compile(r"[<>]")
 
 
-def _clean_text(value: str, label: str, limit: int) -> str:
+def _clean_text(value: str, label: str, limit: Optional[int] = None) -> str:
     value = (value or "").strip()
     if not value:
         raise HTTPException(status_code=422, detail=f"{label} is required")
     if _TAGS.search(value):
         raise HTTPException(status_code=422, detail=f"{label} cannot contain HTML characters (< or >)")
-    if len(value) > limit:
+    if limit is not None and len(value) > limit:
         raise HTTPException(status_code=422, detail=f"{label} must be at most {limit} characters")
     return value
 
@@ -93,7 +93,7 @@ def effective_status(doc: dict, now: Optional[datetime] = None) -> str:
 
 class AnnouncementIn(BaseModel):
     title: str = Field(..., max_length=120)
-    text: str = Field(..., max_length=300)
+    text: str
     icon: Optional[str] = Field(default=None, max_length=8)
     link: Optional[str] = Field(default=None, max_length=500)
     priority: int = Field(default=0, ge=0, le=100)
@@ -113,7 +113,7 @@ class BadgeSettingsIn(BaseModel):
 
 
 class GeneratedAnnouncementIn(BaseModel):
-    text: str = Field(min_length=1, max_length=200)
+    text: str = Field(min_length=1)
     enabled: bool = True
     published: bool = True
     deleted: bool = False
@@ -131,7 +131,7 @@ def _validated(body: AnnouncementIn) -> dict:
     icon = (body.icon or "").strip() or None
     if icon and _TAGS.search(icon):
         raise HTTPException(status_code=422, detail="Icon cannot contain HTML characters")
-    return {"title": _clean_text(body.title, "Title", 120), "text": _clean_text(body.text, "Text", 200),
+    return {"title": _clean_text(body.title, "Title", 120), "text": _clean_text(body.text, "Text"),
             "icon": icon, "link": _clean_link(body.link), "priority": body.priority, "start_at": start, "end_at": end}
 
 
@@ -261,7 +261,7 @@ async def update_generated_announcement(source_id: str, body: GeneratedAnnouncem
     item = next ( (row for row in items if row["id"] == source_id), None)
     if not item:
         raise HTTPException(status_code=404, detail="Ticker announcement not found")
-    text = _clean_text(body.text, "Announcement text", 200)
+    text = _clean_text(body.text, "Announcement text")
     previous = await db.site_ticker_overrides.find_one({"_id": source_id}, {"_id": 0})
     updated = {"text": text, "enabled": body.enabled, "published": body.published, "deleted": body.deleted}
     await db.site_ticker_overrides.update_one({"_id": source_id}, {"$set": updated}, upsert=True)

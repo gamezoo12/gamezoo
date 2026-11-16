@@ -392,6 +392,9 @@ export default function CompetitionDetail() {
 
                 ['Ticket price', `${fmtTokens(c.price)} per entry ticket.`],
 
+                c.bonus_token_limit_per_user != null &&
+                  ['Bonus Token limit', `Up to ${c.bonus_token_limit_per_user} Bonus Tokens per user across all purchases in this contest.`],
+
                 c.tickets_total != null &&
                   ['Total ticket allocation', `${c.tickets_total} tickets available in this competition.`],
 

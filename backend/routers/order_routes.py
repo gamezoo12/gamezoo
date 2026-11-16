@@ -34,6 +34,23 @@ def _validate_skill(c: dict, item) -> None:
         raise HTTPException(status_code=400, detail=f'Incorrect skill answer for: {c["title"]}')
 
 
+def _allocate_contest_bonus(order_items: list[dict], contest_by_id: dict, prior_usage: dict) -> list[float]:
+    remaining = {}
+    limits = []
+    for item in order_items:
+        contest_id = item['contest_id']
+        cap = contest_by_id[contest_id].get('bonus_token_limit_per_user')
+        if cap is None:
+            limits.append(round(float(item['line_total']), 2))
+            continue
+        if contest_id not in remaining:
+            remaining[contest_id] = max(0.0, round(float(cap) - float(prior_usage.get(contest_id, 0)), 2))
+        allowance = min(round(float(item['line_total']), 2), remaining[contest_id])
+        limits.append(allowance)
+        remaining[contest_id] = round(remaining[contest_id] - allowance, 2)
+    return limits
+
+
 @router.post('/checkout')
 async def checkout(inp: CheckoutInput, request: Request):
     user = await require_verified_user(request)
@@ -150,6 +167,20 @@ async def checkout(inp: CheckoutInput, request: Request):
                 detail=f'Insufficient wallet balance. You have £{wallet["balance"]:.2f}, need £{total:.2f}. Top up your wallet to continue.',
             )
 
+        capped_contests = [contest_id for contest_id, contest in contest_by_id.items()
+                           if contest.get('bonus_token_limit_per_user') is not None]
+        prior_usage = {}
+        if capped_contests:
+            rows = await db.orders.aggregate([
+                {'$match': {'user_id': user['user_id'], 'status': 'paid', 'items.contest_id': {'$in': capped_contests}}},
+                {'$unwind': '$items'},
+                {'$match': {'items.contest_id': {'$in': capped_contests}}},
+                {'$group': {'_id': '$items.contest_id', 'bonus_used': {'$sum': {'$ifNull': ['$items.bonus_tokens_used', 0]}}}},
+            ]).to_list(None)
+            prior_usage = {row['_id']: row['bonus_used'] for row in rows}
+        bonus_allowances = _allocate_contest_bonus(order_items, contest_by_id, prior_usage)
+        bonus_limit = round(sum(bonus_allowances), 2) if capped_contests else None
+
         # Pass 2: ATOMIC ticket reservations. Each `$inc` is guarded by a filter
         # on `tickets_sold` so two buyers can't oversell the last N tickets. If
         # any reservation fails we roll back the earlier ones before responding.
@@ -191,8 +222,15 @@ async def checkout(inp: CheckoutInput, request: Request):
             # and the outer except reverses ticket reservations. Once this line
             # returns without raising we own an unbalanced debit and MUST refund
             # it if any later step fails.
-            await _apply_tx(db, user['user_id'], 'spend', -total, note=f'Order {order.order_id}', ref_order_id=order.order_id)
+            debit = await _apply_tx(db, user['user_id'], 'spend', -total, note=f'Order {order.order_id}',
+                                    ref_order_id=order.order_id, bonus_limit=bonus_limit)
             debit_applied = True
+
+            bonus_remaining = round(abs(float(debit['tx'].get('bonus_amount') or 0)), 2)
+            for item, allowance in zip(order.items, bonus_allowances):
+                used = min(allowance, bonus_remaining)
+                item['bonus_tokens_used'] = used
+                bonus_remaining = round(bonus_remaining - used, 2)
 
             order_doc = order.model_dump()
             order_doc['basket_sig'] = basket_sig
@@ -222,6 +260,7 @@ async def checkout(inp: CheckoutInput, request: Request):
                         note=f'Auto-refund: checkout failed after wallet debit (order {order.order_id})',
                         ref_order_id=order.order_id,
                     )
+                    await db.orders.update_one({'order_id': order.order_id}, {'$set': {'status': 'refunded'}})
                 except Exception:
                     import logging as _lg
                     _lg.exception('CRITICAL: failed to auto-refund debited wallet after checkout error user=%s order=%s amount=%.2f', user['user_id'], order.order_id, total)
@@ -236,6 +275,7 @@ async def checkout(inp: CheckoutInput, request: Request):
                         note=f'Auto-refund: checkout failed after wallet debit (order {order.order_id})',
                         ref_order_id=order.order_id,
                     )
+                    await db.orders.update_one({'order_id': order.order_id}, {'$set': {'status': 'refunded'}})
                 except Exception:
                     import logging as _lg
                     _lg.exception('CRITICAL: failed to auto-refund debited wallet after checkout error user=%s order=%s amount=%.2f', user['user_id'], order.order_id, total)

@@ -164,7 +164,7 @@ class RoundIn(BaseModel):
     reveal_duration_s: int = Field(default=10, ge=3, le=120)
     duration_s: int = Field(default=30, ge=3, le=600)
     reveals: int = Field(default=3, ge=0, le=20)
-    announcement_text: str = Field(default="", max_length=300)
+    announcement_text: str = ""
     allow_previous_winners: bool = False
 
 
@@ -557,7 +557,7 @@ async def announce_round(plan_id: str, round_index: int, request: Request):
     cfg = plan["rounds"][round_index]
     names = ", ".join(f"#{w['ticket_number']} {w['display_name']}" for w in result["winners"])
     text = (cfg.get("announcement_text") or f"{cfg['name']} winner{'s' if len(result['winners']) > 1 else ''}: {{winners}} — " + (f"{cfg['prize_amount']:g} bonus tokens" if cfg.get('reward_type') == 'bonus' else f"£{cfg['prize_amount']:.2f}"))
-    text = text.replace("{winners}", names)[:300]
+    text = text.replace("{winners}", names)
     from routers.announcement_routes import AnnouncementIn, create_announcement
 
     try:
@@ -597,7 +597,7 @@ async def announce_all(plan_id: str, request: Request):
 
     try:
         created = await create_announcement(AnnouncementIn(title=f"Winners — {plan.get('contest_title') or 'Prize draw'}"[:120],
-                                                           text=("Congratulations! " + " · ".join(lines))[:300],
+                                                           text="Congratulations! " + " · ".join(lines),
                                                            link="/my-account/contest-winners", publish=True), request)
     except Exception:
         await db[PLANS].update_one({"plan_id": plan_id}, {"$unset": {"announcement_claimed": ""}})

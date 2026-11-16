@@ -62,6 +62,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
   const emptyForm = {
     title: '', subtitle: '', category: 'prize-draws', image: '',
     price: 1, tickets_total: 150, prize_amount: 100, prize_bonus_tokens: 0,
+    bonus_token_limit_per_user: '',
     end_date: new Date(Date.now() + 7 * 86400000).toISOString(),
     jackpot: false, featured: false, status: 'draft',
     public_coming_soon: false,
@@ -290,6 +291,8 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
         tickets_total: parseInt(form.tickets_total, 10) || 100,
         prize_amount: Number.isFinite(Number(form.prize_amount)) ? Number(form.prize_amount) : 100,
         prize_bonus_tokens: Number.isFinite(Number(form.prize_bonus_tokens)) ? Number(form.prize_bonus_tokens) : 0,
+        bonus_token_limit_per_user: form.bonus_token_limit_per_user === '' || form.bonus_token_limit_per_user == null
+          ? null : Number(form.bonus_token_limit_per_user),
         end_date: form.end_date,
         jackpot: !!form.jackpot,
         featured: !!form.featured,
@@ -576,6 +579,21 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                     placeholder="e.g. 20"
                     data-testid="real-max-entries"
                   />
+                </div>
+
+                <div>
+                  <Label>Bonus Token limit per user</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.bonus_token_limit_per_user ?? ''}
+                    disabled={!isCreate && (form.status === 'live' || Number(form.tickets_sold || 0) > 0)}
+                    onChange={e => upd('bonus_token_limit_per_user', e.target.value)}
+                    placeholder="Unlimited"
+                    data-testid="real-bonus-token-limit"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">Across all purchases in this contest. Blank means unlimited; 0 prevents Bonus Token use. Locked once the contest is live or has entries.</p>
                 </div>
 
                 <div>

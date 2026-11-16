@@ -16,6 +16,7 @@ def _to_public(c: dict) -> dict:
         'category': c['category'],
         'tag': c['tag'],
         'price': c['price'],
+        'bonus_token_limit_per_user': c.get('bonus_token_limit_per_user'),
         'tickets_sold': c.get('tickets_sold', 0),
         'tickets_total': c['tickets_total'],
         'prize_amount': c['prize_amount'],

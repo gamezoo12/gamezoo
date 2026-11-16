@@ -42,7 +42,7 @@ def _official(w: dict) -> bool:
 
 async def _contests(db, cid: Optional[str] = None) -> list[dict]:
     q = {"status": {"$in": COMPLETED}, "contest_id": cid or {"$not": {"$regex": "^promo_"}}}
-    cs = await db.contests.find(q, {"_id": 0, "contest_id": 1, "title": 1, "image": 1, "prize_amount": 1, "end_date": 1,
+    cs = await db.contests.find(q, {"_id": 0, "contest_id": 1, "title": 1, "image": 1, "prize_amount": 1, "prize_bonus_tokens": 1, "end_date": 1,
                                     "game_type": 1, "status": 1}).to_list(500)
     ids = [c["contest_id"] for c in cs]
     pubs = {p["contest_id"]: p async for p in db[PUB].find({"contest_id": {"$in": ids}}, {"_id": 0})}
@@ -429,6 +429,7 @@ async def admin_media(cid: str, mid: str, request: Request):
 def _card(c: dict) -> dict:
     p = c["publication"]
     return {"contest_id": c["contest_id"], "title": c.get("title"), "kind": c["kind"], "prize_amount": c.get("prize_amount"),
+            "prize_bonus_tokens": c.get("prize_bonus_tokens", 0),
             "end_date": c["end_date"].replace(tzinfo=timezone.utc).isoformat() if isinstance(c.get("end_date"), datetime) else c.get("end_date"),
             "image": c.get("image"), "cover_id": (p.get("cover") or {}).get("media_id")}
 

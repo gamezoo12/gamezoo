@@ -71,6 +71,31 @@ export const authAPI = {
     }).then(r => r.data),
 };
 
+export const signupChallengeAPI = {
+  me: () => api.get('/signup-challenge/me').then(r => r.data),
+  event: (type, meta = {}) => api.post('/signup-challenge/event', { type, meta }).then(r => r.data).catch(() => null),
+  start: (request_id) => api.post('/signup-challenge/attempts/start', { request_id }).then(r => r.data),
+  submit: (attemptId, data) => api.post(`/signup-challenge/attempts/${encodeURIComponent(attemptId)}/submit`, data).then(r => r.data),
+  forfeit: () => api.post('/signup-challenge/forfeit').then(r => r.data),
+  finalSeen: () => api.post('/signup-challenge/final-seen').then(r => r.data),
+  visit: (code, visitor_id) => api.post('/signup-challenge/visit', { code, visitor_id }).then(r => r.data).catch(() => null),
+  referralSignup: (code) => api.post('/signup-challenge/referral-signup', { code }).then(r => r.data).catch(() => null),
+};
+
+export const signupChallengeAdminAPI = {
+  list: () => api.get('/admin/signup-challenge/challenges').then(r => r.data),
+  games: () => api.get('/admin/signup-challenge/games').then(r => r.data),
+  settings: () => api.get('/admin/signup-challenge/settings').then(r => r.data),
+  setEnabled: (enabled) => api.put('/admin/signup-challenge/settings', { enabled }).then(r => r.data),
+  create: (data) => api.post('/admin/signup-challenge/challenges', data).then(r => r.data),
+  update: (id, data) => api.put(`/admin/signup-challenge/challenges/${encodeURIComponent(id)}`, data).then(r => r.data),
+  setStatus: (id, status) => api.post(`/admin/signup-challenge/challenges/${encodeURIComponent(id)}/status`, { status }).then(r => r.data),
+  assign: (id, email) => api.post(`/admin/signup-challenge/challenges/${encodeURIComponent(id)}/assign`, { email }).then(r => r.data),
+  participants: (id, params = {}) => api.get(`/admin/signup-challenge/challenges/${encodeURIComponent(id)}/participants`, { params }).then(r => r.data),
+  analytics: (id, params = {}) => api.get(`/admin/signup-challenge/challenges/${encodeURIComponent(id)}/analytics`, { params }).then(r => r.data),
+  audit: (challenge_id) => api.get('/admin/signup-challenge/audit', { params: { challenge_id } }).then(r => r.data),
+};
+
 export const captchaAPI = {
   config: () => api.get('/config/turnstile').then(r => r.data),
   verify: (token, contest_id) => api.post('/games/captcha/verify', { token, contest_id }).then(r => r.data),
@@ -948,29 +973,4 @@ export const countryAdminAPI = {
   setUserCountry: (userId, country, reason) => api.put(`/admin/countries/users/${encodeURIComponent(userId)}/country`, { country, reason }).then(r => r.data),
   bulkSetUserCountry: (user_ids, country, reason) => api.put('/admin/countries/users/bulk-country', { user_ids, country, reason }).then(r => r.data),
   exportCsv: (params) => api.get('/admin/countries/export', { params, responseType: 'blob' }).then(r => r.data),
-};
-
-export const signupChallengeAPI = {
-  me: () => api.get('/signup-challenge/me').then(r => r.data),
-  event: (type, meta = {}) => api.post('/signup-challenge/event', { type, meta }).then(r => r.data).catch(() => null),
-  start: (request_id) => api.post('/signup-challenge/attempts/start', { request_id }).then(r => r.data),
-  submit: (id, body) => api.post(`/signup-challenge/attempts/${id}/submit`, body).then(r => r.data),
-  forfeit: () => api.post('/signup-challenge/forfeit').then(r => r.data),
-  finalSeen: () => api.post('/signup-challenge/final-seen').then(r => r.data),
-  visit: (code, visitor_id) => api.post('/signup-challenge/visit', { code, visitor_id }).then(r => r.data).catch(() => null),
-  referralSignup: (code) => api.post('/signup-challenge/referral-signup', { code }).then(r => r.data).catch(() => null),
-};
-
-export const signupChallengeAdminAPI = {
-  games: () => api.get('/admin/signup-challenge/games').then(r => r.data),
-  settings: () => api.get('/admin/signup-challenge/settings').then(r => r.data),
-  setEnabled: (enabled) => api.put('/admin/signup-challenge/settings', { enabled }).then(r => r.data),
-  list: () => api.get('/admin/signup-challenge/challenges').then(r => r.data),
-  create: (body) => api.post('/admin/signup-challenge/challenges', body).then(r => r.data),
-  update: (id, body) => api.put(`/admin/signup-challenge/challenges/${id}`, body).then(r => r.data),
-  setStatus: (id, status) => api.post(`/admin/signup-challenge/challenges/${id}/status`, { status }).then(r => r.data),
-  assign: (id, email) => api.post(`/admin/signup-challenge/challenges/${id}/assign`, { email }).then(r => r.data),
-  participants: (id, params) => api.get(`/admin/signup-challenge/challenges/${id}/participants`, { params }).then(r => r.data),
-  analytics: (id, params) => api.get(`/admin/signup-challenge/challenges/${id}/analytics`, { params }).then(r => r.data),
-  audit: (challenge_id) => api.get('/admin/signup-challenge/audit', { params: { challenge_id } }).then(r => r.data),
 };

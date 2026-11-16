@@ -127,7 +127,7 @@ export default function AnnouncementsAdmin() {
         <div className="grid gap-3 sm:grid-cols-2">
           <label><span className={label}>Title (admin only)</span><input className={field} maxLength={120} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} data-testid="ann-title" /></label>
           <label><span className={label}>Emoji / icon (optional)</span><input className={field} maxLength={8} value={form.icon} onChange={(e) => setForm({ ...form, icon: e.target.value })} data-testid="ann-icon" /></label>
-          <label className="sm:col-span-2"><span className={label}>Announcement text (max 200)</span><input className={field} maxLength={200} value={form.text} onChange={(e) => setForm({ ...form, text: e.target.value })} data-testid="ann-text" /></label>
+          <label className="sm:col-span-2"><span className={label}>Announcement text</span><textarea className={`${field} min-h-20 py-2`} rows={3} value={form.text} onChange={(e) => setForm({ ...form, text: e.target.value })} data-testid="ann-text" /></label>
           <label><span className={label}>Link (optional: /page or https://…)</span><input className={field} value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} data-testid="ann-link" /></label>
           <label><span className={label}>Priority (0–100, higher shows first)</span><input className={field} type="number" min="0" max="100" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} data-testid="ann-priority" /></label>
           <label><span className={label}>Start (Europe/London, optional)</span><input className={field} type="datetime-local" value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} data-testid="ann-start" /></label>
@@ -172,7 +172,7 @@ export default function AnnouncementsAdmin() {
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase">{item.deleted ? 'Deleted' : item.enabled === false ? 'Disabled' : item.published === false ? 'Unpublished' : 'Published'}</span>
           </div>
           {editingGenerated === item.id && <div className="mt-2 space-y-2">
-            <label className="block text-xs font-semibold">Announcement text<input className={field} maxLength={200} value={generatedText} onChange={(e) => setGeneratedText(e.target.value)} /></label>
+            <label className="block text-xs font-semibold">Announcement text<textarea className={`${field} min-h-20 py-2`} rows={3} value={generatedText} onChange={(e) => setGeneratedText(e.target.value)} /></label>
             {item.values && <p className="text-xs text-slate-500">Type the exact text you want, or use {Object.keys(item.values).map(key => `{${key}}`).join(' and ')} to fill in the winner details automatically.</p>}
             <button type="button" className="rounded border px-2 py-1 text-xs font-bold" onClick={() => updateGenerated(item, { text: generatedText })} data-testid={`generated-save-${item.id}`}>Save</button>
             <button type="button" className="ml-2 rounded border px-2 py-1 text-xs font-bold" onClick={() => setEditingGenerated(null)}>Cancel</button>
