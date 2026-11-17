@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: dca88fcf180b39746b2660fe870b8588
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 9100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 317450
+  packageName: Low-Poly Medieval Fantasy - NPC Pack
+  packageVersion: 1.0.0
+  assetPath: Assets/PolysplitGames/LowPolyMedievalFantasyHeroes/NPCs/DemoScene/DemoAnimatorControllers/F_NoblePose.controller
+  uploadId: 749805

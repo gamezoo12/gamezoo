@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: a4ec8dfebc5e82047afec83b31c877d4
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 9100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 317450
+  packageName: Low-Poly Medieval Fantasy - NPC Pack
+  packageVersion: 1.0.0
+  assetPath: Assets/PolysplitGames/LowPolyMedievalFantasyHeroes/NPCs/DemoScene/DemoAnimatorControllers/M_KingPose.controller
+  uploadId: 749805

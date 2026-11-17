@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: bf0fcdaf3831b2d45a637fd09ca4b337
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 9100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 317450
+  packageName: Low-Poly Medieval Fantasy - NPC Pack
+  packageVersion: 1.0.0
+  assetPath: Assets/PolysplitGames/LowPolyMedievalFantasyHeroes/NPCs/DemoScene/DemoAnimatorControllers/M_PriestPose.controller
+  uploadId: 749805

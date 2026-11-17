@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 6fe7641af234a624a9cbbc8829d952f3
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 9100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 317450
+  packageName: Low-Poly Medieval Fantasy - NPC Pack
+  packageVersion: 1.0.0
+  assetPath: Assets/PolysplitGames/LowPolyMedievalFantasyHeroes/NPCs/DemoScene/DemoAnimatorControllers/F_MerchantPose.controller
+  uploadId: 749805
