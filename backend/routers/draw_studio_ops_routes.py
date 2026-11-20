@@ -72,6 +72,8 @@ async def _draw_winner(db, winner_id: str) -> dict:
     w = await db.winners.find_one({"winner_id": winner_id}, {"_id": 0})
     if not w:
         raise HTTPException(status_code=404, detail="Winner not found")
+    if w.get("quarantined") or w.get("prize_blocked"):
+        raise HTTPException(status_code=409, detail="This winner is blocked by gameplay quarantine")
     if w.get("source") != "draw_studio":
         raise HTTPException(status_code=409, detail="Only Draw Studio rewards use this approval flow")
     return w

@@ -65,7 +65,7 @@ async def eligible_tickets(contest_id: str, request: Request):
     await require_admin(request)
     db = get_db()
     tickets = await db.tickets.find(
-        {'contest_id': contest_id},
+        {'contest_id': contest_id, 'quarantined': {'$ne': True}},
         {'_id': 0, 'ticket_number': 1, 'user_id': 1, 'order_id': 1, 'created_at': 1},
     ).sort('ticket_number', 1).to_list(10000)
     # Enrich with user email/name (single round trip)
@@ -87,7 +87,7 @@ async def random_draw(contest_id: str, request: Request):
     admin = await _require_payout_role(request)
     raise HTTPException(403, 'Draws are run only from Production Panel > Draw Studio')
     db = get_db()
-    tickets = await db.tickets.find({'contest_id': contest_id}, {'_id': 0, 'ticket_number': 1, 'user_id': 1}).to_list(10000)
+    tickets = await db.tickets.find({'contest_id': contest_id, 'quarantined': {'$ne': True}}, {'_id': 0, 'ticket_number': 1, 'user_id': 1}).to_list(10000)
     if not tickets:
         raise HTTPException(400, 'No eligible tickets to draw from')
 
@@ -120,9 +120,9 @@ async def manual_pick(contest_id: str, payload: dict, request: Request):
     if c.get('winner_published'):
         raise HTTPException(400, 'Winner is already published and locked. Use /correct instead.')
 
-    t = await db.tickets.find_one({'contest_id': contest_id, 'ticket_number': int(ticket_number)}, {'_id': 0})
+    t = await db.tickets.find_one({'contest_id': contest_id, 'ticket_number': int(ticket_number), 'quarantined': {'$ne': True}}, {'_id': 0})
     if not t:
-        raise HTTPException(404, f'Ticket #{ticket_number} not found among paid tickets for this contest')
+        raise HTTPException(404, f'Ticket #{ticket_number} is not eligible for this contest')
 
     preview = {
         'preview_winning_ticket_number': int(ticket_number),
@@ -198,9 +198,9 @@ async def correct_winner(contest_id: str, payload: dict, request: Request):
     if not c.get('winner_published'):
         raise HTTPException(400, 'Winner not yet published — use /manual instead of /correct')
 
-    t = await db.tickets.find_one({'contest_id': contest_id, 'ticket_number': int(ticket_number)}, {'_id': 0})
+    t = await db.tickets.find_one({'contest_id': contest_id, 'ticket_number': int(ticket_number), 'quarantined': {'$ne': True}}, {'_id': 0})
     if not t:
-        raise HTTPException(404, 'Ticket not found')
+        raise HTTPException(404, 'Corrected ticket is not eligible')
 
     prev_tn = c.get('winning_ticket_number')
     prev_uid = c.get('winner_user_id')

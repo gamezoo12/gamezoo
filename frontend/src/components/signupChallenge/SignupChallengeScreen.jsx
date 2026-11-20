@@ -6,6 +6,7 @@ import { ChallengeGame, makePracticeBoard, practiceScore } from './ChallengeGame
 import { AttemptResult, Intro, LeaveDialog, ScoresList, tm } from './parts';
 import { AttemptShare, FinalScorecard } from './FinalScorecard';
 import './signupChallenge.css';
+import { gameplayTelemetrySnapshot, startGameplayTelemetry, stopGameplayTelemetry } from '../../lib/gameplayTelemetry';
 
 const errMsg = (e) => { const d = e?.response?.data?.detail; return typeof d === 'string' ? d : d?.message || 'Something went wrong, please try again.'; };
 const newId = () => (window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`).replace(/-/g, '');
@@ -44,6 +45,7 @@ export default function SignupChallengeScreen({ initial, preview = false, onClos
     try {
       const r = await signupChallengeAPI.start(pendingStart.current);
       pendingStart.current = null;
+      startGameplayTelemetry(r.attempt?.attempt_id);
       setAttempt(r.attempt); setStage('real');
     } catch (e) {
       if (e?.response) pendingStart.current = null;
@@ -55,13 +57,14 @@ export default function SignupChallengeScreen({ initial, preview = false, onClos
     setStage('submitting');
     for (let i = 0; i < 3; i += 1) {
       try {
-        const r = await signupChallengeAPI.submit(attempt.attempt_id, run);
+        const r = await signupChallengeAPI.submit(attempt.attempt_id, { ...run, telemetry: gameplayTelemetrySnapshot() });
+        stopGameplayTelemetry();
         const { attempt: a, ...next } = r;
         setState(next); setResult(a); setStage('result');
         return;
       } catch (e) {
         if (e?.response) { toast.error(errMsg(e)); break; }
-        await new Promise((ok) => setTimeout(ok, 800));
+        await new Promise((ok) => setTimeout(ok, 300));
       }
     }
     try { const me = await signupChallengeAPI.me(); if (me.show) setState(me); } catch { /* keep state */ }

@@ -91,12 +91,12 @@ async def _contest(db, cid: str) -> dict:
 
 async def _pool(db, contest_id: str) -> list[dict]:
     tickets = await db.tickets.find(
-        {"contest_id": contest_id, "refunded": {"$ne": True}, "disqualified": {"$ne": True}},
+        {"contest_id": contest_id, "refunded": {"$ne": True}, "disqualified": {"$ne": True}, "quarantined": {"$ne": True}},
         {"_id": 0, "ticket_id": 1, "ticket_number": 1, "user_id": 1},
     ).sort("ticket_number", 1).to_list(200000)
     if not tickets and await db.promotion_tickets.find_one({"promotion_id": contest_id}, {"_id": 1}):
         tickets = [{**t, "ticket_id": f"pt_{contest_id}_{t['ticket_number']}"} for t in await db.promotion_tickets.find(
-            {"promotion_id": contest_id, "ticket_number": {"$ne": None}, "user_id": {"$ne": None}},
+            {"promotion_id": contest_id, "ticket_number": {"$ne": None}, "user_id": {"$ne": None}, "quarantined": {"$ne": True}},
             {"_id": 0, "ticket_number": 1, "user_id": 1}).sort("ticket_number", 1).to_list(200000)]
     users = {}
     ids = list({t["user_id"] for t in tickets})

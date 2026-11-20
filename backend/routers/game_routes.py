@@ -10,6 +10,7 @@ from pymongo.errors import DuplicateKeyError
 from auth import get_current_user, require_verified_user
 from deps import get_db
 from models import GameScore
+from services.gameplay_integrity import assess_gameplay_integrity
 
 router = APIRouter(prefix='/api/games', tags=['games'])
 public_router = APIRouter(prefix='/api', tags=['leaderboard'])
@@ -172,6 +173,7 @@ class SubmitScoreInput(BaseModel):
     accuracy: float = Field(..., ge=0.0, le=1.0)
     solved: bool = True
     challenge_token: Optional[str] = None
+    telemetry: dict = Field(default_factory=dict)
 
 
 class StartGameSessionInput(BaseModel):
@@ -389,6 +391,22 @@ async def submit_score(inp: SubmitScoreInput, request: Request):
         raise HTTPException(status_code=409, detail='This official game session has already been submitted.')
 
     pts = _calc_points(game_type, duration_ms, inp.accuracy, inp.solved)
+    from services.gameplay_telemetry import client_gameplay_evidence
+    client_evidence = client_gameplay_evidence(request, inp.telemetry)
+    prior_results = await db.game_scores.find(
+        {'user_id': user['user_id'], 'game_type': game_type}, {'_id': 0},
+    ).sort('created_at', -1).limit(20).to_list(20)
+    integrity = assess_gameplay_integrity(
+        game_type=game_type,
+        target_ms=int(meta.get('target_time_s') or 60) * 1000,
+        duration_ms=duration_ms,
+        claimed_duration_ms=inp.duration_ms,
+        solved=inp.solved,
+        accuracy=inp.accuracy,
+        prior_results=prior_results,
+        telemetry=client_evidence,
+    )
+    integrity['verification_method'] = 'Client-reported outcome with server-measured duration'
     score = GameScore(
         contest_id=contest['contest_id'],
         ticket_id=inp.ticket_id,
@@ -403,9 +421,23 @@ async def submit_score(inp: SubmitScoreInput, request: Request):
     try:
         score_data = score.model_dump()
         score_data['game_session_id'] = inp.session_id
+        score_data['client_reported_duration_ms'] = inp.duration_ms
+        score_data['solved'] = inp.solved
+        score_data['integrity'] = integrity
         await db.game_scores.insert_one(score_data)
+        if integrity['status'] != 'clear':
+            await db.gameplay_integrity_events.insert_one({
+                'event_id': f'gie_{secrets.token_hex(12)}',
+                'source': 'paid_game',
+                'user_id': user['user_id'],
+                'contest_id': contest['contest_id'],
+                'score_id': score.score_id,
+                'game_type': game_type,
+                'created_at': now,
+                'integrity': integrity,
+            })
         await db.game_attempt_sessions.update_one({'session_id': inp.session_id, 'status': 'submitting'},
-                                                  {'$set': {'status': 'submitted', 'score_id': score.score_id}})
+                                                  {'$set': {'status': 'submitted', 'score_id': score.score_id, 'integrity': integrity}})
     except Exception:
         await db.game_attempt_sessions.update_one({'session_id': inp.session_id, 'status': 'submitting'},
                                                   {'$set': {'status': 'started'}, '$unset': {'completed_at': '', 'duration_ms': ''}})
@@ -419,7 +451,8 @@ async def submit_score(inp: SubmitScoreInput, request: Request):
         'attempts_per_ticket': apt,
         'ticket_id': inp.ticket_id,
         'duration_ms': duration_ms,
-        'score': score.model_dump(),
+        'integrity_status': integrity['status'],
+        'score': score_data,
     }
 
 
@@ -432,6 +465,7 @@ async def global_leaderboard(limit: int = 50):
     db = get_db()
     # Step 1: best score per (user, contest)
     pipeline = [
+        {'$match': {'quarantined': {'$ne': True}}},
         {'$sort': {'points': -1, 'duration_ms': 1}},
         {'$group': {
             '_id': {'user_id': '$user_id', 'contest_id': '$contest_id'},

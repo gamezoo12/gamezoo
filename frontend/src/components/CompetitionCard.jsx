@@ -6,6 +6,7 @@ import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { useJoinedContestIds } from '../lib/joinedContests';
 import { resolveMediaUrl, useFallbackImage } from '../lib/media';
+import ShareMenu from './ShareMenu';
 
 export default function CompetitionCard({ c }) {
   const [t, setT] = useState(countdown(c.endDate));
@@ -54,11 +55,11 @@ export default function CompetitionCard({ c }) {
   if (isComingSoon) {
     return (
       <article
-        className="block overflow-hidden rounded-md bg-white shadow-sm"
+        className="relative block rounded-md bg-white shadow-sm"
         data-testid={`competition-coming-soon-${contestId}`}
         aria-disabled="true"
       >
-        <div className="relative aspect-[2/1] overflow-hidden bg-slate-100">
+        <div className="relative aspect-[2/1] overflow-hidden rounded-t-md bg-slate-100">
           {c.image ? (
             <img
               src={resolveMediaUrl(c.image)}
@@ -83,6 +84,8 @@ export default function CompetitionCard({ c }) {
           </div>
         </div>
 
+        {c.slug && <div className="absolute left-2 top-2"><ShareMenu path={`/competition/${encodeURIComponent(c.slug)}`} title={c.title} imageUrl={resolveMediaUrl(c.image)} label={`Share ${c.title}`} /></div>}
+
         <div className="px-2 py-2">
           <h3
             className="truncate font-display text-sm font-black text-slate-900"
@@ -96,6 +99,7 @@ export default function CompetitionCard({ c }) {
   }
 
   return (
+    <article className="relative">
     <Link
       to={`/competition/${c.slug}`}
       onClick={handleClick}
@@ -118,28 +122,26 @@ export default function CompetitionCard({ c }) {
             {c.title}
           </h3>
 
-          <div className="mt-0.5 flex items-center justify-between gap-2">
+          <div className="mt-1 flex items-center justify-between gap-2">
             <div className="inline-flex shrink-0 items-center gap-1 font-extrabold">
-              <Coins className="h-4 w-4 text-[#FFD54A]" />
-              <span className="text-sm">{tokenCount(c.price)}</span>
+              <Coins className="h-5 w-5 text-[#FFD54A]" />
+              <span className="text-base">{tokenCount(c.price)}</span>
             </div>
 
             <div
-              className={`inline-flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-sm font-black ${
-                ended
-                  ? 'bg-rose-500 text-white'
-                  : 'bg-black/80 text-[#FFD54A]'
-              }`}
+              className="grid min-w-0 grid-cols-4 gap-1"
               data-testid={`card-timer-${c.slug}`}
             >
-              <Clock className="h-4 w-4 shrink-0" />
-              <span className="truncate">
-                {ended || c.status === 'closed'
-                  ? 'Draw coming soon'
-                  : `${t.days}d ${String(t.hours).padStart(2, '0')}h ${String(
-                      t.mins
-                    ).padStart(2, '0')}m`}
-              </span>
+              {(ended || c.status === 'closed') ? (
+                <span className="col-span-4 rounded-md bg-rose-500 px-2 py-2 text-center text-xs font-black text-white">Draw coming soon</span>
+              ) : [
+                ['Days', t.days], ['Hrs', t.hours], ['Mins', t.mins], ['Secs', t.secs],
+              ].map(([label, value]) => (
+                <div key={label} className="min-w-11 rounded-md bg-black/80 px-1.5 py-1.5 text-center text-[#FFD54A]">
+                  <div className="font-display text-xl font-black leading-none">{String(value).padStart(2, '0')}</div>
+                  <div className="mt-1 text-[8px] font-bold uppercase leading-none text-white/65">{label}</div>
+                </div>
+              ))}
             </div>
 
             <div
@@ -169,7 +171,7 @@ export default function CompetitionCard({ c }) {
             </div>
 
             <div
-              className="mt-0.5 h-1 w-full overflow-hidden rounded-full bg-white/10"
+              className="mt-2 h-8 w-full overflow-hidden rounded-full bg-white/10"
               role="progressbar"
               aria-label={`${c.title} contest progress`}
               aria-valuemin="0"
@@ -187,5 +189,7 @@ export default function CompetitionCard({ c }) {
         </div>
       </div>
     </Link>
+    {c.slug && <div className="absolute right-2 top-2"><ShareMenu path={`/competition/${encodeURIComponent(c.slug)}`} title={c.title} imageUrl={resolveMediaUrl(c.image)} label={`Share ${c.title}`} /></div>}
+    </article>
   );
 }

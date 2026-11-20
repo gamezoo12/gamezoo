@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { BadgeCheck, ShoppingCart, User, Menu, X, LogOut, Wallet as WalletIcon, ChevronDown, Trophy } from 'lucide-react';
+import { BadgeCheck, ShoppingCart, User, Menu, X, LogOut, Wallet as WalletIcon, ChevronDown, Trophy, Gamepad2 } from 'lucide-react';
 import { VerifiedReviewerBadge } from '../VerifiedReviewerBadge';
 import { Button } from '../ui/button';
 import {
@@ -10,6 +10,7 @@ import {
 import NotificationsBell from './NotificationsBell';
 import AnnouncementTicker from './AnnouncementTicker';
 import PrizeLeagueLogo from './PrizeLeagueLogo';
+import UserAvatar from '../UserAvatar';
 import { useAuth } from '../../context/AuthContext';
 import { walletAPI, ordersAPI } from '../../lib/api';
 import { tokenCount } from '../../lib/format';
@@ -20,7 +21,7 @@ const NAV = [
  { label: 'Leaderboard', href: '/leaderboard' },
  { label: 'How It Works', href: '/how-it-works' },
  { label: 'Refer & Earn', href: '/refer' },
- { label: 'Free World', href: '/world' },
+ { label: 'Winners', href: '/winners' },
 ];
 
 export default function Header() {
@@ -232,11 +233,7 @@ const minimalWorldHeader =
           aria-label="My account"
           data-testid="world-header-account"
          >
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#8B5CFF] to-[#6C2BFF] text-white text-xs font-bold flex items-center justify-center ring-2 ring-white/20">
-           {(user.name || user.email || 'U')
-            .slice(0, 1)
-            .toUpperCase()}
-          </div>
+          <UserAvatar user={user} size="h-8 w-8" className="ring-2 ring-white/20" />
 
           <span className="hidden sm:inline text-sm font-semibold text-white">
            My Account
@@ -300,20 +297,18 @@ const minimalWorldHeader =
 
  <span className="inline-flex"><NotificationsBell dark={isFreeWorldHeader} /></span>
 
- {/* Draw Centre icon — desktop only kept unchanged */}
- <Link to="/draw-centre" className={isFreeWorldHeader ? "hidden" : "hidden md:inline-flex relative p-2 rounded-lg hover:bg-white/5"} aria-label="Draw centre" data-testid="header-draw-centre">
- <Trophy className="w-5 h-5 text-[#FFD54A]" />
+ {/* Free Games shortcut replaces the former Winners icon. */}
+ <Link to="/games" className={isFreeWorldHeader ? "hidden" : "hidden md:inline-flex relative p-2 rounded-lg hover:bg-white/5"} aria-label="Free games" data-testid="header-free-games">
+ <Gamepad2 className="w-5 h-5 text-[#FFD54A]" />
  </Link>
 
- {/* Mobile-only: trophy with pending badge */}
- {user && (
- <Link to="/draw-centre" className={isFreeWorldHeader ? "hidden" : "sm:hidden relative p-2 rounded-lg"} aria-label="Draw centre" data-testid="mobile-header-draw-centre">
- <Trophy className="w-6 h-6 text-[#FFD54A]" />
- {pendingKnown && pendingDrawCount > 0 && (
+ {/* Mobile-only: Free Games shortcut. */}
+ <Link to="/games" className={isFreeWorldHeader ? "hidden" : "sm:hidden relative p-2 rounded-lg"} aria-label="Free games" data-testid="mobile-header-free-games">
+ <Gamepad2 className="w-6 h-6 text-[#FFD54A]" />
+ {user && pendingKnown && pendingDrawCount > 0 && (
  <span className="absolute -top-1 -right-1 bg-[#FFD54A] text-slate-900 text-[10px] font-bold rounded-full h-4 min-w-[16px] flex items-center justify-center px-1">{badgeText}</span>
  )}
  </Link>
- )}
 
  {/* Cart — hidden on mobile per spec; desktop unchanged in appearance */}
  <Link to="/cart" className={isFreeWorldHeader ? "hidden" : "hidden sm:inline-flex relative p-2 rounded-lg hover:bg-white/5"} aria-label="Cart" data-testid="header-cart">
@@ -364,8 +359,8 @@ const minimalWorldHeader =
  aria-label="My account"
  data-testid="mobile-profile-icon"
  >
- <div className="relative w-8 h-8 rounded-full bg-gradient-to-br from-[#8B5CFF] to-[#6C2BFF] text-white text-xs font-bold flex items-center justify-center ring-2 ring-white/20">
- {(user.name || user.email || 'U').slice(0, 1).toUpperCase()}
+ <div className="relative">
+ <UserAvatar user={user} size="h-8 w-8" className="ring-2 ring-white/20" />
  {user.verified_reviewer && <BadgeCheck className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-white text-sky-600" aria-label="Verified" />}
  </div>
  </Link>
@@ -376,8 +371,8 @@ const minimalWorldHeader =
  data-testid="header-profile-btn"
  className="inline-flex items-center gap-2 pl-1 pr-2 py-1 rounded-full hover:bg-white/10 transition"
  >
- <div className="relative w-8 h-8 rounded-full bg-gradient-to-br from-[#8B5CFF] to-[#6C2BFF] text-white text-xs font-bold flex items-center justify-center ring-2 ring-white/20">
- {(user.name || user.email || 'U').slice(0, 1).toUpperCase()}
+ <div className="relative">
+ <UserAvatar user={user} size="h-8 w-8" className="ring-2 ring-white/20" />
  {user.verified_reviewer && <BadgeCheck className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-white text-sky-600" aria-label="Verified" />}
  </div>
  <span className="text-sm font-semibold text-white max-w-[8rem] truncate hidden md:inline">Hi, {(user.name || user.email || 'You').split(' ')[0]}</span>
@@ -469,11 +464,7 @@ const minimalWorldHeader =
            className="inline-flex items-center gap-1.5 rounded-full border border-white/20 px-2 py-1.5 text-white hover:bg-white/10 transition"
            aria-label="Profile"
          >
-           <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#8B5CFF] to-[#6C2BFF] text-white text-[10px] font-bold flex items-center justify-center ring-1 ring-white/20">
-             {(user.name || user.email || 'U')
-               .slice(0, 1)
-               .toUpperCase()}
-           </div>
+           <UserAvatar user={user} size="h-6 w-6" className="ring-1 ring-white/20" />
 
            <span className="hidden sm:inline text-[9px] sm:text-xs font-bold">
              PROFILE
@@ -582,7 +573,7 @@ const minimalWorldHeader =
  <>
  {/* Ordered mobile menu per spec */}
  <Link to="/my-account" onClick={() => setOpen(false)} className="mt-4 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white" data-testid="mobile-profile-link">
- <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#8B5CFF] to-[#6C2BFF] text-white text-xs font-bold flex items-center justify-center">{(user.name || user.email || 'U').slice(0,1).toUpperCase()}</div>
+ <UserAvatar user={user} size="h-9 w-9" />
  <div className="flex-1 min-w-0">
  <div className="font-bold text-sm truncate">{user.name || user.email}</div>
  <div className="text-white/60 text-xs">My Profile →</div>

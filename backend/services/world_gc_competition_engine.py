@@ -42,7 +42,7 @@ async def _freeze_level(db, config: dict, level_key: str, now: datetime) -> dict
         return existing
 
     rows = await db.world_gc_level_bests.aggregate([
-        {"$match": key},
+        {"$match": {**key, "quarantined": {"$ne": True}}},
         {"$set": {"effective_duration_ms": {"$ifNull": ["$duration_ms_override", "$duration_ms"]}}},
         {"$sort": {"effective_duration_ms": 1, "completed_at": 1, "user_id": 1}},
         {"$limit": 5},
@@ -92,6 +92,9 @@ async def _materialize_level_awards(db, finalization: dict):
         return
     key = {field: finalization[field] for field in ("season_id", "gc_number", "level_key")}
     for winner in finalization.get("winners", []):
+        user = await db.users.find_one({"user_id": winner["user_id"]}, {"_id": 0, "gameplay_quarantined": 1}) or {}
+        if user.get("gameplay_quarantined"):
+            continue
         award_key = {**key, "user_id": winner["user_id"]}
         await db.world_gc_level_bonus_awards.update_one(
             award_key,
@@ -111,6 +114,9 @@ async def _settle_champion_awards(db, config: dict, finalization: dict, now: dat
     champion_winners = {row["user_id"] for row in finalization.get("winners", [])}
     for winner in finalization.get("winners", []):
         user_id = winner["user_id"]
+        user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "gameplay_quarantined": 1}) or {}
+        if user.get("gameplay_quarantined"):
+            continue
         award_key = {"season_id": SEASON_ID, "gc_number": gc_number, "user_id": user_id}
         frozen_award = {
             **award_key, "rank": winner["rank"], "duration_ms": winner["duration_ms"],
@@ -123,6 +129,8 @@ async def _settle_champion_awards(db, config: dict, finalization: dict, now: dat
             award_key, {"$setOnInsert": frozen_award}, upsert=True,
         )
         award = await db.world_gc_champion_awards.find_one(award_key, {"_id": 0})
+        if award.get("quarantined") or award.get("prize_blocked"):
+            continue
         if award.get("status") == "credited":
             continue
 

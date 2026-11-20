@@ -68,6 +68,8 @@ def _shape(doc: dict) -> dict:
 @router.get('/progress')
 async def get_progress(request: Request):
     user = await get_current_user(request)
+    if user.get('gameplay_quarantined'):
+        raise HTTPException(403, 'Gameplay is unavailable while this account is under review')
     col = await _col()
     docs = await col.find({'user_id': user['user_id']}, {'_id': 0, 'game_id': 1, 'unlocked': 1, 'stars': 1}).to_list(200)
     return {'progress': {d['game_id']: _shape(d) for d in docs}}
@@ -76,6 +78,8 @@ async def get_progress(request: Request):
 @router.post('/progress')
 async def save_progress(inp: ProgressInput, request: Request):
     user = await get_current_user(request)
+    if user.get('gameplay_quarantined'):
+        raise HTTPException(403, 'Gameplay is unavailable while this account is under review')
     col = await _col()
     entries = sorted(inp.entries, key=lambda e: (e.game_id, e.level))
     out = {}
@@ -140,6 +144,12 @@ async def leaderboard(request: Request, game_id: str | None = None, limit: int =
     if game_id and game_id not in ALLOWED:
         raise HTTPException(status_code=400, detail='Unknown game')
     rows = await _board(game_id)
+    quarantined_ids = set(await get_db().users.distinct('user_id', {'gameplay_quarantined': True}))
+    rows = [row for row in rows if row.get('user_id') not in quarantined_ids]
+    for index, row in enumerate(rows, 1):
+        row['rank'] = index
+    from services.leaderboard_profiles import add_leaderboard_profiles
+    await add_leaderboard_profiles(get_db(), rows)
     me = None
     try:
         user = await get_current_user(request)

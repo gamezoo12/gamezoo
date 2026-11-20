@@ -21,6 +21,7 @@ import TurnstileGate from '../components/games/TurnstileGate';
 import GameSoundToggle from '../components/games/GameSoundToggle';
 import { GameMusic, MusicToggle } from '../components/games/SoundControls';
 import { gameExperienceFor, pickResultQuote, playGameSound } from '../lib/gameExperience';
+import { gameplayTelemetrySnapshot, startGameplayTelemetry, stopGameplayTelemetry } from '../lib/gameplayTelemetry';
 
 const formatDuration = (milliseconds = 0) => {
   const safe = Math.max(0, Math.floor(milliseconds));
@@ -136,7 +137,9 @@ export default function PlayGame() {
         accuracy: Number(result.accuracy || 0),
         solved: Boolean(result.solved),
         challenge_token: challengeToken,
+        telemetry: gameplayTelemetrySnapshot(),
       });
+      stopGameplayTelemetry();
 
       setLastScore(response);
       setOfficialSessionId(null);
@@ -156,6 +159,7 @@ export default function PlayGame() {
             : 'No more official attempts remaining.',
       });
     } catch (error) {
+      stopGameplayTelemetry();
       const rawDetail = error?.response?.data?.detail;
       const detail =
         typeof rawDetail === 'string'
@@ -205,6 +209,7 @@ export default function PlayGame() {
 
         window.setTimeout(() => {
           gamesAPI.start({ ticket_id: ticketId }).then((session) => {
+            startGameplayTelemetry(session.session_id);
             setOfficialSessionId(session.session_id);
             setGameKey((value) => value + 1);
             setPhase('playing');

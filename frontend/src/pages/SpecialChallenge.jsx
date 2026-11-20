@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, Clock, Coins, Gift, Hash, Palette, Target } from
 import { api, walletAPI } from '../lib/api';
 import { Button } from '../components/ui/button';
 import { useToast } from '../hooks/use-toast';
+import { gameplayTelemetrySnapshot, startGameplayTelemetry, stopGameplayTelemetry } from '../lib/gameplayTelemetry';
 
 const PALETTES = [
   { card: 'from-fuchsia-600 via-purple-700 to-indigo-800', ring: 'ring-fuchsia-300' },
@@ -128,7 +129,8 @@ export default function SpecialChallenge() {
     if (!id || completedRef.current) return;
     completedRef.current = true;
     try {
-      const { data } = await api.post('/winnings/challenge/complete', { attempt_id: id, sequence: seq });
+      const { data } = await api.post('/winnings/challenge/complete', { attempt_id: id, sequence: seq, telemetry: gameplayTelemetrySnapshot() });
+      stopGameplayTelemetry();
       finishResult(data);
       if (data.reward_pence > 0) toast({ title: `You won ${money(data.reward_pence)}!`, description: 'Credited to your withdrawable wallet.' });
     } catch (e) { setError(messageOf(e)); finishResult({ result: 'fail', reward_pence: 0 }); }
@@ -153,6 +155,7 @@ export default function SpecialChallenge() {
     try {
       const { data } = await api.post('/winnings/challenge/start', { game_id: selected.game_id });
       const a = { ...data, type: selected.type };
+      startGameplayTelemetry(a.attempt_id);
       attemptRef.current = a;
       completedRef.current = false;
       sequenceRef.current = [];
@@ -213,8 +216,9 @@ export default function SpecialChallenge() {
     setBusy(true);
     try {
       const { data } = await api.post('/winnings/challenge/colour-answer', {
-        attempt_id: attempt.attempt_id, round, answer: choice,
+        attempt_id: attempt.attempt_id, round, answer: choice, telemetry: gameplayTelemetrySnapshot(),
       });
+      if (data.finished) stopGameplayTelemetry();
       if (data.finished) {
         completedRef.current = true;
         finishResult(data);

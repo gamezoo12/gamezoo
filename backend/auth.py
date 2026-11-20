@@ -159,6 +159,14 @@ def phone_gate_blocks(user: dict) -> bool:
 async def require_verified_user(request: Request, db=None):
     """get_current_user + mobile OTP verification (server-side enforcement)."""
     user = await get_current_user(request, db)
+    if user.get('gameplay_quarantined'):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                'code': 'GAMEPLAY_RESTRICTED',
+                'message': 'Gameplay is unavailable while this account is under review.',
+            },
+        )
     if phone_gate_blocks(user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

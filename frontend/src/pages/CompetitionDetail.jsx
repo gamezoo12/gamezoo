@@ -4,7 +4,7 @@ import { Button } from '../components/ui/button';
 import { Progress } from '../components/ui/progress';
 import { Badge } from '../components/ui/badge';
 import { Minus, Plus, Ticket, Clock, Brain, Check, X, Image as ImageIcon, ShoppingBag, Coins, Trophy } from 'lucide-react';
-import { countdown, percent, gbp, tokens as fmtTokens, tokenCount } from '../lib/format';
+import { countdown, percent, tokens as fmtTokens, tokenCount } from '../lib/format';
 import { useToast } from '../hooks/use-toast';
 import { contestsAPI, walletAPI } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
@@ -192,7 +192,7 @@ export default function CompetitionDetail() {
             <div className="flex gap-2">
               {[{k:'Days',v:t.days},{k:'Hours',v:t.hours},{k:'Mins',v:t.mins},{k:'Secs',v:t.secs}].map((x) => (
                 <div key={x.k} className="flex-1 bg-white rounded-xl p-3 text-center border border-slate-100">
-                  <div className="font-display font-extrabold text-2xl text-slate-900">{String(x.v).padStart(2,'0')}</div>
+                  <div className="font-display font-extrabold text-4xl text-slate-900">{String(x.v).padStart(2,'0')}</div>
                   <div className="text-[10px] uppercase text-slate-500">{x.k}</div>
                 </div>
               ))}
@@ -205,7 +205,7 @@ export default function CompetitionDetail() {
               <span className="text-slate-600">Entries sold</span>
               <span className="font-semibold text-[#6C2BFF]">{status.pct}%</span>
             </div>
-            <Progress value={status.pct} className="h-2" />
+            <Progress value={status.pct} className="h-16 w-full" />
           </div>
 
           {isClosed ? (
@@ -377,85 +377,12 @@ export default function CompetitionDetail() {
           </div>
             </>
           )}
-          {/* Contest T&Cs - single long-scroll list per admin-editable fields */}
           <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6" data-testid="contest-terms">
-            <h2 className="font-display font-extrabold text-xl text-slate-900 mb-4">Contest information &amp; rules</h2>
-            <ol className="space-y-4 text-sm text-slate-700 leading-relaxed list-decimal list-outside pl-5" data-testid="contest-info-list">
-{[
-                c.full_description && ['Contest overview', c.full_description],
-                !c.full_description && c.short_description && ['Contest overview', c.short_description],
-                !c.full_description && !c.short_description && c.subtitle && ['Contest overview', c.subtitle],
-
-                c.how_to_enter && ['How to enter', c.how_to_enter],
-                c.skill_instructions && ['Skill game instructions', c.skill_instructions],
-                c.eligibility && ['Eligibility', c.eligibility],
-
-                ['Ticket price', `${fmtTokens(c.price)} per entry ticket.`],
-
-                c.bonus_token_limit_per_user != null &&
-                  ['Bonus Token limit', `Up to ${c.bonus_token_limit_per_user} Bonus Tokens per user across all purchases in this contest.`],
-
-                c.tickets_total != null &&
-                  ['Total ticket allocation', `${c.tickets_total} tickets available in this competition.`],
-
-                c.max_tickets_per_user &&
-                  ['Maximum entries per user', `${c.max_tickets_per_user} tickets per person.`],
-
-                c.bonus_token_limit_per_user != null &&
-                  ['Bonus Token entry limit', `${c.bonus_token_limit_per_user} promotional Bonus Tokens per person across all entries.`],
-                c.winning_bonus_token_limit_per_user != null &&
-                  ['Winning Bonus Token entry limit', `${c.winning_bonus_token_limit_per_user} Winning Bonus Tokens per person across all entries.`],
-
-                c.free_postal_entry_available &&
-                  ['Free postal entry availability', 'Available for this competition.'],
-
-                c.free_postal_entry_available &&
-                c.free_postal_entry_instructions &&
-                  ['Free postal entry instructions', c.free_postal_entry_instructions],
-
-                c.open_date &&
-                  ['Contest opening date', new Date(c.open_date).toLocaleString('en-GB')],
-
-                c.end_date &&
-                  ['Contest closing date', new Date(c.end_date).toLocaleString('en-GB')],
-
-                c.draw_date &&
-                  ['Draw / result date', new Date(c.draw_date).toLocaleString('en-GB')],
-
-                c.prize_details && ['Prize details', c.prize_details],
-                c.prize_type === 'other' && c.other_prize_description && ['Prize', `${c.other_prize_description}${Number(c.other_prize_value) > 0 ? ` (estimated value ${gbp(c.other_prize_value)})` : ''}`],
-                c.num_prizes != null && ['Number of prizes', String(c.num_prizes)],
-                c.prize_values && ['Prize values', c.prize_values],
-                c.winner_method && ['Winner determination', c.winner_method],
-                c.scoring_method && ['Scoring method', c.scoring_method],
-                c.tiebreak_method && ['Tie-break method', c.tiebreak_method],
-                c.verification_method && ['Result verification', c.verification_method],
-                c.prize_credit_timeframe && ['Prize credit timeframe', c.prize_credit_timeframe],
-                c.refund_conditions && ['Refund conditions', c.refund_conditions],
-                c.important_info && ['Important information', c.important_info],
-                c.contest_rules && ['Contest-specific rules', c.contest_rules],
-                c.terms_acknowledgement && ['Terms acknowledgement', c.terms_acknowledgement],
-                c.country_restrictions && ['Country restrictions', c.country_restrictions],
-                c.age_restriction && ['Age restrictions', c.age_restriction],
-
-                ['Data & privacy',
-                  <>Your data is handled per our <Link key="pp" to="/legal/privacy" className="text-[#6C2BFF] underline">Privacy Policy</Link>.</>
-                ],
-
-                ['Complaints',
-                  <>See our <Link key="cx" to="/legal/complaints" className="text-[#6C2BFF] underline">Complaints Policy</Link>.</>
-                ],
-
-                ['Full Terms & Conditions',
-                  <><Link key="tc" to="/legal/terms" className="text-[#6C2BFF] underline">Read the full Terms &amp; Conditions</Link> before entering.</>
-                ],
-              ].filter(Boolean).map(([title, body], i) => (
-                <li key={i} data-testid={`contest-info-item-${i}`}>
-                  <div className="font-bold text-slate-900">{title}</div>
-                  <div className="mt-0.5 whitespace-pre-wrap">{body}</div>
-                </li>
-              ))}
-            </ol>
+            <h2 className="mb-3 font-display text-xl font-extrabold text-slate-900">Contest description</h2>
+            <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700" data-testid="contest-description">
+              {c.full_description || c.short_description || c.subtitle || 'Please see the published competition terms before entering.'}
+            </div>
+            <Link to="/legal/terms" className="mt-4 inline-block text-sm font-semibold text-[#6C2BFF] hover:underline">Read full Terms &amp; Conditions</Link>
           </div>
         </div>
       </div>

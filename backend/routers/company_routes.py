@@ -366,7 +366,7 @@ async def contest_leaderboard(
                 current_user_id = session.get('user_id')
 
     pipeline = [
-        {'$match': {'contest_id': contest_id}},
+        {'$match': {'contest_id': contest_id, 'quarantined': {'$ne': True}}},
         {'$set': {'effective_duration_ms': {'$ifNull': ['$duration_ms_override', '$duration_ms']}}},
         {
             '$sort': {
@@ -417,6 +417,9 @@ async def contest_leaderboard(
                 'username': 1,
                 'name': 1,
                 'verified_reviewer': 1,
+                'profile_image_key': 1,
+                'profile_image_public': 1,
+                'free_world_avatar_id': 1,
             },
         ):
             users[user['user_id']] = user
@@ -460,6 +463,11 @@ async def contest_leaderboard(
         row['duration_ms'] = int(row.get('duration_ms') or 0)
         row['is_current_user'] = row['user_id'] == current_user_id
         row['verified_reviewer'] = bool(user.get('verified_reviewer'))
+        row['profile_image_url'] = (
+            f"/api/users/profile-picture/{row['user_id']}"
+            if user.get('profile_image_key') and user.get('profile_image_public') else None
+        )
+        row['free_world_avatar_id'] = user.get('free_world_avatar_id') or 'male-01'
 
     visible_entries = ranked_rows[:safe_limit]
 

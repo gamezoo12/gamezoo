@@ -33,7 +33,7 @@ def _mask(name: Optional[str]) -> str:
 
 
 def _official(w: dict) -> bool:
-    if w.get("public_hidden"):
+    if w.get("public_hidden") or w.get("quarantined") or w.get("prize_blocked"):
         return False
     if w.get("source") == "draw_studio":
         return bool(w.get("published")) and (w.get("approval_status") in OFFICIAL or bool(w.get("credited_at")))
@@ -118,6 +118,8 @@ async def approve(winner_id: str, body: ApproveIn, request: Request):
     w = await db.winners.find_one({"winner_id": winner_id}, {"_id": 0})
     if not w or str(w.get("contest_id", "")).startswith("promo_"):
         raise HTTPException(status_code=404, detail="Paid World winner not found")
+    if w.get("quarantined") or w.get("prize_blocked"):
+        raise HTTPException(status_code=403, detail="Prize approval is blocked while this winner is under fair-play review")
     if w.get("paid_out"):
         return {"winner": w, "idempotent_replay": True}
     studio = w.get("source") == "draw_studio"
@@ -512,16 +514,36 @@ async def _visible(db, cid: str, flag: str) -> dict:
     return c
 
 
+async def _winner_ticket_counts(db, cid: str, user_ids: list[str]) -> dict:
+    if not user_ids:
+        return {}
+    if str(cid).startswith("promo_"):
+        counts = await db.promotion_tickets.aggregate([
+            {"$match": {"promotion_id": cid, "user_id": {"$in": user_ids}, "refunded": {"$ne": True}}},
+            {"$group": {"_id": "$user_id", "count": {"$sum": 1}}},
+        ]).to_list(None)
+    else:
+        counts = await db.tickets.aggregate([
+            {"$match": {"contest_id": cid, "user_id": {"$in": user_ids}, "refunded": {"$ne": True}, "disqualified": {"$ne": True}}},
+            {"$group": {"_id": "$user_id", "count": {"$sum": 1}}},
+        ]).to_list(None)
+    return {row["_id"]: row["count"] for row in counts}
+
+
 @public_router.get("/{cid}/winners")
 async def public_winners(cid: str):
     db = get_db()
     c = await _visible(db, cid, "show_winners")
     rows = await db.winners.find({"contest_id": cid}, {"_id": 0}).sort([("draw_round_index", 1), ("drawn_at", 1)]).to_list(500)
-    ws = [{"name": _mask(w.get("user_name")), "ticket_number": w.get("ticket_number"), "prize_amount": w.get("prize_amount"),
+    official = [w for w in rows if _official(w)]
+    user_ids = list({w.get("user_id") for w in official if w.get("user_id")})
+    ticket_counts = await _winner_ticket_counts(db, cid, user_ids)
+    ws = [{"name": _mask(w.get("user_name")), "ticket_number": w.get("ticket_number"),
+           "tickets_purchased": ticket_counts.get(w.get("user_id"), 0), "prize_amount": w.get("prize_amount"),
            "prize_bonus_tokens": w.get("prize_bonus_tokens") if w.get("source") != "draw_studio" else 0,
             "reward_type": w.get("reward_type"), "other_prize_description": w.get("other_prize_description"),
            "round_name": w.get("draw_round_name"), "drawn_at": w.get("drawn_at"),
-           "source": "draw" if w.get("source") == "draw_studio" else "leaderboard"} for w in rows if _official(w)]
+           "source": "draw" if w.get("source") == "draw_studio" else "leaderboard"} for w in official]
     return {"contest": _card(c), "winners": ws}
 
 

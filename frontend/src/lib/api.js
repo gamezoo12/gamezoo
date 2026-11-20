@@ -132,11 +132,15 @@ export const ordersAPI = {
 export const publicAPI = {
   winners: () => api.get('/public/winners').then(r => r.data),
   stats: () => api.get('/public/stats').then(r => r.data),
+  homepageContent: () => api.get('/public/homepage-content').then(r => r.data),
 };
 
 export const userAPI = {
   me: () => api.get('/users/me').then(r => r.data),
   updateMe: (data) => api.patch('/users/me', data).then(r => r.data),
+  uploadProfilePicture: (file) => { const fd = new FormData(); fd.append('file', file); return api.post('/users/me/profile-picture', fd, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data); },
+  deleteProfilePicture: () => api.delete('/users/me/profile-picture').then(r => r.data),
+  setProfilePicturePrivacy: (publicProfile) => api.patch('/users/me/profile-picture-privacy', { public: publicProfile }).then(r => r.data),
   changePassword: (data) => api.post('/users/me/password', data).then(r => r.data),
   setFirstPassword: (new_password) => api.post('/users/me/password/set', { new_password }).then(r => r.data),
   kycSubmit: (data) => api.post('/users/kyc/submit', data).then(r => r.data),
@@ -222,6 +226,11 @@ export const adminAPI = {
   updateContest: (id, data) => api.put(`/admin/contests/${id}`, data).then(r => r.data),
   createContest: (data) => api.post('/admin/contests', data).then(r => r.data),
   winners: () => api.get('/admin/winners').then(r => r.data),
+  homepageContent: () => api.get('/admin/homepage-content').then(r => r.data),
+  addHomepageContent: (data) => api.post('/admin/homepage-content', data).then(r => r.data),
+  deleteHomepageContent: (id) => api.delete(`/admin/homepage-content/${encodeURIComponent(id)}`).then(r => r.data),
+  updateHomepageContentSettings: (data) => api.put('/admin/homepage-content/settings', data).then(r => r.data),
+  uploadHomepageImage: (file) => { const fd = new FormData(); fd.append('file', file); return api.post('/admin/uploads/image', fd, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data); },
   tickerWinners: () => api.get('/admin/world/ticker-winners').then(r => r.data),
   addTickerWinner: (data) => api.post('/admin/world/ticker-winners', data).then(r => r.data),
   deleteTickerWinner: (id) => api.delete(`/admin/world/ticker-winners/${id}`).then(r => r.data),
@@ -425,6 +434,7 @@ export const adminWalletAPI = {
 export const referralAPI = {
   me: () => api.get('/referrals/me').then(r => r.data),
   list: () => api.get('/referrals/list').then(r => r.data),
+  trackShare: (channel) => api.post('/referrals/share', { channel }).then(r => r.data),
   complete: () => api.post('/referrals/complete').then(r => r.data),
 };
 
@@ -471,6 +481,7 @@ export const worldContestAPI = {
     duration_ms,
     solved,
     taps,
+    telemetry,
   }) =>
     api.post(
       '/world/champion/session/submit',
@@ -479,6 +490,7 @@ export const worldContestAPI = {
         duration_ms,
         solved,
         taps,
+        telemetry,
       },
     ).then(r => r.data),
 
@@ -596,6 +608,8 @@ export const worldAdminAPI = {
   stageLevelConfig: () =>
     api.get('/admin/world/stage-level-config').then(r => r.data),
   championAttemptRules: () => api.get('/admin/world/champion-attempt-rules').then(r => r.data),
+  avatarCatalog: () => api.get('/admin/world/avatar-catalog').then(r => r.data),
+  setAvatarCatalog: (data) => api.put('/admin/world/avatar-catalog', data).then(r => r.data),
   setMapTheme: (data) => api.put('/admin/world/map-theme', data).then(r => r.data),
   setUnlimitedGames: (enabled) => api.put('/admin/world/unlimited-games', { enabled }).then(r => r.data),
   setUiTheme: (themeId) => api.put('/admin/world/ui-theme', { theme_id: themeId }).then(r => r.data),
@@ -724,6 +738,9 @@ export const worldGcCompetitionAdminAPI = {
 
 export const worldAPI = {
   mapTheme: () => api.get('/world/public/map-theme').then(r => r.data),
+  avatarCatalog: () => api.get('/world/public/avatar-catalog').then(r => r.data),
+  purchaseAvatar: (avatarId) => api.post(`/world/avatars/${encodeURIComponent(avatarId)}/purchase`).then(r => r.data),
+  setAvatar: (avatar_id) => api.put('/world/avatar', { avatar_id }).then(r => r.data),
   unlimitedGames: () => api.get('/world/public/unlimited-games').then(r => r.data),
   uiTheme: () => api.get('/world/public/ui-theme').then(r => r.data),
   boardStyle: () => api.get('/world/public/board-style').then(r => r.data),
@@ -756,6 +773,7 @@ export const worldAPI = {
     duration_ms,
     solved,
     taps,
+    telemetry,
   }) =>
     api.post(
       '/world/session/submit',
@@ -764,6 +782,7 @@ export const worldAPI = {
         duration_ms,
         solved,
         taps,
+        telemetry,
       },
     ).then(r => r.data),
 

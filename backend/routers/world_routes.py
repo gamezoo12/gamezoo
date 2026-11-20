@@ -38,7 +38,7 @@ from services.world_championship_schedule import (
 )
 from pydantic import BaseModel, Field
 
-from auth import get_current_user, require_admin, require_verified_user
+from auth import get_current_user, require_admin, require_super_admin, require_verified_user
 from deps import get_db
 from routers.wallet_routes import _apply_tx_idempotent
 
@@ -920,6 +920,7 @@ async def world_public_leaderboard(
             "season_id": WORLD_SEASON_ID,
             "global_contest_number": contest_number,
             "eligible": True,
+            "quarantined": {"$ne": True},
         }},
         {"$set": {
             "effective_duration_ms": {
@@ -963,6 +964,8 @@ async def world_public_leaderboard(
 
     from services.verified_reviewer import mark_verified_reviewers
     await mark_verified_reviewers(db, leaderboard)
+    from services.leaderboard_profiles import add_leaderboard_profiles
+    await add_leaderboard_profiles(db, leaderboard)
     return {
         "contest": (
             _contest_public(contest)
@@ -2207,17 +2210,27 @@ async def admin_world_reset_extensions(request: Request):
 class MapThemeInput(BaseModel):
     theme: str = Field(..., pattern="^(classic|festive)$")
     effects: bool = True
+    intro_media_url: Optional[str] = Field(default=None, max_length=2048)
+    intro_media_type: Optional[str] = Field(default=None, pattern="^(image|video)$")
+    intro_media_enabled: bool = True
 
 
 @public_router.get("/map-theme")
 async def public_map_theme():
     doc = await get_db().world_settings.find_one({"_id": "map_theme", "season_id": WORLD_SEASON_ID}, {"_id": 0}) or {}
-    return {"theme": doc.get("theme", "festive"), "effects": bool(doc.get("effects", True))}
+    legacy_video_url = doc.get("intro_video_url")
+    return {
+        "theme": doc.get("theme", "festive"),
+        "effects": bool(doc.get("effects", True)),
+        "intro_media_url": doc.get("intro_media_url") or legacy_video_url,
+        "intro_media_type": doc.get("intro_media_type") or ("video" if legacy_video_url else None),
+        "intro_media_enabled": bool(doc.get("intro_media_enabled", True)),
+    }
 
 
 @admin_router.put("/map-theme")
 async def admin_set_map_theme(payload: MapThemeInput, request: Request):
-    admin = await require_admin(request)
+    admin = await require_super_admin(request)
     db = get_db()
     await db.world_settings.update_one(
         {"_id": "map_theme", "season_id": WORLD_SEASON_ID},
@@ -2315,7 +2328,7 @@ async def public_ui_theme():
 
 @admin_router.put("/ui-theme")
 async def admin_set_ui_theme(payload: WorldUiThemeInput, request: Request):
-    admin = await require_admin(request)
+    admin = await require_super_admin(request)
     if payload.theme_id not in _WORLD_THEME_IDS:
         raise HTTPException(status_code=422, detail="Unknown theme")
     await get_db().world_settings.update_one(
@@ -5080,6 +5093,8 @@ class FreeWorldSessionSubmitInput(BaseModel):
         max_length=100,
     )
 
+    telemetry: dict = Field(default_factory=dict)
+
 
 def _secure_shuffle_numbers(target: int):
     values = list(
@@ -6672,6 +6687,145 @@ async def _consume_world_attempt(
 # FREE WORLD STATE
 # ===========================================================================
 
+FREE_WORLD_AVATAR_IDS = [
+    *(f"male-{number:02d}" for number in range(1, 31)),
+    *(f"female-{number:02d}" for number in range(1, 11)),
+    "legacy-classic", "legacy-santa",
+    *(f"unity-male-{number:02d}" for number in range(1, 9)),
+    *(f"unity-female-{number:02d}" for number in range(1, 9)),
+]
+AVATAR_ID_PATTERN = r"^(male-(0[1-9]|[12][0-9]|30)|female-(0[1-9]|10)|legacy-(classic|santa)|unity-(male|female)-0[1-8])$"
+UNITY_3D_AVATARS_ENABLED = False
+
+
+class FreeWorldAvatarOffer(BaseModel):
+    avatar_id: str = Field(..., pattern=AVATAR_ID_PATTERN)
+    released: bool = False
+    price_type: str = Field("free", pattern="^(free|bonus_tokens|wallet)$")
+    price: float = Field(0, ge=0, le=100000)
+
+
+class FreeWorldAvatarCatalogInput(BaseModel):
+    offers: list[FreeWorldAvatarOffer] = Field(..., min_length=58, max_length=58)
+
+
+def _default_avatar_offers():
+    return [
+        {"avatar_id": avatar_id, "released": avatar_id in {"male-01", "legacy-classic", "legacy-santa"} or (UNITY_3D_AVATARS_ENABLED and avatar_id.startswith("unity-")), "price_type": "free", "price": 0}
+        for avatar_id in FREE_WORLD_AVATAR_IDS
+    ]
+
+
+async def _free_world_avatar_offers(db):
+    doc = await db.world_settings.find_one(
+        {"_id": "free_world_avatar_catalog", "season_id": WORLD_SEASON_ID},
+        {"_id": 0, "offers": 1},
+    ) or {}
+    saved = {offer.get("avatar_id"): offer for offer in doc.get("offers", [])}
+    offers = [saved.get(offer["avatar_id"], offer) for offer in _default_avatar_offers()]
+    if not UNITY_3D_AVATARS_ENABLED:
+        for offer in offers:
+            if offer["avatar_id"].startswith("unity-"):
+                offer["released"] = False
+    return offers
+
+
+@public_router.get("/avatar-catalog")
+async def public_free_world_avatar_catalog():
+    offers = await _free_world_avatar_offers(get_db())
+    return {"offers": [offer for offer in offers if offer.get("released") is True]}
+
+
+@admin_router.get("/avatar-catalog")
+async def admin_get_free_world_avatar_catalog(request: Request):
+    await require_super_admin(request)
+    return {"offers": await _free_world_avatar_offers(get_db())}
+
+
+@admin_router.put("/avatar-catalog")
+async def admin_set_free_world_avatar_catalog(payload: FreeWorldAvatarCatalogInput, request: Request):
+    admin = await require_super_admin(request)
+    offers = [offer.model_dump() for offer in payload.offers]
+    if {offer["avatar_id"] for offer in offers} != set(FREE_WORLD_AVATAR_IDS):
+        raise HTTPException(status_code=422, detail="Include each Free World avatar exactly once")
+    if any((offer["price_type"] == "free" and offer["price"] != 0)
+           or (offer["price_type"] != "free" and offer["price"] <= 0) for offer in offers):
+        raise HTTPException(status_code=422, detail="Free avatars must cost 0; paid avatars need a positive price")
+    await get_db().world_settings.update_one(
+        {"_id": "free_world_avatar_catalog", "season_id": WORLD_SEASON_ID},
+        {"$set": {"offers": offers, "updated_at": _utcnow(), "updated_by": admin.get("user_id")}},
+        upsert=True,
+    )
+    return {"offers": offers}
+
+
+@router.get("/avatars/me")
+async def get_my_free_world_avatars(request: Request):
+    user = await get_current_user(request)
+    return {"owned_avatar_ids": user.get("free_world_owned_avatars") or []}
+
+
+@router.post("/avatars/{avatar_id}/purchase")
+async def purchase_free_world_avatar(avatar_id: str, request: Request):
+    if avatar_id not in FREE_WORLD_AVATAR_IDS:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+    user = await get_current_user(request)
+    db = get_db()
+    offers = await _free_world_avatar_offers(db)
+    offer = next((row for row in offers if row.get("avatar_id") == avatar_id), None)
+    if not offer or not offer.get("released"):
+        raise HTTPException(status_code=404, detail="Avatar is not available")
+    if avatar_id in (user.get("free_world_owned_avatars") or []):
+        return {"owned_avatar_ids": user.get("free_world_owned_avatars") or [], "already_owned": True}
+
+    price = float(offer.get("price") or 0)
+    if price > 0:
+        from routers.wallet_routes import _apply_tx_idempotent
+
+        await _apply_tx_idempotent(
+            db, user["user_id"], "spend", -price,
+            note=f"Free World avatar purchase: {avatar_id}",
+            ref_order_id=f"free-world-avatar:{avatar_id}",
+            bonus_only=offer.get("price_type") == "bonus_tokens",
+            bonus_limit=price if offer.get("price_type") == "bonus_tokens" else 0,
+            winning_bonus_limit=0,
+        )
+
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$addToSet": {"free_world_owned_avatars": avatar_id}},
+    )
+    fresh = await db.users.find_one(
+        {"user_id": user["user_id"]}, {"_id": 0, "free_world_owned_avatars": 1},
+    ) or {}
+    return {"owned_avatar_ids": fresh.get("free_world_owned_avatars") or [], "already_owned": False}
+
+
+class FreeWorldAvatarInput(BaseModel):
+    avatar_id: str = Field(..., pattern=AVATAR_ID_PATTERN)
+
+
+@router.put("/avatar")
+async def set_free_world_avatar(payload: FreeWorldAvatarInput, request: Request):
+    if payload.avatar_id.startswith("unity-") and not UNITY_3D_AVATARS_ENABLED:
+        raise HTTPException(status_code=404, detail="3D avatars are temporarily unavailable")
+    user = await get_current_user(request)
+    db = get_db()
+    offers = await _free_world_avatar_offers(db)
+    offer = next((row for row in offers if row.get("avatar_id") == payload.avatar_id), None)
+    owns = payload.avatar_id in (user.get("free_world_owned_avatars") or []) or payload.avatar_id in (user.get("free_world_avatar_history") or [])
+    already_selected = payload.avatar_id == user.get("free_world_avatar_id")
+    available_free = bool(offer and offer.get("released") and offer.get("price_type") == "free")
+    if not already_selected and not owns and not available_free:
+        raise HTTPException(status_code=403, detail="Purchase or choose a released free avatar first")
+    await get_db().users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"free_world_avatar_id": payload.avatar_id}, "$addToSet": {"free_world_avatar_history": {"$each": list(dict.fromkeys(
+            avatar_id for avatar_id in (user.get("free_world_avatar_id"), payload.avatar_id) if avatar_id in FREE_WORLD_AVATAR_IDS
+        ))}}},
+    )
+    return {"avatar_id": payload.avatar_id}
+
 @router.get("/state")
 async def free_world_state(
     request: Request,
@@ -7103,6 +7257,9 @@ async def free_world_state(
 
     return {
         "season_id": WORLD_SEASON_ID,
+        "avatar_id": user.get("free_world_avatar_id") if user else None,
+            "owned_avatar_ids": (user.get("free_world_owned_avatars") or []) if user else [],
+        "previous_avatar_ids": (user.get("free_world_avatar_history") or []) if user else [],
         "server_now": _serialize_datetime(_utcnow()),
         "arena": 1,
         "arena_name": "Royal Village",
@@ -7836,6 +7993,30 @@ async def free_world_session_submit(
         time_limit_ms == 0 or body.duration_ms <= time_limit_ms
     )
 
+    from services.gameplay_integrity import assess_gameplay_integrity
+    from services.gameplay_telemetry import client_gameplay_evidence
+
+    client_evidence = client_gameplay_evidence(request, body.telemetry)
+    prior_world_results = await db.world_level_attempts.find(
+        {'user_id': user['user_id'], 'game_id': session.get('game_id')},
+        {'_id': 0, 'duration_ms': 1, 'passed': 1, 'accuracy': 1, 'created_at': 1},
+    ).sort('created_at', -1).limit(20).to_list(20)
+    integrity = assess_gameplay_integrity(
+        game_type=str(session.get('game_id') or f'level_{session.get("level")}'),
+        target_ms=time_limit_ms or 60_000,
+        duration_ms=body.duration_ms,
+        claimed_duration_ms=body.duration_ms,
+        solved=body.solved,
+        prior_results=prior_world_results,
+        telemetry=client_evidence,
+        required_actions=len(expected_taps),
+    )
+    integrity['verification_method'] = (
+        'Browser-reported completion with server-measured duration'
+        if session.get('game_id') in _world_client_games()
+        else 'Exact server-issued sequence with server-measured duration'
+    )
+
     # Small allowance for the result HTTP request itself.
     server_in_time = (
         time_limit_ms == 0 or server_elapsed_ms <= time_limit_ms + 5000
@@ -7894,6 +8075,9 @@ async def free_world_session_submit(
 
                 "score":
                     score,
+
+                "integrity":
+                    integrity,
             }
         },
     )
@@ -7928,9 +8112,24 @@ async def free_world_session_submit(
 
                 "score":
                     score,
+
+                "integrity":
+                    integrity,
             }
         },
     )
+
+    if integrity['status'] != 'clear':
+        await db.gameplay_integrity_events.insert_one({
+            'event_id': f'gie_{secrets.token_hex(12)}',
+            'source': 'free_world',
+            'user_id': user['user_id'],
+            'session_id': body.session_id,
+            'level': session.get('level'),
+            'game_type': session.get('game_id'),
+            'created_at': now,
+            'integrity': integrity,
+        })
 
     level = int(
         session["level"]
@@ -8150,6 +8349,8 @@ class ChampionSessionSubmitInput(BaseModel):
         default_factory=list,
         max_length=100,
     )
+
+    telemetry: dict = Field(default_factory=dict)
 
 
 async def _ensure_champion_entry(
@@ -9800,6 +10001,31 @@ async def champion_session_submit(
         else 0.0
     )
 
+    from services.gameplay_integrity import assess_gameplay_integrity
+    from services.gameplay_telemetry import client_gameplay_evidence
+
+    prior_champion_results = await db.world_champion_sessions.find(
+        {'user_id': user['user_id'], 'game_id': session.get('game_id'), 'status': 'submitted'},
+        {'_id': 0, 'duration_ms': 1, 'passed': 1, 'submitted_at': 1},
+    ).sort('submitted_at', -1).limit(20).to_list(20)
+    client_evidence = client_gameplay_evidence(request, body.telemetry)
+    integrity = assess_gameplay_integrity(
+        game_type=str(session.get('game_id') or 'champion'),
+        target_ms=int(session.get('time_limit_seconds') or 60) * 1000,
+        duration_ms=authoritative_duration_ms,
+        claimed_duration_ms=body.duration_ms,
+        solved=passed,
+        accuracy=accuracy,
+        prior_results=prior_champion_results,
+        telemetry=client_evidence,
+        required_actions=len(expected_taps),
+    )
+    integrity['verification_method'] = (
+        'Browser-reported completion with server-measured duration'
+        if session.get('game_id') in _world_client_games()
+        else 'Exact server-issued sequence with server-measured duration'
+    )
+
     submit_update = await db.world_champion_sessions.update_one(
         {
             "session_id":
@@ -9846,6 +10072,9 @@ async def champion_session_submit(
 
                 "accuracy":
                     accuracy,
+
+                "integrity":
+                    integrity,
             }
         },
     )
@@ -9982,8 +10211,7 @@ async def champion_session_submit(
             "accuracy":
                 accuracy,
 
-            "eligible":
-                True,
+            "eligible": integrity['status'] != 'high_risk',
 
             "submitted_at":
                 now,
@@ -10006,6 +10234,9 @@ async def champion_session_submit(
                 session[
                     "prize_currency_snapshot"
                 ],
+
+            "integrity":
+                integrity,
         }
 
         existing_best = await db.world_champion_scores.find_one(
@@ -12127,6 +12358,7 @@ async def public_champion_leaderboard(
             "season_id": WORLD_SEASON_ID,
             "global_contest_number": int(contest_number),
             "eligible": True,
+            "quarantined": {"$ne": True},
         }},
         {"$set": {
             "original_duration_ms": "$duration_ms",
@@ -12274,6 +12506,8 @@ async def public_champion_leaderboard(
 
     from services.verified_reviewer import mark_verified_reviewers
     await mark_verified_reviewers(db, leaderboard)
+    from services.leaderboard_profiles import add_leaderboard_profiles
+    await add_leaderboard_profiles(db, leaderboard)
     return {
         "contest": {
             "season_id":
@@ -12655,6 +12889,9 @@ async def _settle_world_champion_contest(
 
             "eligible":
                 True,
+
+            "quarantined":
+                {"$ne": True},
         },
         {
             "_id": 0,
@@ -12995,6 +13232,17 @@ async def _settle_world_champion_contest(
     # -------------------------------------------------------
     # WALLET CREDIT + RECOVERY-SAFE AWARD FINALIZATION
     # -------------------------------------------------------
+
+    blocked_awards = [award for award in awards if award.get('quarantined') or award.get('prize_blocked')]
+    if blocked_awards:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                'code': 'CHAMPION_AWARD_BLOCKED',
+                'message': 'One or more frozen winner awards are blocked by gameplay quarantine.',
+                'blocked_user_ids': [award.get('user_id') for award in blocked_awards],
+            },
+        )
 
     for award in awards:
         rank = int(

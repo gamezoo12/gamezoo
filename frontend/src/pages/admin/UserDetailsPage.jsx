@@ -14,6 +14,8 @@ import { useToast } from '../../hooks/use-toast';
 import { FourWalletAdjust } from '../../components/admin/FourWalletAdjust';
 import BackButton from '../../components/BackButton';
 import { gbp } from '../../lib/format';
+import UserAvatar from '../../components/UserAvatar';
+import ProfileImageViewer from '../../components/ProfileImageViewer';
 import {
   User as UserIcon, ShieldCheck, Wallet, Ticket, Trophy, LifeBuoy,
   AlertTriangle, Ban, RotateCcw, Trash2, Clock, Mail, Gift, CheckCircle2,
@@ -39,6 +41,81 @@ const StatCard = ({ label, value, tone = 'slate' }) => (
 
 const newWalletAdjustmentId = () => globalThis.crypto?.randomUUID?.()
   || `admin-adjust-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+const FAIR_PLAY_SOURCES = { paid_game: 'Paid World', free_world: 'Free World level', champion: 'Champion', every_level: 'Every-Level Championship', special_challenge: 'Special Challenge', signup_challenge: 'Signup Challenge' };
+
+function UserRewardOverridesCard({ userId, overrides, disabled, onDone }) {
+  const { toast } = useToast();
+  const [form, setForm] = useState({});
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const referralTokens = overrides?.referral_reward_tokens;
+    const topup = overrides?.topup_bonus || {};
+    setForm({
+      referral_reward_enabled: referralTokens != null,
+      referral_reward_tokens: referralTokens ?? '',
+      topup_bonus_enabled: Boolean(topup.enabled),
+      topup_bonus_mode: topup.mode || 'fixed',
+      topup_bonus_tokens: topup.reward_tokens ?? 0,
+      topup_bonus_percent: topup.reward_percent ?? 0,
+      topup_bonus_minimum_gbp: topup.minimum_gbp ?? 0,
+      topup_bonus_first_only: topup.first_only ?? true,
+    });
+  }, [overrides]);
+
+  const change = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const save = async (event) => {
+    event.preventDefault();
+    if (reason.trim().length < 10) return;
+    setSaving(true);
+    try {
+      await api.put(`/admin/users/${encodeURIComponent(userId)}/reward-overrides`, {
+        ...form,
+        referral_reward_tokens: form.referral_reward_enabled ? Number(form.referral_reward_tokens) : null,
+        topup_bonus_tokens: Number(form.topup_bonus_tokens || 0),
+        topup_bonus_percent: Number(form.topup_bonus_percent || 0),
+        topup_bonus_minimum_gbp: Number(form.topup_bonus_minimum_gbp || 0),
+        reason: reason.trim(),
+      });
+      toast({ title: 'User reward settings saved' });
+      setReason('');
+      onDone?.();
+    } catch (error) {
+      toast({ title: 'Could not save reward settings', description: error?.response?.data?.detail || 'Please try again.' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={save} className="mb-5 rounded-xl border border-slate-200 p-4" data-testid="user-reward-overrides">
+      <h3 className="mb-1 text-sm font-bold">Individual reward settings</h3>
+      <p className="mb-3 text-xs text-slate-500">Referral changes apply to new referrals. Top-up changes apply to this user’s future verified payments.</p>
+      <div className="grid gap-4 md:grid-cols-2">
+        <fieldset className="space-y-2">
+          <legend className="text-xs font-bold">Referral reward for invitations</legend>
+          <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={!!form.referral_reward_enabled} onChange={(e) => change('referral_reward_enabled', e.target.checked)} disabled={disabled || saving} />Set a custom referral reward</label>
+          <div className="flex items-center gap-2"><Input aria-label="Referral reward tokens" type="number" min="0" max="1000" step="0.01" value={form.referral_reward_tokens ?? ''} onChange={(e) => change('referral_reward_tokens', e.target.value)} disabled={disabled || saving || !form.referral_reward_enabled} /><span className="text-xs text-slate-500">Bonus Tokens</span></div>
+        </fieldset>
+        <fieldset className="space-y-2">
+          <legend className="text-xs font-bold">Top-up bonus for this user</legend>
+          <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={!!form.topup_bonus_enabled} onChange={(e) => change('topup_bonus_enabled', e.target.checked)} disabled={disabled || saving} />Enable custom top-up bonus</label>
+          <div className="grid grid-cols-2 gap-2">
+            <select aria-label="Top-up bonus mode" value={form.topup_bonus_mode || 'fixed'} onChange={(e) => change('topup_bonus_mode', e.target.value)} disabled={disabled || saving || !form.topup_bonus_enabled} className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm"><option value="fixed">Fixed tokens</option><option value="percentage">Percentage</option></select>
+            <Input aria-label={form.topup_bonus_mode === 'percentage' ? 'Top-up bonus percent' : 'Top-up bonus tokens'} type="number" min="0" max={form.topup_bonus_mode === 'percentage' ? 100 : 10000} step="0.01" value={form.topup_bonus_mode === 'percentage' ? form.topup_bonus_percent ?? 0 : form.topup_bonus_tokens ?? 0} onChange={(e) => change(form.topup_bonus_mode === 'percentage' ? 'topup_bonus_percent' : 'topup_bonus_tokens', e.target.value)} disabled={disabled || saving || !form.topup_bonus_enabled} />
+            <Input aria-label="Minimum qualifying top-up in GBP" type="number" min="0" max="10000" step="0.01" value={form.topup_bonus_minimum_gbp ?? 0} onChange={(e) => change('topup_bonus_minimum_gbp', e.target.value)} disabled={disabled || saving || !form.topup_bonus_enabled} />
+            <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={form.topup_bonus_first_only !== false} onChange={(e) => change('topup_bonus_first_only', e.target.checked)} disabled={disabled || saving || !form.topup_bonus_enabled} />First qualifying top-up only</label>
+          </div>
+        </fieldset>
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+        <div className="space-y-1"><Label htmlFor="user-reward-reason">Audit reason (10+ characters)</Label><Input id="user-reward-reason" value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} disabled={disabled || saving} /></div>
+        <Button type="submit" disabled={disabled || saving || reason.trim().length < 10 || (form.referral_reward_enabled && form.referral_reward_tokens === '')} data-testid="user-reward-overrides-save">{saving ? 'Saving…' : 'Save reward settings'}</Button>
+      </div>
+    </form>
+  );
+}
 
 
 function AdminPromotionsCard({ userId }) {
@@ -88,6 +165,24 @@ function AdminPromotionsCard({ userId }) {
 
 function ProfileManagementCard({ userId, identity, onReload, view = 'profile', hidden = false }) {
   const { toast } = useToast();
+  const { user: currentAdmin } = useAuth();
+  const [photoOpen, setPhotoOpen] = useState(false);
+
+  const downloadProfilePicture = async () => {
+    try {
+      const response = await api.get(`/users/profile-picture/${encodeURIComponent(userId)}`, { params: { download: true }, responseType: 'blob' });
+      const url = URL.createObjectURL(response.data);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'profile-image';
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    } catch {
+      toast({ title: 'Could not download profile picture', variant: 'destructive' });
+    }
+  };
 
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -343,6 +438,15 @@ function ProfileManagementCard({ userId, identity, onReload, view = 'profile', h
 
       <div className="p-5 space-y-5">
         <div hidden={view !== 'profile'}>
+        {currentAdmin?.role === 'super_admin' && identity?.profile_image_url && <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 p-3" data-testid="admin-profile-picture">
+          <UserAvatar user={identity} size="h-16 w-16" />
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => setPhotoOpen(true)} className="rounded-md border border-slate-200 px-3 py-2 text-xs font-bold">Open image</button>
+            <button type="button" onClick={downloadProfilePicture} className="rounded-md bg-slate-900 px-3 py-2 text-xs font-bold text-white" data-testid="admin-profile-picture-download">Download original</button>
+          </div>
+          <span className="text-xs text-slate-500">Visibility: {identity.profile_image_public ? 'Public' : 'Private'}</span>
+        </div>}
+        {photoOpen && <ProfileImageViewer imageUrl={identity.profile_image_url} name={identity.name} onClose={() => setPhotoOpen(false)} />}
         <div className="grid md:grid-cols-2 gap-4">
           {[
             ['Full Name', 'name', 'text'],
@@ -558,6 +662,7 @@ export default function UserDetailsPage() {
   const [data, setData] = useState(null);
   const [state, setState] = useState('loading');
   const [confirmSuspend, setConfirmSuspend] = useState(false);
+  const [confirmQuarantine, setConfirmQuarantine] = useState(false);
   const [confirmErase, setConfirmErase] = useState(false);
   const [pwd, setPwd] = useState('');
   const [reason, setReason] = useState('');
@@ -582,6 +687,7 @@ export default function UserDetailsPage() {
     ['activity', 'Activity'],
     ['free-world', 'Free World'],
     ['paid-world', 'Paid World'],
+    ['fair-play', 'Fair Play Inspection'],
     ['challenges', 'Impossible Challenges'],
     ['wallet', 'Wallet'],
     ['bonus-tokens', 'Bonus Tokens'],
@@ -627,6 +733,20 @@ export default function UserDetailsPage() {
         toast({ title: 'User suspended' });
       }
       setConfirmSuspend(false); setPwd(''); setReason(''); load();
+    } catch (err) {
+      toast({ title: 'Failed', description: err?.response?.data?.detail });
+    } finally { setBusy(false); }
+  };
+
+  const doQuarantine = async () => {
+    if (!pwd || !reason) return toast({ title: 'Password + reason required' });
+    setBusy(true);
+    try {
+      const quarantined = !!data?.identity?.gameplay_quarantined;
+      const suffix = quarantined ? '/release' : '';
+      await api.post(`/admin/users/${user_id}/gameplay-quarantine${suffix}`, { admin_password: pwd, reason });
+      toast({ title: quarantined ? 'Gameplay access restored' : 'User gameplay quarantined' });
+      setConfirmQuarantine(false); setPwd(''); setReason(''); load();
     } catch (err) {
       toast({ title: 'Failed', description: err?.response?.data?.detail });
     } finally { setBusy(false); }
@@ -784,6 +904,7 @@ export default function UserDetailsPage() {
     sessions, admin_actions, world, special_challenge,
     acquisition, page_visits, influencer_attribution,
     wallet_breakdown, bonus_grants, payments, withdrawals, promotion_status,
+    gameplay_integrity,
   } = data;
   const suspended = !!identity.suspended;
   const erased = !!identity.erased;
@@ -817,9 +938,15 @@ export default function UserDetailsPage() {
               <span className="bg-white/20 px-2 py-0.5 rounded">Method: {identity.method}</span>
               {identity.phone_verified && <span className="bg-emerald-500/30 px-2 py-0.5 rounded">Phone verified</span>}
               {suspended && <span className="bg-rose-500/40 px-2 py-0.5 rounded">SUSPENDED</span>}
+              {identity.gameplay_quarantined && <span className="bg-amber-500/50 px-2 py-0.5 rounded">GAMEPLAY QUARANTINED</span>}
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {isSuperAdmin && (
+              <Button size="sm" variant="outline" className="bg-amber-500/20 text-white border-amber-300/50 hover:bg-amber-500/30" onClick={() => setConfirmQuarantine(true)} data-testid="btn-gameplay-quarantine">
+                <ShieldCheck className="w-4 h-4 mr-1" /> {identity.gameplay_quarantined ? 'Release gameplay' : 'Quarantine gameplay'}
+              </Button>
+            )}
             <Button size="sm" variant="outline" className="bg-white/10 text-white border-white/30 hover:bg-white/20" onClick={() => setConfirmSuspend(true)} data-testid="btn-suspend">
               {suspended ? (<><RotateCcw className="w-4 h-4 mr-1" /> Reinstate</>) : (<><Ban className="w-4 h-4 mr-1" /> Suspend</>)}
             </Button>
@@ -920,9 +1047,58 @@ export default function UserDetailsPage() {
           </div>
         </Section>
 
+        <Section title="Fair Play Inspection" icon={ShieldCheck} hidden={activeSection !== 'fair-play'}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div><div className="text-sm font-bold text-slate-900">All gameplay evidence</div><div className="text-xs text-slate-500">Paid World, Free World, Champion, Special Challenge, and Signup Challenge. These are review indicators, not proof of cheating.</div></div>
+            {isSuperAdmin && <Button variant="outline" className={identity.gameplay_quarantined ? 'border-emerald-300 text-emerald-700' : 'border-amber-300 text-amber-800'} onClick={() => setConfirmQuarantine(true)}>{identity.gameplay_quarantined ? <><RotateCcw className="mr-1 h-4 w-4" />Release gameplay</> : <><Ban className="mr-1 h-4 w-4" />Quarantine gameplay</>}</Button>}
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <StatCard label="Trust score" value={`${gameplay_integrity?.average_trust_score ?? 100}%`} tone={gameplay_integrity?.overall_status === 'high_risk' ? 'rose' : 'emerald'} />
+            <StatCard label="Attempts checked" value={gameplay_integrity?.attempts_inspected ?? 0} />
+            <StatCard label="Review flags" value={gameplay_integrity?.review_count ?? 0} tone="amber" />
+            <StatCard label="High risk" value={gameplay_integrity?.high_risk_count ?? 0} tone="rose" />
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-[11px]">{Object.entries(gameplay_integrity?.source_counts || {}).map(([source, count]) => <span key={source} className="rounded-full bg-slate-100 px-2 py-1 font-semibold text-slate-600">{FAIR_PLAY_SOURCES[source] || source}: {count}</span>)}</div>
+          {identity.gameplay_quarantined && <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">Gameplay is quarantined. Tickets and scores are hidden from public competition, prize approval is blocked, and new gameplay is rejected. Reason: {identity.gameplay_quarantine_reason || 'Not provided'}</div>}
+          <div className="mt-4 max-h-[36rem] space-y-3 overflow-y-auto pr-1" data-testid="gameplay-integrity-panel">
+            {(gameplay_integrity?.recent || []).map((row, index) => {
+              const integrity = row.integrity || {};
+              const evidence = integrity.evidence || {};
+              return <article key={`${row.source}-${row.reference}-${index}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div><div className="font-bold text-slate-900">{row.game_type || 'Unknown game'}</div><div className="text-[10px] text-slate-500">{FAIR_PLAY_SOURCES[row.source] || row.source} · {row.reference || 'Attempt'} · {row.created_at ? new Date(row.created_at).toLocaleString('en-GB') : 'Date unavailable'}</div></div>
+                  <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${integrity.status === 'high_risk' ? 'bg-rose-100 text-rose-700' : integrity.status === 'review' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-700'}`}>{integrity.trust_score ?? 100}% trust</span>
+                </div>
+                <div className="mt-2 grid gap-1 text-[11px] text-slate-600 sm:grid-cols-2">
+                  <div><b>Verification:</b> {integrity.verification_method || 'Method unavailable'}</div>
+                  <div><b>Server time:</b> {Number(row.duration_ms || 0).toLocaleString()}ms</div>
+                  {integrity.claimed_duration_ms != null && <div><b>Client time:</b> {Number(integrity.claimed_duration_ms).toLocaleString()}ms</div>}
+                  {integrity.baseline_median_ms != null && <div><b>Personal median:</b> {Number(integrity.baseline_median_ms).toLocaleString()}ms ({integrity.baseline_sample_size} runs)</div>}
+                  {integrity.action_count > 0 && <div><b>Captured actions:</b> {integrity.action_count}</div>}
+                  {integrity.input_interval_median_ms != null && <div><b>Median input gap:</b> {integrity.input_interval_median_ms}ms</div>}
+                </div>
+                <details className="mt-2 text-[11px] text-slate-600">
+                  <summary className="cursor-pointer font-bold text-slate-700">Browser and tool evidence</summary>
+                  <div className="mt-2 grid gap-1 sm:grid-cols-2">
+                    <div><b>Browser:</b> {evidence.browser || 'Unavailable'}</div><div><b>IP:</b> {evidence.ip_address || 'Unavailable'}</div>
+                    <div><b>Platform:</b> {evidence.platform || 'Unavailable'}</div><div><b>Timezone:</b> {evidence.timezone || 'Unavailable'}</div>
+                    <div><b>Screen:</b> {evidence.screen || 'Unavailable'}</div><div><b>Viewport:</b> {evidence.viewport || 'Unavailable'}</div>
+                    <div><b>Input sources:</b> {(evidence.input_sources || []).join(', ') || 'Unavailable'}</div><div><b>Tab changes:</b> {evidence.visibility_changes ?? 0}</div>
+                    <div className="sm:col-span-2"><b>WebDriver:</b> {evidence.webdriver ? 'Reported' : 'Not reported'}</div>
+                    <div className="sm:col-span-2"><b>Tool indicators:</b> {(evidence.automation_labels || []).join(', ') || 'None reported'}</div>
+                    <div className="break-all sm:col-span-2"><b>User agent:</b> {evidence.user_agent || 'Unavailable'}</div>
+                  </div>
+                </details>
+                {(integrity.signals || []).map((signal) => <div key={signal.code} className={`mt-2 rounded-md px-2 py-1.5 text-[11px] font-medium ${signal.severity === 'high' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-900'}`}>{signal.message}</div>)}
+              </article>;
+            })}
+            {!(gameplay_integrity?.recent || []).length && <div className="text-xs text-slate-400">No gameplay attempts available for inspection.</div>}
+          </div>
+        </Section>
+
         <Section title="Paid World" icon={Ticket} hidden={activeSection !== 'paid-world'}>
           <div className="text-xs text-slate-500">Tickets: {tickets.length} · Orders: {orders.length} · Confirmed top-ups: {(payments || []).filter(payment => payment.payment_status === 'paid').length} · Scores: {scores.length}</div>
-          <div className="mt-2 max-h-52 overflow-y-auto text-xs space-y-1">
+          <div className="mt-3 max-h-52 overflow-y-auto text-xs space-y-1">
             {scores.slice(0, 20).map((s, i) => (
               <div key={i} className="flex items-center justify-between border-b border-slate-100 py-1">
                 <span>{s.contest_id}</span>
@@ -1300,6 +1476,7 @@ export default function UserDetailsPage() {
       </Section>
 
       <Section title="Referrals" icon={Gift} hidden={activeSection !== 'referrals'}>
+        {canManageUserFunds && <UserRewardOverridesCard userId={user_id} overrides={data?.reward_overrides} disabled={erased} onDone={load} />}
         <div className="mb-4 grid gap-4 md:grid-cols-2">
           <div className="rounded-lg border border-slate-200 p-4 text-sm">
             <h3 className="mb-2 font-bold">Joined via referral</h3>
@@ -1489,6 +1666,20 @@ export default function UserDetailsPage() {
           )}
           <Button onClick={doSuspend} disabled={busy || (!suspended && (!pwd || !reason))} className="bg-slate-800 hover:bg-slate-900" data-testid="confirm-suspend">
             {busy ? 'Working…' : (suspended ? 'Reinstate' : 'Suspend')}
+          </Button>
+        </DialogContent>
+      </Dialog>
+
+      {/* Gameplay quarantine confirm */}
+      <Dialog open={confirmQuarantine} onOpenChange={setConfirmQuarantine}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{identity.gameplay_quarantined ? 'Release gameplay quarantine' : 'Quarantine user gameplay'}</DialogTitle>
+          <DialogDescription>{identity.gameplay_quarantined ? 'Restore gameplay, ticket eligibility, leaderboard visibility and prize approval for records marked by this quarantine.' : 'Blocks all gameplay, hides existing scores and tickets from public competition, and prevents prize approval. Account and financial records remain intact.'}</DialogDescription>
+          </DialogHeader>
+          <div><Label>Reason (mandatory)</Label><Input value={reason} onChange={e => setReason(e.target.value)} data-testid="quarantine-reason" /></div>
+          <div><Label>Super Admin password</Label><Input type="password" value={pwd} onChange={e => setPwd(e.target.value)} data-testid="quarantine-password" /></div>
+          <Button onClick={doQuarantine} disabled={busy || !pwd || !reason} className={identity.gameplay_quarantined ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-600 hover:bg-amber-700'} data-testid="confirm-gameplay-quarantine">
+            {busy ? 'Working...' : identity.gameplay_quarantined ? 'Release gameplay' : 'Quarantine gameplay'}
           </Button>
         </DialogContent>
       </Dialog>

@@ -200,7 +200,7 @@ async def public_winners(limit: int = 50):
     return docs
 
 
-PUBLIC_WINNERS = {'$or': [{'source': {'$ne': 'draw_studio'}}, {'published': True}]}
+PUBLIC_WINNERS = {'quarantined': {'$ne': True}, 'prize_blocked': {'$ne': True}, '$or': [{'source': {'$ne': 'draw_studio'}}, {'published': True}]}
 
 
 @api_router.get('/public/contest-winners')
@@ -253,6 +253,7 @@ from routers.admin_alerts_routes import PUBLIC_ROUTER as marketing_public_router
 from routers.meera_routes import router as meera_router, public_router as meera_public_router
 from routers.user_routes import router as user_router
 from routers.settings_routes import router as settings_router, public_router as settings_public_router
+from routers.homepage_content_routes import admin_router as homepage_content_admin_router, public_router as homepage_content_public_router
 from routers.production_routes import production_router, notif_router
 from routers.wallet_routes import wallet_router, admin_wallet_router
 from routers.referral_routes import router as referral_router
@@ -329,6 +330,8 @@ app.include_router(meera_public_router)
 app.include_router(user_router)
 app.include_router(settings_router)
 app.include_router(settings_public_router)
+app.include_router(homepage_content_admin_router)
+app.include_router(homepage_content_public_router)
 app.include_router(production_router)
 app.include_router(notif_router)
 app.include_router(wallet_router)

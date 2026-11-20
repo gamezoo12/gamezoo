@@ -463,6 +463,9 @@ async def click_future_memory_match_card(session_id: str, body: MemoryMatchClick
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     click_count = int(session.get("click_count", 0)) + 1
+    last_click_at = _stored_utc(session.get("updated_at") or session.get("started_at"))
+    click_interval_ms = max(0, int((now - last_click_at).total_seconds() * 1000))
+    click_intervals_ms = list(session.get("click_intervals_ms") or []) + [click_interval_ms]
     complete = len(result["matched_positions"]) == len(session["board"])
     duration_ms = max(0, int((now - _stored_utc(session["started_at"])).total_seconds() * 1000)) if complete else None
     updated = await db.world_gc_level_sessions.update_one(
@@ -470,6 +473,7 @@ async def click_future_memory_match_card(session_id: str, body: MemoryMatchClick
          "click_count": int(session.get("click_count", 0))},
         {"$set": {"matched_positions": result["matched_positions"],
                   "pending_position": result["pending_position"], "click_count": click_count,
+                  "click_intervals_ms": click_intervals_ms,
                   "updated_at": now,
                   **({"status": "completed", "completed_at": now, "duration_ms": duration_ms} if complete else {})}},
     )
@@ -481,16 +485,42 @@ async def click_future_memory_match_card(session_id: str, body: MemoryMatchClick
     )
 
     if complete:
+        from services.gameplay_integrity import assess_gameplay_integrity
+        from services.gameplay_telemetry import client_gameplay_evidence
+
+        prior_attempts = await db.world_gc_level_attempts.find(
+            {"user_id": user["user_id"], "level_key": session["level_key"], "status": "completed"},
+            {"_id": 0, "duration_ms": 1, "passed": 1, "created_at": 1},
+        ).sort("completed_at", -1).limit(20).to_list(20)
+        evidence = client_gameplay_evidence(request, {
+            "action_count": click_count,
+            "input_intervals_ms": click_intervals_ms,
+        })
+        integrity = assess_gameplay_integrity(
+            game_type="memory_match", target_ms=60_000, duration_ms=duration_ms,
+            claimed_duration_ms=duration_ms, solved=True, telemetry=evidence,
+            required_actions=click_count, prior_results=prior_attempts,
+        )
+        integrity["verification_method"] = "Every card click and matched pair verified by the server"
         await db.world_gc_level_attempts.update_one(
             {"attempt_id": session["attempt_id"], "status": "playing"},
             {"$set": {"status": "completed", "passed": True, "completed_at": now,
-                      "duration_ms": duration_ms, "click_count": click_count}},
+                      "duration_ms": duration_ms, "server_elapsed_ms": duration_ms,
+                      "click_count": click_count, "click_intervals_ms": click_intervals_ms,
+                      "integrity": integrity}},
         )
+        if integrity["status"] != "clear":
+            await db.gameplay_integrity_events.insert_one({
+                "event_id": f"gie_{secrets.token_hex(12)}", "source": "every_level",
+                "user_id": user["user_id"], "attempt_id": session["attempt_id"],
+                "game_type": "memory_match", "level": session["level_key"],
+                "created_at": now, "integrity": integrity,
+            })
         best_key = {"season_id": SEASON_ID, "gc_number": session["gc_number"],
                     "level_key": session["level_key"], "user_id": user["user_id"]}
         best = {**best_key, "attempt_id": session["attempt_id"], "session_id": session_id,
                 "user_name": user.get("name") or user.get("email") or "Player",
-            "duration_ms": duration_ms, "click_count": click_count, "completed_at": now,
+            "duration_ms": duration_ms, "click_count": click_count, "integrity": integrity, "completed_at": now,
             "champion_stage_snapshot": session.get("champion_stage_snapshot")}
         close_at = _level_close_time(config, session["level_key"])
         in_window = session["level_key"] == "champion" or close_at is None or now < close_at
@@ -536,7 +566,7 @@ async def click_future_memory_match_card(session_id: str, body: MemoryMatchClick
 async def future_gc_leaderboard_rows(db, gc_number: int, level_key: str, user_id: str | None = None):
     base = {"season_id": SEASON_ID, "gc_number": gc_number, "level_key": level_key}
     rows = await db.world_gc_level_bests.aggregate([
-        {"$match": base},
+        {"$match": {**base, "quarantined": {"$ne": True}}},
         {"$set": {"effective_duration_ms": {"$ifNull": ["$duration_ms_override", "$duration_ms"]}}},
         {"$sort": {"effective_duration_ms": 1, "completed_at": 1, "user_id": 1}},
         {"$limit": 1000},
@@ -548,6 +578,8 @@ async def future_gc_leaderboard_rows(db, gc_number: int, level_key: str, user_id
         row["rank"] = rank
     from services.verified_reviewer import mark_verified_reviewers
     await mark_verified_reviewers(db, rows)
+    from services.leaderboard_profiles import add_leaderboard_profiles
+    await add_leaderboard_profiles(db, rows)
     mine = await db.world_gc_level_bests.find_one({**base, "user_id": user_id}, {"_id": 0}) if user_id else None
     rank = None
     gap = None

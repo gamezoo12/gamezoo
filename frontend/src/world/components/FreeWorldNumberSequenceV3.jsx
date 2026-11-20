@@ -31,6 +31,7 @@ import { useNavigate } from 'react-router-dom';
 import '../styles/freeWorldGameV3.css';
 import '../styles/freeWorldFullscreen.css';
 import { WorldClientGame, isWorldClientGame } from './WorldClientGame';
+import { gameplayTelemetrySnapshot, startGameplayTelemetry, stopGameplayTelemetry } from '../../lib/gameplayTelemetry';
 import { ChromaBoard, SequenceBoard } from '../../components/games/premium/boards';
 import GameSoundToggle from '../../components/games/GameSoundToggle';
 import { GAME_CATALOG } from '../../lib/gameCatalog';
@@ -864,6 +865,7 @@ export default function FreeWorldNumberSequenceV3({
 
             officialFinishedAtRef.current = null;
             setOfficialElapsedMs(0);
+            startGameplayTelemetry(session?.session_id || 'guest-official');
 
             setStage(
               'official',
@@ -901,6 +903,7 @@ if (
 
           officialFinishedAtRef.current = null;
           setOfficialElapsedMs(0);
+          startGameplayTelemetry(session?.session_id);
 
           setStage(
             'official',
@@ -1036,6 +1039,8 @@ if (
 
                   taps:
                     taps || [],
+
+                  telemetry: gameplayTelemetrySnapshot(),
                 })
             : await worldAPI
                 .submitSession({
@@ -1052,7 +1057,10 @@ if (
 
                   taps:
                     taps || [],
+
+                  telemetry: gameplayTelemetrySnapshot(),
                 });
+          stopGameplayTelemetry();
 
           if (
             !mountedRef.current

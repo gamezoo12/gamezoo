@@ -10,23 +10,23 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Coins, Crown, Gift, Gamepad2, ListChecks, Trophy, Globe2, ChevronRight, Sparkles, Target, Zap as SpeedIcon } from 'lucide-react';
+import { Coins, Crown, Gift, Gamepad2, ListChecks, Trophy, ChevronRight, Sparkles, Target, Zap as SpeedIcon } from 'lucide-react';
 import { contestsAPI, gamesAPI, ordersAPI } from '../../lib/api';
 import { tokenCount, tokens as fmtTokens } from '../../lib/format';
 import { useAuth } from '../../context/AuthContext';
-import HowToPlaySection from '../home/HowToPlaySection';
+import WinnersGallery from '../home/WinnersGallery';
+import Reviews from '../home/Reviews';
 import ReferAndEarnCard from '../home/ReferAndEarnCard';
 import TrustBadges from '../home/TrustBadges';
 import PromotionBanner from '../home/PromotionBanner';
-import GamePreviewSection from '../home/GamePreviewSection';
 import CompetitionCard from '../CompetitionCard';
 import UnifiedLeaderboard from '../leaderboard/UnifiedLeaderboard';
 
 const TABS = [
-  { id: 'contests', label: 'Home',       Icon: ListChecks },
-  { id: 'free-world', label: 'Free World', Icon: Globe2, href: '/world' },
+  { id: 'contests', label: 'Home', Icon: ListChecks },
+  { id: 'free-games', label: 'Free Games', Icon: Gamepad2, href: '/games' },
   { id: 'challenges', label: 'Challenges', Icon: Gift, href: '/my-account/winnings' },
-  { id: 'winners',     label: 'Winners',     Icon: Crown, href: '/winners' },
+  { id: 'free-world', label: 'Free World', Icon: Crown, href: '/world' },
 ];
 
 export default function MobileHome() {
@@ -115,10 +115,9 @@ function ContestsPanel({ contests }) {
         <PromotionBanner />
       </div>
 
-      {/* 2 - optional admin-controlled public game previews */}
-      <GamePreviewSection mobile />
+      <WinnersGallery title="Recent Winners" />
 
-      {/* 3 - LIVE CONTESTS */}
+      {/* 2 - LIVE CONTESTS */}
       <div className="px-4 pt-6 pb-4 mt-4 bg-white" data-testid="mobile-live-contests-section">
         <h2 className="font-display font-extrabold text-xl text-[#1e3a8a] mb-3">
           Live Contests
@@ -160,7 +159,7 @@ function ContestsPanel({ contests }) {
         )}
       </div>
 
-      {/* 4 - FUTURE CONTESTS */}
+      {/* 3 - FUTURE CONTESTS */}
       <div className="px-4 pt-8">
         <h2 className="font-display font-extrabold text-xl text-white mb-3">
           Future Contests
@@ -198,17 +197,14 @@ function ContestsPanel({ contests }) {
         )}
       </div>
 
-      {/* 5 - How It Works */}
-      <div className="mt-7">
-        <HowToPlaySection compact />
-      </div>
+      <Reviews />
 
-      {/* 6 - Refer & Earn */}
+      {/* 4 - Refer & Earn */}
       <div className="px-4 mt-7">
         <ReferAndEarnCard />
       </div>
 
-      {/* 7 - Trust / safety */}
+      {/* 5 - Trust / safety */}
       <div className="mt-7">
         <TrustBadges />
       </div>

@@ -4,10 +4,10 @@ import { Link } from 'react-router-dom';
 
 import PromotionBanner from '../components/home/PromotionBanner';
 import CompetitionSection from '../components/home/CompetitionSection';
-import HowToPlaySection from '../components/home/HowToPlaySection';
+import WinnersGallery from '../components/home/WinnersGallery';
+import Reviews from '../components/home/Reviews';
 import ReferAndEarnCard from '../components/home/ReferAndEarnCard';
 import TrustBadges from '../components/home/TrustBadges';
-import GamePreviewSection from '../components/home/GamePreviewSection';
 import MobileHome from '../components/mobile/MobileHome';
 import InstallPrompt from '../world/components/InstallPrompt';
 import { contestsAPI } from '../lib/api';
@@ -77,10 +77,9 @@ export default function Home() {
         {/* 1 - promotion */}
         <PromotionBanner />
 
-        {/* 2 - optional admin-controlled public game previews */}
-        <GamePreviewSection />
+        <WinnersGallery title="Recent Winners" />
 
-        {/* 3 - LIVE CONTESTS */}
+        {/* 2 - LIVE CONTESTS */}
         {liveContests.length > 0 && (
           <>
             <CompetitionSection
@@ -103,7 +102,7 @@ export default function Home() {
           </>
         )}
 
-        {/* 4 - FUTURE CONTESTS */}
+        {/* 3 - FUTURE CONTESTS */}
         {futureContests.length > 0 && (
           <>
             <CompetitionSection
@@ -126,13 +125,13 @@ export default function Home() {
           </>
         )}
 
-        {/* 5 */}
-        <HowToPlaySection compact />
+        {/* 4 - reviews */}
+        <Reviews />
 
-        {/* 6 */}
+        {/* 5 */}
         <ReferAndEarnCard />
 
-        {/* 7 */}
+        {/* 6 */}
         <TrustBadges />
 
       </div>

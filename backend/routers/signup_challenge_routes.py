@@ -21,7 +21,7 @@ admin_router = APIRouter(prefix='/api/admin/signup-challenge', tags=['admin-sign
 SETTINGS_ID = 'signup_challenge'
 COUNTDOWN_MS = 3000
 GRACE_MS = 6000
-MAX_LATENCY_MS = 2000
+MAX_LATENCY_MS = 2500
 MIN_TAP_GAP_MS = 40
 MIN_AVG_TAP_MS = 150
 _now = lambda: datetime.now(timezone.utc)  # noqa: E731
@@ -128,6 +128,7 @@ class SubmitIn(BaseModel):
     tap_ms: list[int] = Field(default_factory=list, max_length=200)
     duration_ms: int = Field(ge=0, le=3_600_000)
     finished: bool = False
+    telemetry: dict = Field(default_factory=dict)
 
 
 class EventIn(BaseModel):
@@ -215,7 +216,7 @@ async def _refresh_participation(db, pid: str) -> dict:
     part = await db.signup_challenge_participations.find_one({'participation_id': pid}, {'_id': 0})
     attempts = await db.signup_challenge_attempts.find({'participation_id': pid}, {'_id': 0}).sort('attempt_no', 1).to_list(20)
     done = [a for a in attempts if a['status'] != 'in_progress']
-    valid = [a for a in done if a['status'] == 'completed']
+    valid = [a for a in done if a['status'] == 'completed' and not a.get('held_for_review') and not a.get('quarantined')]
     best = sorted(valid, key=lambda a: (a['score'], a['finished_at']))[:1]
     upd = {'attempts_finished': len(done), 'best_score': best[0]['score'] if best else None,
            'best_duration_ms': best[0]['duration_ms'] if best else None, 'best_at': best[0]['finished_at'] if best else None,
@@ -359,6 +360,8 @@ async def track_event(body: EventIn, request: Request):
 async def start_attempt(body: StartIn, request: Request):
     db = get_db()
     user = await get_current_user(request)
+    if user.get('gameplay_quarantined'):
+        raise HTTPException(403, {'code': 'GAMEPLAY_RESTRICTED', 'message': 'Gameplay is unavailable while this account is under review.'})
     part = await _my_participation(db, user)
     existing = await db.signup_challenge_attempts.find_one({'participation_id': part['participation_id'], 'request_id': body.request_id}, {'_id': 0})
     if existing:
@@ -457,6 +460,8 @@ def _score(a: dict, body: SubmitIn, server_ms: int) -> dict:
 async def submit_attempt(attempt_id: str, body: SubmitIn, request: Request):
     db = get_db()
     user = await get_current_user(request)
+    if user.get('gameplay_quarantined'):
+        raise HTTPException(403, {'code': 'GAMEPLAY_RESTRICTED', 'message': 'Gameplay is unavailable while this account is under review.'})
     a = await db.signup_challenge_attempts.find_one({'attempt_id': attempt_id, 'user_id': user['user_id']}, {'_id': 0})
     if not a:
         raise HTTPException(404, 'Attempt not found')
@@ -467,9 +472,26 @@ async def submit_attempt(attempt_id: str, body: SubmitIn, request: Request):
             upd = {'status': 'expired', 'score': None, 'finished_at': now, 'close_reason': 'time_limit'}
         else:
             r = _score(a, body, server_ms)
+            from services.gameplay_integrity import assess_gameplay_integrity
+            from services.gameplay_telemetry import client_gameplay_evidence
+            evidence = client_gameplay_evidence(request, body.telemetry)
+            integrity = assess_gameplay_integrity(
+                game_type=str(a.get('game_id') or 'signup_challenge'), target_ms=int(a.get('time_limit_s') or 60) * 1000,
+                duration_ms=server_ms, claimed_duration_ms=body.duration_ms, solved=bool(r.get('valid')),
+                accuracy=(float(r.get('correct') or 0) / max(1, int(r.get('total') or 0))),
+                telemetry=evidence, required_actions=len(body.taps),
+            )
+            integrity['verification_method'] = 'Every tap and timestamp server-checked against the expected sequence'
             if r['valid']:
                 upd = {'status': 'completed', 'score': r['score'], 'duration_ms': r['duration_ms'], 'correct': r['correct'],
-                       'total': r['total'], 'finished': r['finished'], 'finished_at': now, 'server_elapsed_ms': server_ms, 'verified': True}
+                       'total': r['total'], 'finished': r['finished'], 'finished_at': now, 'server_elapsed_ms': server_ms,
+                       'verified': True, 'integrity': integrity, 'held_for_review': integrity['status'] == 'high_risk'}
+                if integrity['status'] != 'clear':
+                    await db.gameplay_integrity_events.insert_one({
+                        'event_id': f'gie_{secrets.token_hex(12)}', 'source': 'signup_challenge',
+                        'user_id': user['user_id'], 'attempt_id': attempt_id, 'game_type': a.get('game_id'),
+                        'created_at': now, 'integrity': integrity,
+                    })
             else:
                 upd = {'status': 'expired' if r['reason'] == 'not_finished' else 'failed', 'score': None, 'finished_at': now, 'close_reason': r['reason']}
         res = await db.signup_challenge_attempts.update_one({'attempt_id': attempt_id, 'status': 'in_progress'}, {'$set': upd})
@@ -722,7 +744,7 @@ async def admin_participants(challenge_id: str, request: Request, status: Option
             continue
         out.append({**p, 'email': u.get('email'), 'name': u.get('name'), 'public_id': u.get('public_id'),
                     'attempts': attempts.get(p['participation_id'], [])})
-    ranked = sorted([p for p in out if p.get('best_score') and not p.get('excluded')], key=_rank_key(ch.get('tie_break')))
+    ranked = sorted([p for p in out if p.get('best_score') and not p.get('excluded') and not p.get('quarantined')], key=_rank_key(ch.get('tie_break')))
     for i, p in enumerate(ranked):
         p['provisional_rank'] = i + 1
     out.sort(key=lambda p: (p.get('provisional_rank') or 10**6, -(p['created_at'].timestamp() if p.get('created_at') else 0)))

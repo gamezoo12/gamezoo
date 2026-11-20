@@ -247,23 +247,32 @@ def _elapsed_ms(attempt):
     return int((_now() - started).total_seconds() * 1000)
 
 
-async def _finalise(db, attempt, success):
+async def _finalise(db, attempt, success, integrity=None):
     """Atomically close an active attempt; only the winner of that transition can award."""
     await _ensure_indexes(db)
     elapsed = _elapsed_ms(attempt)
     success = bool(success and elapsed <= attempt["time_limit_seconds"] * 1000)
+    held_for_review = bool(success and (integrity or {}).get('status') == 'high_risk')
+    result_status = 'review' if held_for_review else ('success' if success else 'fail')
     updated = await db.special_challenge_attempts.find_one_and_update(
         {"attempt_id": attempt["attempt_id"], "user_id": attempt["user_id"], "status": "active"},
         {"$set": {"status": "complete", "completed_at": _now(), "elapsed_ms": elapsed,
-                  "result": "success" if success else "fail", "question": None}},
+                  "result": result_status, "question": None, "integrity": integrity,
+                  "held_for_review": held_for_review}},
         return_document=ReturnDocument.BEFORE)
     if not updated:
         latest = await db.special_challenge_attempts.find_one({"attempt_id": attempt["attempt_id"]})
         return {"result": latest.get("result", "fail"), "elapsed_ms": latest.get("elapsed_ms", elapsed),
                 "reward_pence": 0, "already_rewarded": True, "finished": True}
+    if integrity and integrity.get('status') != 'clear':
+        await db.gameplay_integrity_events.insert_one({
+            'event_id': f'gie_{secrets.token_hex(12)}', 'source': 'special_challenge',
+            'user_id': attempt['user_id'], 'attempt_id': attempt['attempt_id'],
+            'game_type': attempt.get('type'), 'created_at': _now(), 'integrity': integrity,
+        })
     prize = int(attempt["prize_pence"])
     rewarded = False
-    if success:
+    if success and not held_for_review:
         now = _now()
         cooldown_until = await _game_cooldown_until(
             db, attempt["user_id"], attempt["challenge_id"], now,
@@ -395,6 +404,7 @@ async def start_challenge(request: Request, body: StartChallengeBody = None):
 class CompleteBody(BaseModel):
     attempt_id: str
     sequence: list[int] = []
+    telemetry: dict = {}
 
 
 @router.post("/challenge/complete")
@@ -412,13 +422,23 @@ async def complete_challenge(body: CompleteBody, request: Request):
         return {"result": attempt.get("result", "fail"), "reward_pence": 0,
                 "already_rewarded": True, "finished": True}
     size = int(attempt.get("size", 100))
-    return await _finalise(db, attempt, body.sequence == list(range(1, size + 1)))
+    from services.gameplay_integrity import assess_gameplay_integrity
+    from services.gameplay_telemetry import client_gameplay_evidence
+    evidence = client_gameplay_evidence(request, body.telemetry)
+    integrity = assess_gameplay_integrity(
+        game_type='number_sequence', target_ms=int(attempt.get('time_limit_seconds') or 60) * 1000,
+        duration_ms=_elapsed_ms(attempt), claimed_duration_ms=evidence.get('client_elapsed_ms'),
+        solved=body.sequence == list(range(1, size + 1)), telemetry=evidence, required_actions=size,
+    )
+    integrity['verification_method'] = 'Exact server-verified sequence with server-measured duration'
+    return await _finalise(db, attempt, body.sequence == list(range(1, size + 1)), integrity)
 
 
 class ColourAnswerBody(BaseModel):
     attempt_id: str
     answer: str
     round: int
+    telemetry: dict = {}
 
 
 @router.post("/challenge/colour-answer")
@@ -434,13 +454,22 @@ async def colour_answer(body: ColourAnswerBody, request: Request):
     if attempt.get("status") != "active":
         return {"finished": True, "result": attempt.get("result", "fail"), "reward_pence": 0}
     if _elapsed_ms(attempt) > int(attempt["time_limit_seconds"]) * 1000:
-        return await _finalise(db, attempt, False)
+        return await _finalise(db, attempt, False, None)
     if body.round != attempt["round"]:
         raise HTTPException(409, "Outdated question; refresh not permitted during a paid attempt")
     if body.answer.upper() != attempt["question"]["answer"]:
         return await _finalise(db, attempt, False)
     if attempt["round"] + 1 >= attempt["target_matches"]:
-        return await _finalise(db, attempt, True)
+        from services.gameplay_integrity import assess_gameplay_integrity
+        from services.gameplay_telemetry import client_gameplay_evidence
+        evidence = client_gameplay_evidence(request, body.telemetry)
+        integrity = assess_gameplay_integrity(
+            game_type='colour_match', target_ms=int(attempt.get('time_limit_seconds') or 60) * 1000,
+            duration_ms=_elapsed_ms(attempt), claimed_duration_ms=evidence.get('client_elapsed_ms'),
+            solved=True, accuracy=1, telemetry=evidence, required_actions=int(attempt.get('target_matches') or 0),
+        )
+        integrity['verification_method'] = 'Every answer server-verified with server-measured duration'
+        return await _finalise(db, attempt, True, integrity)
     next_q = _question(attempt["size"])
     changed = await db.special_challenge_attempts.update_one(
         {"attempt_id": body.attempt_id, "user_id": user["user_id"], "status": "active",

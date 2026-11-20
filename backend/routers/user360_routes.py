@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 from typing import Literal, Optional
 
 from auth import phone_is_verified, require_admin, verify_password
+from deps import get_db
 from services.promo_consent import admin_web_push_enable_updates
 
 logger = logging.getLogger(__name__)
@@ -53,12 +54,26 @@ class UserWebPushGrantRequest(BaseModel):
     evidence: str = Field(min_length=10, max_length=2000)
 
 
+class UserRewardOverridesRequest(BaseModel):
+    referral_reward_enabled: bool
+    referral_reward_tokens: Optional[float] = Field(default=None, ge=0, le=1000)
+    topup_bonus_enabled: bool
+    topup_bonus_mode: Literal['fixed', 'percentage'] = 'fixed'
+    topup_bonus_tokens: float = Field(default=0, ge=0, le=10000)
+    topup_bonus_percent: float = Field(default=0, ge=0, le=100)
+    topup_bonus_minimum_gbp: float = Field(default=0, ge=0, le=10000)
+    topup_bonus_first_only: bool = True
+    reason: str = Field(min_length=10, max_length=300)
+
+
 async def _sanitise(doc: dict) -> dict:
     if not doc:
         return {}
     d = dict(doc)
     d.pop('_id', None)
     d.pop('password_hash', None)
+    d['profile_image_url'] = f"/api/users/profile-picture/{d['user_id']}" if d.get('profile_image_key') else None
+    d['profile_image_public'] = bool(d.get('profile_image_public', False))
     from auth import phone_is_verified
     d['phone_verified'] = phone_is_verified(d)
     return d
@@ -372,9 +387,69 @@ async def enable_user_web_push(user_id: str, payload: UserWebPushGrantRequest, r
     }
 
 
+@router.put('/{user_id}/reward-overrides')
+async def set_user_reward_overrides(user_id: str, payload: UserRewardOverridesRequest, request: Request):
+    admin = await require_admin(request)
+    if admin.get('role') not in ('admin', 'super_admin'):
+        raise HTTPException(status_code=403, detail='Only admin or super-admin can manage user reward overrides')
+    if len(payload.reason.strip()) < 10:
+        raise HTTPException(status_code=400, detail='An audit reason of at least 10 characters is required')
+    if payload.referral_reward_enabled and payload.referral_reward_tokens is None:
+        raise HTTPException(status_code=400, detail='Enter a referral reward amount')
+
+    from deps import get_db
+    db = get_db()
+    user = await db.users.find_one(
+        {'user_id': user_id},
+        {'_id': 0, 'user_id': 1, 'erased': 1, 'normal_topup_offer_terms': 1},
+    )
+    if not user:
+        raise HTTPException(status_code=404, detail='User not found')
+    if user.get('erased'):
+        raise HTTPException(status_code=400, detail='Cannot change rewards for an erased account')
+
+    now = datetime.now(timezone.utc)
+    current_topup = user.get('normal_topup_offer_terms') or {}
+    topup_terms = {
+        **current_topup,
+        'enabled': payload.topup_bonus_enabled,
+        'mode': payload.topup_bonus_mode,
+        'reward_tokens': round(payload.topup_bonus_tokens, 2),
+        'reward_percent': round(payload.topup_bonus_percent, 2),
+        'minimum_gbp': round(payload.topup_bonus_minimum_gbp, 2),
+        'first_only': payload.topup_bonus_first_only,
+        'admin_override': True,
+        'admin_updated_at': now,
+    }
+    referral_amount = round(float(payload.referral_reward_tokens), 2) if payload.referral_reward_enabled else None
+    await db.users.update_one(
+        {'user_id': user_id},
+        {'$set': {
+            'admin_referral_reward_tokens_override': referral_amount,
+            'normal_topup_offer_terms': topup_terms,
+        }},
+    )
+    await db.audit_log.insert_one({
+        'audit_id': f"aud_{uuid.uuid4().hex[:12]}",
+        'kind': 'admin_user_reward_overrides_updated',
+        'admin_user_id': admin.get('user_id'),
+        'admin_email': admin.get('email'),
+        'target_user_id': user_id,
+        'referral_reward_tokens': referral_amount,
+        'topup_bonus': {key: topup_terms[key] for key in ('enabled', 'mode', 'reward_tokens', 'reward_percent', 'minimum_gbp', 'first_only')},
+        'reason': payload.reason.strip(),
+        'at': now,
+    })
+    return {
+        'ok': True,
+        'referral_reward_tokens': referral_amount,
+        'topup_bonus': topup_terms,
+    }
+
+
 @router.get('/{user_id}/360')
 async def user_360(user_id: str, request: Request):
-    await require_admin(request)
+    admin = await require_admin(request)
     from deps import get_db
     db = get_db()
     u = await db.users.find_one({'user_id': user_id})
@@ -386,6 +461,9 @@ async def user_360(user_id: str, request: Request):
         {'user_id': user_id, 'active': True},
     )
     identity = await _sanitise(u)
+    if admin.get('role') != 'super_admin':
+        identity.pop('profile_image_url', None)
+        identity.pop('profile_image_key', None)
     identity['phone_verified'] = phone_is_verified(u)
     from auth import email_is_verified
     identity['email_verified'] = email_is_verified(u)
@@ -560,6 +638,80 @@ async def user_360(user_id: str, request: Request):
         {'user_id': user_id}, {'_id': 0},
     ).sort('created_at', -1).limit(200).to_list(200)
 
+    from services.gameplay_integrity import assess_gameplay_integrity
+    from routers.game_routes import GAME_TYPES
+
+    paid_meta = {game['id']: game for game in GAME_TYPES}
+    paid_history = {}
+    for result in reversed(scores):
+        game_type = str(result.get('game_type') or 'unknown')
+        prior = paid_history.setdefault(game_type, [])
+        integrity = result.get('integrity') or assess_gameplay_integrity(
+            game_type=game_type,
+            target_ms=int((paid_meta.get(game_type) or {}).get('target_time_s') or 60) * 1000,
+            duration_ms=int(result.get('duration_ms') or result.get('client_reported_duration_ms') or 0),
+            claimed_duration_ms=result.get('client_reported_duration_ms'),
+            solved=bool(result.get('solved', float(result.get('points') or 0) >= 75)),
+            accuracy=float(result.get('accuracy') or 0),
+            prior_results=prior,
+        )
+        integrity.setdefault('verification_method', 'Client-reported outcome with server-measured duration')
+        result['integrity'] = integrity
+        prior.append(result)
+
+    world_history = {}
+    for result in reversed(world_level_attempts):
+        game_type = str(result.get('game_id') or f'level_{result.get("level")}')
+        prior = world_history.setdefault(game_type, [])
+        integrity = result.get('integrity') or assess_gameplay_integrity(
+            game_type=game_type,
+            target_ms=60_000,
+            duration_ms=int(result.get('server_elapsed_ms') or result.get('duration_ms') or 0),
+            claimed_duration_ms=result.get('duration_ms'),
+            solved=bool(result.get('passed')),
+            prior_results=prior,
+        )
+        integrity.setdefault(
+            'verification_method',
+            'Server-measured session; completion method not recorded for this historical attempt',
+        )
+        result['integrity'] = integrity
+        prior.append(result)
+
+    integrity_rows = [
+        {
+            'source': 'paid_game',
+            'reference': result.get('score_id') or result.get('contest_id'),
+            'game_type': result.get('game_type'),
+            'duration_ms': result.get('duration_ms'),
+            'integrity': result.get('integrity'),
+            'created_at': result.get('created_at'),
+        }
+        for result in scores
+    ] + [
+        {
+            'source': 'free_world',
+            'reference': result.get('session_id') or f'Level {result.get("level")}',
+            'game_type': result.get('game_id') or f'Level {result.get("level")}',
+            'duration_ms': result.get('server_elapsed_ms') or result.get('duration_ms'),
+            'integrity': result.get('integrity'),
+            'created_at': result.get('created_at') or result.get('completed_at'),
+        }
+        for result in world_level_attempts
+    ]
+    integrity_rows.sort(key=lambda row: str(row.get('created_at') or ''), reverse=True)
+    suspicious_rows = [row for row in integrity_rows if row.get('integrity', {}).get('status') != 'clear']
+    high_risk_rows = [row for row in integrity_rows if row.get('integrity', {}).get('status') == 'high_risk']
+    average_trust = round(sum(row.get('integrity', {}).get('trust_score', 100) for row in integrity_rows) / len(integrity_rows)) if integrity_rows else 100
+    gameplay_integrity = {
+        'overall_status': 'high_risk' if high_risk_rows else ('review' if suspicious_rows else 'clear'),
+        'average_trust_score': average_trust,
+        'attempts_inspected': len(integrity_rows),
+        'review_count': len(suspicious_rows),
+        'high_risk_count': len(high_risk_rows),
+        'recent': integrity_rows[:100],
+    }
+
     world_level_skips = await db.world_level_skips.find(
         {'user_id': user_id}, {'_id': 0},
     ).sort('skipped_at', -1).limit(200).to_list(200)
@@ -587,6 +739,61 @@ async def user_360(user_id: str, request: Request):
     challenge_cooldowns = await db.special_challenge_cooldowns.find(
         {'user_id': user_id}, {'_id': 0},
     ).sort('next_allowed_at', -1).limit(200).to_list(200)
+
+    champion_attempts = await db.world_champion_sessions.find(
+        {'user_id': user_id, 'status': 'submitted'}, {'_id': 0},
+    ).sort('submitted_at', -1).limit(200).to_list(200)
+    every_level_attempts = await db.world_gc_level_attempts.find(
+        {'user_id': user_id, 'status': 'completed'}, {'_id': 0},
+    ).sort('completed_at', -1).limit(200).to_list(200)
+    signup_attempts = await db.signup_challenge_attempts.find(
+        {'user_id': user_id}, {'_id': 0},
+    ).sort('started_at', -1).limit(200).to_list(200)
+
+    additional_rows = []
+    for source, attempts, game_getter, duration_getter in (
+        ('champion', champion_attempts, lambda row: row.get('game_id') or 'champion', lambda row: row.get('server_elapsed_ms') or row.get('duration_ms')),
+        ('every_level', every_level_attempts, lambda row: row.get('game_id') or 'memory_match', lambda row: row.get('server_elapsed_ms') or row.get('duration_ms')),
+        ('special_challenge', challenge_attempts, lambda row: row.get('type') or row.get('challenge_id'), lambda row: row.get('elapsed_ms')),
+        ('signup_challenge', signup_attempts, lambda row: row.get('game_id') or 'signup_challenge', lambda row: row.get('server_elapsed_ms') or row.get('duration_ms')),
+    ):
+        for attempt in attempts:
+            integrity = attempt.get('integrity') or assess_gameplay_integrity(
+                game_type=str(game_getter(attempt) or source),
+                target_ms=int(attempt.get('time_limit_seconds') or attempt.get('time_limit_s') or 60) * 1000,
+                duration_ms=int(duration_getter(attempt) or 0),
+                claimed_duration_ms=attempt.get('client_duration_ms') or attempt.get('duration_ms'),
+                solved=bool(attempt.get('passed') or attempt.get('result') in ('success', 'review') or attempt.get('verified')),
+                accuracy=attempt.get('accuracy'),
+            )
+            integrity.setdefault('verification_method', f'Server-measured {source.replace("_", " ")} attempt')
+            attempt['integrity'] = integrity
+            additional_rows.append({
+                'source': source,
+                'reference': attempt.get('attempt_id') or attempt.get('session_id') or attempt.get('score_id'),
+                'game_type': game_getter(attempt),
+                'duration_ms': duration_getter(attempt),
+                'integrity': integrity,
+                'created_at': attempt.get('created_at') or attempt.get('started_at') or attempt.get('submitted_at') or attempt.get('completed_at'),
+            })
+
+    integrity_rows.extend(additional_rows)
+    integrity_rows.sort(key=lambda row: str(row.get('created_at') or ''), reverse=True)
+    suspicious_rows = [row for row in integrity_rows if row.get('integrity', {}).get('status') != 'clear']
+    high_risk_rows = [row for row in integrity_rows if row.get('integrity', {}).get('status') == 'high_risk']
+    average_trust = round(sum(row.get('integrity', {}).get('trust_score', 100) for row in integrity_rows) / len(integrity_rows)) if integrity_rows else 100
+    gameplay_integrity.update({
+        'overall_status': 'high_risk' if high_risk_rows else ('review' if suspicious_rows else 'clear'),
+        'average_trust_score': average_trust,
+        'attempts_inspected': len(integrity_rows),
+        'review_count': len(suspicious_rows),
+        'high_risk_count': len(high_risk_rows),
+        'recent': integrity_rows[:100],
+        'source_counts': {
+            source: sum(1 for row in integrity_rows if row.get('source') == source)
+            for source in ('paid_game', 'free_world', 'champion', 'every_level', 'special_challenge', 'signup_challenge')
+        },
+    })
 
     # Normalise token history into a single, sorted, display-friendly list.
     world_token_history = []
@@ -639,6 +846,7 @@ async def user_360(user_id: str, request: Request):
         'payments': payments,
         'tickets': tickets,
         'scores': scores,
+        'gameplay_integrity': gameplay_integrity,
         'wallet_transactions': txs,
         'wallet_breakdown': wallet_breakdown,
         'bonus_grants': bonus_grants,
@@ -649,6 +857,10 @@ async def user_360(user_id: str, request: Request):
         'referral_joined_via': referred_by_referral,
         'referrer_user': referrer_user,
         'signup_bonus': signup_bonus,
+        'reward_overrides': {
+            'referral_reward_tokens': u.get('admin_referral_reward_tokens_override'),
+            'topup_bonus': u.get('normal_topup_offer_terms') or {},
+        },
         'promotion_status': promotion_status,
         'promotion_eligibility': promotion_eligibility,
         'sessions': sessions,
@@ -1086,6 +1298,104 @@ async def suspend_user(user_id: str, payload: DeleteRequest, request: Request):
         'at': datetime.now(timezone.utc),
     })
     return {'ok': True}
+
+
+async def _set_gameplay_quarantine(db, user_id: str, enabled: bool, action_id: str, reason: str = ''):
+    user_update = {
+        'gameplay_quarantined': enabled,
+        'gameplay_quarantine_reason': reason or None,
+        'gameplay_quarantine_updated_at': datetime.now(timezone.utc),
+    }
+    if enabled:
+        user_update['gameplay_quarantine_action_id'] = action_id
+    else:
+        user_update['gameplay_quarantine_action_id'] = None
+    await db.users.update_one({'user_id': user_id}, {'$set': user_update})
+
+    marker = {'$set': {'quarantined': enabled, 'gameplay_quarantine_action_id': action_id if enabled else None}}
+    for collection_name in (
+        'tickets', 'game_scores', 'world_level_attempts', 'world_gc_level_attempts',
+        'world_gc_level_bests', 'world_champion_scores', 'world_champion_sessions',
+        'special_challenge_attempts', 'signup_challenge_attempts', 'signup_challenge_participations',
+        'promotion_tickets', 'world_winner_awards', 'world_gc_level_bonus_awards', 'world_gc_champion_awards',
+        'practice_progress',
+    ):
+        collection = getattr(db, collection_name)
+        query = {'user_id': user_id}
+        if not enabled:
+            query['gameplay_quarantine_action_id'] = action_id
+            marker['$set']['quarantined'] = False
+        await collection.update_many(query, marker)
+
+    winner_marker = {
+        '$set': {
+            'quarantined': enabled,
+            'prize_blocked': enabled,
+            'gameplay_quarantine_action_id': action_id if enabled else None,
+        }
+    }
+    winner_query = {'user_id': user_id}
+    if not enabled:
+        winner_query['gameplay_quarantine_action_id'] = action_id
+    await db.winners.update_many(winner_query, winner_marker)
+
+
+@router.post('/{user_id}/gameplay-quarantine')
+async def quarantine_gameplay(user_id: str, payload: DeleteRequest, request: Request):
+    admin = await require_admin(request)
+    if admin.get('role') != 'super_admin':
+        raise HTTPException(403, 'Only Super Admin can quarantine gameplay')
+    db = get_db()
+    admin_user = await db.users.find_one({'user_id': admin['user_id']})
+    if not admin_user or not verify_password(payload.admin_password, admin_user.get('password_hash') or ''):
+        raise HTTPException(403, 'Admin password required')
+    target = await db.users.find_one({'user_id': user_id}, {'_id': 0, 'user_id': 1})
+    if not target:
+        raise HTTPException(404, 'User not found')
+    action_id = f'gq_{uuid.uuid4().hex[:16]}'
+    await _set_gameplay_quarantine(db, user_id, True, action_id, payload.reason.strip())
+    for collection_name, statuses in (
+        ('game_attempt_sessions', ['started', 'submitting']),
+        ('world_game_sessions', ['begun']),
+        ('world_champion_sessions', ['begun']),
+        ('world_gc_level_sessions', ['playing']),
+        ('special_challenge_attempts', ['active']),
+        ('signup_challenge_attempts', ['in_progress']),
+    ):
+        await getattr(db, collection_name).update_many(
+            {'user_id': user_id, 'status': {'$in': statuses}},
+            {'$set': {'status': 'expired', 'completed_at': datetime.now(timezone.utc), 'quarantined': True, 'gameplay_quarantine_action_id': action_id}},
+        )
+    await db.audit_log.insert_one({
+        'audit_id': f'aud_{uuid.uuid4().hex[:12]}', 'kind': 'gameplay_quarantine',
+        'admin_email': admin.get('email'), 'admin_user_id': admin.get('user_id'),
+        'target_user_id': user_id, 'reason': payload.reason.strip(), 'action_id': action_id,
+        'at': datetime.now(timezone.utc),
+    })
+    return {'ok': True, 'gameplay_quarantined': True, 'action_id': action_id}
+
+
+@router.post('/{user_id}/gameplay-quarantine/release')
+async def release_gameplay_quarantine(user_id: str, payload: DeleteRequest, request: Request):
+    admin = await require_admin(request)
+    if admin.get('role') != 'super_admin':
+        raise HTTPException(403, 'Only Super Admin can release gameplay quarantine')
+    db = get_db()
+    admin_user = await db.users.find_one({'user_id': admin['user_id']})
+    if not admin_user or not verify_password(payload.admin_password, admin_user.get('password_hash') or ''):
+        raise HTTPException(403, 'Admin password required')
+    user = await db.users.find_one({'user_id': user_id}, {'_id': 0, 'gameplay_quarantine_action_id': 1})
+    if not user or not user.get('gameplay_quarantine_action_id'):
+        raise HTTPException(409, 'User is not gameplay quarantined')
+    action_id = user['gameplay_quarantine_action_id']
+    await _set_gameplay_quarantine(db, user_id, False, action_id)
+    await db.audit_log.insert_one({
+        'audit_id': f'aud_{uuid.uuid4().hex[:12]}', 'kind': 'gameplay_quarantine_release',
+        'admin_email': admin.get('email'), 'admin_user_id': admin.get('user_id'),
+        'target_user_id': user_id, 'reason': payload.reason.strip(), 'action_id': action_id,
+        'at': datetime.now(timezone.utc),
+    })
+    return {'ok': True, 'gameplay_quarantined': False}
 
 
 @router.post('/{user_id}/unsuspend')
