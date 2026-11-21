@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Clock, Coins } from 'lucide-react';
-import { countdown, percent, tokenCount } from '../lib/format';
+import { Clock } from 'lucide-react';
+import TokenIcon from './TokenIcon';
+import { countdown, percent, tokenPrice } from '../lib/format';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { useJoinedContestIds } from '../lib/joinedContests';
@@ -32,9 +33,10 @@ export default function CompetitionCard({ c }) {
   }, [c.endDate, isComingSoon]);
 
   const pct = percent(c.ticketsSold, c.ticketsTotal);
+  const ticketsLeft = Math.max(0, Number(c.ticketsTotal || 0) - Number(c.ticketsSold || 0));
   const contestId = c.id || c.contest_id;
   const isJoined = Boolean(user && contestId && joined.has(contestId));
-  const ended =
+  const ended = c.hasTimeLimit !== false &&
     t.days <= 0 &&
     t.hours <= 0 &&
     t.mins <= 0 &&
@@ -93,6 +95,7 @@ export default function CompetitionCard({ c }) {
           >
             {c.title}
           </h3>
+          <div className="mt-1 text-right text-[10px] font-bold text-slate-500">{Math.max(0, Number(c.ticketsTotal || 0) - Number(c.ticketsSold || 0)).toLocaleString()} tickets left</div>
         </div>
       </article>
     );
@@ -123,16 +126,19 @@ export default function CompetitionCard({ c }) {
           </h3>
 
           <div className="mt-1 flex items-center justify-between gap-2">
-            <div className="inline-flex shrink-0 items-center gap-1 font-extrabold">
-              <Coins className="h-5 w-5 text-[#FFD54A]" />
-              <span className="text-base">{tokenCount(c.price)}</span>
+            <div className="inline-flex min-w-0 shrink-0 items-center gap-1 font-extrabold">
+              <TokenIcon className="h-5 w-5" />
+              <span className="text-base">{tokenPrice(c.price)}</span>
+              <span className="max-w-20 text-[8px] font-bold leading-tight text-white/65">1 token = £1.00</span>
             </div>
 
             <div
               className="grid min-w-0 grid-cols-4 gap-1"
               data-testid={`card-timer-${c.slug}`}
             >
-              {(ended || c.status === 'closed') ? (
+              {c.hasTimeLimit === false ? (
+                <span className="col-span-4 rounded-md bg-emerald-600 px-2 py-2 text-center text-[10px] font-black text-white">No timer</span>
+              ) : (ended || c.status === 'closed') ? (
                 <span className="col-span-4 rounded-md bg-rose-500 px-2 py-2 text-center text-xs font-black text-white">Draw coming soon</span>
               ) : [
                 ['Days', t.days], ['Hrs', t.hours], ['Mins', t.mins], ['Secs', t.secs],
@@ -158,8 +164,8 @@ export default function CompetitionCard({ c }) {
 
           <div className="mt-0.5">
             <div className="flex items-center justify-between text-[9px] leading-none">
-              <span className="uppercase tracking-wider text-white/45">
-                Progress
+              <span className="font-bold text-white/80">
+                {ticketsLeft.toLocaleString()} tickets left
               </span>
 
               <span
@@ -171,7 +177,7 @@ export default function CompetitionCard({ c }) {
             </div>
 
             <div
-              className="mt-2 h-8 w-full overflow-hidden rounded-full bg-white/10"
+              className="mt-1.5 block h-8 w-full min-w-0 overflow-hidden rounded-none bg-white"
               role="progressbar"
               aria-label={`${c.title} contest progress`}
               aria-valuemin="0"
@@ -179,7 +185,7 @@ export default function CompetitionCard({ c }) {
               aria-valuenow={pct}
             >
               <div
-                className="h-full rounded-full bg-gradient-to-r from-[#FFD54A] to-[#FFB020] transition-[width] duration-500"
+                className="h-full bg-emerald-500 transition-[width] duration-500"
                 style={{
                   width: `${Math.max(0, Math.min(100, pct))}%`,
                 }}

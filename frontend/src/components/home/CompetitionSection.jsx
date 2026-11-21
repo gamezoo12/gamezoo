@@ -10,12 +10,13 @@ export default function CompetitionSection({
   viewAllHref = '/competitions',
   accent = "orange",
   hideViewAll = false,
+  hideHeading = false,
 }) {
   const accentDot = accent === 'orange' ? 'bg-orange-500' : accent === 'amber' ? 'bg-amber-500' : 'bg-orange-500';
   return (
-    <section className="py-8 md:py-12">
+    <section className="py-3 md:py-4">
       <div className="max-w-7xl mx-auto px-4 lg:px-8">
-        <div className="flex items-end justify-between mb-4 md:mb-6 gap-3">
+        {!hideHeading && <div className="flex items-end justify-between mb-3 gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <span className={`inline-block w-2 h-2 rounded-full ${accentDot}`} />
@@ -30,8 +31,8 @@ export default function CompetitionSection({
             </Button>
           </Link>
         )}
-        </div>
-        <div className="grid grid-cols-2 gap-3 md:gap-6">
+        </div>}
+        <div className="grid grid-cols-2 gap-2 md:gap-3">
           {items.slice(0, 4).map((c) => (
             <CompetitionCard key={c.id} c={c} />
           ))}

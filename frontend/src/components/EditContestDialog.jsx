@@ -9,9 +9,10 @@ import {
   InstantWinComposer,
 } from './ContestEngineControls';
 import { useToast } from '../hooks/use-toast';
-import { Upload, X, Loader2 } from 'lucide-react';
+import { Upload, X, Loader2, Plus, Trash2 } from 'lucide-react';
 import { GamePicker } from './admin/GamePicker';
 import { DIFFICULTY_LEVELS } from '../lib/difficulty';
+import { COMPETITION_SECTIONS } from '../lib/competitionSections';
 import { GamePreviewDialog } from './games/GamePreviewDialog';
 
 
@@ -60,13 +61,19 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
   const { toast } = useToast();
   const isCreate = mode === 'create';
   const emptyForm = {
-    title: '', subtitle: '', category: 'prize-draws', image: '',
+    title: '', subtitle: '', category: 'mega', image: '',
     price: 1, tickets_total: 150, prize_amount: 100, prize_bonus_tokens: 0, prize_type: 'cash',
     other_prize_description: '', other_prize_value: 0,
     bonus_token_limit_per_user: '', winning_bonus_token_limit_per_user: '',
     end_date: new Date(Date.now() + 7 * 86400000).toISOString(),
     jackpot: false, featured: false, status: 'draft',
     public_coming_soon: false,
+    instant_prize_enabled: false,
+    instant_prize_tiers: [{ count: 0, amount: 0, bonus_amount: 0, description: 'Instant Win' }],
+    instant_prize_count: 0, instant_prize_amount: 0, instant_prize_bonus_amount: 0,
+    instant_exclude_from_draw: true, instant_close_when_revealed: true,
+    has_time_limit: true,
+    engine_type: 'random_draw', entry_mode: 'random_tickets',
     skill_question_type: 'addition',
     skill_question_difficulty: 'easy',
   };
@@ -115,7 +122,22 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
     const inferredType = current.prize_type || (current.other_prize_description ? 'other'
       : Number(current.prize_amount || 0) && Number(current.prize_bonus_tokens || 0) ? 'mixed'
         : Number(current.prize_bonus_tokens || 0) ? 'bonus' : 'cash');
-    setForm({ ...current, prize_type: inferredType });
+    setForm({
+      ...current,
+      prize_type: inferredType,
+      instant_prize_enabled: current.category === 'instant' || current.engine_type === 'instant_win' || !!current.instant_prize_enabled,
+      instant_prize_tiers: current.instant_prize_tiers?.length
+        ? current.instant_prize_tiers
+        : [{
+            count: Number(current.instant_prize_count) || 0,
+            amount: Number(current.instant_prize_amount) || 0,
+            bonus_amount: Number(current.instant_prize_bonus_amount) || 0,
+            description: 'Instant Win',
+          }],
+      instant_exclude_from_draw: current.instant_exclude_from_draw !== false,
+      instant_close_when_revealed: current.category === 'instant' || !!current.instant_close_when_revealed,
+      has_time_limit: current.has_time_limit !== false,
+    });
   }, [contest, open, isCreate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isCreate && !contest) return null;
@@ -251,6 +273,19 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
       return;
     }
 
+    if (form.instant_prize_enabled) {
+      const tiers = (form.instant_prize_tiers || []).filter(tier => Number(tier.count) > 0);
+      const totalInstantTickets = tiers.reduce((sum, tier) => sum + Number(tier.count || 0), 0);
+      if (!tiers.length || tiers.some(tier => Number(tier.amount) <= 0 && Number(tier.bonus_amount) <= 0)) {
+        toast({ title: 'Instant win reward required', description: 'Every tier needs at least one winning ticket and either Winning Tokens or Winning Bonus Tokens.' });
+        return;
+      }
+      if (totalInstantTickets > Number(form.tickets_total || 0)) {
+        toast({ title: 'Too many instant winners', description: 'Combined instant winning tickets cannot exceed the contest ticket total.' });
+        return;
+      }
+    }
+
     if (form.public_coming_soon && !form.image) {
       toast({
         title: 'Image required',
@@ -292,7 +327,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
       const payload = {
         title: form.title,
         subtitle: form.subtitle || '',
-        category: form.category || 'prize-draws',
+        category: form.category || 'mega',
         image: form.image,
         price: Number.isFinite(Number(form.price)) ? Number(form.price) : 0,
         tickets_total: parseInt(form.tickets_total, 10) || 100,
@@ -365,6 +400,19 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
         seo_description: form.seo_description || null,
         publication_status: form.publication_status || 'published',
         engine_type: form.engine_type || 'leaderboard',
+        instant_prize_enabled: !!form.instant_prize_enabled,
+        instant_prize_tiers: (form.instant_prize_tiers || []).map((tier, index) => ({
+          count: Math.max(0, parseInt(tier.count, 10) || 0),
+          amount: Math.max(0, Number(tier.amount) || 0),
+          bonus_amount: Math.max(0, Number(tier.bonus_amount) || 0),
+          description: String(tier.description || `Instant Win Tier ${index + 1}`).trim(),
+        })).filter(tier => tier.count > 0),
+        instant_prize_count: (form.instant_prize_tiers || []).reduce((sum, tier) => sum + Math.max(0, parseInt(tier.count, 10) || 0), 0),
+        instant_prize_amount: Math.max(0, Number(form.instant_prize_amount) || 0),
+        instant_prize_bonus_amount: Math.max(0, Number(form.instant_prize_bonus_amount) || 0),
+        instant_exclude_from_draw: form.instant_exclude_from_draw !== false,
+        instant_close_when_revealed: !!form.instant_close_when_revealed,
+        has_time_limit: form.has_time_limit !== false,
         free_postal_entry_available: !!form.free_postal_entry_available,
         free_postal_entry_instructions: form.free_postal_entry_instructions || null,
       };
@@ -797,13 +845,89 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
             </section>
 
 
-            {/* 5. CONTEST TYPE */}
+            {/* 5. COMPETITION SECTION */}
+            <section className="rounded-xl border border-slate-200 bg-white p-4 space-y-3" data-testid="real-section-category">
+              <div>
+                <h3 className="text-base font-black text-slate-900">5. Competition Section</h3>
+                <p className="text-xs text-slate-500">Choose where this contest appears on the paid competitions page.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {COMPETITION_SECTIONS.map(section => (
+                  <button
+                    key={section.key}
+                    type="button"
+                    onClick={() => {
+                      const engine = section.key === 'skill' ? 'leaderboard' : section.key === 'mega' || section.key === 'daily-draws' ? 'random_draw' : 'instant_win';
+                      setForm(current => ({
+                        ...current,
+                        category: section.key,
+                        engine_type: engine,
+                        instant_prize_enabled: section.key === 'instant' ? true : current.instant_prize_enabled,
+                        instant_close_when_revealed: section.key === 'instant' ? true : false,
+                        entry_mode: engine === 'leaderboard' ? 'skill_game' : 'random_tickets',
+                      }));
+                    }}
+                    className={`rounded-xl border-2 px-3 py-3 text-xs font-black ${form.category === section.key ? 'border-[#6C2BFF] bg-[#6C2BFF]/5 text-[#6C2BFF]' : 'border-slate-200 bg-white text-slate-600'}`}
+                    data-testid={`real-category-${section.key}`}
+                  >
+                    {section.label.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {(form.category === 'mega' || form.category === 'instant') && (
+              <section className="rounded-xl border border-amber-200 bg-amber-50/40 p-4 space-y-3" data-testid="real-section-instant-prizes">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-black text-slate-900">Instant Wins</h3>
+                    <p className="text-xs text-slate-500">Winning tickets are randomly allocated across the full ticket pool and locked when the contest launches.</p>
+                  </div>
+                  {form.category === 'mega' && (
+                    <input type="checkbox" checked={!!form.instant_prize_enabled} onChange={(event) => upd('instant_prize_enabled', event.target.checked)} className="h-5 w-5 accent-[#6C2BFF]" data-testid="instant-prizes-enabled" />
+                  )}
+                </div>
+                {form.instant_prize_enabled && <div className="space-y-2">
+                  {(form.instant_prize_tiers || []).map((tier, index) => (
+                    <div key={index} className="grid grid-cols-2 gap-2 border border-amber-200 bg-white p-3 md:grid-cols-[minmax(130px,1.4fr)_minmax(90px,.7fr)_minmax(100px,1fr)_minmax(110px,1fr)_36px]" data-testid={`instant-prize-tier-${index}`}>
+                      <label className="text-xs font-bold text-slate-600">Tier name
+                        <Input value={tier.description || ''} onChange={(event) => setForm(current => ({ ...current, instant_prize_tiers: current.instant_prize_tiers.map((row, rowIndex) => rowIndex === index ? { ...row, description: event.target.value } : row) }))} placeholder={`Instant Win Tier ${index + 1}`} />
+                      </label>
+                      <label className="text-xs font-bold text-slate-600">Winning tickets
+                        <Input type="number" min="0" max={form.tickets_total || 10000} value={tier.count ?? 0} onChange={(event) => setForm(current => ({ ...current, instant_prize_tiers: current.instant_prize_tiers.map((row, rowIndex) => rowIndex === index ? { ...row, count: event.target.value } : row) }))} data-testid={`instant-prize-count-${index}`} />
+                      </label>
+                      <label className="text-xs font-bold text-slate-600">Winning Tokens
+                        <Input type="number" min="0" step="0.01" value={tier.amount ?? 0} onChange={(event) => setForm(current => ({ ...current, instant_prize_tiers: current.instant_prize_tiers.map((row, rowIndex) => rowIndex === index ? { ...row, amount: event.target.value } : row) }))} data-testid={`instant-prize-amount-${index}`} />
+                      </label>
+                      <label className="text-xs font-bold text-slate-600">Winning Bonus Tokens
+                        <Input type="number" min="0" step="0.01" value={tier.bonus_amount ?? 0} onChange={(event) => setForm(current => ({ ...current, instant_prize_tiers: current.instant_prize_tiers.map((row, rowIndex) => rowIndex === index ? { ...row, bonus_amount: event.target.value } : row) }))} data-testid={`instant-prize-bonus-amount-${index}`} />
+                      </label>
+                      <button type="button" onClick={() => setForm(current => ({ ...current, instant_prize_tiers: current.instant_prize_tiers.filter((_, rowIndex) => rowIndex !== index) }))} disabled={(form.instant_prize_tiers || []).length === 1} className="mt-5 grid h-10 place-items-center text-rose-500 disabled:opacity-30" aria-label={`Remove instant win tier ${index + 1}`}><Trash2 className="h-4 w-4" /></button>
+                    </div>
+                  ))}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <button type="button" onClick={() => setForm(current => ({ ...current, instant_prize_tiers: [...(current.instant_prize_tiers || []), { count: 1, amount: 0, bonus_amount: 0, description: `Instant Win Tier ${(current.instant_prize_tiers?.length || 0) + 1}` }] }))} className="inline-flex h-9 items-center gap-1 border border-amber-400 bg-amber-50 px-3 text-xs font-black text-amber-900" data-testid="add-instant-prize-tier"><Plus className="h-3.5 w-3.5" /> Add instant win tier</button>
+                    <span className="text-xs font-black text-slate-700">{(form.instant_prize_tiers || []).reduce((sum, tier) => sum + (Number(tier.count) || 0), 0)} winning tickets</span>
+                  </div>
+                  <label className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                    <input type="checkbox" checked={form.instant_exclude_from_draw !== false} onChange={(event) => upd('instant_exclude_from_draw', event.target.checked)} />
+                    Remove instant-winning tickets from the main draw
+                  </label>
+                  <label className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                    <input type="checkbox" checked={form.has_time_limit !== false} onChange={(event) => upd('has_time_limit', event.target.checked)} />
+                    Use closing time
+                  </label>
+                </div>}
+              </section>
+            )}
+
+            {/* 6. CONTEST TYPE */}
             <section
               className="rounded-xl border border-slate-200 bg-white p-4 space-y-3"
               data-testid="real-section-engine"
             >
               <div>
-                <h3 className="text-base font-black text-slate-900">5. Contest Type</h3>
+                <h3 className="text-base font-black text-slate-900">6. Contest Type</h3>
                 <p className="text-xs text-slate-500">
                   Choose how the competition winner is determined.
                 </p>
@@ -839,7 +963,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
               data-testid="real-section-skill-question"
             >
               <div>
-                <h3 className="text-base font-black text-slate-900">6. Skill Question</h3>
+                <h3 className="text-base font-black text-slate-900">7. Skill Question</h3>
                 <p className="text-xs text-slate-500">
                   The backend generates a fresh question for each visitor.
                   This preview is only an admin sample.
@@ -891,7 +1015,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                 data-testid="real-section-game"
               >
                 <div>
-                  <h3 className="text-base font-black text-slate-900">7. Select Game</h3>
+                  <h3 className="text-base font-black text-slate-900">8. Select Game</h3>
                   <p className="text-xs text-slate-500">
                     Game timing/scoring remains controlled by the existing game engine.
                     Leaderboard visibility is automatic.
@@ -945,7 +1069,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
               data-testid="real-section-postal"
             >
               <div>
-                <h3 className="text-base font-black text-slate-900">8. Postal Entry</h3>
+                <h3 className="text-base font-black text-slate-900">9. Postal Entry</h3>
               </div>
 
               <label className="flex items-center gap-3 text-sm font-semibold">

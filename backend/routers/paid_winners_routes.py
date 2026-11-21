@@ -97,9 +97,18 @@ async def admin_winners(request: Request, status: str = "all", kind: Literal["al
 
     data = await list_winners(request, status="all")
     rows = [w for w in data["winners"] if not str(w.get("contest_id", "")).startswith("promo_")]
+    contest_ids = list({w.get("contest_id") for w in rows if w.get("contest_id")})
+    contests = {c["contest_id"]: c async for c in get_db().contests.find(
+        {"contest_id": {"$in": contest_ids}},
+        {"_id": 0, "contest_id": 1, "category": 1, "status": 1, "title": 1, "image": 1},
+    )}
     for w in rows:
-        w["kind"] = "draw" if w.get("source") == "draw_studio" else "leaderboard"
+        contest = contests.get(w.get("contest_id"), {})
+        w["kind"] = "draw" if w.get("source") == "draw_studio" or w.get("source") == "instant_win" else "leaderboard"
         w["public_visible"] = not w.get("public_hidden")
+        w["contest_category"] = contest.get("category") or "skill"
+        w["contest_status"] = contest.get("status") or "closed"
+        w["contest_image"] = contest.get("image")
     rows = [w for w in rows if kind == "all" or w["kind"] == kind]
     counts = {k: sum(1 for w in rows if w["status"] == k) for k in ("pending", "approved", "credited")}
     return {"winners": [w for w in rows if status == "all" or w["status"] == status], "counts": counts}
@@ -107,6 +116,66 @@ async def admin_winners(request: Request, status: str = "all", kind: Literal["al
 
 class ApproveIn(BaseModel):
     wallet: Wallet = "winnings"
+
+
+class WinnerPhotoIn(BaseModel):
+    image_url: str = Field(default='', max_length=1000)
+
+
+class WinnerPrizeAdjustIn(BaseModel):
+    prize_amount: float = Field(..., gt=0, le=1_000_000)
+    reward_type: Literal['winnings', 'bonus', 'winning_bonus'] = 'winnings'
+    reason: str = Field(..., min_length=5, max_length=300)
+
+
+@admin_router.patch("/winners/{winner_id}/prize")
+async def adjust_winner_prize(winner_id: str, body: WinnerPrizeAdjustIn, request: Request):
+    admin = await require_super_admin(request)
+    db = get_db()
+    winner = await db.winners.find_one({"winner_id": winner_id}, {"_id": 0})
+    if not winner or str(winner.get("contest_id", "")).startswith("promo_"):
+        raise HTTPException(status_code=404, detail="Paid World winner not found")
+    if winner.get("paid_out") or winner.get("credit_lock") or winner.get("approval_status") == "credited":
+        raise HTTPException(status_code=409, detail="Credited prizes are locked and cannot be adjusted")
+    now = _now()
+    updates = {
+        "prize_amount": round(body.prize_amount, 2),
+        "reward_type": body.reward_type,
+        "approval_status": "pending",
+        "prize_cash_amount": round(body.prize_amount, 2) if body.reward_type == "winnings" else 0.0,
+        "prize_bonus_tokens": round(body.prize_amount, 2) if body.reward_type in {"bonus", "winning_bonus"} else 0.0,
+        "prize_adjusted_at": now,
+        "prize_adjusted_by_email": admin.get("email"),
+    }
+    result = await db.winners.update_one(
+        {"winner_id": winner_id, "paid_out": {"$ne": True}, "credit_lock": {"$ne": True}},
+        {"$set": updates, "$unset": {"approved_amount": ""}, "$push": {"edit_history": {
+            "at": now, "by": admin.get("email"), "reason": body.reason,
+            "from": {"prize_amount": winner.get("prize_amount"), "reward_type": winner.get("reward_type")},
+            "to": {"prize_amount": round(body.prize_amount, 2), "reward_type": body.reward_type},
+        }}},
+    )
+    if result.matched_count != 1:
+        raise HTTPException(status_code=409, detail="Winner prize changed while it was being adjusted")
+    await _audit(db, admin, "winner_prize_adjusted", winner_id=winner_id, contest_id=winner.get("contest_id"),
+                 previous_amount=winner.get("prize_amount"), amount=round(body.prize_amount, 2),
+                 previous_type=winner.get("reward_type"), reward_type=body.reward_type, reason=body.reason)
+    return {"ok": True, "winner_id": winner_id, "updates": updates}
+
+
+@admin_router.put("/winners/{winner_id}/photo")
+async def update_winner_photo(winner_id: str, body: WinnerPhotoIn, request: Request):
+    await require_super_admin(request)
+    image_url = str(body.image_url or '').strip()
+    if image_url and not image_url.startswith(('http://', 'https://', '/api/uploads/')):
+        raise HTTPException(status_code=400, detail="Photo URL must be an HTTP(S) or uploaded media URL")
+    result = await get_db().winners.update_one(
+        {"winner_id": winner_id, "contest_id": {"$not": {"$regex": "^promo_"}}},
+        {"$set": {"winner_image_url": image_url}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Paid World winner not found")
+    return {"ok": True, "winner_id": winner_id, "image_url": image_url}
 
 
 @admin_router.post("/winners/{winner_id}/approve")

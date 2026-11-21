@@ -17,6 +17,7 @@ class SkillQuestion(BaseModel):
 
 class Contest(BaseModel):
     contest_id: str = Field(default_factory=lambda: new_id('c'))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     slug: str
     title: str
     subtitle: str = ''
@@ -75,6 +76,14 @@ class Contest(BaseModel):
     # Contest engine (Type 1 = leaderboard shipped; 2 & 3 are locked behind a
     # Super Admin feature flag pending legal review — see Company Settings).
     engine_type: Literal['leaderboard', 'random_draw', 'instant_win'] = 'leaderboard'
+    instant_prize_enabled: bool = False
+    instant_prize_tiers: list[dict] = Field(default_factory=list)
+    instant_prize_count: int = Field(default=0, ge=0, le=10000)
+    instant_prize_amount: float = Field(default=0, ge=0)
+    instant_prize_bonus_amount: float = Field(default=0, ge=0)
+    instant_exclude_from_draw: bool = True
+    instant_close_when_revealed: bool = False
+    has_time_limit: bool = True
 
     # Free postal entry per-contest toggle
     free_postal_entry_available: bool = False
@@ -250,6 +259,9 @@ class UserPublic(BaseModel):
     name: str
     username: Optional[str] = None
     picture: Optional[str] = None
+    profile_image_url: Optional[str] = None
+    profile_image_public: bool = False
+    free_world_avatar_id: Optional[str] = None
     role: str
     method: str
     phone: Optional[str] = None
@@ -306,6 +318,9 @@ class CartItem(BaseModel):
     # dynamic skill challenge that was actually issued by us. Optional to
     # preserve backward compatibility with legacy static-question contests.
     challenge_token: Optional[str] = None
+    skill_clearance_contest_id: Optional[str] = None
+    skill_clearance_token: Optional[str] = None
+    skill_clearance_answer: Optional[str] = None
 
 
 class CheckoutInput(BaseModel):

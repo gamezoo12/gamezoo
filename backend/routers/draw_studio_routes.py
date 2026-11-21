@@ -90,8 +90,13 @@ async def _contest(db, cid: str) -> dict:
 
 
 async def _pool(db, contest_id: str) -> list[dict]:
+    contest = await db.contests.find_one({"contest_id": contest_id}, {"_id": 0, "instant_exclude_from_draw": 1}) or {}
+    excluded = set()
+    if contest.get("instant_exclude_from_draw", True):
+        excluded = set(await db.instant_win_reveals.distinct("ticket_number", {"contest_id": contest_id, "result": "win"}))
     tickets = await db.tickets.find(
-        {"contest_id": contest_id, "refunded": {"$ne": True}, "disqualified": {"$ne": True}, "quarantined": {"$ne": True}},
+        {"contest_id": contest_id, "refunded": {"$ne": True}, "disqualified": {"$ne": True}, "quarantined": {"$ne": True},
+         "ticket_number": {"$nin": list(excluded)}},
         {"_id": 0, "ticket_id": 1, "ticket_number": 1, "user_id": 1},
     ).sort("ticket_number", 1).to_list(200000)
     if not tickets and await db.promotion_tickets.find_one({"promotion_id": contest_id}, {"_id": 1}):

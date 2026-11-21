@@ -6,6 +6,7 @@ import { gbp, percent } from '../../lib/format';
 import { useToast } from '../../hooks/use-toast';
 import { Play, Pause, Trash2, Trophy, Pencil, Plus, PlayCircle, PauseCircle, Smartphone } from 'lucide-react';
 import EditContestDialog from '../../components/EditContestDialog';
+import { COMPETITION_SECTIONS, competitionSectionOf } from '../../lib/competitionSections';
 
 const STATUS_TABS = [
   { key: 'all', label: 'All' },
@@ -19,6 +20,7 @@ const STATUS_TABS = [
 export default function CompetitionsAdmin() {
   const [contests, setContests] = useState([]);
   const [tab, setTab] = useState('all');
+  const [activeSection, setActiveSection] = useState('mega');
   const [editing, setEditing] = useState(null);
   const [creating, setCreating] = useState(false);
   const { toast } = useToast();
@@ -35,7 +37,7 @@ export default function CompetitionsAdmin() {
   const bulkLaunch = async () => {
     if (!window.confirm(`Launch all ${tab === 'all' ? 'draft' : tab === 'draft' ? '' : ''} contests${tab !== 'all' && tab !== 'draft' ? ` in "${tab}" tab` : ''}?`)) return;
     try {
-      const filter = tab === 'all' ? { status_from: 'draft' } : { status_from: tab === 'live' ? 'draft' : tab };
+      const filter = { ...(tab === 'all' ? { status_from: 'draft' } : { status_from: tab === 'live' ? 'draft' : tab }), category: activeSection };
       const r = await adminAPI.bulkLaunch(filter);
       toast({ title: `Launched ${r.updated} contest${r.updated !== 1 ? 's' : ''}` });
       load();
@@ -44,7 +46,7 @@ export default function CompetitionsAdmin() {
   const bulkPause = async () => {
     if (!window.confirm('Hold all live contests? They will move to draft.')) return;
     try {
-      const r = await adminAPI.bulkPause({ status_from: 'live' });
+      const r = await adminAPI.bulkPause({ status_from: 'live', category: activeSection });
       toast({ title: `Held ${r.updated} contest${r.updated !== 1 ? 's' : ''}` });
       load();
     } catch (e) { toast({ title: 'Bulk hold failed', description: e?.response?.data?.detail }); }
@@ -53,18 +55,19 @@ export default function CompetitionsAdmin() {
 
   const phaseOf = (c) => c.phase || c.status;
   const inTab = (c, key) => key === 'all' || (key === 'coming-soon' ? c.public_coming_soon === true : key === 'draft' ? c.status === 'draft' && !c.public_coming_soon : phaseOf(c) === key);
-  const filtered = contests.filter(c => inTab(c, tab));
+  const sectionContests = contests.filter(c => competitionSectionOf(c) === activeSection);
+  const filtered = sectionContests.filter(c => inTab(c, tab));
   const PHASE_LABEL = { awaiting_draw: 'Awaiting draw', completed: 'Completed' };
   const colors = { live: 'bg-emerald-100 text-emerald-700', draft: 'bg-slate-200 text-slate-700', drawn: 'bg-amber-100 text-amber-700', awaiting_draw: 'bg-violet-100 text-violet-700', completed: 'bg-sky-100 text-sky-700', archived: 'bg-slate-100 text-slate-500' };
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center flex-wrap gap-3">
-        <h2 className="font-display text-2xl font-extrabold">Contests ({contests.length})</h2>
+        <h2 className="font-display text-2xl font-extrabold">Contests ({sectionContests.length})</h2>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex gap-1 bg-white border border-slate-100 p-1 rounded-xl overflow-x-auto no-scrollbar max-w-full">
             {STATUS_TABS.map(t => {
-              const count = contests.filter(c => inTab(c, t.key)).length;
+              const count = sectionContests.filter(c => inTab(c, t.key)).length;
               return (
                 <button key={t.key} data-testid={`contests-tab-${t.key}`} onClick={() => setTab(t.key)} className={`px-2.5 md:px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium whitespace-nowrap ${tab === t.key ? 'bg-[#6C2BFF] text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
                   {t.label} <span className={`ml-1 text-[10px] md:text-xs ${tab === t.key ? 'text-white/80' : 'text-slate-400'}`}>({count})</span>
@@ -101,6 +104,14 @@ export default function CompetitionsAdmin() {
         </div>
       </div>
 
+      <div className="grid grid-cols-4 overflow-hidden border-2 border-slate-900 bg-white shadow-sm" data-testid="admin-contest-section-tabs">
+        {COMPETITION_SECTIONS.map(section => (
+          <button key={section.key} type="button" onClick={() => setActiveSection(section.key)} className={`min-w-0 border-r border-slate-900 px-1 py-3 text-[10px] font-black uppercase last:border-r-0 sm:text-sm ${activeSection === section.key ? 'bg-slate-900 text-[#FFD54A]' : 'bg-white text-slate-900'}`} data-testid={`admin-contest-section-${section.key}`}>
+            {section.label}
+          </button>
+        ))}
+      </div>
+
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filtered.map(c => {
           const pct = percent(c.tickets_sold || 0, c.tickets_total);
@@ -114,7 +125,7 @@ export default function CompetitionsAdmin() {
               <div className="flex gap-3 p-3">
                 <img src={c.image} alt="" className="w-20 h-20 rounded-lg object-cover" />
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2"><span data-testid={`contest-phase-${c.contest_id}`} className={`text-[10px] uppercase px-2 py-0.5 rounded-full ${colors[phaseOf(c)] || colors.draft}`}>{PHASE_LABEL[phaseOf(c)] || c.status}{c.winners_published ? ' · Winners published' : ''}</span><span className="text-xs text-slate-500">{c.category}</span></div>
+                  <div className="flex items-center gap-2"><span data-testid={`contest-phase-${c.contest_id}`} className={`text-[10px] uppercase px-2 py-0.5 rounded-full ${colors[phaseOf(c)] || colors.draft}`}>{PHASE_LABEL[phaseOf(c)] || c.status}{c.winners_published ? ' · Winners published' : ''}</span><span className="text-xs font-bold text-slate-600">{COMPETITION_SECTIONS.find(section => section.key === activeSection)?.label}</span></div>
                   <div className="font-semibold text-slate-900 line-clamp-2 mt-1">{c.title}</div>
                   <div className="text-xs text-slate-500 mt-1">Prize {c.prize_type === 'other' ? `${c.other_prize_description} (est. ${gbp(c.other_prize_value)})` : `${Number(c.prize_amount || 0) > 0 ? gbp(c.prize_amount) : ''}${Number(c.prize_bonus_tokens || 0) > 0 ? `${Number(c.prize_amount || 0) > 0 ? ' + ' : ''}${Number(c.prize_bonus_tokens).toLocaleString()} Winning Bonus Tokens` : ''}`} • {c.tickets_sold || 0}/{c.tickets_total} • {gbp(c.price)}/entry</div>
                   <div className="text-xs text-slate-400 mt-0.5">Ends {new Date(c.end_date).toLocaleDateString('en-GB')}</div>

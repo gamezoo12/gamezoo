@@ -1,6 +1,5 @@
 import { PrizeRestrictionNotice } from '../components/CountryAccess';
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 
 import PromotionBanner from '../components/home/PromotionBanner';
 import CompetitionSection from '../components/home/CompetitionSection';
@@ -11,9 +10,11 @@ import TrustBadges from '../components/home/TrustBadges';
 import MobileHome from '../components/mobile/MobileHome';
 import InstallPrompt from '../world/components/InstallPrompt';
 import { contestsAPI } from '../lib/api';
+import { COMPETITION_SECTIONS, competitionSectionOf } from '../lib/competitionSections';
 
 export default function Home() {
   const [contests, setContests] = useState([]);
+  const [activeSection, setActiveSection] = useState('mega');
 
   useEffect(() => {
     contestsAPI.list()
@@ -38,6 +39,8 @@ export default function Home() {
     jackpot: c.jackpot,
     featured: c.featured,
     gameType: c.game_type,
+    engine_type: c.engine_type,
+    hasTimeLimit: c.has_time_limit !== false,
     status: c.status,
 
     // Single source of truth for public Future status.
@@ -53,15 +56,12 @@ export default function Home() {
         ((a.featured ? 2 : 0) + (a.jackpot ? 1 : 0))
     );
 
-  // A contest automatically moves between these lists when
-  // public_coming_soon changes in the backend/admin.
-  const liveContests = sortContests(
-    mapped.filter(c => c.public_coming_soon !== true)
-  ).slice(0, 10);
-
-  const futureContests = sortContests(
-    mapped.filter(c => c.public_coming_soon === true)
-  ).slice(0, 10);
+  const sectionContests = Object.fromEntries(
+    COMPETITION_SECTIONS.map(section => [
+      section.key,
+      sortContests(mapped.filter(c => competitionSectionOf(c) === section.key)).slice(0, 10),
+    ])
+  );
 
   return (
     <>
@@ -79,51 +79,33 @@ export default function Home() {
 
         <WinnersGallery title="Recent Winners" />
 
-        {/* 2 - LIVE CONTESTS */}
-        {liveContests.length > 0 && (
-          <>
-            <CompetitionSection
-              title="Live Contests"
-              subtitle="Play our live skill contests"
-              items={liveContests}
-              viewAllHref="/competitions?view=live"
-              hideViewAll
-            />
-
-            <div className="max-w-7xl mx-auto px-4 lg:px-8 pb-10 flex justify-center">
-              <Link
-                to="/competitions?view=live"
-                className="inline-flex items-center justify-center min-w-[180px] h-12 px-7 rounded-full bg-[#6C2BFF] text-white font-extrabold shadow-lg hover:opacity-90 transition"
-                data-testid="home-more-live-contests"
+        <div className="max-w-7xl mx-auto px-4 lg:px-8 pt-2" data-testid="paid-competition-nav">
+          <div className="grid grid-cols-4 overflow-hidden border-2 border-slate-900 bg-white shadow-sm">
+            {COMPETITION_SECTIONS.map(section => (
+              <button
+                key={section.key}
+                type="button"
+                onClick={() => setActiveSection(section.key)}
+                className={`min-w-0 border-r border-slate-900 px-1 py-3 text-[11px] sm:text-sm font-black uppercase leading-tight transition last:border-r-0 ${activeSection === section.key ? 'bg-slate-900 text-[#FFD54A]' : 'bg-white text-slate-900 hover:bg-amber-50'}`}
+                data-testid={`paid-competition-nav-${section.key}`}
               >
-                More Contests &gt;
-              </Link>
-            </div>
-          </>
-        )}
+                {section.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
-        {/* 3 - FUTURE CONTESTS */}
-        {futureContests.length > 0 && (
-          <>
-            <CompetitionSection
-              title="Future Contests"
-              subtitle="Upcoming Prize League contests"
-              items={futureContests}
-              viewAllHref="/competitions?view=future"
-              hideViewAll
-            />
-
-            <div className="max-w-7xl mx-auto px-4 lg:px-8 pb-10 flex justify-center">
-              <Link
-                to="/competitions?view=future"
-                className="inline-flex items-center justify-center min-w-[180px] h-12 px-7 rounded-full bg-[#6C2BFF] text-white font-extrabold shadow-lg hover:opacity-90 transition"
-                data-testid="home-more-future-contests"
-              >
-                More Contests &gt;
-              </Link>
-            </div>
-          </>
-        )}
+        {COMPETITION_SECTIONS.filter(section => section.key === activeSection).map(section => (
+          <CompetitionSection
+            key={section.key}
+            title={section.label}
+            subtitle={section.subtitle}
+            items={sectionContests[section.key]}
+            viewAllHref={`/competitions?section=${section.key}`}
+            hideViewAll={sectionContests[section.key].length === 0}
+            hideHeading
+          />
+        ))}
 
         {/* 4 - reviews */}
         <Reviews />

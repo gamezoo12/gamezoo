@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { gbp, tokens as fmtTokens, tokenCount } from '../../lib/format';
 import { walletAPI, paymentsAPI, referralAPI } from '../../lib/api';
 import useActiveOffer, { tokensText, refreshActiveOffer } from '../../lib/useActiveOffer';
 import { useToast } from '../../hooks/use-toast';
-import { Coins, ShieldCheck, TrendingUp, TrendingDown, Plus, Minus, Sparkles, Receipt, Wallet as WalletIcon, X } from 'lucide-react';
+import { ShieldCheck, TrendingUp, TrendingDown, Plus, Minus, Sparkles, Receipt, Wallet as WalletIcon, X } from 'lucide-react';
+import TokenIcon from '../TokenIcon';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
@@ -101,6 +102,7 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  const [confirmingPayment, setConfirmingPayment] = useState(false);
  const [myOffer, setMyOffer] = useState(null);
  const [myPromotion, setMyPromotion] = useState(null);
+ const topupPanelRef = useRef(null);
  const { offer } = useActiveOffer();
  const { toast } = useToast();
  const minTopup = offer?.topup?.min_gbp;
@@ -160,6 +162,16 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  }, [setWallet]);
 
  useEffect(() => { if (autoOpenTopup) setShowTopup(true); }, [autoOpenTopup]);
+
+ useEffect(() => {
+   if (!showTopup) return undefined;
+   const frame = requestAnimationFrame(() => {
+     topupPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+   });
+   return () => cancelAnimationFrame(frame);
+ }, [showTopup]);
+
+ const openTopup = () => setShowTopup(true);
 
  // Post-Stripe redirect: when the URL includes ?topup=success, the actual
  // wallet credit lands via Stripe webhook — which can take 2-8 seconds.
@@ -260,7 +272,7 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full bg-[#FFD54A]/20 blur-3xl" />
  <div className="relative flex items-start justify-between">
  <div>
- <div className="text-white/85 text-xs uppercase tracking-widest flex items-center gap-2"><Coins className="w-4 h-4" /> Token balance</div>
+ <div className="text-white/85 text-xs uppercase tracking-widest flex items-center gap-2"><TokenIcon className="w-4 h-4" /> Token balance</div>
  <div className="mt-1 font-display font-extrabold text-5xl md:text-6xl flex items-baseline gap-2" data-testid="wallet-balance">
  <span>{wallet ? tokenCount(wallet.tokens ?? wallet.balance) : 0}</span>
  <span className="text-xl md:text-2xl text-white/80 font-bold">tokens</span>
@@ -268,7 +280,7 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  <div className="mt-2 text-xs text-white/85">Use tokens to enter contests · {minTopup != null ? `minimum ${minTopup} tokens per purchase` : 'top-up pricing loading'}</div>
  </div>
  <button
- onClick={() => setShowTopup(true)}
+ onClick={openTopup}
  className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-[#FFD54A] text-slate-900 flex items-center justify-center hover:brightness-110 transition shrink-0 shadow-lg"
  data-testid="wallet-topup-plus"
  aria-label="Buy tokens"
@@ -296,7 +308,7 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
 
  {/* TOPUP PANEL */}
  {showTopup && (
- <div className="bg-white rounded-2xl border-2 border-[#6C2BFF]/30 p-6 md:p-8 shadow-lg" data-testid="wallet-topup-panel">
+ <div ref={topupPanelRef} className="scroll-mt-24 bg-white rounded-2xl border-2 border-[#6C2BFF]/30 p-6 md:p-8 shadow-lg" data-testid="wallet-topup-panel">
  <div className="flex items-center justify-between mb-1">
  <h3 className="font-display font-extrabold text-2xl text-slate-900">Buy tokens</h3>
  <button className="text-slate-400 hover:text-slate-700" onClick={() => setShowTopup(false)} aria-label="Close"><X className="w-4 h-4" /></button>
@@ -337,7 +349,7 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  >
  {n === 20 && <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-[#FFD54A] text-slate-900 text-[10px] font-bold px-2 py-0.5 rounded-full">Popular</span>}
  <div className="font-display text-2xl md:text-3xl font-extrabold text-slate-900 flex items-center justify-center gap-1">
- <Coins className="w-5 h-5 text-[#FFD54A]" />{purchasedTokensFor(n)}
+ <TokenIcon className="w-5 h-5" />{purchasedTokensFor(n)}
  </div>
  <div className="text-[11px] text-slate-500 mt-1 font-semibold">top-up tokens</div>
  {signupBonusFor(n) > 0 && <div className="mt-1 text-[10px] font-bold text-emerald-700" data-testid={`topup-bonus-${n}`}>+ {tokensText(signupBonusFor(n))} Signup Bonus</div>}
@@ -352,7 +364,7 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  <div className="text-xs text-slate-500 mb-2 font-semibold uppercase tracking-wider">Custom amount</div>
  <div className="flex gap-2">
  <div className="flex-1 relative">
- <Coins className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+ <TokenIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" />
  <Input
  type="number"
  min={minTopup}

@@ -65,6 +65,15 @@ def _validate_skill(c: dict, item) -> None:
     """
     if c.get('entry_mode', 'skill_game') != 'skill_game' and not c.get('skill_question_type'):
         return
+    if item.skill_clearance_token and item.skill_clearance_contest_id and item.skill_clearance_answer is not None:
+        clearance = verify_challenge(
+            item.skill_clearance_contest_id,
+            item.skill_clearance_answer,
+            item.skill_clearance_token,
+        )
+        if clearance['ok']:
+            return
+        raise HTTPException(status_code=400, detail=f"Skill verification expired for '{c['title']}'. Return to the contest page and answer again.")
     if c.get('skill_question_type'):
         r = verify_challenge(c['contest_id'], (item.skill_answer or '').strip(), item.challenge_token or '')
         if not r['ok']:
@@ -315,6 +324,11 @@ async def checkout(inp: CheckoutInput, request: Request):
                     await db.tickets.insert_many(tickets_to_insert)
                 except (DuplicateKeyError, BulkWriteError):
                     raise HTTPException(status_code=409, detail='Ticket allocation changed during checkout. Please try again.')
+
+            from routers.engines_routes import reveal_purchased_instant_tickets
+            for contest_id, contest in contest_by_id.items():
+                bought = [ticket for ticket in tickets_to_insert if ticket['contest_id'] == contest_id]
+                await reveal_purchased_instant_tickets(db, contest, bought, user)
         except HTTPException:
             await db.tickets.delete_many({'order_id': order.order_id})
             # Roll back any reservations we already made this request.

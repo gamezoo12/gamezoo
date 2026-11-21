@@ -16,6 +16,7 @@ import BackButton from '../../components/BackButton';
 import { gbp } from '../../lib/format';
 import UserAvatar from '../../components/UserAvatar';
 import ProfileImageViewer from '../../components/ProfileImageViewer';
+import TokenIcon from '../../components/TokenIcon';
 import {
   User as UserIcon, ShieldCheck, Wallet, Ticket, Trophy, LifeBuoy,
   AlertTriangle, Ban, RotateCcw, Trash2, Clock, Mail, Gift, CheckCircle2,
@@ -1606,7 +1607,7 @@ export default function UserDetailsPage() {
             {/* Token history */}
             <div className="rounded-xl border border-slate-200 p-4">
               <div className="flex items-center gap-2 font-bold text-sm mb-3">
-                <Coins className="w-4 h-4 text-amber-600" /> Token history ({world.stats?.token_events_count || 0})
+                <TokenIcon className="w-4 h-4" /> Token history ({world.stats?.token_events_count || 0})
               </div>
               {!world.token_history?.length ? (
                 <div className="text-xs text-slate-400">No token unlocks or retries.</div>
@@ -1621,7 +1622,7 @@ export default function UserDetailsPage() {
                         <div className="text-slate-400">{t.at ? new Date(t.at).toLocaleString('en-GB', { timeZone: 'Europe/London' }) : '—'}</div>
                       </div>
                       <div className="text-right shrink-0">
-                        <div className="font-bold text-amber-700">{t.token_cost ?? 1} 🪙</div>
+                        <div className="inline-flex items-center gap-1 font-bold text-emerald-700">{t.token_cost ?? 1} <TokenIcon className="h-4 w-4" /></div>
                         <span className={`px-2 py-0.5 rounded-full font-bold ${t.paid ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
                           {t.paid ? 'Paid' : (t.status || 'reserved')}
                         </span>

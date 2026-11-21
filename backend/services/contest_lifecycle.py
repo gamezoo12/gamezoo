@@ -7,6 +7,8 @@ DONE = ('drawn', 'archived', 'closed_no_entries')
 
 
 def is_expired(c: dict) -> bool:
+    if c.get('has_time_limit') is False:
+        return False
     end = c.get('end_date')
     if isinstance(end, str):
         try:

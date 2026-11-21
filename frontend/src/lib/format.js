@@ -18,6 +18,20 @@ export const tokens = (n) => {
 /** Compact token count (no unit label) — for tight UI spots like the header. */
 export const tokenCount = (n) => Math.round(Number(n) || 0);
 
+/** Exact ticket-price display; supports fractional token entry costs. */
+export const tokenPrice = (n) => {
+  const value = Number(n) || 0;
+  return value.toLocaleString('en-GB', {
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+};
+
+export const exactTokens = (n) => {
+  const value = Number(n) || 0;
+  return `${tokenPrice(value)} ${value === 1 ? 'token' : 'tokens'}`;
+};
+
 export const percent = (a, b) => (b === 0 ? 0 : Math.round((a / b) * 100));
 
 export function countdown(iso) {

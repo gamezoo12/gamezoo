@@ -155,7 +155,6 @@ function GlobalPageNavigation() {
     hasPageBack ||
     location.pathname === '/world' ||
     location.pathname === '/paid-leagues' ||
-    location.pathname === '/challenge' ||
     location.hash.includes('session_id=')
   ) {
     return null;

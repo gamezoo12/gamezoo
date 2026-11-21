@@ -1,6 +1,6 @@
 import { PrizeRestrictionNotice } from '../components/CountryAccess';
 import { useEffect, useState } from 'react';
-import { gbp, tokens as fmtTokens, tokenCount } from '../lib/format';
+import { gbp, tokens as fmtTokens, tokenCount, exactTokens } from '../lib/format';
 import { Button } from '../components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/ui/alert-dialog';
 import { Trash2, ShoppingBag, Minus, Plus, Wallet, AlertCircle, Sparkles, ShieldCheck, RefreshCw } from 'lucide-react';
@@ -26,6 +26,8 @@ function _tokenExp(tok) {
  * (no token OR expired token). Do not discard a valid verified answer. */
 function _needsFreshSkill(item) {
   if ((item.entry_mode || 'skill_game') !== 'skill_game') return false;
+  const clearanceExp = _tokenExp(item.skill_clearance_token);
+  if (clearanceExp && clearanceExp > Math.floor(Date.now() / 1000)) return false;
   const exp = _tokenExp(item.challenge_token);
   const now = Math.floor(Date.now() / 1000);
   return !exp || exp <= now;
@@ -139,7 +141,7 @@ export default function Cart() {
 
   const walletCheckout = async () => {
     if (items.length === 0) return;
-    if (!user) { toast({ title: 'Please sign in first' }); nav('/login'); return; }
+    if (!user) { toast({ title: 'Create an account or sign in to continue' }); nav('/login?tab=signup&next=%2Fcart'); return; }
 
     // Gate: every skill-game item must have an answer chosen (either the
     // one they picked on CompetitionDetail, or a freshly picked one here).
@@ -168,6 +170,9 @@ export default function Cart() {
             qty: Number(i.qty),
             skill_answer: String(fresh.chosen),
             challenge_token: fresh.challenge_token,
+            skill_clearance_contest_id: null,
+            skill_clearance_token: null,
+            skill_clearance_answer: null,
           };
         }
 
@@ -176,6 +181,9 @@ export default function Cart() {
           qty: Number(i.qty),
           skill_answer: String(i.skill_answer ?? 'n/a'),
           challenge_token: i.challenge_token || null,
+          skill_clearance_contest_id: i.skill_clearance_contest_id || null,
+          skill_clearance_token: i.skill_clearance_token || null,
+          skill_clearance_answer: i.skill_clearance_answer ?? null,
         };
       });
       const r = await ordersAPI.checkout(payload);
@@ -410,7 +418,7 @@ export default function Cart() {
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-slate-900 break-words">{i.title}</div>
                   <div className="text-xs text-slate-500 mt-0.5">
-                    {(i.entry_mode || 'skill_game') === 'random_tickets' ? 'Random Ticket Draw' : 'Skill Contest'} · {fmtTokens(i.price)}/entry
+                    {(i.entry_mode || 'skill_game') === 'random_tickets' ? 'Random Ticket Draw' : 'Skill Contest'} · {exactTokens(i.price)}/entry
                   </div>
 
                   <div className="flex items-center gap-2 mt-3">
@@ -432,7 +440,7 @@ export default function Cart() {
                   </div>
                 </div>
                 <div className="sm:text-right flex sm:flex-col items-center sm:items-end justify-between gap-2 shrink-0">
-                  <div className="font-extrabold text-lg text-slate-900">{fmtTokens(i.qty * i.price)}</div>
+                  <div className="font-extrabold text-lg text-slate-900">{exactTokens(i.qty * i.price)}</div>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <button className="text-slate-400 hover:text-rose-500" data-testid={`item-remove-${i.contest_id}`} aria-label="Remove item"><Trash2 className="w-4 h-4" /></button>
@@ -551,7 +559,7 @@ export default function Cart() {
               )}
 
               {!user ? (
-                <Button onClick={() => nav('/login')} data-testid="cart-signin-btn" className="w-full mt-4 pl-btn-gold text-slate-900 h-11 font-extrabold">
+                <Button onClick={() => nav('/login?tab=signup&next=%2Fcart')} data-testid="cart-signin-btn" className="w-full mt-4 pl-btn-gold text-slate-900 h-11 font-extrabold">
                   Sign in to checkout →
                 </Button>
               ) : (wallet && wallet.balance < total) ? (

@@ -5,206 +5,206 @@ import { adminAPI } from '../../lib/api';
 
 const TEMPLATE_CATEGORIES = {
   "coins": {
-    label: "🪙 Coins",
+    label: "🟢 Coins",
     templates: [
       {
-            "name": "🪙 Coins 01",
+            "name": "🟢 Coins 01",
             "message": "Coins added to your wallet!"
       },
       {
-            "name": "🪙 Coins 02",
+            "name": "🟢 Coins 02",
             "message": "Your coin reward is ready!"
       },
       {
-            "name": "🪙 Coins 03",
+            "name": "🟢 Coins 03",
             "message": "Bonus coins are waiting!"
       },
       {
-            "name": "🪙 Coins 04",
+            "name": "🟢 Coins 04",
             "message": "Your wallet got a coin boost!"
       },
       {
-            "name": "🪙 Coins 05",
+            "name": "🟢 Coins 05",
             "message": "Fresh coins just landed!"
       },
       {
-            "name": "🪙 Coins 06",
+            "name": "🟢 Coins 06",
             "message": "Coins unlocked for you!"
       },
       {
-            "name": "🪙 Coins 07",
+            "name": "🟢 Coins 07",
             "message": "A coin bonus is ready!"
       },
       {
-            "name": "🪙 Coins 08",
+            "name": "🟢 Coins 08",
             "message": "More coins, more chances!"
       },
       {
-            "name": "🪙 Coins 09",
+            "name": "🟢 Coins 09",
             "message": "Your coins have arrived!"
       },
       {
-            "name": "🪙 Coins 10",
+            "name": "🟢 Coins 10",
             "message": "Coin reward unlocked now!"
       },
       {
-            "name": "🪙 Coins 11",
+            "name": "🟢 Coins 11",
             "message": "Wallet coins updated!"
       },
       {
-            "name": "🪙 Coins 12",
+            "name": "🟢 Coins 12",
             "message": "Extra coins are available!"
       },
       {
-            "name": "🪙 Coins 13",
+            "name": "🟢 Coins 13",
             "message": "A shiny coin reward awaits!"
       },
       {
-            "name": "🪙 Coins 14",
+            "name": "🟢 Coins 14",
             "message": "Coins credited successfully!"
       },
       {
-            "name": "🪙 Coins 15",
+            "name": "🟢 Coins 15",
             "message": "Your coin balance increased!"
       },
       {
-            "name": "🪙 Coins 16",
+            "name": "🟢 Coins 16",
             "message": "New coins are ready to use!"
       },
       {
-            "name": "🪙 Coins 17",
+            "name": "🟢 Coins 17",
             "message": "Coin drop just arrived!"
       },
       {
-            "name": "🪙 Coins 18",
+            "name": "🟢 Coins 18",
             "message": "Lucky coins added today!"
       },
       {
-            "name": "🪙 Coins 19",
+            "name": "🟢 Coins 19",
             "message": "Your bonus coins are live!"
       },
       {
-            "name": "🪙 Coins 20",
+            "name": "🟢 Coins 20",
             "message": "Coins waiting in your wallet!"
       },
       {
-            "name": "🪙 Coins 21",
+            "name": "🟢 Coins 21",
             "message": "Grab your coin reward now!"
       },
       {
-            "name": "🪙 Coins 22",
+            "name": "🟢 Coins 22",
             "message": "Your coin stash just grew!"
       },
       {
-            "name": "🪙 Coins 23",
+            "name": "🟢 Coins 23",
             "message": "Fresh coin credit added!"
       },
       {
-            "name": "🪙 Coins 24",
+            "name": "🟢 Coins 24",
             "message": "Coin bonus activated!"
       },
       {
-            "name": "🪙 Coins 25",
+            "name": "🟢 Coins 25",
             "message": "More coins added for you!"
       },
       {
-            "name": "🪙 Coins 26",
+            "name": "🟢 Coins 26",
             "message": "Your coin reward landed!"
       },
       {
-            "name": "🪙 Coins 27",
+            "name": "🟢 Coins 27",
             "message": "Wallet boost: coins added!"
       },
       {
-            "name": "🪙 Coins 28",
+            "name": "🟢 Coins 28",
             "message": "Coin credit is now available!"
       },
       {
-            "name": "🪙 Coins 29",
+            "name": "🟢 Coins 29",
             "message": "Your coins are ready!"
       },
       {
-            "name": "🪙 Coins 30",
+            "name": "🟢 Coins 30",
             "message": "Bonus coin drop is live!"
       },
       {
-            "name": "🪙 Coins 31",
+            "name": "🟢 Coins 31",
             "message": "New coin reward unlocked!"
       },
       {
-            "name": "🪙 Coins 32",
+            "name": "🟢 Coins 32",
             "message": "Your wallet has more coins!"
       },
       {
-            "name": "🪙 Coins 33",
+            "name": "🟢 Coins 33",
             "message": "Coins credited—check now!"
       },
       {
-            "name": "🪙 Coins 34",
+            "name": "🟢 Coins 34",
             "message": "A coin surprise is waiting!"
       },
       {
-            "name": "🪙 Coins 35",
+            "name": "🟢 Coins 35",
             "message": "Your coin balance got boosted!"
       },
       {
-            "name": "🪙 Coins 36",
+            "name": "🟢 Coins 36",
             "message": "Extra coins just dropped!"
       },
       {
-            "name": "🪙 Coins 37",
+            "name": "🟢 Coins 37",
             "message": "Coin reward added today!"
       },
       {
-            "name": "🪙 Coins 38",
+            "name": "🟢 Coins 38",
             "message": "Your wallet received coins!"
       },
       {
-            "name": "🪙 Coins 39",
+            "name": "🟢 Coins 39",
             "message": "More coins are now yours!"
       },
       {
-            "name": "🪙 Coins 40",
+            "name": "🟢 Coins 40",
             "message": "Coins unlocked—enjoy!"
       },
       {
-            "name": "🪙 Coins 41",
+            "name": "🟢 Coins 41",
             "message": "Your latest coins arrived!"
       },
       {
-            "name": "🪙 Coins 42",
+            "name": "🟢 Coins 42",
             "message": "Coin bonus added to wallet!"
       },
       {
-            "name": "🪙 Coins 43",
+            "name": "🟢 Coins 43",
             "message": "New coins, new chances!"
       },
       {
-            "name": "🪙 Coins 44",
+            "name": "🟢 Coins 44",
             "message": "Your coin credit is ready!"
       },
       {
-            "name": "🪙 Coins 45",
+            "name": "🟢 Coins 45",
             "message": "Coins have landed safely!"
       },
       {
-            "name": "🪙 Coins 46",
+            "name": "🟢 Coins 46",
             "message": "Wallet reward: coins added!"
       },
       {
-            "name": "🪙 Coins 47",
+            "name": "🟢 Coins 47",
             "message": "Your coin bonus is active!"
       },
       {
-            "name": "🪙 Coins 48",
+            "name": "🟢 Coins 48",
             "message": "A fresh coin drop awaits!"
       },
       {
-            "name": "🪙 Coins 49",
+            "name": "🟢 Coins 49",
             "message": "Coin balance updated now!"
       },
       {
-            "name": "🪙 Coins 50",
+            "name": "🟢 Coins 50",
             "message": "Enjoy your new coins!"
       }
 ]

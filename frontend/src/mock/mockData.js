@@ -52,11 +52,10 @@ export const NAV_LINKS = [
 ];
 
 export const CATEGORIES = [
-  { slug: 'all', label: 'All Contests' },
-  { slug: 'jackpot', label: 'Jackpot' },
-  { slug: 'instant-wins', label: 'Instant Wins' },
-  { slug: 'prize-draws', label: 'Prize Draws' },
-  { slug: 'new-games', label: 'New Games' },
+  { slug: 'mega', label: 'Mega Pool' },
+  { slug: 'instant', label: 'Instant Wins' },
+  { slug: 'daily-draws', label: 'Daily Draw' },
+  { slug: 'skill', label: 'Skill Contests' },
 ];
 
 // Admin dashboards fetch real data from /api/admin/* — these are empty

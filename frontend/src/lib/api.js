@@ -121,6 +121,10 @@ export const contestsAPI = {
   championWinners: () => api.get('/world/public/champion-winners').then(r => r.data),
 };
 
+export const instantWinsAPI = {
+  status: (contestId) => api.get(`/engines/instant-win/${contestId}/status`).then(r => r.data),
+};
+
 export const ordersAPI = {
   checkout: (items) => api.post('/orders/checkout', { items }).then(r => r.data),
   mine: () => api.get('/orders/mine').then(r => r.data),
@@ -683,6 +687,8 @@ export const paidWinnersAPI = {
   winners: (params) => api.get('/admin/paid-winners/winners', { params }).then(r => r.data),
   approve: (id, wallet) => api.post(`/admin/paid-winners/winners/${id}/approve`, { wallet }).then(r => r.data),
   setWinnerVisible: (id, visible) => api.put(`/admin/paid-winners/winners/${id}/visibility`, { visible }).then(r => r.data),
+  setWinnerPhoto: (id, imageUrl) => api.put(`/admin/paid-winners/winners/${id}/photo`, { image_url: imageUrl }).then(r => r.data),
+  adjustWinnerPrize: (id, data) => api.patch(`/admin/paid-winners/winners/${id}/prize`, data).then(r => r.data),
   reject: (id) => api.post(`/admin/paid-winners/winners/${id}/reject`).then(r => r.data),
   contests: () => api.get('/admin/paid-winners/contests').then(r => r.data),
   setPublication: (cid, body) => api.put(`/admin/paid-winners/contests/${cid}/publication`, body).then(r => r.data),

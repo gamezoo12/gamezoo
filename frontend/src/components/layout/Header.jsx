@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { BadgeCheck, ShoppingCart, User, Menu, X, LogOut, Wallet as WalletIcon, ChevronDown, Trophy, Gamepad2 } from 'lucide-react';
+import { BadgeCheck, ShoppingCart, User, Menu, X, LogOut, Wallet as WalletIcon, ChevronDown } from 'lucide-react';
 import { VerifiedReviewerBadge } from '../VerifiedReviewerBadge';
 import { Button } from '../ui/button';
 import {
@@ -11,17 +11,19 @@ import NotificationsBell from './NotificationsBell';
 import AnnouncementTicker from './AnnouncementTicker';
 import PrizeLeagueLogo from './PrizeLeagueLogo';
 import UserAvatar from '../UserAvatar';
+import TokenIcon from '../TokenIcon';
 import { useAuth } from '../../context/AuthContext';
-import { walletAPI, ordersAPI } from '../../lib/api';
+import { walletAPI } from '../../lib/api';
 import { tokenCount } from '../../lib/format';
 
 const NAV = [
- { label: 'Home', href: '/' },
+ { label: 'Home', href: '/paid-leagues' },
  { label: 'Contests', href: '/competitions' },
  { label: 'Leaderboard', href: '/leaderboard' },
+ { label: 'Free Games', href: '/games' },
+ { label: 'Hall of Winners', href: '/winners' },
  { label: 'How It Works', href: '/how-it-works' },
  { label: 'Refer & Earn', href: '/refer' },
- { label: 'Winners', href: '/winners' },
 ];
 
 export default function Header() {
@@ -30,8 +32,6 @@ export default function Header() {
  const [signOutOpen, setSignOutOpen] = useState(false);
  const [balance, setBalance] = useState(null);
  const [cartCount, setCartCount] = useState(0);
- const [pendingDrawCount, setPendingDrawCount] = useState(0);
- const [pendingKnown, setPendingKnown] = useState(true);
  const { pathname } = useLocation();
  const { user, logout } = useAuth();
 const minimalWorldHeader =
@@ -71,50 +71,6 @@ const minimalWorldHeader =
  return () => { clearInterval(t); window.removeEventListener('pl-world-progress-refresh', load); };
  }, [user, pathname]);
 
- // Pending draws (mobile badge)
- useEffect(() => {
- if (!user) { setPendingDrawCount(0); setPendingKnown(true); return undefined; }
- let cancelled = false;
- (async () => {
- try {
- const tickets = await ordersAPI.myTickets();
- if (cancelled) return;
- if (!Array.isArray(tickets) || tickets.length === 0) {
- setPendingDrawCount(0);
- setPendingKnown(true);
- return;
- }
- // Check whether tickets include contest.status / entry_mode
- const haveStatus = tickets.some(t => t && t.contest && typeof t.contest.status === 'string');
- if (!haveStatus) {
- // Insufficient info — show trophy without badge
- setPendingKnown(false);
- setPendingDrawCount(0);
- return;
- }
- // Determine pending draw contests from ticket list.
- // We avoid counting unplayed skill-game tickets because myTickets does not include play attempts.
- const pendingStatuses = new Set(['pending', 'awaiting_draw', 'ended', 'closed']);
- const pendingContests = new Set();
- tickets.forEach((t) => {
- const c = t.contest || {};
- const entry = (c.entry_mode || 'skill_game');
- const status = (c.status || '').toString();
- // Do not count unplayed skill games: exclude entry_mode === 'skill_game'
- if (entry === 'skill_game') return;
- if (status && pendingStatuses.has(status)) pendingContests.add(c.contest_id || t.contest_id);
- });
- setPendingDrawCount(pendingContests.size);
- setPendingKnown(true);
- } catch (e) {
- // On error, don't show badge
- setPendingKnown(false);
- setPendingDrawCount(0);
- }
- })();
- return () => { cancelled = true; };
- }, [user]);
-
  // Mobile menu → prevent body scroll
  useEffect(() => {
  document.body.style.overflow = open ? 'hidden' : '';
@@ -144,7 +100,6 @@ const minimalWorldHeader =
 
  const isActive = (href) => href === '/' ? pathname === '/' : pathname.startsWith(href);
 
- const badgeText = pendingDrawCount > 99 ? '99+' : String(pendingDrawCount);
  if (minimalWorldHeader) {
   return (
    <header
@@ -287,28 +242,15 @@ const minimalWorldHeader =
  <Link
  to="/my-account/wallet"
  data-testid="header-wallet-chip"
- className={isFreeWorldHeader ? "hidden" : "hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[#FFD54A] text-xs font-bold transition"}
+ className={isFreeWorldHeader ? "hidden" : "hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[#FFD54A] text-xs font-bold transition"}
  title="Your token balance"
  >
  <WalletIcon className="w-3.5 h-3.5" />
- {balance === null ? '…' : `${tokenCount(balance)} 🪙`}
+ {balance === null ? '…' : <>{tokenCount(balance)} <TokenIcon className="h-3.5 w-3.5" /></>}
  </Link>
  )}
 
  <span className="inline-flex"><NotificationsBell dark={isFreeWorldHeader} /></span>
-
- {/* Free Games shortcut replaces the former Winners icon. */}
- <Link to="/games" className={isFreeWorldHeader ? "hidden" : "hidden md:inline-flex relative p-2 rounded-lg hover:bg-white/5"} aria-label="Free games" data-testid="header-free-games">
- <Gamepad2 className="w-5 h-5 text-[#FFD54A]" />
- </Link>
-
- {/* Mobile-only: Free Games shortcut. */}
- <Link to="/games" className={isFreeWorldHeader ? "hidden" : "sm:hidden relative p-2 rounded-lg"} aria-label="Free games" data-testid="mobile-header-free-games">
- <Gamepad2 className="w-6 h-6 text-[#FFD54A]" />
- {user && pendingKnown && pendingDrawCount > 0 && (
- <span className="absolute -top-1 -right-1 bg-[#FFD54A] text-slate-900 text-[10px] font-bold rounded-full h-4 min-w-[16px] flex items-center justify-center px-1">{badgeText}</span>
- )}
- </Link>
 
  {/* Cart — hidden on mobile per spec; desktop unchanged in appearance */}
  <Link to="/cart" className={isFreeWorldHeader ? "hidden" : "hidden sm:inline-flex relative p-2 rounded-lg hover:bg-white/5"} aria-label="Cart" data-testid="header-cart">
@@ -316,19 +258,12 @@ const minimalWorldHeader =
  {cartCount > 0 && <span className="absolute -top-1 -right-1 bg-[#FFD54A] text-slate-900 text-[10px] font-bold rounded-full h-4 min-w-[16px] flex items-center justify-center px-1">{cartCount}</span>}
  </Link>
 
- {/* Mobile-only coin balance (no wallet icon) */}
+ {/* Mobile coin balance opens the wallet. */}
  {user && (
- <div className={isFreeWorldHeader ? "hidden" : "sm:hidden text-[#FFD54A] text-sm font-bold px-2"} data-testid="mobile-coin-balance">
- {balance === null ? '… 🪙' : `${tokenCount(balance)} 🪙`}
- </div>
- )}
-
- {/* Compact gold PLAY button — desktop/tablet kept unchanged (hidden on mobile) */}
- <Link to="/competitions" className={isFreeWorldHeader ? "hidden" : "hidden sm:inline-flex"} data-testid="header-play-btn">
- <button className="pl-btn-gold h-9 px-3 md:px-4 rounded-full font-extrabold text-xs md:text-sm">
- PLAY <span className="hidden md:inline">NOW</span>
- </button>
+ <Link to="/my-account/wallet" className={isFreeWorldHeader ? "hidden" : "sm:hidden text-[#FFD54A] text-sm font-bold px-2"} data-testid="mobile-coin-balance" aria-label="Open wallet">
+ {balance === null ? '…' : <>{tokenCount(balance)} <TokenIcon className="inline h-3.5 w-3.5" /></>}
  </Link>
+ )}
 
  {!user ? (
  <>
@@ -423,7 +358,7 @@ const minimalWorldHeader =
      className="inline-flex items-center gap-1.5 rounded-full border border-[#FFD54A]/60 bg-gradient-to-b from-[#1a1140] to-[#0a0b1a] px-2.5 py-1.5 text-[#FFDD42] shadow-[0_0_12px_rgba(255,202,31,0.25)] hover:border-[#FFE680] hover:shadow-[0_0_18px_rgba(255,202,31,0.4)] transition whitespace-nowrap"
      title="Your token balance"
    >
-     <span className="text-[13px] leading-none" aria-hidden="true">🪙</span>
+     <TokenIcon className="h-3.5 w-3.5" />
      <span className="text-[13px] sm:text-sm font-black leading-none" data-testid="free-world-token-balance-value">
        {balance === null ? '…' : tokenCount(balance)}
      </span>
@@ -571,70 +506,21 @@ const minimalWorldHeader =
 
  {user ? (
  <>
- {/* Ordered mobile menu per spec */}
  <Link to="/my-account" onClick={() => setOpen(false)} className="mt-4 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white" data-testid="mobile-profile-link">
  <UserAvatar user={user} size="h-9 w-9" />
  <div className="flex-1 min-w-0">
  <div className="font-bold text-sm truncate">{user.name || user.email}</div>
- <div className="text-white/60 text-xs">My Profile →</div>
+ <div className="text-white/60 text-xs">My Profile</div>
  </div>
  </Link>
-
- <Link to="/my-account/wallet" onClick={() => setOpen(false)} className="mt-3 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white" data-testid="mobile-wallet-link">
- <div className="text-[#FFD54A] font-black text-lg">{balance === null ? '…' : `${tokenCount(balance)} 🪙`}</div>
- <div className="flex-1 text-sm text-white/80">Wallet</div>
- </Link>
-
- <Link to="/my-account/tickets" onClick={() => setOpen(false)} className="mt-3 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white" data-testid="mobile-tickets-link">
- <div className="w-9 h-9 rounded-full bg-white/5 text-[#6C2BFF] flex items-center justify-center font-bold">🎟</div>
- <div className="flex-1 text-sm text-white/80">My Tickets</div>
- </Link>
-
- <Link to="/my-account/games" onClick={() => setOpen(false)} className="mt-3 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white" data-testid="mobile-games-link">
- <div className="w-9 h-9 rounded-full bg-white/5 text-[#f472b6] flex items-center justify-center font-bold">🎮</div>
- <div className="flex-1 text-sm text-white/80">My Games</div>
- </Link>
-
- <Link to="/draw-centre" onClick={() => setOpen(false)} className="mt-3 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white" data-testid="mobile-draw-centre-link">
- <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#8B5CFF] to-[#6C2BFF] text-white flex items-center justify-center"><Trophy className="w-5 h-5 text-[#FFD54A]" /></div>
- <div className="flex-1 text-sm text-white/80">Draw Centre {pendingKnown && pendingDrawCount > 0 ? <span className="ml-2 text-xs bg-[#6C2BFF] text-white rounded-full px-2 py-0.5">{badgeText}</span> : null}</div>
- </Link>
-
- <Link to="/my-account/support" onClick={() => setOpen(false)} className="mt-3 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white" data-testid="mobile-support-link">
- <div className="w-9 h-9 rounded-full bg-white/5 text-cyan-500 flex items-center justify-center">💬</div>
- <div className="flex-1 text-sm text-white/80">Support</div>
- </Link>
-
- <Link to="/my-account/policies" onClick={() => setOpen(false)} className="mt-3 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white" data-testid="mobile-policies-link">
- <div className="w-9 h-9 rounded-full bg-white/5 text-indigo-500 flex items-center justify-center">📄</div>
- <div className="flex-1 text-sm text-white/80">Policies</div>
- </Link>
-
- <Link to="/my-account/preferences" onClick={() => setOpen(false)} className="mt-3 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white" data-testid="mobile-preferences-link">
- <div className="w-9 h-9 rounded-full bg-white/5 text-stone-500 flex items-center justify-center">⚙ï¸</div>
- <div className="flex-1 text-sm text-white/80">Settings</div>
- </Link>
-
- <Link to="/my-account/notifications" onClick={() => setOpen(false)} className="mt-3 flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white" data-testid="mobile-notifications-link">
- <div className="w-9 h-9 rounded-full bg-white/5 text-sky-500 flex items-center justify-center">🔔</div>
- <div className="flex-1 text-sm text-white/80">Notifications</div>
- </Link>
-
- <button
- onClick={askLogout}
- data-testid="mobile-signout"
- className="mt-6 w-full flex items-center justify-center gap-2 py-4 px-3 rounded-xl border border-rose-500/30 text-rose-300 hover:bg-rose-500/10 font-bold"
- >
+ <button onClick={askLogout} data-testid="mobile-signout" className="mt-3 w-full flex items-center justify-center gap-2 py-4 px-3 rounded-xl border border-rose-500/30 text-rose-300 hover:bg-rose-500/10 font-bold">
  <LogOut className="w-5 h-5" /> Sign Out
  </button>
  </>
- ) : (
+  ) : (
  <div className="mt-6 space-y-3">
  <Link to="/login" onClick={() => setOpen(false)}>
  <button className="w-full py-3 rounded-full border border-white/20 text-white font-bold">Sign in</button>
- </Link>
- <Link to="/competitions" onClick={() => setOpen(false)}>
- <button className="w-full py-3 rounded-full pl-btn-gold font-extrabold">PLAY NOW</button>
  </Link>
  </div>
  )}

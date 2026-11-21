@@ -78,16 +78,90 @@ def _clean_image_url(value: str) -> str:
     return value
 
 
+def _winner_sort_key(winner: dict):
+    value = winner.get('credited_at') or winner.get('drawn_at') or winner.get('created_at')
+    if isinstance(value, datetime):
+        return value.timestamp()
+    try:
+        return datetime.fromisoformat(str(value).replace('Z', '+00:00')).timestamp()
+    except (TypeError, ValueError):
+        return 0
+
+
+def _real_prize(winner: dict) -> str:
+    reward_type = str(winner.get('reward_type') or '').lower()
+    physical_prize = str(winner.get('other_prize_description') or '').strip()
+    if reward_type == 'other' and physical_prize:
+        return physical_prize
+    if reward_type in {'bonus', 'winning_bonus'}:
+        return ''
+    amount = float(winner.get('prize_cash_amount') or winner.get('prize_amount') or 0)
+    if amount <= 0:
+        return ''
+    return f'£{amount:,.2f}'.replace('.00', '')
+
+
+async def _real_homepage_winners(db):
+    rows = await db.winners.find(
+        {'public_hidden': {'$ne': True}, 'quarantined': {'$ne': True}, 'prize_blocked': {'$ne': True},
+         '$or': [
+             {'paid_out': True},
+             {'approval_status': {'$in': ['approved', 'credited']}},
+             {'credited_at': {'$exists': True, '$ne': None}},
+         ]},
+        {'_id': 0},
+    ).sort([('credited_at', -1), ('drawn_at', -1), ('created_at', -1)]).to_list(1000)
+    rows = [row for row in rows if _real_prize(row)]
+    rows.sort(key=_winner_sort_key, reverse=True)
+    users = {user['user_id']: user async for user in db.users.find(
+        {'user_id': {'$in': list({row.get('user_id') for row in rows if row.get('user_id')})}},
+        {'_id': 0, 'user_id': 1, 'name': 1, 'username': 1, 'profile_image_url': 1, 'profile_image_public': 1},
+    )}
+    winners = []
+    for row in rows[:100]:
+        user = users.get(row.get('user_id'), {})
+        name = row.get('user_full_name') or row.get('user_name') or user.get('name') or user.get('username') or 'Winner'
+        parts = [part for part in str(name).replace('@', ' ').split() if part]
+        public_name = parts[0] if not parts else parts[0] + (f' {parts[-1][0]}.' if len(parts) > 1 else '')
+        winners.append({
+            'content_id': row.get('winner_id'),
+            'winner_id': row.get('winner_id'),
+            'kind': 'winner',
+            'name': public_name,
+            'prize': _real_prize(row),
+            'image_url': row.get('winner_image_url') or (user.get('profile_image_url') if user.get('profile_image_public') else ''),
+            'created_at': row.get('credited_at') or row.get('drawn_at') or row.get('created_at'),
+            'contest_id': row.get('contest_id'),
+        })
+    total_winners = await db.winners.count_documents({
+        'public_hidden': {'$ne': True}, 'quarantined': {'$ne': True}, 'prize_blocked': {'$ne': True},
+        '$or': [
+            {'paid_out': True},
+            {'approval_status': {'$in': ['approved', 'credited']}},
+            {'credited_at': {'$exists': True, '$ne': None}},
+        ],
+        '$and': [
+            {'$or': [
+                {'reward_type': {'$nin': ['bonus', 'winning_bonus']}, 'prize_cash_amount': {'$gt': 0}},
+                {'reward_type': {'$nin': ['bonus', 'winning_bonus']}, 'prize_cash_amount': {'$exists': False}, 'prize_amount': {'$gt': 0}},
+                {'reward_type': 'other', 'other_prize_description': {'$nin': [None, '']}},
+            ]},
+        ],
+    })
+    return winners, max(total_winners, len(rows))
+
+
 @public_router.get('')
 async def public_homepage_content():
     db = get_db()
     await _ensure_demo_content(db)
-    rows = await db.homepage_content.find({}, {'_id': 0}).sort('created_at', -1).to_list(200)
+    rows = await db.homepage_content.find({'kind': 'review'}, {'_id': 0}).sort('created_at', -1).to_list(200)
     settings = await db.homepage_content_settings.find_one({'_id': 'app'}, {'_id': 0}) or {}
-    winners = [row for row in rows if row.get('kind') == 'winner'][:24]
+    winners, total_winners = await _real_homepage_winners(db)
     reviews = [row for row in rows if row.get('kind') == 'review'][:100]
     return {
         'winners': winners,
+        'total_winners': total_winners,
         'reviews': reviews,
         'review_count': int(settings.get('review_count') or 0),
         'review_rating': float(settings.get('review_rating') or 0),

@@ -37,6 +37,266 @@
     var(--fw-ink);
 }
 
+.fwv3-has-paid-rail {
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+
+.fwv3-has-paid-rail .fwv3-entry-header,
+.fwv3-has-paid-rail .fwv3-result-state,
+.fwv3-has-paid-rail .fwv3-mode-label {
+  margin-bottom: 10px;
+}
+
+.fwv3-has-paid-rail .fwv3-game-banner,
+.fwv3-has-paid-rail .fwv3-stat-grid,
+.fwv3-has-paid-rail .fwv3-info-box,
+.fwv3-has-paid-rail .fwv3-ready-stats,
+.fwv3-has-paid-rail .fwv3-result-grid,
+.fwv3-has-paid-rail .fwv3-entry-actions {
+  margin-top: 10px;
+}
+
+.fwv3-paid-rail {
+  margin-top: 12px;
+  border: 1px solid var(--fw-line);
+  background: rgba(255, 255, 255, 0.045);
+  padding: 10px;
+  color: var(--fw-ink);
+}
+
+.fwv3-paid-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.fwv3-paid-heading h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.fwv3-paid-heading > span {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  opacity: 0.62;
+}
+
+.fwv3-paid-track {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 2px;
+}
+
+.fwv3-paid-card {
+  width: calc(50% - 4px);
+  min-width: calc(50% - 4px);
+  overflow: hidden;
+  scroll-snap-align: start;
+  border: 1px solid rgba(255,255,255,.14);
+  background: #fff;
+  color: #0f172a;
+}
+
+.fwv3-paid-image {
+  display: block;
+  height: 132px;
+  overflow: hidden;
+  background: #161433;
+}
+
+.fwv3-paid-image img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+}
+
+.fwv3-paid-body { padding: 6px; }
+
+.fwv3-paid-body h3 {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 16px;
+}
+
+.fwv3-paid-meta,
+.fwv3-paid-price {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.fwv3-paid-progress {
+  height: 7px;
+  margin-top: 4px;
+  overflow: hidden;
+  background: #f1f5f9;
+}
+
+.fwv3-paid-progress span { display: block; height: 100%; background: #10b981; }
+
+.fwv3-paid-price { justify-content: flex-start; color: #334155; }
+.fwv3-paid-price strong { margin-left: auto; color: #0f172a; }
+
+.fwv3-paid-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.fwv3-paid-stepper {
+  display: grid;
+  grid-template-columns: 24px minmax(0,1fr) 24px;
+  min-width: 0;
+  border: 1px solid #cbd5e1;
+}
+
+.fwv3-paid-stepper button,
+.fwv3-paid-stepper input,
+.fwv3-paid-actions > button {
+  height: 28px;
+  min-width: 0;
+  border: 0;
+  background: #fff;
+}
+
+.fwv3-paid-stepper button { display: grid; place-items: center; color: #334155; }
+
+.fwv3-paid-stepper input {
+  width: 100%;
+  border-inline: 1px solid #cbd5e1;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 900;
+  outline: 0;
+}
+
+.fwv3-paid-actions > button {
+  padding: 0 9px;
+  background: #FFD54A;
+  color: #171033;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.fwv3-paid-question,
+.fwv3-paid-checkout {
+  margin-top: 8px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(0,0,0,.18);
+  padding: 8px;
+}
+
+.fwv3-paid-question > div:first-child {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10px;
+}
+
+.fwv3-paid-question > div:first-child span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: .62;
+}
+
+.fwv3-paid-question p {
+  margin: 6px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.fwv3-paid-options {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.fwv3-paid-options button {
+  height: 30px;
+  min-width: 0;
+  border: 1px solid rgba(255,255,255,.24);
+  background: rgba(255,255,255,.06);
+  color: inherit;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.fwv3-paid-options button.is-selected { border-color: #10b981; background: #047857; }
+
+.fwv3-paid-checkout > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.fwv3-paid-checkout > div:first-child svg { color: #34d399; }
+
+.fwv3-paid-checkout-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.fwv3-paid-checkout-actions > * {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 1px solid rgba(255,255,255,.22);
+  background: #fff;
+  color: #0f172a;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.fwv3-paid-checkout-actions > button { border-color: #FFD54A; background: #FFD54A; }
+
+@media (min-width: 768px) {
+  .fwv3-paid-image { height: 150px; }
+  .fwv3-paid-body h3 { font-size: 12px; }
+}
+
+@media (max-width: 540px) {
+  .fwv3-has-paid-rail { padding: 12px; border-radius: 16px; }
+  .fwv3-paid-rail { padding: 8px; }
+  .fwv3-paid-image { height: 112px; }
+  .fwv3-paid-heading h2 { font-size: 11px; }
+  .fwv3-paid-body { padding: 5px; }
+}
 
 .fwv3-card {
   position: relative;
@@ -1750,7 +2010,7 @@
 
 .fwv3-ready-stats span {
   display: block;
-  color: var(--fw-accent);
+  color: var(--fw-accent-text);
   font-size: 10px;
   font-weight: 950;
 }
@@ -1821,7 +2081,7 @@
   font-size: 10px;
   font-weight: 900;
   letter-spacing: 2px;
-  color: var(--fw-accent);
+  color: var(--fw-accent-text);
 }
 
 .fwv3-token-modal h3 {
@@ -1869,7 +2129,7 @@
 .fwv3-token-modal-rows > div strong {
   font-size: 15px;
   font-weight: 900;
-  color: var(--fw-accent-strong);
+  color: var(--fw-accent-text);
 }
 
 .fwv3-token-modal-insufficient {
@@ -2108,7 +2368,7 @@ body:has(.fwv3-overlay) {
 
 .fwv3-colour-count {
   text-align: center;
-  color: var(--fw-accent);
+  color: var(--fw-accent-text);
   font-size: 13px;
   font-weight: 900;
   letter-spacing: 0.08em;

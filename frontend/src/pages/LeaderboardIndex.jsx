@@ -2,18 +2,21 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Trophy, ArrowRight } from 'lucide-react';
 import { contestsAPI } from '../lib/api';
+import { competitionSectionOf } from '../lib/competitionSections';
+import BackButton from '../components/BackButton';
 
 export default function LeaderboardIndex() {
   const [contests, setContests] = useState([]);
 
   useEffect(() => {
     contestsAPI.list()
-      .then(data => setContests(data || []))
+      .then(data => setContests((data || []).filter(contest => competitionSectionOf(contest) === 'skill')))
       .catch(() => setContests([]));
   }, []);
 
   return (
     <div className="max-w-7xl mx-auto px-4 lg:px-8 py-10">
+      <BackButton to="/paid-leagues" label="Home" className="mb-4" />
       <div className="mb-8">
         <div className="text-xs uppercase tracking-widest font-bold text-[#6C2BFF]">
           Contest Leaderboards
@@ -24,7 +27,7 @@ export default function LeaderboardIndex() {
         </h1>
 
         <p className="text-slate-500 mt-2">
-          Every contest has its own independent leaderboard.
+          Leaderboards are available for Skill Contests only.
         </p>
       </div>
 

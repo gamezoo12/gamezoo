@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { pickResultQuote } from '../lib/gameExperience';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Clock, Coins, Gift, Hash, Palette, Target } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Clock, Gift, Hash, Palette, Target } from 'lucide-react';
+import TokenIcon from '../components/TokenIcon';
 import { api, walletAPI } from '../lib/api';
 import { Button } from '../components/ui/button';
 import { useToast } from '../hooks/use-toast';
@@ -418,7 +419,7 @@ export default function SpecialChallenge() {
                         </div>
                         <div className="text-right">
                           <span className="block text-[10px] font-bold uppercase tracking-wider text-white/70">Entry</span>
-                          <strong className="mt-1 inline-flex items-center gap-1 text-sm font-extrabold text-white"><Coins className="h-4 w-4 text-amber-300" /> {g.entry_tokens} {g.entry_tokens === 1 ? 'token' : 'tokens'}</strong>
+                          <strong className="mt-1 inline-flex items-center gap-1 text-sm font-extrabold text-white"><TokenIcon className="h-4 w-4" /> {g.entry_tokens} {g.entry_tokens === 1 ? 'token' : 'tokens'}</strong>
                         </div>
                       </div>
                       <div className={`mt-4 flex w-full items-center justify-between border-t border-white/10 pt-4 text-sm font-extrabold ${accent.cta}`}>
@@ -445,7 +446,7 @@ export default function SpecialChallenge() {
           <p className="mt-2 text-sm leading-relaxed text-slate-300">{instructions}</p>
           <p className="mt-4 text-xs text-slate-400">Each attempt costs 1 token. You can win this game once every 24 hours; other games remain available.</p>
           {selectedCoolingDown && <p className="mt-4 rounded-lg border border-amber-300/20 bg-amber-300/10 p-3 text-sm text-amber-100">You already won this game. You can play it again after {selectedCooldownUntil.toLocaleString()}. Other games are still available. ⏳</p>}
-          <Button disabled={busy || selectedCoolingDown || countdown !== null} onClick={requestStart} className="mt-6 w-full bg-amber-500 font-black text-slate-950 hover:bg-amber-400" data-testid="challenge-paid-start">{busy ? 'Starting…' : selectedCoolingDown ? 'Available after cooldown' : `PLAY — 1 token 🪙`}</Button>
+          <Button disabled={busy || selectedCoolingDown || countdown !== null} onClick={requestStart} className="mt-6 w-full bg-amber-500 font-black text-slate-950 hover:bg-amber-400" data-testid="challenge-paid-start">{busy ? 'Starting…' : selectedCoolingDown ? 'Available after cooldown' : <span className="inline-flex items-center gap-1">PLAY — 1 token <TokenIcon className="h-4 w-4 text-slate-950" /></span>}</Button>
         </div>}
         {selected && attempt && !result && <div className="mx-auto max-w-2xl">
           <div className="mb-4 flex justify-between text-sm text-slate-300"><span>{selected.name}</span><span>{selected.type === 'number_sequence' ? `Next: ${next}` : `Match ${round + 1} / ${attempt.target_matches}`}</span></div>

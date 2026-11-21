@@ -31,6 +31,8 @@ import { useNavigate } from 'react-router-dom';
 import '../styles/freeWorldGameV3.css';
 import '../styles/freeWorldFullscreen.css';
 import { WorldClientGame, isWorldClientGame } from './WorldClientGame';
+import TokenIcon from '../../components/TokenIcon';
+import FreeWorldPaidContests from './FreeWorldPaidContests';
 import { gameplayTelemetrySnapshot, startGameplayTelemetry, stopGameplayTelemetry } from '../../lib/gameplayTelemetry';
 import { ChromaBoard, SequenceBoard } from '../../components/games/premium/boards';
 import GameSoundToggle from '../../components/games/GameSoundToggle';
@@ -1541,7 +1543,7 @@ if (
         className="fwv3-overlay fwv3-entry-overlay"
         data-testid="free-world-v3"
       >
-        <section className="fwv3-card fwv3-entry-card">
+        <section className="fwv3-card fwv3-entry-card fwv3-has-paid-rail">
 
           <button
             type="button"
@@ -1732,8 +1734,9 @@ if (
 
           </section>
 
-          <GameSoundToggle className="mt-3" />
+          <GameSoundToggle className="mt-2" />
 
+          <FreeWorldPaidContests />
 
           <section className="fwv3-entry-actions">
 
@@ -1983,7 +1986,7 @@ if (
     return (
       <div className="fwv3-overlay">
 
-        <section className="fwv3-card fwv3-ready-card">
+        <section className="fwv3-card fwv3-ready-card fwv3-has-paid-rail">
 
           <button
             type="button"
@@ -2057,6 +2060,7 @@ if (
 
           </section>
 
+          <FreeWorldPaidContests />
 
           <section className="fwv3-entry-actions">
 
@@ -2156,18 +2160,18 @@ if (
                 <div className="fwv3-token-modal-rows">
                   <div>
                     <span>Token cost</span>
-                    <strong data-testid="retry-cost">{retryCost} 🪙</strong>
+                    <strong data-testid="retry-cost" className="inline-flex items-center gap-1">{retryCost} <TokenIcon className="h-4 w-4" /></strong>
                   </div>
                   <div>
                     <span>Current balance</span>
                     <strong data-testid="retry-current-balance">
-                      {walletBalance === null ? '…' : `${walletBalance} 🪙`}
+                      {walletBalance === null ? '…' : <>{walletBalance} <TokenIcon className="inline h-4 w-4" /></>}
                     </strong>
                   </div>
                   <div>
                     <span>Remaining balance</span>
                     <strong data-testid="retry-remaining-balance">
-                      {walletBalance === null ? '…' : `${Math.max(0, walletBalance - retryCost)} 🪙`}
+                      {walletBalance === null ? '…' : <>{Math.max(0, walletBalance - retryCost)} <TokenIcon className="inline h-4 w-4" /></>}
                     </strong>
                   </div>
                 </div>
@@ -2387,7 +2391,7 @@ if (
     return (
       <div className="fwv3-overlay">
 
-        <section className="fwv3-card fwv3-result-card">
+        <section className="fwv3-card fwv3-result-card fwv3-has-paid-rail">
 
           <button
             type="button"
@@ -2535,6 +2539,7 @@ if (
 
           </section>
 
+          <FreeWorldPaidContests />
 
           {
             success && !championMode && !unlimitedLevelRetries && resultFreeAttempts <= 0 ? (
@@ -2677,7 +2682,7 @@ if (
                   <div>
                     <span>Token cost</span>
                     <strong data-testid="retry-cost">
-                      {retryCost} 🪙
+                      {retryCost} <TokenIcon className="inline h-4 w-4" />
                     </strong>
                   </div>
 
@@ -2686,7 +2691,7 @@ if (
                     <strong data-testid="retry-current-balance">
                       {walletBalance === null
                         ? '…'
-                        : `${walletBalance} 🪙`}
+                        : <>{walletBalance} <TokenIcon className="inline h-4 w-4" /></>}
                     </strong>
                   </div>
 
@@ -2695,11 +2700,7 @@ if (
                     <strong data-testid="retry-remaining-balance">
                       {walletBalance === null
                         ? '…'
-                        : `${Math.max(
-                            0,
-                            walletBalance -
-                              retryCost,
-                          )} 🪙`}
+                        : <>{Math.max(0, walletBalance - retryCost)} <TokenIcon className="inline h-4 w-4" /></>}
                     </strong>
                   </div>
                 </div>

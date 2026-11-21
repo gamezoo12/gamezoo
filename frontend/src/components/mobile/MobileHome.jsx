@@ -21,12 +21,12 @@ import TrustBadges from '../home/TrustBadges';
 import PromotionBanner from '../home/PromotionBanner';
 import CompetitionCard from '../CompetitionCard';
 import UnifiedLeaderboard from '../leaderboard/UnifiedLeaderboard';
+import { COMPETITION_SECTIONS, competitionSectionOf } from '../../lib/competitionSections';
 
 const TABS = [
   { id: 'contests', label: 'Home', Icon: ListChecks },
-  { id: 'free-games', label: 'Free Games', Icon: Gamepad2, href: '/games' },
-  { id: 'challenges', label: 'Challenges', Icon: Gift, href: '/my-account/winnings' },
   { id: 'free-world', label: 'Free World', Icon: Crown, href: '/world' },
+  { id: 'challenges', label: 'Challenges', Icon: Gift, href: '/challenge' },
 ];
 
 export default function MobileHome() {
@@ -78,13 +78,13 @@ export default function MobileHome() {
 
 /* --------------------------------- CONTESTS -------------------------------- */
 function ContestsPanel({ contests }) {
-  const liveContests = (contests || [])
-    .filter(c => c.public_coming_soon !== true)
-    .slice(0, 10);
-
-  const futureContests = (contests || [])
-    .filter(c => c.public_coming_soon === true)
-    .slice(0, 10);
+  const [activeSection, setActiveSection] = useState('mega');
+  const sectionContests = Object.fromEntries(
+    COMPETITION_SECTIONS.map(section => [
+      section.key,
+      (contests || []).filter(contest => competitionSectionOf(contest) === section.key).slice(0, 10),
+    ])
+  );
 
   const mapContest = c => ({
     id: c.contest_id,
@@ -102,6 +102,8 @@ function ContestsPanel({ contests }) {
     jackpot: c.jackpot,
     featured: c.featured,
     gameType: c.game_type,
+    engine_type: c.engine_type,
+    hasTimeLimit: c.has_time_limit !== false,
     status: c.status,
     public_coming_soon: c.public_coming_soon === true,
     comingSoon: c.public_coming_soon === true,
@@ -117,83 +119,47 @@ function ContestsPanel({ contests }) {
 
       <WinnersGallery title="Recent Winners" />
 
-      {/* 2 - LIVE CONTESTS */}
-      <div className="px-4 pt-6 pb-4 mt-4 bg-white" data-testid="mobile-live-contests-section">
-        <h2 className="font-display font-extrabold text-xl text-[#1e3a8a] mb-3">
-          Live Contests
-        </h2>
-
+      <div className="px-3 pt-2 pb-4 bg-white space-y-3">
         {contests === null ? (
-          <div className="space-y-4" data-testid="mobile-live-contests-loading">
+          <div className="space-y-4" data-testid="mobile-competition-sections-loading">
             {[0, 1].map((i) => <div key={i} className="pl-skeleton h-64 rounded-2xl" />)}
           </div>
-        ) : liveContests.length === 0 ? (
-          <div className="text-center py-10 text-slate-600 text-sm">
-            No live contests right now. Check back soon.
-          </div>
         ) : (
-          <div
-            className="space-y-4"
-            data-testid="mobile-live-contest-list"
-          >
-            {liveContests.map(c => (
-              <CompetitionCard
-                key={c.contest_id}
-                c={mapContest(c)}
-              />
+          <>
+            <div className="grid grid-cols-4 overflow-hidden border-2 border-slate-900 bg-white shadow-sm" data-testid="mobile-competition-section-nav">
+              {COMPETITION_SECTIONS.map(section => (
+                <button
+                  key={section.key}
+                  type="button"
+                  onClick={() => setActiveSection(section.key)}
+                  className={`min-w-0 border-r border-slate-900 px-0.5 py-3 text-[10px] font-black uppercase leading-tight transition last:border-r-0 ${activeSection === section.key ? 'bg-slate-900 text-[#FFD54A]' : 'bg-white text-slate-900'}`}
+                  data-testid={`mobile-competition-section-tab-${section.key}`}
+                >
+                  {section.label}
+                </button>
+              ))}
+            </div>
+            {COMPETITION_SECTIONS.filter(section => section.key === activeSection).map(section => (
+          <section key={section.key} data-testid={`mobile-competition-section-${section.key}`}>
+            {sectionContests[section.key].length === 0 ? (
+              <div className="border border-slate-200 py-8 text-center text-sm text-slate-500">
+                New {section.label.toLowerCase()} competitions are coming soon.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {sectionContests[section.key].map(contest => (
+                  <CompetitionCard key={contest.contest_id} c={mapContest(contest)} />
+                ))}
+                <div className="flex justify-center pt-2">
+                  <Link to={`/competitions?section=${section.key}`} className="inline-flex h-11 items-center justify-center px-6 rounded-full bg-[#FFD54A] text-slate-900 font-extrabold text-sm shadow">
+                    View all <ChevronRight className="w-4 h-4 ml-1" />
+                  </Link>
+                </div>
+              </div>
+            )}
+          </section>
             ))}
-          </div>
-        )}
-
-        {liveContests.length > 0 && (
-          <div className="flex justify-center pt-6 pb-2">
-            <Link
-              to="/competitions?view=live"
-              className="inline-flex items-center justify-center min-w-[170px] h-11 px-6 rounded-full bg-[#FFD54A] text-slate-900 font-extrabold text-sm shadow"
-              data-testid="mobile-more-live-contests"
-            >
-              More Contests
-              <ChevronRight className="w-4 h-4 ml-1" />
-            </Link>
-          </div>
-        )}
-      </div>
-
-      {/* 3 - FUTURE CONTESTS */}
-      <div className="px-4 pt-8">
-        <h2 className="font-display font-extrabold text-xl text-white mb-3">
-          Future Contests
-        </h2>
-
-        {futureContests.length === 0 ? (
-          <div className="text-center py-10 text-white text-sm">
-            No future contests announced right now.
-          </div>
-        ) : (
-          <div
-            className="space-y-4"
-            data-testid="mobile-future-contest-list"
-          >
-            {futureContests.map(c => (
-              <CompetitionCard
-                key={c.contest_id}
-                c={mapContest(c)}
-              />
-            ))}
-          </div>
-        )}
-
-        {futureContests.length > 0 && (
-          <div className="flex justify-center pt-6 pb-2">
-            <Link
-              to="/competitions?view=future"
-              className="inline-flex items-center justify-center min-w-[170px] h-11 px-6 rounded-full bg-[#FFD54A] text-slate-900 font-extrabold text-sm shadow"
-              data-testid="mobile-more-future-contests"
-            >
-              More Contests
-              <ChevronRight className="w-4 h-4 ml-1" />
-            </Link>
-          </div>
+          </>
         )}
       </div>
 

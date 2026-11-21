@@ -1,7 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Trophy } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { Button } from '../ui/button';
+import { useEffect, useMemo, useState } from 'react';
+import { Trophy, UserRound } from 'lucide-react';
 import { publicAPI } from '../../lib/api';
 import { resolveMediaUrl } from '../../lib/media';
 
@@ -18,40 +16,73 @@ export function relativeTime(value, now = Date.now()) {
   return `${days}day${days === 1 ? '' : 's'} ago`;
 }
 
-export default function WinnersGallery({ title = 'Recent Winners' }) {
+function WinnerCard({ winner, now }) {
+  return (
+    <article className="flex h-24 w-[280px] shrink-0 overflow-hidden border border-slate-200 bg-white">
+      <div className="grid h-24 w-24 shrink-0 place-items-center bg-slate-100 text-slate-400">
+        {winner.image_url ? (
+          <img src={resolveMediaUrl(winner.image_url)} alt={winner.name} className="h-full w-full object-cover" loading="lazy" />
+        ) : (
+          <UserRound className="h-11 w-11" aria-label="Winner photo coming soon" />
+        )}
+      </div>
+      <div className="min-w-0 flex-1 px-3 py-2">
+        <div className="flex items-center gap-1 text-[10px] font-black uppercase text-emerald-700"><Trophy className="h-3 w-3" />{winner.prize}</div>
+        <div className="truncate text-sm font-extrabold text-slate-900">{winner.name}</div>
+        <div className="mt-1 text-xs text-slate-500">{relativeTime(winner.created_at, now)}</div>
+      </div>
+    </article>
+  );
+}
+
+export default function WinnersGallery() {
   const [winners, setWinners] = useState([]);
+  const [totalWinners, setTotalWinners] = useState(0);
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
-    publicAPI.homepageContent().then((data) => setWinners(data.winners || [])).catch(() => setWinners([]));
-    const timer = setInterval(() => setNow(Date.now()), 30000);
-    return () => clearInterval(timer);
+    let active = true;
+    const load = async () => {
+      try {
+        const data = await publicAPI.homepageContent();
+        if (!active) return;
+        setWinners((data.winners || []).slice(0, 100));
+        setTotalWinners(Number(data.total_winners ?? data.winners?.length ?? 0));
+      } catch {
+        if (active) { setWinners([]); setTotalWinners(0); }
+      }
+    };
+    load();
+    const refresh = setInterval(load, 15000);
+    const clock = setInterval(() => setNow(Date.now()), 30000);
+    return () => { active = false; clearInterval(refresh); clearInterval(clock); };
   }, []);
 
-  if (!winners.length) return null;
+  const newestWinner = winners[0]?.winner_id || winners[0]?.content_id || 'none';
+  const loop = useMemo(() => winners.length > 1 ? [...winners, ...winners] : winners, [winners]);
 
   return (
-    <section className="bg-white py-14" data-testid="homepage-winners">
+    <section className="border-y border-slate-200 bg-white py-2" data-testid="homepage-winners">
+      <style>{`
+        @keyframes pl-winners-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+        .pl-winners-track { width: max-content; animation: pl-winners-scroll ${Math.max(35, winners.length * 3)}s linear infinite; }
+        .pl-winners-viewport:hover .pl-winners-track { animation-play-state: paused; }
+        @media (prefers-reduced-motion: reduce) { .pl-winners-track { animation: none; } }
+      `}</style>
       <div className="mx-auto max-w-7xl px-4 lg:px-8">
-        <div className="mb-8 text-center">
-          <span className="text-xs font-semibold uppercase tracking-wider text-orange-600">Real people. Real winners.</span>
-          <h2 className="mt-2 font-display text-3xl font-extrabold text-slate-900 md:text-4xl">{title}</h2>
+        <div className="mb-1 flex items-center justify-between gap-3">
+          <h2 className="text-xs font-black uppercase text-slate-900">Real Winners</h2>
+          <span className="text-[10px] font-bold uppercase text-slate-500">{totalWinners.toLocaleString()} total winners</span>
         </div>
-        <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-3 md:grid md:grid-cols-4 md:overflow-visible" data-testid="homepage-winner-list">
-          {winners.map((winner) => (
-            <article key={winner.content_id} className="group relative min-w-[calc(50%-0.375rem)] snap-start overflow-hidden rounded-lg border border-slate-100 shadow-sm md:min-w-0">
-              <div className="aspect-square overflow-hidden bg-slate-100">
-                <img src={resolveMediaUrl(winner.image_url)} alt={winner.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
-              </div>
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-3 text-white">
-                <div className="mb-1 flex items-center gap-1 text-xs text-amber-300"><Trophy className="h-3 w-3" />{winner.prize}</div>
-                <div className="text-sm font-semibold">{winner.name}</div>
-                <div className="mt-0.5 text-[11px] text-white/75">{relativeTime(winner.created_at, now)}</div>
-              </div>
-            </article>
-          ))}
-        </div>
-        <div className="mt-5 text-center"><Link to="/winners"><Button variant="outline" className="border-orange-500 text-orange-700 hover:bg-orange-50">View All Winners</Button></Link></div>
+        {winners.length > 0 ? (
+          <div className="pl-winners-viewport overflow-hidden" data-testid="homepage-winner-list">
+            <div key={newestWinner} className={`flex gap-2 ${winners.length > 1 ? 'pl-winners-track' : ''}`}>
+              {loop.map((winner, index) => <WinnerCard key={`${winner.winner_id || winner.content_id}-${index}`} winner={winner} now={now} />)}
+            </div>
+          </div>
+        ) : (
+          <div className="py-2 text-center text-xs font-semibold text-slate-400">No verified real-prize winners yet.</div>
+        )}
       </div>
     </section>
   );

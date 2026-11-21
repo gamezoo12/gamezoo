@@ -208,7 +208,134 @@ async def download_draw_report(contest_id: str, draw_id: str, request: Request):
 # =====================================================================
 
 class InstantWinCommit(BaseModel):
-    prizes: list[dict]  # [{ticket_number, rank, amount, description}, ...]
+    prizes: list[dict] = []  # [{ticket_number, rank, amount, bonus_amount, description}, ...]
+
+
+def _instant_prize_tiers(contest: dict) -> list[dict]:
+    tiers = contest.get('instant_prize_tiers') if isinstance(contest.get('instant_prize_tiers'), list) else []
+    normalized = []
+    for index, tier in enumerate(tiers):
+        count = max(0, int(tier.get('count') or 0))
+        amount = round(max(0.0, float(tier.get('amount') or 0)), 2)
+        bonus = round(max(0.0, float(tier.get('bonus_amount') or 0)), 2)
+        if count and (amount > 0 or bonus > 0):
+            normalized.append({
+                'count': count, 'amount': amount, 'bonus_amount': bonus,
+                'description': str(tier.get('description') or f'Instant Win Tier {index + 1}').strip(),
+            })
+    if normalized:
+        return normalized
+    count = max(0, int(contest.get('instant_prize_count') or 0))
+    amount = round(max(0.0, float(contest.get('instant_prize_amount') or 0)), 2)
+    bonus = round(max(0.0, float(contest.get('instant_prize_bonus_amount') or 0)), 2)
+    return [{'count': count, 'amount': amount, 'bonus_amount': bonus, 'description': 'Instant Win'}] if count and (amount > 0 or bonus > 0) else []
+
+
+async def ensure_generated_instant_config(db, contest: dict, actor_email: str = 'system') -> dict:
+    tiers = _instant_prize_tiers(contest)
+    if not contest.get('instant_prize_enabled') or not tiers:
+        return {}
+    existing = await db.instant_win_configs.find_one({'contest_id': contest['contest_id']})
+    if existing:
+        return existing
+    count = sum(int(tier['count']) for tier in tiers)
+    total = int(contest.get('tickets_total') or 0)
+    if count > total:
+        raise HTTPException(400, f'Instant win count ({count}) exceeds total tickets ({total})')
+    numbers = secrets.SystemRandom().sample(range(1, total + 1), count)
+    prizes = []
+    cursor = 0
+    for tier_index, tier in enumerate(tiers):
+        for slot in range(int(tier['count'])):
+            prizes.append({
+                'ticket_number': numbers[cursor],
+                'rank': cursor + 1,
+                'tier_index': tier_index,
+                'amount': tier['amount'],
+                'bonus_amount': tier['bonus_amount'],
+                'description': tier['description'],
+            })
+            cursor += 1
+    prizes.sort(key=lambda prize: prize['ticket_number'])
+    if not any(p['amount'] > 0 or p['bonus_amount'] > 0 for p in prizes):
+        raise HTTPException(400, 'Instant wins require a winning-token or winning-bonus-token amount')
+    plain = json.dumps(prizes, separators=(',', ':')).encode()
+    now = datetime.now(timezone.utc)
+    doc = {
+        'contest_id': contest['contest_id'],
+        'config_hash_sha256': hashlib.sha256(plain).hexdigest(),
+        'num_winning_tickets': count,
+        'tier_summary': [{'description': tier['description'], 'count': tier['count'], 'amount': tier['amount'], 'bonus_amount': tier['bonus_amount']} for tier in tiers],
+        'encrypted_map': _fernet().encrypt(plain).decode(),
+        'committed_by': actor_email,
+        'committed_at': now,
+        'locked': True,
+        'generated': True,
+    }
+    await db.instant_win_configs.insert_one(doc)
+    await db.audit_log.insert_one({
+        'audit_id': f'aud_{uuid.uuid4().hex[:12]}', 'kind': 'instant_win_generated',
+        'admin_email': actor_email, 'contest_id': contest['contest_id'],
+        'config_hash': doc['config_hash_sha256'], 'num_winning_tickets': count, 'at': now,
+    })
+    return doc
+
+
+async def reveal_owned_instant_ticket(db, contest: dict, ticket: dict, user: dict) -> dict:
+    cfg = await db.instant_win_configs.find_one({'contest_id': contest['contest_id']})
+    if not cfg:
+        raise HTTPException(404, 'Instant-win config not committed for this contest')
+    ticket_number = int(ticket['ticket_number'])
+    existing = await db.instant_win_reveals.find_one({'contest_id': contest['contest_id'], 'ticket_number': ticket_number})
+    if existing:
+        existing.pop('_id', None)
+        return existing
+    prizes = {int(p['ticket_number']): p for p in json.loads(_fernet().decrypt(cfg['encrypted_map'].encode()))}
+    prize = prizes.get(ticket_number)
+    now = datetime.now(timezone.utc)
+    reveal = {
+        'reveal_id': f'rev_{uuid.uuid4().hex[:12]}', 'contest_id': contest['contest_id'],
+        'ticket_number': ticket_number, 'ticket_id': ticket.get('ticket_id'),
+        'user_id': user['user_id'], 'user_name': user.get('name') or user.get('username') or 'Winner',
+        'result': 'win' if prize else 'no_prize', 'prize': prize, 'revealed_at': now,
+    }
+    if prize:
+        from routers.wallet_routes import _apply_tx_idempotent
+        amount = round(float(prize.get('amount') or 0), 2)
+        bonus = round(float(prize.get('bonus_amount') or 0), 2)
+        if amount:
+            await _apply_tx_idempotent(db, user['user_id'], 'paid_prize_cash', amount,
+                note=f"Instant win: {contest.get('title')} ticket #{ticket_number}",
+                ref_order_id=f"instant:{contest['contest_id']}:{ticket_number}:winnings")
+        if bonus:
+            await _apply_tx_idempotent(db, user['user_id'], 'paid_prize_bonus', bonus,
+                note=f"Instant winning bonus: {contest.get('title')} ticket #{ticket_number}",
+                ref_order_id=f"instant:{contest['contest_id']}:{ticket_number}:winning_bonus")
+        await db.winners.update_one({'winner_id': f"iw_{contest['contest_id']}_{ticket_number}"}, {'$setOnInsert': {
+            'winner_id': f"iw_{contest['contest_id']}_{ticket_number}", 'contest_id': contest['contest_id'],
+            'ticket_number': ticket_number, 'user_id': user['user_id'], 'user_name': reveal['user_name'],
+            'prize_amount': amount + bonus, 'prize_cash_amount': amount, 'prize_bonus_tokens': bonus,
+            'reward_type': 'mixed' if amount and bonus else 'winning_bonus' if bonus else 'winnings',
+            'prize_title': contest.get('title'), 'source': 'instant_win', 'published': True,
+            'approval_status': 'credited', 'paid_out': True, 'payment_status': 'paid',
+            'credited_at': now, 'drawn_at': now,
+        }}, upsert=True)
+    await db.instant_win_reveals.replace_one(
+        {'contest_id': contest['contest_id'], 'ticket_number': ticket_number}, reveal, upsert=True)
+    revealed = await db.instant_win_reveals.count_documents({'contest_id': contest['contest_id'], 'result': 'win'})
+    if (contest.get('category') == 'instant' and contest.get('instant_close_when_revealed')
+            and revealed >= int(cfg.get('num_winning_tickets') or 0)):
+        await db.contests.update_one({'contest_id': contest['contest_id'], 'status': 'live'},
+                                     {'$set': {'status': 'closed', 'closed_at': now, 'closed_reason': 'all_instant_prizes_revealed'}})
+    return reveal
+
+
+async def reveal_purchased_instant_tickets(db, contest: dict, tickets: list[dict], user: dict) -> list[dict]:
+    if not contest.get('instant_prize_enabled') and contest.get('engine_type') != 'instant_win':
+        return []
+    if not await db.instant_win_configs.find_one({'contest_id': contest['contest_id']}):
+        await ensure_generated_instant_config(db, contest)
+    return [await reveal_owned_instant_ticket(db, contest, ticket, user) for ticket in tickets]
 
 
 @router.post('/instant-win/{contest_id}/commit')
@@ -225,8 +352,11 @@ async def commit_instant_win(contest_id: str, payload: InstantWinCommit, request
     contest = await db.contests.find_one({'contest_id': contest_id}, {'_id': 0})
     if not contest:
         raise HTTPException(404, 'Contest not found')
-    if contest.get('engine_type') != 'instant_win':
-        raise HTTPException(400, "Contest engine_type must be 'instant_win'")
+    if contest.get('engine_type') != 'instant_win' and not contest.get('instant_prize_enabled'):
+        raise HTTPException(400, 'Contest does not have instant-win prizes enabled')
+
+    if not payload.prizes:
+        return await ensure_generated_instant_config(db, contest, admin['email'])
 
     # Cannot commit if any tickets already sold
     tsold = await db.tickets.count_documents({'contest_id': contest_id})
@@ -309,8 +439,8 @@ async def reveal_instant_win(contest_id: str, ticket_number: int, request: Reque
         raise HTTPException(423, 'Instant-win engine is disabled.')
 
     contest = await db.contests.find_one({'contest_id': contest_id}, {'_id': 0})
-    if not contest or contest.get('engine_type') != 'instant_win':
-        raise HTTPException(400, 'Contest is not instant_win')
+    if not contest or (contest.get('engine_type') != 'instant_win' and not contest.get('instant_prize_enabled')):
+        raise HTTPException(400, 'Contest does not have instant-win prizes')
 
     # Ownership check
     ticket = await db.tickets.find_one({
@@ -321,39 +451,37 @@ async def reveal_instant_win(contest_id: str, ticket_number: int, request: Reque
     if not ticket:
         raise HTTPException(404, 'Ticket does not belong to this user')
 
-    # Skill-task completion check
-    played = await db.game_scores.find_one({
-        'contest_id': contest_id,
-        'user_id': user['user_id'],
-        'ticket_number': int(ticket_number),
-    })
-    if not played:
-        raise HTTPException(400, 'Skill task must be completed before revealing')
+    # Skill contests reveal after official gameplay; random-ticket contests reveal after purchase.
+    if (contest.get('entry_mode') or 'skill_game') == 'skill_game':
+        played = await db.game_scores.find_one({
+            'contest_id': contest_id,
+            'user_id': user['user_id'],
+            'ticket_number': int(ticket_number),
+        })
+        if not played:
+            raise HTTPException(400, 'Skill task must be completed before revealing')
 
-    # Idempotent reveal
-    existing = await db.instant_win_reveals.find_one({
-        'contest_id': contest_id, 'ticket_number': int(ticket_number),
-    })
-    if existing:
-        existing.pop('_id', None)
-        return {'result': existing.get('result'), 'prize': existing.get('prize')}
+    result = await reveal_owned_instant_ticket(db, contest, ticket, user)
+    return {'result': result.get('result'), 'prize': result.get('prize')}
 
-    cfg = await db.instant_win_configs.find_one({'contest_id': contest_id})
-    if not cfg:
-        raise HTTPException(404, 'Instant-win config not committed for this contest')
-    plain = _fernet().decrypt(cfg['encrypted_map'].encode())
-    prizes = {int(p['ticket_number']): p for p in json.loads(plain)}
-    prize = prizes.get(int(ticket_number))
 
-    now = datetime.now(timezone.utc)
-    reveal_doc = {
-        'reveal_id': f'rev_{uuid.uuid4().hex[:12]}',
-        'contest_id': contest_id,
-        'ticket_number': int(ticket_number),
-        'user_id': user['user_id'],
-        'result': 'win' if prize else 'no_prize',
-        'prize': prize,
-        'revealed_at': now,
-    }
-    await db.instant_win_reveals.insert_one(reveal_doc)
-    return {'result': reveal_doc['result'], 'prize': reveal_doc['prize']}
+@public_router.get('/instant-win/{contest_id}/status')
+async def instant_win_status(contest_id: str):
+    from deps import get_db
+    db = get_db()
+    contest = await db.contests.find_one({'contest_id': contest_id}, {'_id': 0})
+    if not contest:
+        raise HTTPException(404, 'Contest not found')
+    cfg = await db.instant_win_configs.find_one({'contest_id': contest_id}, {'_id': 0, 'encrypted_map': 0})
+    wins = await db.instant_win_reveals.find({'contest_id': contest_id, 'result': 'win'}, {'_id': 0, 'ticket_number': 1, 'user_name': 1, 'prize': 1, 'revealed_at': 1}).sort('revealed_at', -1).to_list(500)
+    for win in wins:
+        parts = [part for part in str(win.get('user_name') or 'Winner').replace('@', ' ').split() if part]
+        win['user_name'] = parts[0] + (f' {parts[-1][0]}.' if len(parts) > 1 else '') if parts else 'Winner'
+    total = int((cfg or {}).get('num_winning_tickets') or contest.get('instant_prize_count') or 0)
+    revealed_value = sum(float(w.get('prize', {}).get('amount') or 0) + float(w.get('prize', {}).get('bonus_amount') or 0) for w in wins)
+    tiers = _instant_prize_tiers(contest)
+    total_value = sum(int(tier['count']) * (tier['amount'] + tier['bonus_amount']) for tier in tiers)
+    return {'enabled': bool(contest.get('instant_prize_enabled') or contest.get('engine_type') == 'instant_win'),
+            'total': total, 'won': len(wins), 'remaining': max(0, total - len(wins)),
+            'won_value': round(revealed_value, 2), 'remaining_value': round(max(0, total_value - revealed_value), 2),
+            'winners': wins}

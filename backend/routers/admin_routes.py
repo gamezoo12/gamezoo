@@ -1453,7 +1453,7 @@ async def all_contests(request: Request):
         end = c.get('end_date')
         if isinstance(end, datetime) and end.tzinfo is None:
             end = end.replace(tzinfo=timezone.utc)
-        ended = (isinstance(end, datetime) and end <= now) or c.get('status') in ('closed', 'drawn', 'archived', 'closed_no_entries')
+        ended = (c.get('has_time_limit', True) and isinstance(end, datetime) and end <= now) or c.get('status') in ('closed', 'drawn', 'archived', 'closed_no_entries')
         if c.get('status') == 'draft' or not ended:
             c['phase'] = c.get('status')
         elif c['contest_id'] in studio_plans and c['contest_id'] not in studio_done:
@@ -1463,6 +1463,31 @@ async def all_contests(request: Request):
         else:
             c['phase'] = 'awaiting_draw'
     return rows
+
+
+def _normalize_instant_prize_tiers(payload: dict) -> list[dict]:
+    tiers = payload.get('instant_prize_tiers') if isinstance(payload.get('instant_prize_tiers'), list) else []
+    normalized = []
+    for index, tier in enumerate(tiers):
+        count = max(0, int(tier.get('count') or 0))
+        amount = max(0.0, round(float(tier.get('amount') or 0), 2))
+        bonus = max(0.0, round(float(tier.get('bonus_amount') or 0), 2))
+        description = str(tier.get('description') or f'Instant Win Tier {index + 1}').strip()[:120]
+        if not count:
+            continue
+        if amount <= 0 and bonus <= 0:
+            raise HTTPException(status_code=400, detail=f'Instant win tier "{description}" needs Winning Tokens or Winning Bonus Tokens')
+        normalized.append({'count': count, 'amount': amount, 'bonus_amount': bonus, 'description': description})
+    if normalized:
+        if sum(tier['count'] for tier in normalized) > int(payload.get('tickets_total') or 0):
+            raise HTTPException(status_code=400, detail='Instant winning tickets cannot exceed the contest ticket total')
+        return normalized
+    legacy_count = max(0, int(payload.get('instant_prize_count') or 0))
+    legacy_amount = max(0.0, round(float(payload.get('instant_prize_amount') or 0), 2))
+    legacy_bonus = max(0.0, round(float(payload.get('instant_prize_bonus_amount') or 0), 2))
+    if legacy_count and (legacy_amount > 0 or legacy_bonus > 0):
+        return [{'count': legacy_count, 'amount': legacy_amount, 'bonus_amount': legacy_bonus, 'description': 'Instant Win'}]
+    return []
 
 
 @router.post('/contests')
@@ -1503,8 +1528,11 @@ async def create_contest_api(payload: dict, request: Request):
     elif not isinstance(end_date_val, datetime):
         end_date_val = datetime.now(timezone.utc) + timedelta(days=7)
 
-    category = payload.get('category') or 'prize-draws'
-    tag_map = {'jackpot': 'Jackpot', 'instant-wins': 'Instant Wins', 'prize-draws': 'Prize Draws', 'new-games': 'New Game'}
+    category = payload.get('category') or 'mega'
+    tag_map = {
+        'mega': 'Mega', 'instant': 'Instant', 'daily-draws': 'Daily Draws', 'skill': 'Skill',
+        'jackpot': 'Jackpot', 'instant-wins': 'Instant Wins', 'prize-draws': 'Prize Draws', 'new-games': 'New Game',
+    }
     prize_amount = float(payload.get('prize_amount', 100) or 0)
     prize_bonus_tokens = float(payload.get('prize_bonus_tokens') or 0)
     other_prize_value = float(payload.get('other_prize_value') or 0)
@@ -1586,10 +1614,20 @@ async def create_contest_api(payload: dict, request: Request):
         doc['skill_question_type'] = sqt
         doc['skill_question_difficulty'] = sqd or 'easy'
     # Skill-engine fields from the Create dialog (validated like the edit endpoint).
+    instant_tiers = _normalize_instant_prize_tiers(payload)
+    if payload.get('instant_prize_enabled') and not instant_tiers:
+        raise HTTPException(status_code=400, detail='Add at least one instant win tier with a reward')
     for key in ('game_type', 'game_config', 'entry_mode', 'max_attempts', 'attempts_per_ticket',
-                'leaderboard_visibility', 'winner_selection_method', 'engine_type'):
+                'leaderboard_visibility', 'winner_selection_method', 'engine_type',
+                'instant_prize_enabled', 'instant_prize_count', 'instant_prize_amount',
+                'instant_prize_bonus_amount', 'instant_exclude_from_draw',
+                'instant_close_when_revealed', 'has_time_limit'):
         if payload.get(key) is not None:
             doc[key] = payload[key]
+    if instant_tiers or payload.get('instant_prize_enabled'):
+        doc['instant_prize_tiers'] = instant_tiers
+        doc['instant_prize_count'] = sum(tier['count'] for tier in instant_tiers)
+        doc['instant_prize_enabled'] = bool(instant_tiers)
     # Extended detail fields from the Create dialog must persist so Edit shows them.
     for key in ('short_description', 'full_description', 'how_to_enter', 'skill_instructions', 'eligibility',
                 'prize_details', 'prize_values', 'winner_method', 'scoring_method', 'tiebreak_method',
@@ -1651,7 +1689,9 @@ async def update_contest_full(contest_id: str, payload: dict, request: Request):
                'refund_conditions', 'important_info', 'contest_rules',
                'terms_acknowledgement', 'country_restrictions', 'age_restriction',
                'mobile_image', 'seo_title', 'seo_description', 'publication_status',
-               'engine_type', 'free_postal_entry_available', 'free_postal_entry_instructions'}
+               'engine_type', 'instant_prize_enabled', 'instant_prize_tiers', 'instant_prize_count', 'instant_prize_amount',
+               'instant_prize_bonus_amount', 'instant_exclude_from_draw', 'instant_close_when_revealed',
+               'has_time_limit', 'free_postal_entry_available', 'free_postal_entry_instructions'}
     updates = {}
     for k, v in (payload or {}).items():
         if k not in allowed:
@@ -1687,8 +1727,21 @@ async def update_contest_full(contest_id: str, payload: dict, request: Request):
                 updates[k] = int(v)
             except (TypeError, ValueError):
                 continue
-        elif k in {'free_postal_entry_available', 'jackpot', 'featured', 'public_coming_soon'}:
+        elif k in {'free_postal_entry_available', 'jackpot', 'featured', 'public_coming_soon',
+                    'instant_prize_enabled', 'instant_exclude_from_draw', 'instant_close_when_revealed',
+                    'has_time_limit'}:
             updates[k] = bool(v)
+        elif k == 'instant_prize_tiers':
+            current = await db.contests.find_one({'contest_id': contest_id}, {'_id': 0, 'tickets_total': 1}) or {}
+            updates[k] = _normalize_instant_prize_tiers({
+                'instant_prize_tiers': v,
+                'tickets_total': payload.get('tickets_total') or current.get('tickets_total') or 0,
+            })
+            updates['instant_prize_count'] = sum(tier['count'] for tier in updates[k])
+        elif k == 'instant_prize_count':
+            updates[k] = max(0, int(v or 0))
+        elif k in {'instant_prize_amount', 'instant_prize_bonus_amount'}:
+            updates[k] = max(0.0, round(float(v or 0), 2))
         elif k == 'skill_question' and isinstance(v, dict):
             if all(x in v for x in ('q', 'options', 'answer')):
                 updates[k] = {'q': v['q'], 'options': list(v['options']), 'answer': v['answer'], 'type': v.get('type', 'trivia')}
@@ -1702,6 +1755,13 @@ async def update_contest_full(contest_id: str, payload: dict, request: Request):
                 updates[k] = val
         else:
             updates[k] = v
+    instant_keys = {'instant_prize_enabled', 'instant_prize_tiers', 'instant_prize_count', 'instant_prize_amount', 'instant_prize_bonus_amount'}
+    if instant_keys & updates.keys():
+        if await db.tickets.find_one({'contest_id': contest_id}, {'_id': 1}):
+            raise HTTPException(status_code=409, detail='Instant win tiers are locked after ticket sales begin')
+        await db.instant_win_configs.delete_many({'contest_id': contest_id, 'locked': True})
+        await db.instant_win_reveals.delete_many({'contest_id': contest_id})
+
     # Coming Soon must never be live.
     if updates.get('public_coming_soon') is True:
         updates['status'] = 'draft'
@@ -1880,7 +1940,7 @@ async def bulk_launch_contests(request: Request, payload: dict | None = None):
     - status_from='draft'|'live'|'all' (default 'draft')
     Returns count of contests updated.
     """
-    await require_admin(request)
+    admin = await require_admin(request)
     from deps import get_db
     db = get_db()
     payload = payload or {}
@@ -1898,6 +1958,10 @@ async def bulk_launch_contests(request: Request, payload: dict | None = None):
     cat = payload.get('category')
     if cat and cat != 'all':
         q['category'] = cat
+    from routers.engines_routes import ensure_generated_instant_config
+    async for contest in db.contests.find(q, {'_id': 0}):
+        if contest.get('instant_prize_enabled') or contest.get('engine_type') == 'instant_win':
+            await ensure_generated_instant_config(db, contest, admin.get('email') or 'admin')
     r = await db.contests.update_many(q, {'$set': {'status': 'live'}})
     return {'ok': True, 'updated': r.modified_count, 'matched': r.matched_count, 'filter': q}
 
@@ -1940,6 +2004,11 @@ async def launch_contest(contest_id: str, request: Request):
             status_code=409,
             detail='This competition is marked Coming Soon. Remove Coming Soon before launching it.',
         )
+
+    full_contest = await db.contests.find_one({'contest_id': contest_id}, {'_id': 0})
+    if full_contest.get('instant_prize_enabled') or full_contest.get('engine_type') == 'instant_win':
+        from routers.engines_routes import ensure_generated_instant_config
+        await ensure_generated_instant_config(db, full_contest, contest.get('title') or 'admin')
 
     await db.contests.update_one(
         {'contest_id': contest_id},
