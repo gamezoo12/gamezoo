@@ -233,6 +233,8 @@ export const adminAPI = {
   homepageContent: () => api.get('/admin/homepage-content').then(r => r.data),
   addHomepageContent: (data) => api.post('/admin/homepage-content', data).then(r => r.data),
   deleteHomepageContent: (id) => api.delete(`/admin/homepage-content/${encodeURIComponent(id)}`).then(r => r.data),
+  editRecentWinner: (id, data) => api.patch(`/admin/homepage-content/recent-winners/${encodeURIComponent(id)}`, data).then(r => r.data),
+  hideRecentWinner: (id) => api.delete(`/admin/homepage-content/recent-winners/${encodeURIComponent(id)}`).then(r => r.data),
   updateHomepageContentSettings: (data) => api.put('/admin/homepage-content/settings', data).then(r => r.data),
   uploadHomepageImage: (file) => { const fd = new FormData(); fd.append('file', file); return api.post('/admin/uploads/image', fd, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data); },
   tickerWinners: () => api.get('/admin/world/ticker-winners').then(r => r.data),

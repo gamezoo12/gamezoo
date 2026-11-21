@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Trophy, UserRound } from 'lucide-react';
 import { publicAPI } from '../../lib/api';
 import { resolveMediaUrl } from '../../lib/media';
+import { gbp } from '../../lib/format';
 
 export function relativeTime(value, now = Date.now()) {
   const time = new Date(value).getTime();
@@ -38,6 +39,7 @@ function WinnerCard({ winner, now }) {
 export default function WinnersGallery() {
   const [winners, setWinners] = useState([]);
   const [totalWinners, setTotalWinners] = useState(0);
+  const [totalWinningAmount, setTotalWinningAmount] = useState(0);
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -48,8 +50,9 @@ export default function WinnersGallery() {
         if (!active) return;
         setWinners((data.winners || []).slice(0, 100));
         setTotalWinners(Number(data.total_winners ?? data.winners?.length ?? 0));
+        setTotalWinningAmount(Number(data.total_winning_amount || 0));
       } catch {
-        if (active) { setWinners([]); setTotalWinners(0); }
+        if (active) { setWinners([]); setTotalWinners(0); setTotalWinningAmount(0); }
       }
     };
     load();
@@ -70,9 +73,10 @@ export default function WinnersGallery() {
         @media (prefers-reduced-motion: reduce) { .pl-winners-track { animation: none; } }
       `}</style>
       <div className="mx-auto max-w-7xl px-4 lg:px-8">
-        <div className="mb-1 flex items-center justify-between gap-3">
+        <div className="mb-1 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
           <h2 className="text-xs font-black uppercase text-slate-900">Recent Winners</h2>
-          <span className="text-[10px] font-bold uppercase text-slate-500">{totalWinners.toLocaleString()} total winners</span>
+          <span className="text-center text-[10px] font-black uppercase text-emerald-700">{gbp(totalWinningAmount)} won</span>
+          <span className="text-right text-[10px] font-bold uppercase text-slate-500">{totalWinners.toLocaleString()} winners</span>
         </div>
         {winners.length > 0 ? (
           <div className="pl-winners-viewport overflow-hidden" data-testid="homepage-winner-list">

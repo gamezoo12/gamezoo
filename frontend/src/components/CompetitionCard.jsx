@@ -125,15 +125,15 @@ export default function CompetitionCard({ c }) {
             {c.title}
           </h3>
 
-          <div className="mt-1 flex items-center justify-between gap-2">
-            <div className="inline-flex min-w-0 shrink-0 items-center gap-1 font-extrabold">
+          <div className="mt-1 flex flex-wrap items-center justify-between gap-2 sm:flex-nowrap">
+            <div className="inline-flex min-w-0 items-center gap-1 font-extrabold">
               <TokenIcon className="h-5 w-5" />
               <span className="text-base">{tokenPrice(c.price)}</span>
               <span className="max-w-20 text-[8px] font-bold leading-tight text-white/65">1 token = £1.00</span>
             </div>
 
             <div
-              className="grid min-w-0 grid-cols-4 gap-1"
+              className="order-3 grid w-full min-w-0 grid-cols-4 gap-1 sm:order-none sm:w-auto"
               data-testid={`card-timer-${c.slug}`}
             >
               {c.hasTimeLimit === false ? (
@@ -143,7 +143,7 @@ export default function CompetitionCard({ c }) {
               ) : [
                 ['Days', t.days], ['Hrs', t.hours], ['Mins', t.mins], ['Secs', t.secs],
               ].map(([label, value]) => (
-                <div key={label} className="min-w-11 rounded-md bg-black/80 px-1.5 py-1.5 text-center text-[#FFD54A]">
+                <div key={label} className="min-w-0 rounded-md bg-black/80 px-1.5 py-1.5 text-center text-[#FFD54A] sm:min-w-11">
                   <div className="font-display text-xl font-black leading-none">{String(value).padStart(2, '0')}</div>
                   <div className="mt-1 text-[8px] font-bold uppercase leading-none text-white/65">{label}</div>
                 </div>
@@ -152,7 +152,7 @@ export default function CompetitionCard({ c }) {
 
             <div
               data-testid={`card-join-state-${c.slug}`}
-              className={`shrink-0 rounded-sm px-2 py-0.5 text-[9px] font-extrabold ${
+              className={`ml-auto shrink-0 rounded-sm px-2 py-0.5 text-[9px] font-extrabold sm:ml-0 ${
                 isJoined
                   ? 'bg-emerald-500 text-white'
                   : 'bg-[#FFD54A] text-slate-900'

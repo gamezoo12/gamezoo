@@ -3,7 +3,6 @@ import { useSearchParams } from 'react-router-dom';
 import CompetitionCard from '../components/CompetitionCard';
 import { contestsAPI } from '../lib/api';
 import { COMPETITION_SECTIONS, competitionSectionOf } from '../lib/competitionSections';
-import { Sparkles } from 'lucide-react';
 import useSeo from '../hooks/useSeo';
 
 export default function Competitions() {
@@ -30,11 +29,12 @@ export default function Competitions() {
   });
 
   const [contests, setContests] = useState([]);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedSection = searchParams.get('section');
-  const selectedSection = COMPETITION_SECTIONS.some(section => section.key === requestedSection)
+  const activeRequestedSection = COMPETITION_SECTIONS.some(section => section.key === requestedSection)
     ? requestedSection
-    : 'mega';
+    : null;
 
   const selectSection = section => {
     const nextParams = new URLSearchParams(searchParams);
@@ -46,7 +46,8 @@ export default function Competitions() {
     contestsAPI
       .list()
       .then(r => setContests(Array.isArray(r) ? r : (r?.contests || [])))
-      .catch(() => setContests([]));
+      .catch(() => setContests([]))
+      .finally(() => setHasLoaded(true));
   }, []);
 
   const mapped = useMemo(
@@ -77,6 +78,10 @@ export default function Competitions() {
       })),
     [contests]
   );
+
+  const selectedSection = activeRequestedSection || COMPETITION_SECTIONS.find(section =>
+    mapped.some(contest => competitionSectionOf(contest) === section.key)
+  )?.key || 'mega';
 
   const items = useMemo(
     () => mapped.filter(c => competitionSectionOf(c) === selectedSection),
@@ -112,27 +117,11 @@ export default function Competitions() {
             </div>
           ) : (
             <div className="border border-slate-200 bg-white py-10 text-center text-sm text-slate-500">
-              New {section.label.toLowerCase()} competitions are coming soon.
+              {hasLoaded ? `New ${section.label.toLowerCase()} competitions are coming soon.` : 'Loading competitions...'}
             </div>
           )}
         </section>
       ))}
-
-      {items.length === 0 && (
-        <div className="rounded-2xl border border-slate-200 bg-white py-20 text-center">
-
-          <Sparkles className="w-10 h-10 mx-auto text-[#6C2BFF]" />
-
-          <h2 className="mt-4 font-display text-2xl font-extrabold text-slate-900">
-            No matching competitions
-          </h2>
-
-          <p className="mt-2 text-slate-500">
-            New Prize League competitions are being prepared.
-          </p>
-
-        </div>
-      )}
 
     </div>
   );

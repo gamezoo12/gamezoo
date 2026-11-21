@@ -127,13 +127,13 @@ async def _real_homepage_winners(db):
             'content_id': row.get('winner_id'),
             'winner_id': row.get('winner_id'),
             'kind': 'winner',
-            'name': public_name,
-            'prize': _real_prize(row),
+            'name': str(row.get('homepage_name') or public_name),
+            'prize': str(row.get('homepage_prize_label') or _real_prize(row)),
             'image_url': row.get('winner_image_url') or (user.get('profile_image_url') if user.get('profile_image_public') else ''),
             'created_at': row.get('credited_at') or row.get('drawn_at') or row.get('created_at'),
             'contest_id': row.get('contest_id'),
         })
-    total_winners = await db.winners.count_documents({
+    paid_world_total = await db.winners.count_documents({
         'public_hidden': {'$ne': True}, 'quarantined': {'$ne': True}, 'prize_blocked': {'$ne': True},
         '$or': [
             {'paid_out': True},
@@ -148,7 +148,45 @@ async def _real_homepage_winners(db):
             ]},
         ],
     })
-    return winners, max(total_winners, len(rows))
+    paid_world_amount = round(sum(
+        float(row.get('prize_cash_amount') or 0)
+        for row in rows
+    ), 2)
+
+    champion_awards = await db.world_winner_awards.find(
+        {'status': 'paid', 'public_hidden': {'$ne': True}},
+        {'_id': 0, 'user_id': 1, 'user_name': 1, 'rank': 1, 'winning_amount': 1,
+         'global_contest_number': 1, 'paid_at': 1, 'credited_at': 1, 'frozen_at': 1},
+    ).sort([('credited_at', -1), ('paid_at', -1), ('frozen_at', -1)]).to_list(5000)
+    champion_users = {user['user_id']: user async for user in db.users.find(
+        {'user_id': {'$in': list({award.get('user_id') for award in champion_awards if award.get('user_id')})}},
+        {'_id': 0, 'user_id': 1, 'name': 1, 'username': 1, 'profile_image_url': 1, 'profile_image_public': 1},
+    )}
+    champion_winners = []
+    for award in champion_awards:
+        user = champion_users.get(award.get('user_id'), {})
+        raw_name = user.get('name') or award.get('user_name') or user.get('username') or 'Winner'
+        parts = [part for part in str(raw_name).replace('@', ' ').split() if part]
+        public_name = parts[0] + (f' {parts[-1][0]}.' if len(parts) > 1 else '') if parts else 'Winner'
+        amount = round(float(award.get('winning_amount') or 0), 2)
+        champion_winners.append({
+            'content_id': f"world:{award.get('global_contest_number')}:{award.get('user_id')}:{award.get('rank')}",
+            'winner_id': f"world:{award.get('global_contest_number')}:{award.get('user_id')}:{award.get('rank')}",
+            'kind': 'free_world_winner',
+            'name': str(award.get('homepage_name') or public_name),
+            'prize': str(award.get('homepage_prize_label') or f'£{amount:,.2f}'.replace('.00', '')),
+            'prize_amount': amount,
+            'image_url': award.get('winner_image_url') or (user.get('profile_image_url') if user.get('profile_image_public') else ''),
+            'created_at': award.get('credited_at') or award.get('paid_at') or award.get('frozen_at'),
+            'contest_id': f"championship-{award.get('global_contest_number')}",
+        })
+
+    winners.extend(champion_winners)
+    winners.sort(key=_winner_sort_key, reverse=True)
+    winners = winners[:100]
+    total_winners = max(paid_world_total, len(rows)) + len(champion_awards)
+    total_amount = round(paid_world_amount + sum(float(award.get('winning_amount') or 0) for award in champion_awards), 2)
+    return winners, total_winners, total_amount
 
 
 @public_router.get('')
@@ -157,11 +195,12 @@ async def public_homepage_content():
     await _ensure_demo_content(db)
     rows = await db.homepage_content.find({'kind': 'review'}, {'_id': 0}).sort('created_at', -1).to_list(200)
     settings = await db.homepage_content_settings.find_one({'_id': 'app'}, {'_id': 0}) or {}
-    winners, total_winners = await _real_homepage_winners(db)
+    winners, total_winners, total_winning_amount = await _real_homepage_winners(db)
     reviews = [row for row in rows if row.get('kind') == 'review'][:100]
     return {
         'winners': winners,
         'total_winners': total_winners,
+        'total_winning_amount': total_winning_amount,
         'reviews': reviews,
         'review_count': int(settings.get('review_count') or 0),
         'review_rating': float(settings.get('review_rating') or 0),
@@ -173,6 +212,49 @@ async def public_homepage_content():
 async def admin_homepage_content(request: Request):
     await require_admin(request)
     return await public_homepage_content()
+
+
+class RecentWinnerEditIn(BaseModel):
+    name: Optional[str] = Field(default=None, max_length=80)
+    prize: Optional[str] = Field(default=None, max_length=160)
+    image_url: Optional[str] = Field(default=None, max_length=1000)
+
+
+async def _update_recent_winner(db, winner_id: str, values: dict) -> bool:
+    if winner_id.startswith('world:'):
+        _, contest_number, user_id, rank = winner_id.split(':', 3)
+        result = await db.world_winner_awards.update_one(
+            {'global_contest_number': int(contest_number), 'user_id': user_id, 'rank': int(rank), 'status': 'paid'},
+            {'$set': values},
+        )
+        return result.matched_count > 0
+    result = await db.winners.update_one({'winner_id': winner_id}, {'$set': values})
+    return result.matched_count > 0
+
+
+@admin_router.patch('/recent-winners/{winner_id}')
+async def edit_recent_winner(winner_id: str, payload: RecentWinnerEditIn, request: Request):
+    await require_admin(request)
+    values = {}
+    if payload.name is not None:
+        values['homepage_name'] = payload.name.strip()
+    if payload.prize is not None:
+        values['homepage_prize_label'] = payload.prize.strip()
+    if payload.image_url is not None:
+        values['winner_image_url'] = _clean_image_url(payload.image_url)
+    if not values:
+        raise HTTPException(status_code=400, detail='No winner changes supplied')
+    if not await _update_recent_winner(get_db(), winner_id, values):
+        raise HTTPException(status_code=404, detail='Recent winner not found')
+    return {'ok': True, 'winner_id': winner_id}
+
+
+@admin_router.delete('/recent-winners/{winner_id}')
+async def hide_recent_winner(winner_id: str, request: Request):
+    await require_admin(request)
+    if not await _update_recent_winner(get_db(), winner_id, {'public_hidden': True}):
+        raise HTTPException(status_code=404, detail='Recent winner not found')
+    return {'hidden': True, 'winner_id': winner_id}
 
 
 @admin_router.post('')

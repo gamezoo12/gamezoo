@@ -2,10 +2,11 @@ import CountryBadge from '../../components/admin/CountryBadge';
 import { useEffect, useState } from 'react';
 import { adminAPI } from '../../lib/api';
 import { Button } from '../../components/ui/button';
-import { Check, ImagePlus, Trash2 } from 'lucide-react';
+import { Check, ImagePlus, Pencil, Trash2, X } from 'lucide-react';
 import { gbp } from '../../lib/format';
 import { useToast } from '../../hooks/use-toast';
 import { WinnersAllWorlds } from '../../components/admin/WinnersAllWorlds';
+import WinnersApprovals from '../production/WinnersApprovals';
 import { resolveMediaUrl } from '../../lib/media';
 
 function HomepageContentAdmin() {
@@ -15,6 +16,8 @@ function HomepageContentAdmin() {
   const [form, setForm] = useState({ name: '', prize: '', text: '', rating: 5, image_url: '' });
   const [settings, setSettings] = useState({ review_count: 0, review_rating: 5, google_review_url: '' });
   const [uploading, setUploading] = useState(false);
+  const [editingWinner, setEditingWinner] = useState(null);
+  const [winnerDraft, setWinnerDraft] = useState({ name: '', prize: '', image_url: '' });
 
   const load = () => adminAPI.homepageContent().then((next) => {
     setData(next);
@@ -63,9 +66,40 @@ function HomepageContentAdmin() {
     }
   };
 
-  const remove = async (id) => {
-    try { await adminAPI.deleteHomepageContent(id); load(); }
-    catch (error) { toast({ title: 'Could not remove item', description: error?.response?.data?.detail, variant: 'destructive' }); }
+  const remove = async (item) => {
+    const isWinner = item.kind === 'winner' || item.kind === 'free_world_winner';
+    if (!window.confirm(isWinner ? 'Hide this winner from Recent Winners?' : 'Delete this review?')) return;
+    try {
+      if (isWinner) await adminAPI.hideRecentWinner(item.winner_id || item.content_id);
+      else await adminAPI.deleteHomepageContent(item.content_id);
+      load();
+    } catch (error) { toast({ title: isWinner ? 'Could not hide winner' : 'Could not remove review', description: error?.response?.data?.detail, variant: 'destructive' }); }
+  };
+
+  const beginEdit = (item) => {
+    setEditingWinner(item.winner_id || item.content_id);
+    setWinnerDraft({ name: item.name || '', prize: item.prize || '', image_url: item.image_url || '' });
+  };
+
+  const uploadWinnerImage = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const result = await adminAPI.uploadHomepageImage(file);
+      setWinnerDraft(current => ({ ...current, image_url: result.url || '' }));
+    } catch (error) { toast({ title: 'Image upload failed', description: error?.response?.data?.detail, variant: 'destructive' }); }
+    finally { setUploading(false); }
+  };
+
+  const saveWinner = async () => {
+    if (!editingWinner) return;
+    try {
+      await adminAPI.editRecentWinner(editingWinner, winnerDraft);
+      setEditingWinner(null);
+      toast({ title: 'Recent winner updated' });
+      load();
+    } catch (error) { toast({ title: 'Could not update winner', description: error?.response?.data?.detail, variant: 'destructive' }); }
   };
 
   const items = [...(data.winners || []), ...(data.reviews || [])];
@@ -77,7 +111,8 @@ function HomepageContentAdmin() {
           {['winner', 'review'].map((value) => <button key={value} type="button" onClick={() => setKind(value)} className={`rounded-md px-4 py-2 text-sm font-bold ${kind === value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>{value === 'winner' ? 'Winner' : 'Review'}</button>)}
         </div>
       </div>
-      <form onSubmit={add} className="grid gap-3 md:grid-cols-2">
+      {kind === 'winner' && <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">Recent Winners are created automatically from paid-world contests and Free World championships. Use the Edit and image controls on each winner below.</div>}
+      {kind === 'review' && <form onSubmit={add} className="grid gap-3 md:grid-cols-2">
         <input required value={form.name} maxLength={80} onChange={(event) => setForm({ ...form, name: event.target.value })} className="rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder={kind === 'winner' ? 'Winner name' : 'Reviewer name'} data-testid="homepage-content-name" />
         {kind === 'winner' ? <input required value={form.prize} maxLength={160} onChange={(event) => setForm({ ...form, prize: event.target.value })} className="rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Prize won (money or gift)" data-testid="homepage-content-prize" /> : <input required type="number" min="1" max="5" value={form.rating} onChange={(event) => setForm({ ...form, rating: event.target.value })} className="rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Rating 1-5" />}
         {kind === 'review' && <textarea required value={form.text} maxLength={1000} onChange={(event) => setForm({ ...form, text: event.target.value })} className="min-h-24 rounded-lg border border-slate-200 px-3 py-2 text-sm md:col-span-2" placeholder="Review text" data-testid="homepage-content-text" />}
@@ -87,7 +122,7 @@ function HomepageContentAdmin() {
         </label>
         {form.image_url && <img src={resolveMediaUrl(form.image_url)} alt="Upload preview" className="h-28 w-28 rounded-lg object-cover" />}
         <Button type="submit" disabled={uploading} className="bg-[#6C2BFF] hover:bg-[#4A15D9] md:col-span-2">Publish {kind}</Button>
-      </form>
+      </form>}
 
       <form onSubmit={saveSettings} className="mt-5 grid gap-3 border-t border-slate-100 pt-5 md:grid-cols-3">
         <label className="text-xs font-bold text-slate-600">Total Google review count<input type="number" min="0" value={settings.review_count} onChange={(event) => setSettings({ ...settings, review_count: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal" /></label>
@@ -97,11 +132,28 @@ function HomepageContentAdmin() {
       </form>
 
       <div className="mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-        {items.map((item) => <article key={item.content_id} className="flex gap-3 rounded-xl border border-slate-100 p-3">
-          {item.image_url && <img src={resolveMediaUrl(item.image_url)} alt="" className="h-16 w-16 rounded-lg object-cover" />}
-          <div className="min-w-0 flex-1"><div className="flex items-center gap-2 text-xs font-bold uppercase text-[#6C2BFF]">{item.kind}{item.is_demo && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] text-amber-800">Demo</span>}</div><div className="truncate text-sm font-bold">{item.name}</div><div className="line-clamp-2 text-xs text-slate-500">{item.prize || item.text}</div><div className="mt-1 text-[10px] text-slate-400">{new Date(item.created_at).toLocaleString('en-GB')}</div></div>
-          <button type="button" onClick={() => remove(item.content_id)} className="self-start p-1 text-rose-600" title="Remove item"><Trash2 className="h-4 w-4" /></button>
-        </article>)}
+        {items.map((item) => {
+          const winnerId = item.winner_id || item.content_id;
+          const isWinner = item.kind === 'winner' || item.kind === 'free_world_winner';
+          const editing = editingWinner === winnerId;
+          return <article key={item.content_id} className="rounded-xl border border-slate-100 p-3">
+            <div className="flex gap-3">
+              {item.image_url ? <img src={resolveMediaUrl(item.image_url)} alt="" className="h-16 w-16 rounded-lg object-cover" /> : <div className="grid h-16 w-16 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-400"><ImagePlus className="h-5 w-5" /></div>}
+              <div className="min-w-0 flex-1"><div className="flex items-center gap-2 text-xs font-bold uppercase text-[#6C2BFF]">{isWinner ? (item.kind === 'free_world_winner' ? 'Free World winner' : 'Paid winner') : 'Review'}{item.is_demo && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] text-amber-800">Demo</span>}</div><div className="truncate text-sm font-bold">{item.name}</div><div className="line-clamp-2 text-xs text-slate-500">{item.prize || item.text}</div><div className="mt-1 text-[10px] text-slate-400">{new Date(item.created_at).toLocaleString('en-GB')}</div></div>
+              <div className="flex flex-col gap-1">
+                {isWinner && <button type="button" onClick={() => editing ? setEditingWinner(null) : beginEdit(item)} className="p-1 text-slate-600" title={editing ? 'Cancel edit' : 'Edit winner'}>{editing ? <X className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}</button>}
+                <button type="button" onClick={() => remove(item)} className="self-start p-1 text-rose-600" title={isWinner ? 'Hide winner' : 'Delete review'}><Trash2 className="h-4 w-4" /></button>
+              </div>
+            </div>
+            {editing && <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3">
+              <input value={winnerDraft.name} maxLength={80} onChange={event => setWinnerDraft(current => ({ ...current, name: event.target.value }))} className="rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Display name" />
+              <input value={winnerDraft.prize} maxLength={160} onChange={event => setWinnerDraft(current => ({ ...current, prize: event.target.value }))} className="rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Displayed prize" />
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 p-2 text-xs font-bold text-slate-600"><ImagePlus className="h-4 w-4" />{uploading ? 'Uploading...' : 'Upload or replace image'}<input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={uploadWinnerImage} /></label>
+              {winnerDraft.image_url && <img src={resolveMediaUrl(winnerDraft.image_url)} alt="Winner preview" className="h-24 w-full rounded-lg object-contain bg-slate-50" />}
+              <div className="flex gap-2"><Button type="button" size="sm" onClick={saveWinner} disabled={uploading} className="bg-[#6C2BFF] hover:bg-[#4A15D9]">Save changes</Button><Button type="button" size="sm" variant="outline" onClick={() => setEditingWinner(null)}>Cancel</Button></div>
+            </div>}
+          </article>;
+        })}
       </div>
     </section>
   );
@@ -139,6 +191,7 @@ export default function WinnersAdmin() {
 
   return (
     <div className="space-y-4">
+      <WinnersApprovals />
       <HomepageContentAdmin />
       <div className="bg-white rounded-2xl border border-slate-100 p-4" data-testid="ticker-winners-admin">
         <h3 className="font-display font-bold mb-3">Announcement ticker winners ({ticker.length})</h3>
