@@ -142,7 +142,13 @@ function Approvals() {
   useEffect(() => { load(); }, [load]);
 
   const completed = (data.winners || []).filter(winner => ['closed', 'drawn', 'archived', 'closed_no_entries'].includes(winner.contest_status));
-  const sectionWinners = completed.filter(winner => competitionSectionOf({ category: winner.contest_category }) === activeSection);
+  const sectionWinners = completed.filter(winner => competitionSectionOf({
+    category: winner.contest_category,
+    engine_type: winner.contest_engine_type,
+    game_type: winner.contest_game_type,
+    jackpot: winner.contest_jackpot,
+    featured: winner.contest_featured,
+  }) === activeSection);
   const contests = [...new Map(sectionWinners.map(winner => [winner.contest_id, {
     contest_id: winner.contest_id,
     title: winner.contest_title || winner.contest_id,

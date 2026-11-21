@@ -26,41 +26,52 @@ export default function ShareMenu({ path, title, subtitle, imageUrl, imageRender
         await recordShare('copy');
         toast.success('Link copied');
       } else {
-        const rendered = imageRenderer
-          ? await imageRenderer()
-          : imageUrl && !rows?.length
-            ? await fetchShareImage(imageUrl)
-            : await renderShareImages({ title, subtitle, imageUrl, rows, maxRows });
-        const blobs = Array.isArray(rendered) ? rendered : [rendered];
-        if (!blobs.length || blobs.some((blob) => !(blob instanceof Blob))) throw new Error('Image creation is unavailable.');
+        const url = sharedUrl(path, await referralCodeFor(user));
+        let blobs = [];
+        try {
+          const rendered = imageRenderer
+            ? await imageRenderer()
+            : imageUrl && !rows?.length
+              ? await fetchShareImage(imageUrl)
+              : await renderShareImages({ title, subtitle, imageUrl, rows, maxRows });
+          blobs = (Array.isArray(rendered) ? rendered : [rendered]).filter(blob => blob instanceof Blob);
+        } catch {
+          blobs = [];
+        }
         const files = blobs.map((blob, index) => new File([blob], `contest-${index + 1}.${blob.type.split('/')[1]?.replace('jpeg', 'jpg') || 'png'}`, { type: blob.type }));
         const saveImages = () => blobs.forEach((blob, index) => downloadShareImage(blob, `contest-${index + 1}.${blob.type.split('/')[1]?.replace('jpeg', 'jpg') || 'png'}`));
+
         if (action === 'download') {
+          if (!blobs.length) {
+            try { await navigator.clipboard.writeText(url); } catch { /* clipboard may be unavailable */ }
+            toast.message('The image host blocked downloads. Contest link copied instead.');
+            return;
+          }
           saveImages();
           toast.success(imageUrl && !rows?.length ? 'Contest image saved' : '4K image saved');
           return;
         }
 
-        const url = sharedUrl(path, await referralCodeFor(user));
-        if (navigator.canShare?.({ files }) && navigator.share) {
-          await navigator.share({ files, title, text: `${text}\n${url}`, url });
-          await recordShare(action === 'share' ? 'native' : action);
+        if (action === 'share' && navigator.share) {
+          const filePayload = files.length && navigator.canShare?.({ files }) ? { files } : {};
+          await navigator.share({ ...filePayload, title, text: `${text}\n${url}`, url });
+          await recordShare('native');
+        } else if (action === 'whatsapp') {
+          window.open(`https://wa.me/?text=${encodeURIComponent(`${text}\n${url}`)}`, '_blank', 'noopener,noreferrer');
+          toast.success('Contest link ready to share on WhatsApp');
+          await recordShare('whatsapp');
+        } else if (action === 'facebook') {
+          window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank', 'noopener,noreferrer');
+          toast.success('Contest link ready to share on Facebook');
+          await recordShare('facebook');
+        } else if (action === 'instagram') {
+          try { await navigator.clipboard.writeText(url); } catch { /* clipboard may be unavailable */ }
+          toast.success('Contest link copied for Instagram');
+          await recordShare('instagram');
         } else {
-          saveImages();
-          if (action === 'whatsapp') {
-            window.open(`https://wa.me/?text=${encodeURIComponent(`${text}\n${url}`)}`, '_blank', 'noopener,noreferrer');
-            toast.message('4K image saved. Attach it to your WhatsApp message; the referral link is included in the text.');
-          } else if (action === 'facebook') {
-            window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank', 'noopener,noreferrer');
-            toast.message('4K image saved. Add it to your Facebook post; the referral link is ready to share.');
-          } else if (action === 'instagram') {
-            try { await navigator.clipboard.writeText(url); } catch { /* clipboard may be unavailable */ }
-            toast.message('4K image saved. Add it to Instagram and include the copied referral link.');
-          } else {
-            try { await navigator.clipboard.writeText(url); } catch { /* clipboard may be unavailable */ }
-            toast.message('4K image saved and referral link copied.');
-          }
-          await recordShare(action === 'share' ? 'native' : action);
+          try { await navigator.clipboard.writeText(url); } catch { /* clipboard may be unavailable */ }
+          toast.success('Contest link copied');
+          await recordShare('native');
         }
       }
     } catch (error) {

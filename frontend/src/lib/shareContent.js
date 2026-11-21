@@ -21,7 +21,7 @@ export async function referralCodeFor(user) {
     const request = referralAPI.me().then((data) => {
       if (!data?.code) throw new Error('Referral link unavailable');
       return data.code;
-    }).catch((error) => { referralRequests.delete(user.user_id); throw error; });
+    }).catch(() => { referralRequests.delete(user.user_id); return ''; });
     referralRequests.set(user.user_id, request);
   }
   return referralRequests.get(user.user_id);

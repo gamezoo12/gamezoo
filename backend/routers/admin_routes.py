@@ -1756,7 +1756,24 @@ async def update_contest_full(contest_id: str, payload: dict, request: Request):
         else:
             updates[k] = v
     instant_keys = {'instant_prize_enabled', 'instant_prize_tiers', 'instant_prize_count', 'instant_prize_amount', 'instant_prize_bonus_amount'}
+    instant_changed = False
     if instant_keys & updates.keys():
+        current = await db.contests.find_one({'contest_id': contest_id}, {'_id': 0, **{key: 1 for key in instant_keys}}) or {}
+        for key in instant_keys & updates.keys():
+            old_value = current.get(key)
+            new_value = updates[key]
+            if key == 'instant_prize_tiers':
+                if (old_value or []) != (new_value or []):
+                    instant_changed = True
+                    break
+            elif key == 'instant_prize_enabled':
+                if bool(old_value) != bool(new_value):
+                    instant_changed = True
+                    break
+            elif float(old_value or 0) != float(new_value or 0):
+                instant_changed = True
+                break
+    if instant_changed:
         if await db.tickets.find_one({'contest_id': contest_id}, {'_id': 1}):
             raise HTTPException(status_code=409, detail='Instant win tiers are locked after ticket sales begin')
         await db.instant_win_configs.delete_many({'contest_id': contest_id, 'locked': True})

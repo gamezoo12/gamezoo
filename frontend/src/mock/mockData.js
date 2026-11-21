@@ -52,7 +52,7 @@ export const NAV_LINKS = [
 ];
 
 export const CATEGORIES = [
-  { slug: 'mega', label: 'Mega Pool' },
+  { slug: 'mega', label: 'Mega Draws' },
   { slug: 'instant', label: 'Instant Wins' },
   { slug: 'daily-draws', label: 'Daily Draw' },
   { slug: 'skill', label: 'Skill Contests' },

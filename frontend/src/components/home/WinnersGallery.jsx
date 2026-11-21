@@ -71,7 +71,7 @@ export default function WinnersGallery() {
       `}</style>
       <div className="mx-auto max-w-7xl px-4 lg:px-8">
         <div className="mb-1 flex items-center justify-between gap-3">
-          <h2 className="text-xs font-black uppercase text-slate-900">Real Winners</h2>
+          <h2 className="text-xs font-black uppercase text-slate-900">Recent Winners</h2>
           <span className="text-[10px] font-bold uppercase text-slate-500">{totalWinners.toLocaleString()} total winners</span>
         </div>
         {winners.length > 0 ? (

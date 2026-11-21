@@ -12,7 +12,7 @@ import { useToast } from '../hooks/use-toast';
 import { Upload, X, Loader2, Plus, Trash2 } from 'lucide-react';
 import { GamePicker } from './admin/GamePicker';
 import { DIFFICULTY_LEVELS } from '../lib/difficulty';
-import { COMPETITION_SECTIONS } from '../lib/competitionSections';
+import { COMPETITION_SECTIONS, competitionSectionOf } from '../lib/competitionSections';
 import { GamePreviewDialog } from './games/GamePreviewDialog';
 
 
@@ -122,10 +122,15 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
     const inferredType = current.prize_type || (current.other_prize_description ? 'other'
       : Number(current.prize_amount || 0) && Number(current.prize_bonus_tokens || 0) ? 'mixed'
         : Number(current.prize_bonus_tokens || 0) ? 'bonus' : 'cash');
+    const legacyInstant = current.instant_prize_enabled === undefined && (current.category === 'instant' || current.engine_type === 'instant_win');
+    const instantEnabled = current.instant_prize_enabled === true || legacyInstant;
+    const normalizedCategory = competitionSectionOf(current);
     setForm({
       ...current,
+      category: normalizedCategory,
+      engine_type: normalizedCategory === 'skill' ? 'leaderboard' : normalizedCategory === 'instant' ? 'instant_win' : 'random_draw',
       prize_type: inferredType,
-      instant_prize_enabled: current.category === 'instant' || current.engine_type === 'instant_win' || !!current.instant_prize_enabled,
+      instant_prize_enabled: instantEnabled,
       instant_prize_tiers: current.instant_prize_tiers?.length
         ? current.instant_prize_tiers
         : [{
@@ -862,7 +867,7 @@ export default function EditContestDialog({ contest, open, onClose, onSaved, mod
                         ...current,
                         category: section.key,
                         engine_type: engine,
-                        instant_prize_enabled: section.key === 'instant' ? true : current.instant_prize_enabled,
+                        instant_prize_enabled: section.key === 'instant' ? true : (section.key === 'mega' && current.category === 'mega' ? !!current.instant_prize_enabled : false),
                         instant_close_when_revealed: section.key === 'instant' ? true : false,
                         entry_mode: engine === 'leaderboard' ? 'skill_game' : 'random_tickets',
                       }));

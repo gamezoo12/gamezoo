@@ -100,13 +100,18 @@ async def admin_winners(request: Request, status: str = "all", kind: Literal["al
     contest_ids = list({w.get("contest_id") for w in rows if w.get("contest_id")})
     contests = {c["contest_id"]: c async for c in get_db().contests.find(
         {"contest_id": {"$in": contest_ids}},
-        {"_id": 0, "contest_id": 1, "category": 1, "status": 1, "title": 1, "image": 1},
+        {"_id": 0, "contest_id": 1, "category": 1, "status": 1, "title": 1, "image": 1,
+         "jackpot": 1, "featured": 1, "engine_type": 1, "game_type": 1},
     )}
     for w in rows:
         contest = contests.get(w.get("contest_id"), {})
         w["kind"] = "draw" if w.get("source") == "draw_studio" or w.get("source") == "instant_win" else "leaderboard"
         w["public_visible"] = not w.get("public_hidden")
         w["contest_category"] = contest.get("category") or "skill"
+        w["contest_engine_type"] = contest.get("engine_type")
+        w["contest_game_type"] = contest.get("game_type")
+        w["contest_jackpot"] = bool(contest.get("jackpot"))
+        w["contest_featured"] = bool(contest.get("featured"))
         w["contest_status"] = contest.get("status") or "closed"
         w["contest_image"] = contest.get("image")
     rows = [w for w in rows if kind == "all" or w["kind"] == kind]
