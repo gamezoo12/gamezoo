@@ -94,7 +94,7 @@ export default function Competitions() {
   }));
 
   return (
-    <div className="max-w-7xl mx-auto px-4 lg:px-8 py-4">
+    <div className="max-w-7xl min-w-0 mx-auto px-2 sm:px-4 lg:px-8 py-3">
       <div className="grid grid-cols-4 overflow-hidden border-2 border-slate-900 bg-white shadow-sm mb-4" data-testid="competition-section-nav">
         {COMPETITION_SECTIONS.map(section => (
           <button
@@ -112,7 +112,7 @@ export default function Competitions() {
       {sections.filter(section => section.key === selectedSection).map(section => (
         <section key={section.key} className="mb-4" data-testid={`competition-section-${section.key}`}>
           {section.items.length > 0 ? (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4">
               {section.items.map(contest => <CompetitionCard key={contest.id} c={contest} />)}
             </div>
           ) : (
