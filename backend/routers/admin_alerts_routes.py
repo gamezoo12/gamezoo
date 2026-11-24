@@ -12,7 +12,8 @@ import uuid
 from datetime import datetime, timezone
 from urllib.error import HTTPError, URLError
 from urllib.request import Request as URLRequest, urlopen
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
+from base64 import b64encode
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 from pydantic import BaseModel, Field
@@ -25,7 +26,7 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix='/api/admin/users/alerts', tags=['admin-alerts'])
 PUBLIC_ROUTER = APIRouter(prefix='/api/marketing', tags=['marketing'])
 SENDGRID_URL = 'https://api.sendgrid.com/v3/mail/send'
-CHANNELS = {'email', 'in_app', 'sms', 'web_push', 'native_push'}
+CHANNELS = {'email', 'in_app', 'sms', 'whatsapp', 'web_push', 'native_push'}
 MAX_RECIPIENTS = 10000
 RUNNING = set()
 
@@ -116,6 +117,34 @@ def _sendgrid_sync(to, subject, body, action_url, action_label, unsubscribe_url)
         return False, f'SendGrid connection error: {type(exc).__name__}'
 
 
+def _send_whatsapp_sync(to, title, body):
+    account_sid = os.getenv('TWILIO_ACCOUNT_SID', '').strip()
+    auth_token = os.getenv('TWILIO_AUTH_TOKEN', '').strip()
+    sender = os.getenv('TWILIO_WHATSAPP_FROM', '').strip()
+    if not account_sid or not auth_token or not sender:
+        return False, 'WhatsApp provider is not configured'
+    destination = str(to or '').strip()
+    if not re.fullmatch(r'\+[1-9]\d{7,14}', destination):
+        return False, 'Missing or invalid phone number'
+    if not sender.startswith('whatsapp:'):
+        sender = f'whatsapp:{sender}'
+    form = urlencode({'From': sender, 'To': f'whatsapp:{destination}', 'Body': f'{title}\n\n{body}'[:1600]}).encode()
+    credentials = b64encode(f'{account_sid}:{auth_token}'.encode()).decode()
+    request = URLRequest(
+        f'https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json',
+        data=form,
+        method='POST',
+        headers={'Authorization': f'Basic {credentials}', 'Content-Type': 'application/x-www-form-urlencoded'},
+    )
+    try:
+        with urlopen(request, timeout=20) as response:
+            return 200 <= response.status < 300, f'WhatsApp provider accepted ({response.status})'
+    except HTTPError as exc:
+        return False, f'WhatsApp provider HTTP {exc.code}'
+    except (URLError, TimeoutError, OSError) as exc:
+        return False, f'WhatsApp connection error: {type(exc).__name__}'
+
+
 def _safe_action_url(value):
     url = str(value or '').strip()
     parsed = urlparse(url)
@@ -137,7 +166,7 @@ class CampaignInput(BaseModel):
     action_url: str = Field(default='https://prizeleague.co.uk/', min_length=8, max_length=2000)
     action_label: str = Field(default='View offer', min_length=1, max_length=80)
     alert_type: str = 'custom'
-    channels: list[Literal['email', 'sms', 'in_app', 'web_push', 'native_push']] = Field(min_length=1, max_length=5)
+    channels: list[Literal['email', 'sms', 'whatsapp', 'in_app', 'web_push', 'native_push']] = Field(min_length=1, max_length=6)
     audience: Audience = Field(default_factory=Audience)
     user_from: int = Field(default=1, ge=1)
     user_to: int = Field(default=1000, ge=1)
@@ -231,6 +260,14 @@ async def _process(campaign_id):
                         marketing=d.get('alert_type') in ('promotion', 'newsletter'),
                     )
                     status, reason = result['status'], result.get('reason', '')
+                elif d['channel'] == 'whatsapp':
+                    if u.get('whatsapp_consent') is not True:
+                        status, reason = 'skipped', 'No active WhatsApp marketing consent'
+                    elif u.get('phone_verified') is not True:
+                        status, reason = 'skipped', 'Phone number is not verified'
+                    else:
+                        sent, reason = await asyncio.to_thread(_send_whatsapp_sync, u.get('phone'), d['title'], d['message'])
+                        status = 'sent' if sent else 'failed'
                 elif d['channel'] == 'native_push':
                     status, reason = 'skipped', 'Native Push provider is not configured'
                 else:

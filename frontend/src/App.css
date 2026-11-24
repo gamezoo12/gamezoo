@@ -1,5 +1,52 @@
 .App { min-height: 100vh; }
 
+/* Active games own the full viewport and never show site chrome or document scrolling. */
+html.pl-gameplay-isolated,
+body.pl-gameplay-isolated {
+  width: 100%;
+  height: 100%;
+  overflow: hidden !important;
+}
+body.pl-gameplay-isolated [data-testid="site-header"],
+body.pl-gameplay-isolated [data-testid="fixed-header-spacer"],
+body.pl-gameplay-isolated [data-testid="support-resources"],
+body.pl-gameplay-isolated .pl-support-launcher,
+body.pl-gameplay-isolated .pl-support-panel,
+body.pl-gameplay-isolated .pl-support-widget,
+body.pl-gameplay-isolated [data-testid="promotion-popup"],
+body.pl-gameplay-isolated [data-testid="promotion-floating-badge"],
+body.pl-gameplay-isolated footer {
+  display: none !important;
+}
+body.pl-gameplay-isolated::-webkit-scrollbar,
+html.pl-gameplay-isolated::-webkit-scrollbar {
+  display: none;
+}
+.pl-official-game-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 10040;
+  width: 100vw;
+  height: 100dvh;
+  overflow: hidden;
+  background: #f8fafc;
+  padding: 0 !important;
+}
+.pl-official-game-fullscreen > *:not([data-testid="official-game"]):not([data-testid="practice-mode"]):not(.bg-slate-950):not(.fixed) {
+  display: none !important;
+}
+.pl-official-game-fullscreen > [data-testid="official-game"],
+.pl-official-game-fullscreen > [data-testid="practice-mode"],
+.pl-official-game-fullscreen > .bg-slate-950 {
+  width: 100%;
+  height: 100%;
+  min-height: 100dvh;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  overflow: auto;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: #f8fafc; }

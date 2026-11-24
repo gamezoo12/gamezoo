@@ -2259,7 +2259,7 @@ function AlertsAdminContent() {
     if (!window.confirm(confirmText)) return;
     setLoading(true);
     try {
-      const shouldIncludeWebsite = form.channels.some(channel => channel === 'email' || channel === 'sms');
+      const shouldIncludeWebsite = form.channels.some(channel => ['email', 'sms', 'whatsapp'].includes(channel));
       const messageWithWebsite = shouldIncludeWebsite && !form.message.includes(PRIZE_LEAGUE_URL)
         ? `${form.message.trim()}\n\nPlay now: ${PRIZE_LEAGUE_URL}`
         : form.message;
@@ -2514,7 +2514,7 @@ function AlertsAdminContent() {
         <div>
           <div className="mb-2 text-sm font-semibold text-slate-700">Channels</div>
           <div className="flex flex-wrap gap-2">
-                                    {[['in_app','In-App'],['email','Email'],['sms','SMS'],['web_push','Web Push'],['native_push','Native Push']].map(([v,l]) => (
+                                    {[['in_app','In-App'],['email','Email'],['sms','SMS'],['whatsapp','WhatsApp'],['web_push','Web Push'],['native_push','Native Push']].map(([v,l]) => (
               <button key={v} type="button" onClick={() => toggleChannel(v)} className={`rounded-full border px-4 py-2 text-sm font-semibold ${form.channels.includes(v) ? 'border-[#6C2BFF] bg-[#6C2BFF] text-white' : 'border-slate-300 bg-white text-slate-700'}`}>{l}</button>
             ))}
           </div>
@@ -2600,7 +2600,7 @@ function AlertsAdminContent() {
               <option value="">All statuses</option><option value="sent">Sent</option><option value="pending">Pending</option><option value="skipped">Skipped</option><option value="failed">Failed</option>
             </select>
             <select value={filter.channel} onChange={e => setFilter({...filter,channel:e.target.value})} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
-              <option value="">All channels</option><option value="in_app">In-App</option><option value="email">Email</option><option value="sms">SMS</option><option value="web_push">Web Push</option><option value="native_push">Native Push</option>
+              <option value="">All channels</option><option value="in_app">In-App</option><option value="email">Email</option><option value="sms">SMS</option><option value="whatsapp">WhatsApp</option><option value="web_push">Web Push</option><option value="native_push">Native Push</option>
             </select>
             <button onClick={refreshDeliveries} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Apply</button>
           </div>

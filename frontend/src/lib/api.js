@@ -131,6 +131,7 @@ export const ordersAPI = {
   myTickets: (limit = 200) => api.get(`/orders/my-tickets?limit=${limit}`).then(r => r.data),
   myGames: () => api.get('/orders/my-games').then(r => r.data),
   myJoinedContestIds: () => api.get('/orders/my-joined-contest-ids').then(r => r.data?.contest_ids || []),
+  ticketAvailability: (contestId) => api.get(`/orders/ticket-availability/${encodeURIComponent(contestId)}`).then(r => r.data),
 };
 
 export const publicAPI = {
@@ -229,6 +230,7 @@ export const adminAPI = {
   overrideFreeWorldLeaderboardTime: (scoreId, payload) => api.put(`/admin/leaderboards/free-world/${encodeURIComponent(scoreId)}/time`, payload).then(r => r.data),
   updateContest: (id, data) => api.put(`/admin/contests/${id}`, data).then(r => r.data),
   createContest: (data) => api.post('/admin/contests', data).then(r => r.data),
+  duplicateContest: (id) => api.post(`/admin/contests/${encodeURIComponent(id)}/duplicate`).then(r => r.data),
   winners: () => api.get('/admin/winners').then(r => r.data),
   homepageContent: () => api.get('/admin/homepage-content').then(r => r.data),
   addHomepageContent: (data) => api.post('/admin/homepage-content', data).then(r => r.data),
@@ -621,7 +623,12 @@ export const worldAdminAPI = {
   setUiTheme: (themeId) => api.put('/admin/world/ui-theme', { theme_id: themeId }).then(r => r.data),
   setBoardStyle: (data) => api.put('/admin/world/board-style', data).then(r => r.data),
   setSoundPack: (packId) => api.put('/admin/world/sound-pack', { pack_id: packId }).then(r => r.data),
+  selectionImages: () => api.get('/admin/world/selection-images').then(r => r.data),
+  setSelectionImages: (data) => api.put('/admin/world/selection-images', data).then(r => r.data),
+  demoSettings: () => api.get('/admin/world/demo-settings').then(r => r.data),
+  setDemoSettings: (data) => api.put('/admin/world/demo-settings', data).then(r => r.data),
   setChampionAttemptRules: (data) => api.put('/admin/world/champion-attempt-rules', data).then(r => r.data),
+
 
   setStageLevelConfig: (data) =>
     api.put('/admin/world/stage-level-config', data).then(r => r.data),
@@ -745,6 +752,7 @@ export const worldGcCompetitionAdminAPI = {
 };
 
 export const worldAPI = {
+  demoSettings: () => api.get('/world/public/demo-settings').then(r => r.data),
   mapTheme: () => api.get('/world/public/map-theme').then(r => r.data),
   avatarCatalog: () => api.get('/world/public/avatar-catalog').then(r => r.data),
   purchaseAvatar: (avatarId) => api.post(`/world/avatars/${encodeURIComponent(avatarId)}/purchase`).then(r => r.data),
@@ -769,6 +777,9 @@ export const worldAPI = {
       '/world/session/start',
       { level },
     ).then(r => r.data),
+
+  claimDemo: (level, gameId, championStage = 0) =>
+    api.post('/world/demo/claim', { level, game_id: gameId, champion_stage: championStage }).then(r => r.data),
 
   beginSession: (session_id) =>
     api.post(

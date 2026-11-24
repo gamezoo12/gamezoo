@@ -443,6 +443,29 @@ async def my_orders(request: Request, limit: int = 50):
     return orders
 
 
+@router.get('/ticket-availability/{contest_id}')
+async def ticket_availability(contest_id: str, request: Request):
+    """Return the exact quantity this user can currently add."""
+    user = await get_current_user(request)
+    db = get_db()
+    contest = await db.contests.find_one({'contest_id': contest_id}, {'_id': 0})
+    if not contest:
+        raise HTTPException(status_code=404, detail='Contest not found')
+    owned = await db.tickets.count_documents({'contest_id': contest_id, 'user_id': user['user_id']})
+    inventory = max(0, int(contest.get('tickets_total') or 0) - int(contest.get('tickets_sold') or 0))
+    configured_limit = int(contest.get('max_tickets_per_user') or 0)
+    user_remaining = max(0, configured_limit - owned) if configured_limit > 0 else 500
+    can_add = min(500, inventory, user_remaining)
+    return {
+        'contest_id': contest_id,
+        'owned': owned,
+        'inventory_remaining': inventory,
+        'max_tickets_per_user': configured_limit or None,
+        'user_remaining': user_remaining,
+        'can_add': can_add,
+    }
+
+
 @router.get('/my-joined-contest-ids')
 async def my_joined_contest_ids(request: Request):
     """Distinct contest_ids the current user holds a ticket for.

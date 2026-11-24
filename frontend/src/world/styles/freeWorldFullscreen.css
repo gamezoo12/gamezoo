@@ -1,4 +1,21 @@
 /* Shared full-screen Free World game experience (all GAME_MAP games). */
+.fwv3-overlay,
+.fwv3-fullscreen-game {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 10045 !important;
+  width: 100vw;
+  height: 100dvh;
+  overflow: auto;
+  background: #fff;
+}
+.fwv3-overlay .fwv3-card {
+  width: 100% !important;
+  max-width: none !important;
+  min-height: 100dvh;
+  margin: 0 !important;
+  box-sizing: border-box;
+}
 @media (max-width: 760px) {
   .fwv3-overlay {
     inset: 0 !important;

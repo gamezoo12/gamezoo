@@ -267,7 +267,8 @@ async def start_game_session(inp: StartGameSessionInput, request: Request):
     )
     if active and active.get('started_at'):
         if (now - active['started_at']).total_seconds() <= 1800:
-            return {'session_id': active['session_id'], 'started_at': active['started_at'].isoformat(), 'game_type': game_type, 'resumed': True}
+            return {'session_id': active['session_id'], 'started_at': active['started_at'].isoformat(), 'game_type': game_type,
+                    'attempt_seed': active.get('attempt_seed') or secrets.randbits(48), 'resumed': True}
         await db.game_attempt_sessions.update_one({'session_id': active['session_id'], 'status': 'started'},
                                                   {'$set': {'status': 'expired', 'completed_at': now}})
     prior_ticket = await db.game_scores.count_documents({
@@ -279,6 +280,7 @@ async def start_game_session(inp: StartGameSessionInput, request: Request):
     session = {
         'session_id': f'GAS-{secrets.token_hex(16).upper()}', 'ticket_id': inp.ticket_id,
         'contest_id': contest['contest_id'], 'user_id': user['user_id'], 'game_type': game_type,
+        'attempt_seed': secrets.randbits(48),
         'status': 'started', 'started_at': now, 'created_at': now,
     }
     try:
@@ -290,7 +292,7 @@ async def start_game_session(inp: StartGameSessionInput, request: Request):
         if not active:
             raise HTTPException(status_code=409, detail='Another attempt is being started. Please retry.')
         session = active
-    return {'session_id': session['session_id'], 'started_at': session['started_at'].isoformat(), 'game_type': game_type, 'resumed': False}
+    return {'session_id': session['session_id'], 'started_at': session['started_at'].isoformat(), 'game_type': game_type, 'attempt_seed': session['attempt_seed'], 'resumed': False}
 
 
 @router.post('/submit')
@@ -424,6 +426,9 @@ async def submit_score(inp: SubmitScoreInput, request: Request):
         score_data['client_reported_duration_ms'] = inp.duration_ms
         score_data['solved'] = inp.solved
         score_data['integrity'] = integrity
+        if integrity['status'] == 'high_risk':
+            score_data['quarantined'] = True
+            score_data['quarantine_reason'] = 'Automated gameplay integrity review required'
         await db.game_scores.insert_one(score_data)
         if integrity['status'] != 'clear':
             await db.gameplay_integrity_events.insert_one({

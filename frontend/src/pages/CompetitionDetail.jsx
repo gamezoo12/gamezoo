@@ -7,7 +7,7 @@ import TokenIcon from '../components/TokenIcon';
 import { countdown, percent, exactTokens } from '../lib/format';
 import { tokenPrice } from '../lib/format';
 import { useToast } from '../hooks/use-toast';
-import { contestsAPI, instantWinsAPI, walletAPI } from '../lib/api';
+import { contestsAPI, instantWinsAPI, ordersAPI, walletAPI } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import BackButton from '../components/BackButton';
 import { COMPETITION_SECTIONS, competitionSectionOf } from '../lib/competitionSections';
@@ -28,15 +28,19 @@ function MiniContest({ contest, selectedQty = 0, onAdd }) {
   const [quantity, setQuantity] = useState(selectedQty || 1);
   const [added, setAdded] = useState(selectedQty > 0);
   useEffect(() => {
-    if (selectedQty > 0) {
-      setQuantity(selectedQty);
-      setAdded(true);
-    }
+    setQuantity(selectedQty || 1);
+    setAdded(selectedQty > 0);
   }, [selectedQty]);
   const left = Math.max(0, Number(contest.tickets_total || 0) - Number(contest.tickets_sold || 0));
+  const userLimit = Math.max(0, Number(contest.max_tickets_per_user || 0));
+  const maxQuantity = Math.max(0, Math.min(500, left, userLimit || 500));
   const sold = percent(contest.tickets_sold, contest.tickets_total);
+  const updateQuantity = (value) => {
+    setQuantity(Math.max(0, Math.min(maxQuantity, Number(value) || 0)));
+    setAdded(false);
+  };
   const add = () => {
-    if (onAdd(contest, quantity) !== false) setAdded(true);
+    if (onAdd(contest, quantity) !== false) setAdded(quantity > 0);
   };
 
   return (
@@ -51,17 +55,18 @@ function MiniContest({ contest, selectedQty = 0, onAdd }) {
         </div>
         <div className="mt-1 h-1.5 w-full overflow-hidden bg-slate-100"><div className="h-full bg-emerald-500" style={{ width: `${sold}%` }} /></div>
         <div className="mt-1.5 flex items-center justify-between gap-1 text-[10px] font-bold text-slate-700">
-          <span><TokenIcon className="mr-0.5 inline h-3 w-3" />{tokenPrice(contest.price)} tokens · £1.00</span>
+          <span><TokenIcon className="mr-0.5 inline h-3 w-3" />{tokenPrice(contest.price)} token{Number(contest.price) === 1 ? '' : 's'} · £{Number(contest.price || 0).toFixed(2)}</span>
           <span className="font-black text-slate-900">{exactTokens(Number(contest.price || 0) * quantity)}</span>
         </div>
+        <div className="mt-1 text-[9px] font-bold text-slate-500">You can add up to {maxQuantity.toLocaleString()} ticket{maxQuantity === 1 ? '' : 's'}.</div>
         <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto] gap-1">
           <div className="grid min-w-0 grid-cols-[24px_minmax(0,1fr)_24px] items-center border border-slate-200">
-            <button type="button" onClick={() => { setQuantity(value => Math.max(1, value - 1)); setAdded(false); }} className="grid h-7 place-items-center text-slate-700" aria-label={`Decrease ${contest.title} tickets`}><Minus className="h-3 w-3" /></button>
-            <input type="number" min="1" max={Math.min(500, left || 500)} value={quantity} onChange={event => { setQuantity(Math.max(1, Math.min(Math.min(500, left || 500), Number(event.target.value) || 1))); setAdded(false); }} className="h-7 min-w-0 w-full border-x border-slate-200 text-center text-xs font-black outline-none" aria-label={`${contest.title} ticket quantity`} />
-            <button type="button" onClick={() => { setQuantity(value => Math.min(Math.min(500, left || 500), value + 1)); setAdded(false); }} className="grid h-7 place-items-center text-slate-700" aria-label={`Increase ${contest.title} tickets`}><Plus className="h-3 w-3" /></button>
+            <button type="button" onClick={() => updateQuantity(quantity - 1)} className="grid h-7 place-items-center text-slate-700" aria-label={`Decrease ${contest.title} tickets`}><Minus className="h-3 w-3" /></button>
+            <input type="number" min="0" max={maxQuantity} value={quantity} onChange={event => updateQuantity(event.target.value)} className="h-7 min-w-0 w-full border-x border-slate-200 text-center text-xs font-black outline-none" aria-label={`${contest.title} ticket quantity`} />
+            <button type="button" disabled={quantity >= maxQuantity} onClick={() => updateQuantity(quantity + 1)} className="grid h-7 place-items-center text-slate-700 disabled:opacity-30" aria-label={`Increase ${contest.title} tickets`}><Plus className="h-3 w-3" /></button>
           </div>
-          <button type="button" onClick={add} disabled={left === 0} className="flex h-7 items-center justify-center bg-[#FFD54A] px-2 text-[9px] font-black whitespace-nowrap text-slate-900 disabled:opacity-40">
-            {added ? <><CheckCircle2 className="mr-0.5 h-3 w-3" /> {quantity} added</> : 'Add'}
+          <button type="button" onClick={add} disabled={maxQuantity === 0} className="flex h-7 items-center justify-center bg-[#FFD54A] px-2 text-[9px] font-black whitespace-nowrap text-slate-900 disabled:opacity-40">
+            {quantity === 0 ? 'Remove' : added ? <><CheckCircle2 className="mr-0.5 h-3 w-3" /> {quantity} added</> : 'Add'}
           </button>
         </div>
       </div>
@@ -97,6 +102,7 @@ export default function CompetitionDetail() {
   const [wrong, setWrong] = useState(false);
   const [imgState, setImgState] = useState('loading'); // loading | ok | fail
   const [wallet, setWallet] = useState(null);
+  const [ticketAvailability, setTicketAvailability] = useState(null);
   const [instantStatus, setInstantStatus] = useState(null);
   const [recommendations, setRecommendations] = useState([]);
   const [basketItems, setBasketItems] = useState([]);
@@ -161,6 +167,11 @@ export default function CompetitionDetail() {
   }, [user]);
 
   useEffect(() => {
+    if (!user || !c?.contest_id) { setTicketAvailability(null); return; }
+    ordersAPI.ticketAvailability(c.contest_id).then(setTicketAvailability).catch(() => setTicketAvailability(null));
+  }, [user, c?.contest_id]);
+
+  useEffect(() => {
     if (!c) return;
     const upd = () => setT(countdown(c.end_date));
     upd();
@@ -190,6 +201,11 @@ export default function CompetitionDetail() {
   const needsSkill = isSkillGame || !!c.requires_skill_question;
   const subtotal = c.price * tickets;
   const balanceAfter = wallet ? Math.max(0, wallet.balance - subtotal) : null;
+  const contestTicketsLeft = Math.max(0, Number(c.tickets_total || 0) - Number(c.tickets_sold || 0));
+  const configuredUserLimit = Math.max(0, Number(c.max_tickets_per_user || 0));
+  const maxTicketsForSelection = ticketAvailability
+    ? Math.max(0, Number(ticketAvailability.can_add) || 0)
+    : Math.max(0, Math.min(500, contestTicketsLeft, configuredUserLimit || 500));
   const description = c.full_description || c.short_description || c.subtitle || 'Please see the published competition terms before entering.';
   const openRecommendations = recommendations.filter(item => item.contest_id !== c.contest_id && item.status === 'live' && item.public_coming_soon !== true);
   const closingSoon = COMPETITION_SECTIONS.map(section => openRecommendations
@@ -229,12 +245,19 @@ export default function CompetitionDetail() {
   };
 
   const addRecommendation = (contest, quantity) => {
+    const raw = localStorage.getItem('gamezoo_cart');
+    const cart = raw ? JSON.parse(raw) : [];
+    if (quantity === 0) {
+      const next = cart.filter(entry => entry.contest_id !== contest.contest_id);
+      localStorage.setItem('gamezoo_cart', JSON.stringify(next));
+      setBasketItems(next);
+      toast({ title: 'Removed from basket' });
+      return true;
+    }
     if (needsSkill && (!verified || !challenge?.challenge_token)) {
       toast({ title: 'Answer the skill question first' });
       return false;
     }
-    const raw = localStorage.getItem('gamezoo_cart');
-    const cart = raw ? JSON.parse(raw) : [];
     const item = {
       contest_id: contest.contest_id, slug: contest.slug, title: contest.title, image: contest.image,
       price: contest.price, qty: quantity, skill_answer: 'n/a', challenge_token: null,
@@ -364,6 +387,8 @@ export default function CompetitionDetail() {
             </div>
           ) : (
             <>
+          <RecommendationRail items={moreContests} selectedItems={basketItems} onAdd={addRecommendation} />
+
           {/* Skill Question or Random Draw notice */}
           {needsSkill ? (
             <div className="mt-2 border-2 border-[#6C2BFF]/20 bg-[#6C2BFF]/5 p-2.5" data-testid="skill-question-block">
@@ -420,8 +445,6 @@ export default function CompetitionDetail() {
             </div>
           )}
 
-          <RecommendationRail items={moreContests} selectedItems={basketItems} onAdd={addRecommendation} />
-
           {/* Ticket selector - mobile-safe with live totals */}
           <div className="mt-3 p-3 border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
@@ -433,24 +456,31 @@ export default function CompetitionDetail() {
                   <span className="text-[9px] font-bold text-slate-500">1 token = £1.00</span>
                 </div>
               </div>
-              <div className="flex items-center gap-1 md:gap-2" data-testid="ticket-qty-controls">
-                <Button variant="outline" size="icon" data-testid="qty-minus" onClick={() => setTickets(Math.max(1, tickets - 1))}><Minus className="w-4 h-4" /></Button>
-                <input
-                  type="number"
-                  data-testid="qty-input"
-                  min="1"
-                  max="500"
-                  value={tickets}
-                  onChange={(e) => setTickets(Math.max(1, Math.min(500, parseInt(e.target.value, 10) || 1)))}
-                  className="w-16 h-9 text-center rounded-md border border-slate-200 font-bold text-lg"
-                />
-                <Button variant="outline" size="icon" data-testid="qty-plus" onClick={() => setTickets(Math.min(500, tickets + 1))}><Plus className="w-4 h-4" /></Button>
+              <div>
+                <div className="flex items-center gap-1 md:gap-2" data-testid="ticket-qty-controls">
+                  <Button variant="outline" size="icon" data-testid="qty-minus" onClick={() => setTickets(Math.max(0, tickets - 1))}><Minus className="w-4 h-4" /></Button>
+                  <input
+                    type="number"
+                    data-testid="qty-input"
+                    min="0"
+                    max={maxTicketsForSelection}
+                    value={tickets}
+                    onChange={(e) => setTickets(Math.max(0, Math.min(maxTicketsForSelection, parseInt(e.target.value, 10) || 0)))}
+                    className="w-16 h-9 text-center rounded-md border border-slate-200 font-bold text-lg"
+                  />
+                  <Button variant="outline" size="icon" data-testid="qty-plus" disabled={tickets >= maxTicketsForSelection} onClick={() => setTickets(Math.min(maxTicketsForSelection, tickets + 1))}><Plus className="w-4 h-4" /></Button>
+                </div>
+                <p className="mt-1 text-right text-[10px] font-bold text-slate-500" data-testid="ticket-limit-hint">
+                  {maxTicketsForSelection === 0
+                    ? 'Sold out or your limit is reached'
+                    : `You can add ${maxTicketsForSelection} more${ticketAvailability?.owned ? ` · ${ticketAvailability.owned} already owned` : ''}`}
+                </p>
               </div>
             </div>
 
             {/* Preset quantities */}
             <div className="flex flex-wrap gap-2 mb-4" data-testid="qty-presets">
-              {[1, 5, 10, 25, 50].map(n => (
+              {[1, 5, 10, 25, 50].filter(n => n <= maxTicketsForSelection).map(n => (
                 <button
                   key={n}
                   onClick={() => setTickets(n)}
@@ -493,7 +523,7 @@ export default function CompetitionDetail() {
             <div className="grid grid-cols-2 gap-2">
               <Button
                 onClick={addToCart}
-                disabled={(needsSkill && !verified) || !confirmed}
+                disabled={(needsSkill && !verified) || !confirmed || tickets < 1 || maxTicketsForSelection === 0}
                 data-testid="buy-tickets-btn"
                 className="h-11 pl-btn-gold text-slate-900 text-sm font-black disabled:opacity-50 disabled:cursor-not-allowed">
                 <ShoppingBag className="w-4 h-4 mr-1" /> Checkout {checkoutTicketTotal}

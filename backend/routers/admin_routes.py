@@ -190,6 +190,65 @@ async def admin_free_world_leaderboard(contest_number: int, request: Request, li
     return {'contest': contest, 'leaderboard': leaderboard}
 
 
+async def _sync_pending_paid_leaderboard_winners(db, contest_id: str) -> int:
+    contest = await db.contests.find_one({'contest_id': contest_id}, {'_id': 0})
+    if not contest or not contest.get('game_type'):
+        return 0
+    paid = await db.winners.find_one({
+        'contest_id': contest_id,
+        'source': {'$nin': ['draw_studio', 'instant_win']},
+        '$or': [{'paid_out': True}, {'approval_status': 'credited'}, {'credited_at': {'$exists': True}}],
+    }, {'_id': 1})
+    if paid:
+        raise HTTPException(status_code=409, detail='Leaderboard prizes are already credited and can no longer be reordered')
+    winners = await db.winners.find({
+        'contest_id': contest_id,
+        'source': {'$nin': ['draw_studio', 'instant_win']},
+        'paid_out': {'$ne': True},
+    }, {'_id': 0}).to_list(1000)
+    if not winners:
+        return 0
+    winners.sort(key=lambda row: (int(row.get('rank') or 999999), -float(row.get('prize_amount') or 0), str(row.get('drawn_at') or '')))
+    limit = len(winners)
+    ranked = await db.game_scores.aggregate([
+        {'$match': {'contest_id': contest_id, 'quarantined': {'$ne': True}}},
+        {'$set': {'effective_duration_ms': {'$ifNull': ['$duration_ms_override', '$duration_ms']}}},
+        {'$sort': {'points': -1, 'accuracy': -1, 'effective_duration_ms': 1, 'created_at': 1}},
+        {'$group': {
+            '_id': {'$ifNull': ['$ticket_id', '$user_id']},
+            'score_id': {'$first': '$score_id'},
+            'ticket_id': {'$first': '$ticket_id'},
+            'user_id': {'$first': '$user_id'},
+            'user_name': {'$first': '$user_name'},
+            'points': {'$first': '$points'},
+            'accuracy': {'$first': '$accuracy'},
+            'duration_ms': {'$first': '$effective_duration_ms'},
+        }},
+        {'$sort': {'points': -1, 'accuracy': -1, 'duration_ms': 1}},
+        {'$limit': limit},
+    ]).to_list(limit)
+    if len(ranked) < limit:
+        raise HTTPException(status_code=409, detail='Not enough eligible leaderboard entries to fill the current winner places')
+    for rank, (winner, score) in enumerate(zip(winners, ranked), 1):
+        ticket = await db.tickets.find_one(
+            {'ticket_id': score.get('ticket_id'), 'contest_id': contest_id},
+            {'_id': 0, 'ticket_number': 1},
+        ) if score.get('ticket_id') else None
+        await db.winners.update_one({'winner_id': winner['winner_id'], 'paid_out': {'$ne': True}}, {'$set': {
+            'rank': rank,
+            'user_id': score['user_id'],
+            'user_name': score.get('user_name') or 'Winner',
+            'ticket_id': score.get('ticket_id'),
+            'ticket_number': ticket.get('ticket_number') if ticket else winner.get('ticket_number'),
+            'leaderboard_score_id': score.get('score_id'),
+            'leaderboard_points': score.get('points'),
+            'leaderboard_duration_ms': score.get('duration_ms'),
+            'leaderboard_synced_at': datetime.now(timezone.utc),
+            'leaderboard_order_authoritative': True,
+        }})
+    return len(winners)
+
+
 async def _override_leaderboard_time(collection, score_id, payload, request, world):
     admin = await _require_role(request, ['super_admin'])
     duration_ms = payload.get('duration_ms')
@@ -203,6 +262,13 @@ async def _override_leaderboard_time(collection, score_id, payload, request, wor
     score = await getattr(db, collection).find_one({'score_id': score_id}, {'_id': 0})
     if not score:
         raise HTTPException(status_code=404, detail='Leaderboard score not found')
+    if world:
+        contest = await db.world_global_contests.find_one(
+            {'season_id': 'season-1', 'contest_number': score.get('global_contest_number')},
+            {'_id': 0, 'status': 1},
+        )
+        if contest and str(contest.get('status')).lower() in {'settled', 'closed_settled'}:
+            raise HTTPException(status_code=409, detail='Settled leaderboard results are locked')
     previous = int(score.get('duration_ms_override', score.get('duration_ms', 0)))
     if previous == duration_ms:
         return {'ok': True, 'unchanged': True, 'duration_ms': duration_ms}
@@ -231,7 +297,10 @@ async def _override_leaderboard_time(collection, score_id, payload, request, wor
         'actor_email': admin.get('email'),
         'created_at': now,
     })
-    return {'ok': True, 'previous_duration_ms': previous, 'duration_ms': duration_ms}
+    synced_winners = 0
+    if not world and score.get('contest_id'):
+        synced_winners = await _sync_pending_paid_leaderboard_winners(db, score['contest_id'])
+    return {'ok': True, 'previous_duration_ms': previous, 'duration_ms': duration_ms, 'synced_winners': synced_winners}
 
 
 @router.put('/leaderboards/paid/{score_id}/time')
@@ -2039,6 +2108,46 @@ async def launch_contest(contest_id: str, request: Request):
             import logging
             logging.getLogger(__name__).exception('New-contest Web Push enqueue failed contest=%s', contest_id)
     return {'ok': True, 'status': 'live'}
+
+
+@router.post('/contests/{contest_id}/duplicate')
+async def duplicate_contest(contest_id: str, request: Request):
+    await require_admin(request)
+    from deps import get_db
+    import copy
+    import re
+    import secrets
+
+    db = get_db()
+    source = await db.contests.find_one({'contest_id': contest_id}, {'_id': 0})
+    if not source:
+        raise HTTPException(status_code=404, detail='Contest not found')
+
+    duplicate = copy.deepcopy(source)
+    now = datetime.now(timezone.utc)
+    duplicate['contest_id'] = f"c_{uuid.uuid4().hex[:12]}"
+    base = re.sub(r'[^a-z0-9]+', '-', str(source.get('title') or 'Contest').lower()).strip('-')[:32] or 'contest'
+    duplicate['slug'] = f"{base}-copy-{secrets.token_hex(3)}"
+    duplicate['title'] = f"{source.get('title') or 'Contest'} (Copy)"
+    duplicate['status'] = 'draft'
+    duplicate['public_coming_soon'] = False
+    duplicate['tickets_sold'] = 0
+    duplicate['created_at'] = now
+    duplicate['updated_at'] = now
+
+    for key in (
+        'winner_user_id', 'winning_ticket_number', 'winning_ticket_numbers',
+        'winner_published', 'winner_published_at', 'winner_published_by',
+        'winner_method', 'winner_reason', 'winner_correction_reason',
+        'preview_winning_ticket_number', 'preview_winner_user_id',
+        'preview_method', 'preview_reason', 'preview_selected_at',
+        'preview_selected_by', 'closed_at', 'drawn_at', 'closed_reason',
+    ):
+        duplicate.pop(key, None)
+
+    await db.contests.insert_one(duplicate)
+    duplicate.pop('_id', None)
+    return {'ok': True, 'contest': duplicate}
 
 
 @router.post('/contests/{contest_id}/pause')

@@ -34,6 +34,7 @@ const LINKS = [
  ] },
  { group: 'Free World', items: [
    { to: '/admin/free-world', label: 'Free World', icon: Trophy },
+   { to: '/admin/world-selection', label: 'World Selection Design', icon: Globe2, superOnly: true },
    { to: '/admin/world-gc-settings', label: 'GC Competition Settings', icon: CalendarCog, superOnly: true },
   { to: '/admin/leaderboards', label: 'Leaderboard', icon: Medal, superOnly: true },
    { to: '/admin/special-challenge', label: 'Special Challenge', icon: Trophy },
@@ -42,6 +43,7 @@ const LINKS = [
  ] },
  { group: 'Operations', items: [
    { to: '/admin/alerts', label: 'Alerts', icon: Bell },
+   { to: '/admin/gameplay-investigation', label: 'Gameplay Investigation', icon: ShieldCheck, superOnly: true },
    { to: '/admin/support', label: 'Customer Support', icon: LifeBuoy },
    { to: '/admin/referrals', label: 'Referrals & Bonuses', icon: Gift },
    { to: '/admin/roles', label: 'Roles & Permissions', icon: ShieldCheck },

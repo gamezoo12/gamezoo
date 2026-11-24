@@ -379,6 +379,7 @@ export default function PromotionPopup() {
 
   return (
     <div
+      data-testid="promotion-popup"
       className="
         fixed
         inset-0

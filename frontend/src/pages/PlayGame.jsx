@@ -22,6 +22,7 @@ import GameSoundToggle from '../components/games/GameSoundToggle';
 import { GameMusic, MusicToggle } from '../components/games/SoundControls';
 import { gameExperienceFor, pickResultQuote, playGameSound } from '../lib/gameExperience';
 import { gameplayTelemetrySnapshot, startGameplayTelemetry, stopGameplayTelemetry } from '../lib/gameplayTelemetry';
+import { setGameplayAttemptSeed } from '../lib/difficulty';
 
 const formatDuration = (milliseconds = 0) => {
   const safe = Math.max(0, Math.floor(milliseconds));
@@ -53,9 +54,20 @@ export default function PlayGame() {
   const [elapsedMs, setElapsedMs] = useState(0);
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
   const [officialSessionId, setOfficialSessionId] = useState(null);
+  const [attemptSeed, setAttemptSeed] = useState(null);
 
   const officialStartRef = useRef(null);
   const timerFrameRef = useRef(null);
+
+  useEffect(() => {
+    const isolated = phase === 'demo' || phase === 'countdown' || phase === 'playing';
+    document.body.classList.toggle('pl-gameplay-isolated', isolated);
+    document.documentElement.classList.toggle('pl-gameplay-isolated', isolated);
+    return () => {
+      document.body.classList.remove('pl-gameplay-isolated');
+      document.documentElement.classList.remove('pl-gameplay-isolated');
+    };
+  }, [phase]);
 
   useEffect(() => {
     if (loading) return undefined;
@@ -211,6 +223,7 @@ export default function PlayGame() {
           gamesAPI.start({ ticket_id: ticketId }).then((session) => {
             startGameplayTelemetry(session.session_id);
             setOfficialSessionId(session.session_id);
+            setAttemptSeed(session.attempt_seed);
             setGameKey((value) => value + 1);
             setPhase('playing');
             playGameSound('start');
@@ -303,7 +316,7 @@ export default function PlayGame() {
 
   return (
     <div
-      className="max-w-4xl mx-auto px-4 lg:px-8 py-8"
+      className={['demo', 'countdown', 'playing'].includes(phase) ? 'pl-official-game-fullscreen' : 'max-w-4xl mx-auto px-4 lg:px-8 py-8'}
       data-testid="play-game-page"
     >
       <div className="flex items-center justify-between gap-3 mb-6">
@@ -486,13 +499,11 @@ export default function PlayGame() {
           ) : (
             <div key={`demo-${gameKey}`}>
               <GameMusic world={0} />
-              {renderGame(
-                {
-                  ...(contest.game_config || {}),
-                  practice_mode: true,
-                },
-                completeDemo
-              )}
+              {(() => {
+                const config = { ...(contest.game_config || {}), practice_mode: true, attempt_seed: gameKey + 1 };
+                setGameplayAttemptSeed(config.attempt_seed);
+                return renderGame(config, completeDemo);
+              })()}
             </div>
           )}
         </div>
@@ -604,7 +615,11 @@ export default function PlayGame() {
 
           <div className="p-6" key={`official-${gameKey}`} onPointerDownCapture={() => playGameSound('tap')}>
             <GameMusic world={2} />
-            {renderGame(contest.game_config || {}, submitOfficialResult)}
+            {(() => {
+              const config = { ...(contest.game_config || {}), attempt_seed: attemptSeed };
+              setGameplayAttemptSeed(config.attempt_seed);
+              return renderGame(config, submitOfficialResult);
+            })()}
           </div>
         </div>
       )}

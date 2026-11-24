@@ -211,7 +211,17 @@ export default function FreeWorldNumberSequence({
 
 
   const replayDemo =
-    useCallback(() => {
+    useCallback(async () => {
+      try {
+        await worldAPI.claimDemo(
+          Number(selectedLevel?.level || level?.level || 0),
+          String(level?.game_id || 'number_sequence'),
+          Number(level?.champion_stage || 0),
+        );
+      } catch (claimError) {
+        setError(claimError?.response?.data?.detail?.message || 'Demo attempt limit reached for this level and game.');
+        return;
+      }
       setDemoNumbers(
         shuffle(
           Array.from(
@@ -232,6 +242,10 @@ export default function FreeWorldNumberSequence({
       setStage('demo');
     }, [
       target,
+      selectedLevel?.level,
+      level?.level,
+      level?.game_id,
+      level?.champion_stage,
     ]);
 
 
@@ -850,12 +864,8 @@ export default function FreeWorldNumberSequence({
               className="pl-free-primary-button"
               onClick={() =>
                 level?.demo_enabled === false
-                  ? setStage(
-                      'demo-complete',
-                    )
-                  : setStage(
-                      'demo',
-                    )
+                  ? setStage('demo-complete')
+                  : replayDemo()
               }
             >
               <Play size={18} />

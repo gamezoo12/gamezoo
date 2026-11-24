@@ -10,9 +10,15 @@ export const difficultyName = (level) => DIFFICULTY_LEVELS[Math.max(1, Math.min(
 // Linear interpolation across levels 1..10, rounded.
 export const lerpLevel = (level, at1, at10) => Math.round(at1 + ((at10 - at1) * (level - 1)) / 9);
 
-// Deterministic PRNG so every player at the same difficulty faces the same board.
+let activeAttemptSeed = 0;
+
+export function setGameplayAttemptSeed(seed) {
+  activeAttemptSeed = Number(seed) || 0;
+}
+
+// Deterministic within an attempt, distinct between attempts when the server supplies a salt.
 export function seeded(seed) {
-  let s = (seed * 2654435761) % 2147483647 || 1;
+  let s = ((Number(seed) + activeAttemptSeed) * 2654435761) % 2147483647 || 1;
   return () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
 }
 export function seededShuffle(list, seed) {

@@ -189,9 +189,13 @@ async def approve(winner_id: str, body: ApproveIn, request: Request):
 
     admin = await require_super_admin(request)
     db = get_db()
-    w = await db.winners.find_one({"winner_id": winner_id}, {"_id": 0})
-    if not w or str(w.get("contest_id", "")).startswith("promo_"):
+    initial = await db.winners.find_one({"winner_id": winner_id}, {"_id": 0})
+    if not initial or str(initial.get("contest_id", "")).startswith("promo_"):
         raise HTTPException(status_code=404, detail="Paid World winner not found")
+    if initial.get("source") not in {"draw_studio", "instant_win"} and not initial.get("paid_out"):
+        from routers.admin_routes import _sync_pending_paid_leaderboard_winners
+        await _sync_pending_paid_leaderboard_winners(db, initial["contest_id"])
+    w = await db.winners.find_one({"winner_id": winner_id}, {"_id": 0})
     if w.get("quarantined") or w.get("prize_blocked"):
         raise HTTPException(status_code=403, detail="Prize approval is blocked while this winner is under fair-play review")
     if w.get("paid_out"):

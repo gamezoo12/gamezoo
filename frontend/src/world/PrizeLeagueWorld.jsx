@@ -2,6 +2,7 @@ import { applyWorldTheme, cachedWorldThemeId } from '../lib/worldThemes';
 
 import {
   useNavigate,
+  useSearchParams,
 } from 'react-router-dom';
 
 import {
@@ -64,6 +65,11 @@ function dispatchWorldEvent(name) {
 export default function PrizeLeagueWorld() {
   const navigate =
     useNavigate();
+  const [searchParams] = useSearchParams();
+  const sharedLeaderboard = searchParams.get('leaderboard') === '1';
+  const sharedLeaderboardView = searchParams.get('view') === 'level' ? 'level' : 'championship';
+  const sharedLeaderboardGc = searchParams.get('champ') || searchParams.get('gc') || '';
+  const sharedLeaderboardLevel = searchParams.get('level') || '';
 
   const {
     user,
@@ -117,21 +123,22 @@ export default function PrizeLeagueWorld() {
     return () => { active = false; };
   }, []);
 
-  // Keep the game overlay above the fixed announcement/header while playing.
+  // Active gameplay owns the viewport. Hide site chrome and lock document scrolling.
   useEffect(() => {
     if (!gameFlowOpen) return undefined;
-    const header = document.querySelector('[data-testid="site-header"]');
-    if (!header) return undefined;
-    const previousZIndex = header.style.zIndex;
-    header.style.zIndex = '0';
-    return () => { header.style.zIndex = previousZIndex; };
+    document.body.classList.add('pl-gameplay-isolated');
+    document.documentElement.classList.add('pl-gameplay-isolated');
+    return () => {
+      document.body.classList.remove('pl-gameplay-isolated');
+      document.documentElement.classList.remove('pl-gameplay-isolated');
+    };
   }, [gameFlowOpen]);
 
 
   const [
     showWorldLeaderboard,
     setShowWorldLeaderboard,
-  ] = useState(false);
+  ] = useState(sharedLeaderboard);
 
   // Measure the real site header (nav + announcement bar) height and expose it
   // as a CSS var so the Free World map, popups and leaderboard start just below
@@ -467,7 +474,10 @@ export default function PrizeLeagueWorld() {
 
 
   if (futureGcModel?.active && futureGcModel.model === 'every_level') {
-    return <EveryLevelWorld gcNumber={futureGcModel.gc_number} onExit={() => navigate('/choose-world')} />;
+    const sharedEveryLevel = sharedLeaderboardView === 'level'
+      ? sharedLeaderboardLevel === 'champion' ? 'champion' : `L${Number(sharedLeaderboardLevel) || 1}`
+      : 'champion';
+    return <EveryLevelWorld gcNumber={futureGcModel.gc_number} initialLeaderboardGC={sharedLeaderboardGc} initialLeaderboardLevel={sharedEveryLevel} onExit={() => navigate('/choose-world')} />;
   }
 
   return (
@@ -879,6 +889,9 @@ export default function PrizeLeagueWorld() {
       <FreeWorldLeaderboard
         open={showWorldLeaderboard}
         activeGc={activeGc}
+        initialView={sharedLeaderboardView}
+        initialGc={sharedLeaderboardGc}
+        initialLevel={sharedLeaderboardLevel}
         onClose={() =>
           setShowWorldLeaderboard(false)
         }

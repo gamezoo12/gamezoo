@@ -2238,6 +2238,146 @@ async def admin_set_map_theme(payload: MapThemeInput, request: Request):
     return payload.model_dump()
 
 
+class WorldSelectionImagesInput(BaseModel):
+    paid_mobile: str = Field(default='', max_length=2048)
+    paid_tablet: str = Field(default='', max_length=2048)
+    paid_desktop: str = Field(default='', max_length=2048)
+    free_mobile: str = Field(default='', max_length=2048)
+    free_tablet: str = Field(default='', max_length=2048)
+    free_desktop: str = Field(default='', max_length=2048)
+    heading: str = Field(default='Choose your world', max_length=160)
+    subheading: str = Field(default='Play the way you want', max_length=240)
+    font_family: str = Field(default='Georgia, serif', max_length=120)
+    font_size: int = Field(default=48, ge=12, le=160)
+    font_weight: int = Field(default=800, ge=100, le=900)
+    font_italic: bool = False
+    font_underline: bool = False
+    font_strike: bool = False
+    line_height: float = Field(default=1.05, ge=0.8, le=3)
+    text_shadow: bool = True
+    text_shadow_color: str = Field(default='#000000', max_length=32)
+    text_shadow_blur: int = Field(default=8, ge=0, le=40)
+    text_outline: bool = False
+    text_outline_color: str = Field(default='#000000', max_length=32)
+    text_outline_width: int = Field(default=1, ge=0, le=8)
+    text_border: bool = False
+    text_border_color: str = Field(default='#ffffff', max_length=32)
+    text_border_width: int = Field(default=1, ge=0, le=8)
+    text_border_radius: int = Field(default=0, ge=0, le=40)
+    text_padding_x: int = Field(default=0, ge=0, le=50)
+    text_padding_y: int = Field(default=0, ge=0, le=30)
+    text_opacity: int = Field(default=100, ge=0, le=100)
+    fade_direction: str = Field(default='none', pattern='^(none|up|down|left|right)$')
+    text_highlight: bool = False
+    text_highlight_color: str = Field(default='#facc15', max_length=32)
+    text_gradient: bool = False
+    text_gradient_color: str = Field(default='#facc15', max_length=32)
+    text_preset: str = Field(default='custom', max_length=40)
+    text_color: str = Field(default='#ffffff', max_length=32)
+    accent_color: str = Field(default='#facc15', max_length=32)
+    text_align: str = Field(default='center', pattern='^(left|center|right)$')
+    background_type: str = Field(default='gradient', pattern='^(solid|gradient|image)$')
+    background_color: str = Field(default='#020611', max_length=32)
+    background_color_2: str = Field(default='#172033', max_length=32)
+    background_image: str = Field(default='', max_length=2048)
+    letter_spacing: int = Field(default=0, ge=-5, le=20)
+    heading_case: str = Field(default='none', pattern='^(none|uppercase|lowercase)$')
+    sub_font_family: str = Field(default='Georgia, serif', max_length=120)
+    sub_font_size: int = Field(default=22, ge=10, le=120)
+    sub_font_weight: int = Field(default=700, ge=100, le=900)
+    sub_font_italic: bool = False
+    sub_font_underline: bool = False
+    sub_line_height: float = Field(default=1.2, ge=0.8, le=3)
+    sub_letter_spacing: int = Field(default=0, ge=-5, le=20)
+
+
+@public_router.get("/selection-images")
+async def public_selection_images():
+    doc = await get_db().world_settings.find_one(
+        {"_id": "selection_images"}, {"_id": 0, "season_id": 0, "updated_at": 0, "updated_by": 0},
+    ) or {}
+    defaults = WorldSelectionImagesInput()
+    return {
+        key: doc[key] if key in doc and doc[key] is not None else getattr(defaults, key)
+        for key in WorldSelectionImagesInput.model_fields
+    }
+
+
+@admin_router.get("/selection-images")
+async def admin_get_selection_images(request: Request):
+    await require_super_admin(request)
+    return await public_selection_images()
+
+
+@admin_router.put("/selection-images")
+async def admin_set_selection_images(payload: WorldSelectionImagesInput, request: Request):
+    admin = await require_super_admin(request)
+    values = payload.model_dump()
+    await get_db().world_settings.update_one(
+        {"_id": "selection_images"},
+        {"$set": {**values, "season_id": WORLD_SEASON_ID, "updated_at": _utcnow(), "updated_by": admin.get("user_id")}},
+        upsert=True,
+    )
+    return values
+
+
+@public_router.get("/demo-settings")
+async def public_demo_settings():
+    doc = await get_db().world_settings.find_one({"_id": "demo_attempts"}, {"_id": 0}) or {}
+    return {"attempts_per_level_per_game": max(0, min(int(doc.get("limit", 1)), 20))}
+
+
+class DemoSettingsInput(BaseModel):
+    attempts_per_level_per_game: int = Field(..., ge=0, le=20)
+
+
+@admin_router.get("/demo-settings")
+async def admin_demo_settings_get(request: Request):
+    await require_super_admin(request)
+    return await public_demo_settings()
+
+
+@admin_router.put("/demo-settings")
+async def admin_demo_settings(payload: DemoSettingsInput, request: Request):
+    admin = await require_super_admin(request)
+    await get_db().world_settings.update_one(
+        {"_id": "demo_attempts"},
+        {"$set": {"limit": payload.attempts_per_level_per_game, "updated_at": _utcnow(), "updated_by": admin.get("user_id")}},
+        upsert=True,
+    )
+    return payload.model_dump()
+
+
+class DemoClaimInput(BaseModel):
+    game_id: str = Field(..., min_length=1, max_length=100)
+    level: int = Field(..., ge=0, le=100)
+    champion_stage: int = Field(..., ge=0, le=100)
+
+
+@router.post("/demo/claim")
+async def claim_world_demo(body: DemoClaimInput, request: Request):
+    user = await get_current_user(request)
+    db = get_db()
+    setting = await db.world_settings.find_one({"_id": "demo_attempts"}, {"_id": 0, "limit": 1}) or {}
+    limit = max(0, min(int(setting.get("limit", 1)), 20))
+    base = {
+        "season_id": WORLD_SEASON_ID,
+        "user_id": user["user_id"],
+        "champion_stage": body.champion_stage,
+        "level": body.level,
+        "game_id": body.game_id,
+    }
+    count = await db.world_demo_claims.count_documents(base)
+    if count >= limit:
+        raise HTTPException(status_code=409, detail={"message": "Demo attempt limit reached for this level and game.", "code": "DEMO_LIMIT_REACHED"})
+    marker = {"_id": f"wd:{user['user_id']}:{body.champion_stage}:{body.level}:{body.game_id}:{count + 1}", **base, "claimed_at": _utcnow()}
+    try:
+        await db.world_demo_claims.insert_one(marker)
+    except DuplicateKeyError:
+        raise HTTPException(status_code=409, detail={"message": "Demo attempt is already being claimed. Please retry.", "code": "DEMO_CLAIM_RETRY"})
+    return {"ok": True, "used": count + 1, "limit": limit, "remaining": max(0, limit - count - 1)}
+
+
 _BOARD_STYLE_NAMES = (
     "Galaxy", "Nebula", "Starlight Night", "Cosmic Teal", "Supernova", "Neon Grid", "Synthwave", "Cyber Lime",
     "Laser Pink", "Electric Blue", "Forest Moss", "Ocean Deep", "Coral Reef", "Desert Dune", "Arctic Ice",
@@ -7561,8 +7701,10 @@ async def free_world_session_start(
         + secrets.token_hex(16).upper()
     )
 
+    attempt_seed = secrets.randbits(48)
     session = {
         "session_id": session_id,
+        "attempt_seed": attempt_seed,
 
         "season_id":
             WORLD_SEASON_ID,
@@ -7643,7 +7785,7 @@ async def free_world_session_start(
                 "questions": colour_questions,
             }
             if colour_questions is not None
-            else deepcopy(config.get("game_config") or {})
+            else {**deepcopy(config.get("game_config") or {}), "attempt_seed": attempt_seed}
             if config.get("game_id") in _world_client_games()
             else {
                 "target_number":
@@ -9456,9 +9598,11 @@ async def champion_session_start(
             .upper()
     )
 
+    attempt_seed = secrets.randbits(48)
     session = {
         "session_id":
             session_id,
+        "attempt_seed": attempt_seed,
 
         "season_id":
             WORLD_SEASON_ID,
@@ -9576,6 +9720,7 @@ async def champion_session_start(
             if colour_questions is not None
             else {
                 **(selected_champion.get("game_config") or {}),
+                "attempt_seed": attempt_seed,
                 "target_number":
                     target,
 
@@ -12879,34 +13024,17 @@ async def _settle_world_champion_contest(
             },
         )
 
-    scores = await db.world_champion_scores.find(
-        {
-            "season_id":
-                WORLD_SEASON_ID,
-
-            "global_contest_number":
-                contest_number,
-
-            "eligible":
-                True,
-
-            "quarantined":
-                {"$ne": True},
-        },
-        {
-            "_id": 0,
-        },
-    ).sort(
-        [
-            ("score", -1),
-            ("duration_ms", 1),
-            ("submitted_at", 1),
-        ]
-    ).limit(
-        CHAMPION_WINNER_COUNT
-    ).to_list(
-        length=CHAMPION_WINNER_COUNT
-    )
+    scores = await db.world_champion_scores.aggregate([
+        {"$match": {
+            "season_id": WORLD_SEASON_ID,
+            "global_contest_number": contest_number,
+            "eligible": True,
+            "quarantined": {"$ne": True},
+        }},
+        {"$set": {"effective_duration_ms": {"$ifNull": ["$duration_ms_override", "$duration_ms"]}}},
+        {"$sort": {"score": -1, "effective_duration_ms": 1, "submitted_at": 1}},
+        {"$limit": CHAMPION_WINNER_COUNT},
+    ]).to_list(length=CHAMPION_WINNER_COUNT)
 
     if len(scores) != CHAMPION_WINNER_COUNT:
         raise HTTPException(

@@ -4,6 +4,7 @@ import BoardStylePicker from '../../components/admin/BoardStylePicker';
 import WorldThemePicker from '../../components/admin/WorldThemePicker';
 import UnlimitedGamesToggle from '../../components/admin/UnlimitedGamesToggle';
 import MapThemeToggle from '../../components/admin/MapThemeToggle';
+import FreeWorldAvatarCatalog from '../../components/admin/FreeWorldAvatarCatalog';
 
 import {
   useCallback,
@@ -731,9 +732,10 @@ export default function FreeWorldAdmin() {
         </div>
       </section>
 
-      <MapThemeToggle />
+      {authUser?.role === 'super_admin' && <MapThemeToggle />}
+      {authUser?.role === 'super_admin' && <FreeWorldAvatarCatalog />}
       <UnlimitedGamesToggle />
-      <WorldThemePicker />
+      {authUser?.role === 'super_admin' && <WorldThemePicker />}
       <BoardStylePicker />
       <SoundPackPicker />
 

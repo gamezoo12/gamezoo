@@ -3,6 +3,7 @@ import { GAME_MAP } from '../../components/games';
 import { GAME_CATALOG } from '../../lib/gameCatalog';
 import { gameExperienceFor, playGameSound } from '../../lib/gameExperience';
 import GameSoundToggle from '../../components/games/GameSoundToggle';
+import { setGameplayAttemptSeed } from '../../lib/difficulty';
 import '../styles/freeWorldGameV3.css';
 
 const SERVER_BOARD_GAMES = new Set(['number_sequence', 'colour_match']);
@@ -12,6 +13,7 @@ export const isWorldClientGame = (gameId) => Boolean(gameId && !SERVER_BOARD_GAM
 export function WorldClientGame({ gameId, config = {}, label, onComplete, onSkip, busy, timerText, timerCaption, practice = false, inline = false, children }) {
   const name = GAME_CATALOG.find((g) => g.id === gameId)?.label || (gameId === 'colour_match' ? 'Colour Match' : gameId);
   const guide = gameExperienceFor(gameId);
+  setGameplayAttemptSeed(config?.attempt_seed);
   const finish = (result) => {
     if (practice) playGameSound(result?.solved ? 'success' : 'failure');
     onComplete(result || {});

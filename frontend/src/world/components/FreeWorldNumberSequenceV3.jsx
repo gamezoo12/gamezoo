@@ -484,7 +484,29 @@ export default function FreeWorldNumberSequenceV3({
 
   const replayDemo =
     useCallback(
-      () => {
+      async () => {
+        try {
+          if (guestMode) {
+            const setting = await worldAPI.demoSettings();
+            const limit = Math.max(0, Number(setting.attempts_per_level_per_game ?? 1));
+            const key = `pl-demo-used:${level?.game_id || 'game'}:${championMode ? 'champion' : Number(selectedLevel?.level || 0)}`;
+            const used = JSON.parse(window.localStorage.getItem(key) || '[]');
+            if (used.length >= limit) {
+              throw new Error('Demo attempt limit reached for this level and game.');
+            }
+            window.localStorage.setItem(key, JSON.stringify([...used, new Date().toISOString()]));
+          } else {
+            await worldAPI.claimDemo(
+              Number(selectedLevel?.level || level?.level || 0),
+              String(level?.game_id || 'unknown'),
+              Number(level?.champion_stage || championMeta?.stage || 0),
+            );
+          }
+        } catch (claimError) {
+          setError(getErrorMessage(claimError, 'Demo attempt limit reached for this level and game.'));
+          toast.error('Demo limit reached for this level and game.');
+          return;
+        }
         if (isColour) {
           setDemoColourQs(
             makeDemoColourQuestions(colourCount),
@@ -524,6 +546,12 @@ export default function FreeWorldNumberSequenceV3({
         isColour,
         colourCount,
         level?.game_id,
+        level?.level,
+        level?.champion_stage,
+        selectedLevel?.level,
+        championMode,
+        championMeta?.stage,
+        guestMode,
       ],
     );
 

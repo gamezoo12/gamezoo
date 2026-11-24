@@ -35,6 +35,7 @@ function _needsFreshSkill(item) {
 
 export default function Cart() {
   const [items, setItems] = useState([]);
+  const [ticketAvailability, setTicketAvailability] = useState({});
   const [busy, setBusy] = useState(false);
   const [wallet, setWallet] = useState(null);
   const [checkoutSuccess, setCheckoutSuccess] = useState(null);
@@ -82,6 +83,14 @@ export default function Cart() {
 
   useEffect(() => { loadWallet(); }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    if (!user || !items.length) { setTicketAvailability({}); return; }
+    Promise.all(items.map(async item => {
+      const value = await ordersAPI.ticketAvailability(item.contest_id).catch(() => null);
+      return [item.contest_id, value];
+    })).then(entries => setTicketAvailability(Object.fromEntries(entries)));
+  }, [user, items]);
+
   // Auto-fetch fresh skill challenges for every skill-game item on mount OR
   // whenever the item list changes. This eliminates the class of "checkout
   // failed → expired challenge_token" errors: by the time the user clicks
@@ -121,13 +130,22 @@ export default function Cart() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
   };
 
+  const quantityLimit = (contestId) => {
+    const available = ticketAvailability[contestId]?.can_add;
+    return available == null ? 500 : Math.max(0, Number(available));
+  };
+
   const changeQty = (contest_id, delta) => {
-    const next = items.map(i => i.contest_id === contest_id ? { ...i, qty: Math.max(1, Math.min(500, i.qty + delta)) } : i);
-    save(next);
+    const maximum = quantityLimit(contest_id);
+    const item = items.find(entry => entry.contest_id === contest_id);
+    const quantity = Math.max(0, Math.min(maximum, Number(item?.qty || 0) + delta));
+    if (quantity === 0) return removeItem(contest_id);
+    save(items.map(i => i.contest_id === contest_id ? { ...i, qty: quantity } : i));
   };
 
   const setQty = (contest_id, qty) => {
-    const q = Math.max(1, Math.min(500, parseInt(qty, 10) || 1));
+    const q = Math.max(0, Math.min(quantityLimit(contest_id), parseInt(qty, 10) || 0));
+    if (q === 0) return removeItem(contest_id);
     save(items.map(i => i.contest_id === contest_id ? { ...i, qty: q } : i));
   };
 
@@ -422,22 +440,25 @@ export default function Cart() {
                   </div>
 
                   <div className="flex items-center gap-2 mt-3">
-                    <Button variant="outline" size="icon" data-testid={`item-minus-${i.contest_id}`} onClick={() => changeQty(i.contest_id, -1)} disabled={i.qty <= 1}>
+                    <Button variant="outline" size="icon" data-testid={`item-minus-${i.contest_id}`} onClick={() => changeQty(i.contest_id, -1)} aria-label="Decrease quantity or remove at zero">
                       <Minus className="w-4 h-4" />
                     </Button>
                     <input
                       type="number"
-                      min="1"
-                      max="500"
+                      min="0"
+                      max={quantityLimit(i.contest_id)}
                       value={i.qty}
                       onChange={(e) => setQty(i.contest_id, e.target.value)}
                       className="w-14 h-9 text-center rounded-md border border-slate-200 font-bold"
                       data-testid={`item-qty-${i.contest_id}`}
                     />
-                    <Button variant="outline" size="icon" data-testid={`item-plus-${i.contest_id}`} onClick={() => changeQty(i.contest_id, 1)}>
+                    <Button variant="outline" size="icon" data-testid={`item-plus-${i.contest_id}`} disabled={i.qty >= quantityLimit(i.contest_id)} onClick={() => changeQty(i.contest_id, 1)}>
                       <Plus className="w-4 h-4" />
                     </Button>
                   </div>
+                  <p className="mt-1 text-[10px] font-bold text-slate-500">
+                    {quantityLimit(i.contest_id) === 0 ? 'Your purchase limit has been reached.' : `You can add up to ${quantityLimit(i.contest_id)} ticket${quantityLimit(i.contest_id) === 1 ? '' : 's'}.`}
+                  </p>
                 </div>
                 <div className="sm:text-right flex sm:flex-col items-center sm:items-end justify-between gap-2 shrink-0">
                   <div className="font-extrabold text-lg text-slate-900">{exactTokens(i.qty * i.price)}</div>

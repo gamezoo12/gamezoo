@@ -16,7 +16,6 @@ import IntlWelcomeTour from './components/IntlWelcomeTour';
 import SignupChallengeGate from './components/signupChallenge/SignupChallengeGate';
 import PromotionPopup from './components/PromotionPopup';
 import PromotionAuthBridge from './components/PromotionAuthBridge';
-import PromotionFloatingBadge from './components/PromotionFloatingBadge';
 import GlobalSupportAssistant from './components/support/GlobalSupportAssistant';
 
 import PublicLayout from './components/layout/PublicLayout';
@@ -77,6 +76,8 @@ const InfluencersAdmin = lazy(() => import('./pages/admin/InfluencersAdmin'));
 const InfluencerDashboard = lazy(() => import('./pages/InfluencerDashboard'));
 const FreeWorldAdmin = lazy(() => import('./pages/admin/FreeWorldAdmin'));
 const WorldGCCompetitionAdmin = lazy(() => import('./pages/admin/WorldGCCompetitionAdmin'));
+const WorldSelectionAdmin = lazy(() => import('./pages/admin/WorldSelectionAdmin'));
+const GameplayInvestigationAdmin = lazy(() => import('./pages/admin/GameplayInvestigationAdmin'));
 const AnnouncementsAdmin = lazy(() => import('./pages/admin/AnnouncementsAdmin'));
 const SpecialChallengeAdmin = lazy(() => import('./pages/admin/SpecialChallengeAdmin'));
 const WinningsPayoutsAdmin = lazy(() => import('./pages/admin/WinningsPayoutsAdmin'));
@@ -554,6 +555,16 @@ function AppRouter() {
         />
 
         <Route
+          path="world-selection"
+          element={<RequireSuperAdmin><WorldSelectionAdmin /></RequireSuperAdmin>}
+        />
+
+        <Route
+          path="gameplay-investigation"
+          element={<RequireSuperAdmin><GameplayInvestigationAdmin /></RequireSuperAdmin>}
+        />
+
+        <Route
           path="announcements"
           element={<RequireSuperAdmin><AnnouncementsAdmin /></RequireSuperAdmin>}
         />
@@ -741,7 +752,6 @@ function App() {
 
           {/* NEW:
               Persistent draggable promotion badge */}
-          <PromotionFloatingBadge />
 
 
           {/* Terms gate */}
