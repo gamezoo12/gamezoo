@@ -51,7 +51,9 @@ it('previews and saves independent tablet and desktop spacing', async () => {
     await click('Tablet portrait');
     preview = container.querySelector('[data-preview-viewport="820 × 1180"]');
     expect(preview.firstChild.style.paddingTop).toBe('80px');
+    expect(preview.firstChild.style.paddingBottom).toBe('60px');
     expect(preview.querySelector('.grid-cols-1').style.marginTop).toBe('200px');
+    expect(preview.querySelector('.grid-cols-1').style.paddingTop).toBe('60px');
     expect(preview.querySelector('.grid-cols-1').style.maxWidth).toBe('560px');
 
     await click('Save images');

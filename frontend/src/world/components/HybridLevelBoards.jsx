@@ -4,6 +4,9 @@ import { Clock, Crown, Lock } from 'lucide-react';
 import { TokenRulesButton } from './TokenRulesButton';
 import { worldGcCompetitionAPI } from '../../lib/api';
 import { GAME_CATALOG } from '../../lib/gameCatalog';
+import ShareMenu from '../../components/ShareMenu';
+import UserAvatar from '../../components/UserAvatar';
+import { useAuth } from '../../context/AuthContext';
 
 const fmt = (ms) => {
   if (ms == null) return '—';
@@ -11,7 +14,6 @@ const fmt = (ms) => {
   return `${String(Math.floor(v / 60000)).padStart(2, '0')}:${String(Math.floor((v % 60000) / 1000)).padStart(2, '0')}.${String(v % 1000).padStart(3, '0')}`;
 };
 const gameName = (id) => (id === 'colour_match' ? 'Colour Match' : id === 'number_sequence' ? 'Number Sequence' : GAME_CATALOG.find((g) => g.id === id)?.label || id || '—');
-const initials = (n) => (String(n || 'P').trim().split(/\s+/).slice(0, 2).map((x) => x[0]).join('') || 'P').toUpperCase();
 
 // Loads all 10 level boards for a GC (read-only); levels without Every-Level results come back disabled.
 export function useHybridLevelBoards(gcNumber, refreshKey = 0) {
@@ -27,14 +29,19 @@ export function useHybridLevelBoards(gcNumber, refreshKey = 0) {
   return boards;
 }
 
-export function LevelLeaderboardPanel({ gcNumber, boards, isMine }) {
+export function LevelLeaderboardPanel({ gcNumber, boards, isMine, initialLevel }) {
+  const { user } = useAuth();
   const enabled = (boards || []).filter((b) => b?.enabled && b.status !== 'Upcoming');
   const upcoming = (boards || []).filter((b) => b?.enabled && b.status === 'Upcoming').length;
-  const [level, setLevel] = useState(null);
+  const [level, setLevel] = useState(initialLevel || null);
   useEffect(() => {
+    if (initialLevel && enabled.some((b) => b.level === Number(initialLevel))) {
+      setLevel(Number(initialLevel));
+      return;
+    }
     const open = enabled.find((b) => b.status === 'Open');
     setLevel((open || enabled[enabled.length - 1])?.level || null);
-  }, [boards]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [boards, initialLevel]);
   const board = enabled.find((b) => b.level === level);
   if (!boards) return <div className="pl-global-lb-card pl-global-lb-state" data-testid="lb-level-loading"><span className="pl-global-lb-spin" /><p>Loading level rankings…</p></div>;
   return (
@@ -52,7 +59,7 @@ export function LevelLeaderboardPanel({ gcNumber, boards, isMine }) {
         {!enabled.length && <p className="mt-3 text-sm text-slate-500" data-testid="lb-level-none">No level leaderboards for this GC. {upcoming ? `${upcoming} Every-Level levels are scheduled; rankings appear when each level opens.` : 'Level rankings appear only for Every-Level competitions that have opened.'}</p>}
       </div>
       {board && <div className="pl-global-lb-card pl-global-lb-rankings" data-testid="lb-level-board">
-        <div className="pl-global-lb-rankhead"><h2>LEVEL {board.level} RANKINGS</h2><span className="flex items-center gap-2"><TokenRulesButton rewards={board.rewards} /><span className="pl-global-lb-updates" data-testid="lb-level-status">{board.status}</span></span></div>
+        <div className="pl-global-lb-rankhead"><h2>LEVEL {board.level} RANKINGS</h2><span className="flex items-center gap-2"><TokenRulesButton rewards={board.rewards} /><ShareMenu path={`/world?leaderboard=1&view=level&gc=${gcNumber}&level=${board.level}`} title={`Free World Championship ${gcNumber} Level ${board.level}`} subtitle="Top 5 level standings" rows={board.leaderboard.slice(0, 5).map((row) => ({ rank: row.rank, name: row.user_name || 'Player', result: `${(Number(row.duration_ms || 0) / 1000).toFixed(2)}s` }))} maxRows={5} label="Share Level leaderboard" /><span className="pl-global-lb-updates" data-testid="lb-level-status">{board.status}</span></span></div>
         <div className="mb-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
           <div className="rounded-xl bg-[var(--fw-soft)] p-2"><div className="text-slate-500">Game</div><b data-testid="lb-level-game">{gameName(board.game_id)}</b></div>
           <div className="rounded-xl bg-[var(--fw-soft)] p-2"><div className="text-slate-500">Your best</div><b className="font-mono" data-testid="lb-level-my-best">{fmt(board.mine?.personal_best_ms)}</b></div>
@@ -65,7 +72,7 @@ export function LevelLeaderboardPanel({ gcNumber, boards, isMine }) {
         {board.leaderboard.length ? <div className="pl-global-lb-tablewrap" data-testid="lb-level-list">
           {board.leaderboard.map((r) => <div key={r.rank} style={{ gridTemplateColumns: "48px 1fr 110px" }} className={`pl-global-lb-tr ${r.rank <= 3 ? `top top-${r.rank}` : ''} ${isMine?.(r) ? 'is-me' : ''}`} data-testid="lb-level-row">
             <span className="pl-global-lb-rankcell"><b>{r.rank}</b>{r.rank === 1 && <span className="pl-global-lb-rk gold"><Crown size={12} /></span>}</span>
-            <span className="pl-global-lb-player"><span className={`pl-global-lb-av r${r.rank <= 3 ? r.rank : ''}`}>{initials(r.user_name)}</span><span className="pl-global-lb-pn">{r.user_name || 'Player'} <VerifiedReviewerBadge show={r.verified_reviewer} testid={`fw-level-verified-${r.rank}`} /></span></span>
+            <span className="pl-global-lb-player"><UserAvatar user={{ ...r, name: r.user_name, profile_image_url: isMine?.(r) ? user?.profile_image_url || r.profile_image_url : r.profile_image_url }} size="pl-global-lb-av" className={`r${r.rank <= 3 ? r.rank : ''}`} /><span className="pl-global-lb-pn">{r.user_name || 'Player'} <VerifiedReviewerBadge show={r.verified_reviewer} testid={`fw-level-verified-${r.rank}`} /></span></span>
             <span className="pl-global-lb-time"><Clock size={12} /> {fmt(r.duration_ms)}</span>
           </div>)}
         </div> : <div className="pl-global-lb-state" data-testid="lb-level-empty"><p>No successful times yet for Level {board.level}.</p></div>}

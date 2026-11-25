@@ -58,5 +58,11 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') {
     return;
   }
-  event.respondWith(fetch(event.request));
+  const url = new URL(event.request.url);
+  const isAppShell = event.request.mode === 'navigate'
+    || event.request.destination === 'script'
+    || event.request.destination === 'style';
+  event.respondWith(fetch(isAppShell
+    ? new Request(event.request, { cache: 'reload' })
+    : event.request));
 });

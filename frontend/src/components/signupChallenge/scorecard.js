@@ -54,8 +54,12 @@ function paint(ctx, d, w, h, logo, bg) {
   line(`${d.headline || 'BEST TIME'}: ${d.best}`, sq ? 56 : 84, '#FFD54A', 900, 1.45);
   if (d.partial) line('Partial results - challenge left early', sq ? 24 : 32, '#fda4af', 700);
   line('Think you can beat my time?', sq ? 32 : 46, '#ffffff', 800, sq ? 1.4 : 1.8);
-  ctx.font = `800 ${sq ? 30 : 40}px Arial, sans-serif`; ctx.fillStyle = '#c4b5fd';
-  ctx.fillText(d.url.replace(/^https?:\/\//, ''), w / 2, h - (sq ? 70 : 110));
+  ctx.font = `900 ${sq ? 30 : 44}px Arial, sans-serif`; ctx.fillStyle = '#FFD54A';
+  ctx.fillText('PRIZE LEAGUE', w / 2, sq ? h - 70 : Math.min(h - 200, y + 90));
+  if (!sq) {
+    ctx.font = '700 30px Arial, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fillText('Free skill challenge for new players · T&Cs apply', w / 2, h - 110);
+  }
 }
 
 export async function renderScorecard(data, format = 'story') {

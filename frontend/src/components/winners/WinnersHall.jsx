@@ -50,18 +50,22 @@ function DetailView({ tab, contest, onBack }) {
         {coverSrc(contest) && <img src={coverSrc(contest)} alt="" className="h-16 w-24 rounded-xl object-cover sm:h-20 sm:w-32" />}
         <h2 className="font-display text-base font-bold text-white md:text-lg" data-testid="pw-detail-title">{contest.title}</h2>
       </div>
-      <Detail cid={contest.contest_id} />
+      <Detail cid={contest.contest_id} contest={contest} />
     </div>
   );
 }
 
 export default function WinnersHall() {
-  const [tab, setTabState] = useState('winners');
+  const [params] = useSearchParams();
+  const requestedTab = params.get('tab');
+  const [tab, setTabState] = useState(() => TABS.some((item) => item.key === requestedTab) ? requestedTab : 'winners');
   const [list, setList] = useState(null);
   const [open, setOpen] = useState(null);
   const setTab = useCallback((t) => { setTabState(t); setOpen(null); }, []);
-  const [params] = useSearchParams();
   const deep = params.get('contest');
+  useEffect(() => {
+    if (TABS.some((item) => item.key === requestedTab)) setTabState(requestedTab);
+  }, [requestedTab]);
   useEffect(() => { setList(null); paidWinnersAPI.list(tab).then((r) => { setList(r.contests); const hit = deep && r.contests.find((c) => c.contest_id === deep); if (hit) setOpen(hit); }).catch(() => setList([])); }, [tab, deep]);
   const meta = TABS.find((t) => t.key === tab);
 

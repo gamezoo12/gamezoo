@@ -28,7 +28,7 @@ router = APIRouter(
 
 @router.get('')
 async def admin_referrals_bonuses(request: Request):
-    await require_admin(request)
+    admin = await require_admin(request)
     db = get_db()
 
     # ---------------------------------------------------------
@@ -73,6 +73,20 @@ async def admin_referrals_bonuses(request: Request):
         {},
         {'_id': 0},
     ).sort('created_at', -1).limit(1000).to_list(1000)
+    referral_total = await db.referrals.count_documents({})
+
+    share_events = []
+    share_event_total = 0
+    if admin.get('role') == 'super_admin':
+        share_events = await db.referral_share_events.find(
+            {}, {'_id': 0, 'referrer_user_id': 1, 'channel': 1, 'created_at': 1},
+        ).sort('created_at', -1).limit(10000).to_list(10000)
+        share_event_total = await db.referral_share_events.count_documents({})
+    shares_by_user = {}
+    for event in share_events:
+        user_id = event.get('referrer_user_id')
+        if user_id:
+            shares_by_user[user_id] = shares_by_user.get(user_id, 0) + 1
 
     user_ids = set()
 
@@ -82,6 +96,8 @@ async def admin_referrals_bonuses(request: Request):
 
         if ref.get('referred_user_id'):
             user_ids.add(ref['referred_user_id'])
+
+    user_ids.update(shares_by_user)
 
     # Resolve safe user display data in one query.
     user_map = {}
@@ -96,6 +112,8 @@ async def admin_referrals_bonuses(request: Request):
                 'name': 1,
                 'email': 1,
                 'referral_code': 1,
+                'profile_image_key': 1,
+                'profile_image_public': 1,
             },
         ).to_list(2000)
 
@@ -121,12 +139,25 @@ async def admin_referrals_bonuses(request: Request):
         ref['referrer_name'] = referrer.get('name')
         ref['referrer_email'] = referrer.get('email')
         ref['referrer_public_id'] = referrer.get('public_id')
+        ref['referrer_profile_image_url'] = (
+            f"/api/users/profile-picture/{referrer['user_id']}" if admin.get('role') == 'super_admin' and referrer.get('profile_image_key') else None
+        )
 
         ref['referred_name'] = referred.get('name')
         ref['referred_email'] = referred.get('email')
         ref['referred_public_id'] = referred.get('public_id')
+        ref['referred_profile_image_url'] = (
+            f"/api/users/profile-picture/{referred['user_id']}" if admin.get('role') == 'super_admin' and referred.get('profile_image_key') else None
+        )
+        ref['share_actions'] = shares_by_user.get(ref.get('referrer_user_id'), 0)
 
         ref.update(referral_progress(ref, reward_settings))
+
+    share_leaders = sorted(
+        ({'user_id': user_id, 'name': user_map.get(user_id, {}).get('name') or user_map.get(user_id, {}).get('public_id') or 'User', 'count': count}
+         for user_id, count in shares_by_user.items()),
+        key=lambda row: row['count'], reverse=True,
+    )
 
     # ---------------------------------------------------------
     # Summary
@@ -205,7 +236,9 @@ async def admin_referrals_bonuses(request: Request):
             'signup_waiting_topup': signup_waiting_topup,
             'signup_qualified_processing': signup_qualified_processing,
 
-            'referrals_total': len(referrals),
+            'referrals_total': referral_total,
+            'referral_share_actions': share_event_total,
+            'referral_sharers': len(shares_by_user),
             'referral_rewarded': referral_rewarded,
             'referral_waiting_topup': referral_waiting_topup,
             'referral_waiting_contest': referral_waiting_contest,
@@ -240,6 +273,7 @@ async def admin_referrals_bonuses(request: Request):
         },
         'signup_bonuses': bonus_users,
         'referrals': referrals,
+        'referral_share_leaders': share_leaders,
         'influencer_promos': influencer['promos'],
         'influencer_attributions': influencer['attributions'],
         'reward_settings': reward_settings,

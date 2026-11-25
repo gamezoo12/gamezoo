@@ -1,6 +1,7 @@
 import { Calendar, ChevronRight, Film, ListOrdered, Trophy } from 'lucide-react';
 import { paidWinnersAPI } from '../../lib/api';
 import { gbp } from '../../lib/format';
+import ShareMenu from '../ShareMenu';
 
 const ICON = { winners: Trophy, leaderboards: ListOrdered, gallery: Film };
 const CTA = { winners: 'See winners', leaderboards: 'View final leaderboard', gallery: 'Open gallery' };
@@ -12,9 +13,9 @@ export function coverSrc(c) {
 export function ContestCard({ c, tab, onOpen, index }) {
   const Icon = ICON[tab];
   return (
+    <article className="relative" data-testid={`pw-card-${tab}-${c.contest_id}`}>
     <button type="button" onClick={() => onOpen(c)} style={{ animationDelay: `${index * 70}ms` }}
-      className="pw-rise group relative flex flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#120c3a] text-left shadow-[0_20px_60px_-30px_rgba(124,58,237,0.7)] transition-[transform,border-color] duration-300 hover:-translate-y-1 hover:border-amber-300/60"
-      data-testid={`pw-card-${tab}-${c.contest_id}`}>
+      className="pw-rise group relative flex h-full w-full flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#120c3a] text-left shadow-[0_20px_60px_-30px_rgba(124,58,237,0.7)] transition-[transform,border-color] duration-300 hover:-translate-y-1 hover:border-amber-300/60">
       <div className="relative aspect-[16/10] overflow-hidden bg-[#1b1250]">
         {coverSrc(c) ? <img src={coverSrc(c)} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
           : <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_50%_40%,#4c1d95,#1b1250_70%)]"><Trophy className="h-16 w-16 text-amber-300/70" /></div>}
@@ -38,5 +39,7 @@ export function ContestCard({ c, tab, onOpen, index }) {
         <span className="mt-auto flex items-center gap-1 pt-4 text-xs font-black uppercase tracking-wider text-amber-300">{CTA[tab]}<ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" /></span>
       </div>
     </button>
+    <ShareMenu path={`/winners?tab=${encodeURIComponent(tab)}&contest=${encodeURIComponent(c.contest_id)}`} title={c.title} subtitle={tab === 'winners' ? 'Hall of Winners' : tab === 'leaderboards' ? 'Past leaderboard' : 'Draw gallery'} imageUrl={coverSrc(c)} className="absolute right-2 top-2 z-10" label={`Share ${c.title}`} />
+    </article>
   );
 }

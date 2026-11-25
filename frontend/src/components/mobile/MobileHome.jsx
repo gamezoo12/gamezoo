@@ -16,7 +16,6 @@ import { tokenCount, tokens as fmtTokens } from '../../lib/format';
 import { useAuth } from '../../context/AuthContext';
 import WinnersGallery from '../home/WinnersGallery';
 import Reviews from '../home/Reviews';
-import ReferAndEarnCard from '../home/ReferAndEarnCard';
 import TrustBadges from '../home/TrustBadges';
 import PromotionBanner from '../home/PromotionBanner';
 import CompetitionCard from '../CompetitionCard';
@@ -165,12 +164,7 @@ function ContestsPanel({ contests }) {
 
       <Reviews />
 
-      {/* 4 - Refer & Earn */}
-      <div className="px-4 mt-7">
-        <ReferAndEarnCard />
-      </div>
-
-      {/* 5 - Trust / safety */}
+      {/* 4 - Trust / safety */}
       <div className="mt-7">
         <TrustBadges />
       </div>

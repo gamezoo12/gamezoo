@@ -19,6 +19,8 @@ import { api, offersAPI } from '../../lib/api';
 import { refreshActiveOffer } from '../../lib/useActiveOffer';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
+import UserAvatar from '../../components/UserAvatar';
+import { useAuth } from '../../context/AuthContext';
 
 
 const Metric = ({ label, value, Icon, note }) => (
@@ -96,6 +98,8 @@ const emptyPromo = {
 
 
 export default function ReferralsBonusesAdmin() {
+  const { user: adminUser } = useAuth();
+  const isSuperAdmin = adminUser?.role === 'super_admin';
   const [data, setData] = useState(null);
   const [state, setState] = useState('loading');
 
@@ -507,6 +511,13 @@ export default function ReferralsBonusesAdmin() {
           Icon={Users}
         />
 
+        {isSuperAdmin && <Metric
+          label="Referral share actions"
+          value={summary.referral_share_actions ?? 0}
+          Icon={Users}
+          note={`${summary.referral_sharers ?? 0} users shared`}
+        />}
+
         <Metric
           label="Referral rewards"
           value={summary.referral_rewarded ?? 0}
@@ -520,6 +531,20 @@ export default function ReferralsBonusesAdmin() {
           Icon={Coins}
         />
       </div>
+
+      {isSuperAdmin && (data?.referral_share_leaders || []).length > 0 && (
+        <section className="rounded-2xl border border-slate-200 bg-white p-4" data-testid="referral-share-leaders">
+          <h2 className="font-bold text-slate-900">Users sharing referral links</h2>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {data.referral_share_leaders.map((row) => (
+              <Link key={row.user_id} to={`/admin/users/${row.user_id}`} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50">
+                <span className="font-semibold text-violet-700">{row.name}</span>
+                <Status tone="blue">{row.count} shares</Status>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
 
       {/* REWARD SETTINGS */}
@@ -610,6 +635,12 @@ export default function ReferralsBonusesAdmin() {
                 Offer enabled
               </label>
 
+              <label className="block text-xs font-semibold mt-3 mb-1">Eligible users</label>
+              <select value={rewardSettings.referral_offer_audience || 'new_users'} onChange={(e) => setRewardSettings({ ...rewardSettings, referral_offer_audience: e.target.value })} className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm">
+                <option value="new_users">New referred users only</option>
+                <option value="all_users">All users after offer is enabled</option>
+              </select>
+
               <label className="block text-xs font-semibold mt-4 mb-1">
                 Reward tokens
               </label>
@@ -688,6 +719,11 @@ export default function ReferralsBonusesAdmin() {
                   onChange={(e) => setRewardSettings({ ...rewardSettings, normal_topup_bonus_enabled: e.target.checked })} />
                 Offer enabled
               </label>
+              <label className="block text-xs font-semibold mt-3 mb-1">Eligible users</label>
+              <select value={rewardSettings.normal_topup_bonus_audience || 'new_users'} onChange={(e) => setRewardSettings({ ...rewardSettings, normal_topup_bonus_audience: e.target.value })} className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm">
+                <option value="new_users">New users only</option>
+                <option value="all_users">All users after offer is enabled</option>
+              </select>
               <label className="block text-xs font-semibold mt-3 mb-1">Reward type</label>
               <select value={rewardSettings.normal_topup_bonus_mode} onChange={(e) => setRewardSettings({ ...rewardSettings, normal_topup_bonus_mode: e.target.value })}
                 className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm">
@@ -1346,6 +1382,7 @@ export default function ReferralsBonusesAdmin() {
                 <th className="text-left px-4 py-3">Referrer</th>
                 <th className="text-left px-4 py-3">Referred User</th>
                 <th className="text-left px-4 py-3">Code</th>
+                {isSuperAdmin && <th className="text-left px-4 py-3">Referrer shares</th>}
                 <th className="text-left px-4 py-3">Top-up</th>
                 <th className="text-left px-4 py-3">Contest</th>
                 <th className="text-left px-4 py-3">Reward</th>
@@ -1357,7 +1394,7 @@ export default function ReferralsBonusesAdmin() {
               {filteredReferrals.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={isSuperAdmin ? 8 : 7}
                     className="px-4 py-12 text-center text-slate-400"
                   >
                     No referral records match this filter.
@@ -1387,38 +1424,26 @@ export default function ReferralsBonusesAdmin() {
                       className="border-t border-slate-100 align-top"
                     >
                       <td className="px-4 py-3">
-                        <Link
-                          to={`/admin/users/${r.referrer_user_id}`}
-                          className="font-semibold text-violet-700 hover:underline"
-                        >
-                          {r.referrer_name ||
-                            r.referrer_public_id ||
-                            'Referrer'}
-                        </Link>
-
-                        <div className="text-slate-400">
-                          {r.referrer_email || ''}
+                        <div className="flex items-center gap-2">
+                          <UserAvatar user={{ name: r.referrer_name || r.referrer_public_id, profile_image_url: r.referrer_profile_image_url }} size="h-8 w-8" />
+                          <div className="min-w-0"><Link to={`/admin/users/${r.referrer_user_id}`} className="font-semibold text-violet-700 hover:underline">{r.referrer_name || r.referrer_public_id || 'Referrer'}</Link><div className="text-slate-400">{r.referrer_email || ''}</div></div>
                         </div>
                       </td>
 
                       <td className="px-4 py-3">
-                        <Link
-                          to={`/admin/users/${r.referred_user_id}`}
-                          className="font-semibold text-violet-700 hover:underline"
-                        >
-                          {r.referred_name ||
-                            r.referred_public_id ||
-                            'Referred user'}
-                        </Link>
-
-                        <div className="text-slate-400">
-                          {r.referred_email || ''}
+                        <div className="flex items-center gap-2">
+                          <UserAvatar user={{ name: r.referred_name || r.referred_public_id, profile_image_url: r.referred_profile_image_url }} size="h-8 w-8" />
+                          <div className="min-w-0"><Link to={`/admin/users/${r.referred_user_id}`} className="font-semibold text-violet-700 hover:underline">{r.referred_name || r.referred_public_id || 'Referred user'}</Link><div className="text-slate-400">{r.referred_email || ''}</div></div>
                         </div>
                       </td>
 
                       <td className="px-4 py-3 font-mono">
                         {r.code || '—'}
                       </td>
+
+                      {isSuperAdmin && <td className="px-4 py-3">
+                        <Status tone="blue">{r.share_actions || 0}</Status>
+                      </td>}
 
                       <td className="px-4 py-3">
                         {r.topup_qualified ? (

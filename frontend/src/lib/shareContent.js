@@ -1,4 +1,4 @@
-import { referralAPI } from './api';
+import { API, referralAPI } from './api';
 import { BRAND } from './brand';
 
 const referralRequests = new Map();
@@ -184,7 +184,15 @@ function drawShareImage({ context, logo, image, title, subtitle, rows }) {
 }
 
 export async function fetchShareImage(imageUrl) {
-  const response = await fetch(imageUrl, { mode: 'cors', credentials: 'omit' });
+  const rawUrl = String(imageUrl || '').trim();
+  if (!/^https?:\/\//i.test(rawUrl)) {
+    const direct = await fetch(rawUrl);
+    if (!direct.ok) throw new Error('Contest image is unavailable for sharing.');
+    const directBlob = await direct.blob();
+    if (!directBlob.type.startsWith('image/')) throw new Error('Contest image is unavailable for sharing.');
+    return directBlob;
+  }
+  const response = await fetch(`${API}/contests/share-image?url=${encodeURIComponent(rawUrl)}`, { credentials: 'omit' });
   if (!response.ok) throw new Error('Contest image is unavailable for sharing.');
   const blob = await response.blob();
   if (!blob || !blob.type.startsWith('image/')) throw new Error('Contest image is unavailable for sharing.');

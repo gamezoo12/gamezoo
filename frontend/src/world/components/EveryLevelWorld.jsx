@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, Crown, RotateCcw, Trophy } from 'lucide-react';
 import { worldGcCompetitionAPI } from '../../lib/api';
 import { MemoryBoard3D, MemoryTile } from '../../components/games/premium/boards';
+import ShareMenu from '../../components/ShareMenu';
 
 const defaultRewards = { '1': 5, '2': 4, '3': 3, '4': 2, '5': 1 };
 
@@ -28,7 +29,7 @@ function encourage(rank, gapMs, slowerThanBest) {
 const Card = ({ position, symbol, revealed, matched, disabled, onClick }) =>
   <MemoryTile symbol={symbol} faceUp={revealed} matched={matched} disabled={disabled} onClick={() => onClick(position)} testId={`memory-card-${position}`} />;
 
-export default function EveryLevelWorld({ gcNumber, onExit }) {
+export default function EveryLevelWorld({ gcNumber, initialLeaderboardGC, initialLeaderboardLevel, onExit }) {
   const [progress, setProgress] = useState(null);
   const [selectedLevel, setSelectedLevel] = useState('L1');
   const [busy, setBusy] = useState(false);
@@ -40,8 +41,8 @@ export default function EveryLevelWorld({ gcNumber, onExit }) {
   const [elapsed, setElapsed] = useState(0);
   const [startedAt, setStartedAt] = useState(null);
   const [result, setResult] = useState(null);
-  const [leaderboardGC, setLeaderboardGC] = useState(gcNumber);
-  const [leaderboardLevel, setLeaderboardLevel] = useState('L1');
+  const [leaderboardGC, setLeaderboardGC] = useState(Number(initialLeaderboardGC) || gcNumber);
+  const [leaderboardLevel, setLeaderboardLevel] = useState(initialLeaderboardLevel || 'L1');
   const [leaderboard, setLeaderboard] = useState(null);
   const [error, setError] = useState('');
 
@@ -205,7 +206,7 @@ export default function EveryLevelWorld({ gcNumber, onExit }) {
               <select value={leaderboardLevel} onChange={(event) => setLeaderboardLevel(event.target.value)} className="h-10 w-full rounded-md border border-slate-300 px-2 text-sm">{levelOptions.map(([value, name]) => <option key={value} value={value}>{name}</option>)}</select>
             </label>
           </div>
-          <div className="flex items-center justify-between"><h2 className="font-bold text-slate-900">GC{leaderboardGC} · {levelOptions.find(([value]) => value === leaderboardLevel)?.[1]}</h2><span className="text-xs text-slate-500">Fastest successful time wins</span></div>
+          <div className="flex items-center justify-between gap-2"><h2 className="font-bold text-slate-900">GC{leaderboardGC} · {levelOptions.find(([value]) => value === leaderboardLevel)?.[1]}</h2><div className="flex items-center gap-2"><span className="text-xs text-slate-500">Fastest successful time wins</span><ShareMenu path={`/world?leaderboard=1&view=level&gc=${leaderboardGC}&level=${leaderboardLevel === 'champion' ? 'champion' : leaderboardLevel.slice(1)}`} title={`Free World GC${leaderboardGC} ${leaderboardLevel === 'champion' ? 'Champion' : `Level ${leaderboardLevel.slice(1)}`} leaderboard`} subtitle="Top 5 standings" rows={(leaderboard?.leaderboard || []).slice(0, 5).map((row) => ({ rank: row.rank, name: row.user_name || 'Player', result: formatTime(row.duration_ms) }))} maxRows={5} label="Share Free World leaderboard" /></div></div>
           <div className="flex flex-wrap gap-2 text-xs text-slate-700" data-testid="leaderboard-rewards">
             {leaderboardLevel === 'champion'
               ? (leaderboard?.champion_rewards || []).map((award) => <span key={award.rank} className="rounded border border-amber-200 bg-amber-50 px-2 py-1">{award.rank}: {award.champion_prize_tokens} Champion + {award.accumulated_bonus_tokens} Bonus Tokens</span>)

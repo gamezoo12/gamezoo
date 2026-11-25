@@ -1,4 +1,7 @@
 import ProfileCountry from '../components/ProfileCountry';
+import UserAvatar from '../components/UserAvatar';
+import ProfileImageViewer from '../components/ProfileImageViewer';
+import ProfilePictureCrop from '../components/account/ProfilePictureCrop';
 import SetPasswordCard from '../components/account/SetPasswordCard';
 import { VerifiedReviewerBadge } from '../components/VerifiedReviewerBadge';
 import { useEffect, useState } from 'react';
@@ -82,7 +85,11 @@ export default function MyAccount() {
   const [notificationFilter, setNotificationFilter] = useState('all');
   const [notificationDetail, setNotificationDetail] = useState(null);
   const [kyc, setKyc] = useState({ status: 'none' });
-  const [profile, setProfile] = useState({ name: '', email: '', phone: '', username: '', user_id: '', public_id: '', dob: '', address: '', phone_verified: false });
+  const [profile, setProfile] = useState({ name: '', email: '', phone: '', username: '', user_id: '', public_id: '', dob: '', address: '', phone_verified: false, profile_image_url: null, profile_image_public: false });
+  const [profileImageBusy, setProfileImageBusy] = useState(false);
+  const [profileImageOpen, setProfileImageOpen] = useState(false);
+  const [profileImageFile, setProfileImageFile] = useState(null);
+  const [publicProfileImage, setPublicProfileImage] = useState(null);
   const [wallet, setWallet] = useState(null);
   const [walletTxs, setWalletTxs] = useState([]);
   const [referral, setReferral] = useState(null);
@@ -106,8 +113,11 @@ export default function MyAccount() {
         dob: me.dob || '',
         address: me.address || '',
         phone_verified: !!me.phone_verified,
+        profile_image_url: me.profile_image_url || null,
+        profile_image_public: !!me.profile_image_public,
+        free_world_avatar_id: me.free_world_avatar_id || null,
       }))
-      .catch(() => setProfile(p => ({ ...p, name: user.name || '', email: user.email || '', username: user.username || '', user_id: user.user_id || '', public_id: user.public_id || '', phone_verified: !!user.phone_verified })));
+      .catch(() => setProfile(p => ({ ...p, name: user.name || '', email: user.email || '', username: user.username || '', user_id: user.user_id || '', public_id: user.public_id || '', phone_verified: !!user.phone_verified, free_world_avatar_id: user.free_world_avatar_id || null })));
     ordersAPI.myTickets().then(setTickets).catch(() => {});
     userAPI.kycStatus().then(setKyc).catch(() => {});
     userAPI.notifications().then(r => setNotifications(r?.notifications || [])).catch(() => {});
@@ -210,6 +220,47 @@ export default function MyAccount() {
     } finally { setSavingProfile(false); }
   };
 
+  const uploadProfilePicture = async (file) => {
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 8 * 1024 * 1024) {
+      toast({ title: 'Choose a JPG, PNG, or WEBP image under 8 MB.' });
+      return;
+    }
+    setProfileImageBusy(true);
+    try {
+      const result = await userAPI.uploadProfilePicture(file);
+      setProfile((current) => ({ ...current, profile_image_url: `${result.profile_image_url}?v=${Date.now()}`, profile_image_public: result.profile_image_public }));
+      setProfileImageFile(null);
+      await refresh?.();
+      toast({ title: 'Profile picture updated' });
+    } catch (error) {
+      toast({ title: 'Upload failed', description: error?.response?.data?.detail || 'Please try another image.' });
+    } finally { setProfileImageBusy(false); }
+  };
+
+  const setProfilePicturePublic = async (publicProfile) => {
+    setProfileImageBusy(true);
+    try {
+      const result = await userAPI.setProfilePicturePrivacy(publicProfile);
+      setProfile((current) => ({ ...current, profile_image_public: result.profile_image_public }));
+      await refresh?.();
+    } catch (error) {
+      toast({ title: 'Privacy setting was not saved', description: error?.response?.data?.detail || 'Please try again.' });
+    } finally { setProfileImageBusy(false); }
+  };
+
+  const removeProfilePicture = async () => {
+    setProfileImageBusy(true);
+    try {
+      await userAPI.deleteProfilePicture();
+      setProfile((current) => ({ ...current, profile_image_url: null, profile_image_public: false }));
+      setProfileImageOpen(false);
+      await refresh?.();
+    } catch (error) {
+      toast({ title: 'Could not remove profile picture', description: error?.response?.data?.detail || 'Please try again.' });
+    } finally { setProfileImageBusy(false); }
+  };
+
   const changePassword = async (e) => {
     e.preventDefault();
     setSavingPw(true);
@@ -310,6 +361,9 @@ export default function MyAccount() {
     const url = `${window.location.origin}/login?tab=signup&ref=${encodeURIComponent(referral?.code || '')}`;
     try {
       await navigator.clipboard.writeText(url);
+      if (referral?.code) {
+        try { await referralAPI.trackShare('copy'); } catch { /* Do not block copying when tracking is unavailable. */ }
+      }
       setCopiedRef(true);
       setTimeout(() => setCopiedRef(false), 2000);
     } catch {
@@ -329,7 +383,8 @@ export default function MyAccount() {
   };
 
   const openNotificationDetail = async (notification) => {
-    setNotificationDetail(notification);
+    const body = notification.body || notification.message || notification.content || notification.description || notification.data?.body || notification.data?.message || notification.title || 'No additional details available.';
+    setNotificationDetail({ ...notification, body });
     if (!notification.read) {
       try {
         await userAPI.markNotificationRead(notification.notification_id);
@@ -432,9 +487,7 @@ export default function MyAccount() {
         {active === 'profile' && (
           <div className="bg-white rounded-2xl border border-slate-100 p-6" data-testid="panel-profile">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 text-white text-xl font-extrabold flex items-center justify-center shrink-0">
-                {(profile.name || user.name || 'U').slice(0, 1).toUpperCase()}
-              </div>
+              <button type="button" disabled={!profile.profile_image_url} onClick={() => setProfileImageOpen(true)} aria-label="View profile picture" className="rounded-full disabled:cursor-default"><UserAvatar user={{ ...profile, name: profile.name || user.name }} size="h-14 w-14" className="text-xl" testId="account-profile-avatar" /></button>
               <div className="flex-1 min-w-0">
                 <div className="font-display font-extrabold text-xl text-slate-900 truncate">
                   @{profile.username || '—'}
@@ -458,6 +511,25 @@ export default function MyAccount() {
             <p className="text-sm text-slate-500 mb-5">
               Keep your account info up-to-date so we can pay you out and notify winners.
             </p>
+            <section className="mb-5 rounded-xl border border-slate-200 p-4" data-testid="profile-picture-settings">
+              <div className="flex flex-wrap items-center gap-4">
+                <UserAvatar user={{ ...profile, name: profile.name || user.name }} size="h-20 w-20" className="text-xl" />
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md bg-slate-900 px-3 text-xs font-bold text-white">
+                    <Upload className="h-4 w-4" />{profileImageBusy ? 'Saving…' : profile.profile_image_url ? 'Change picture' : 'Upload picture'}
+                    <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" disabled={profileImageBusy} onChange={(event) => { const file = event.target.files?.[0]; if (file) { if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 8 * 1024 * 1024) toast({ title: 'Choose a JPG, PNG, or WEBP image under 8 MB.' }); else setProfileImageFile(file); } event.target.value = ''; }} data-testid="profile-picture-upload" />
+                  </label>
+                  {profile.profile_image_url && <button type="button" disabled={profileImageBusy} onClick={removeProfilePicture} className="h-9 rounded-md border border-rose-200 px-3 text-xs font-bold text-rose-700 disabled:opacity-50" data-testid="profile-picture-remove">Delete picture</button>}
+                </div>
+              </div>
+              <label className="mt-3 flex items-start gap-2 text-sm text-slate-700">
+                <input type="checkbox" checked={!!profile.profile_image_public} disabled={!profile.profile_image_url || profileImageBusy} onChange={(event) => setProfilePicturePublic(event.target.checked)} data-testid="profile-picture-public" />
+                <span>Allow other users to see my profile picture</span>
+              </label>
+              <p className="mt-1 text-[11px] text-slate-500">Private pictures are visible only to you and authorized admins. Public pictures may be copied or captured from the screen.</p>
+            </section>
+            {profileImageOpen && <ProfileImageViewer imageUrl={profile.profile_image_url} name={profile.public_id || profile.name} onClose={() => setProfileImageOpen(false)} />}
+            {profileImageFile && <ProfilePictureCrop file={profileImageFile} onCancel={() => setProfileImageFile(null)} onConfirm={uploadProfilePicture} busy={profileImageBusy} />}
             <form onSubmit={saveProfile} className="grid md:grid-cols-2 gap-4">
               <div>
                 <Label>Full name</Label>
@@ -836,7 +908,7 @@ export default function MyAccount() {
                 </div>
               </div>
 
-              <div className="grid md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
                 <div>
                   <div className="text-white/85 text-xs uppercase tracking-wider">
                     Referral tokens earned
@@ -862,6 +934,16 @@ export default function MyAccount() {
                   <div className="font-display text-4xl font-extrabold">
                     {referral?.pending ?? 0}
                   </div>
+                </div>
+
+                <div>
+                  <div className="text-white/85 text-xs uppercase tracking-wider">Link shares</div>
+                  <div className="font-display text-4xl font-extrabold" data-testid="account-referral-share-count">{referral?.share_actions ?? 0}</div>
+                </div>
+
+                <div>
+                  <div className="text-white/85 text-xs uppercase tracking-wider">Friends joined</div>
+                  <div className="font-display text-4xl font-extrabold" data-testid="account-referral-join-count">{referral?.total ?? referralList.length}</div>
                 </div>
               </div>
 
@@ -938,11 +1020,11 @@ export default function MyAccount() {
                         className="py-4 flex flex-col sm:flex-row sm:items-center gap-3"
                       >
                         <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <div className="w-9 h-9 shrink-0 rounded-full bg-gradient-to-br from-fuchsia-500 to-orange-500 text-white text-sm font-bold flex items-center justify-center">
-                            {(r.referred_name || r.referred_email || '?')
-                              .slice(0, 1)
-                              .toUpperCase()}
-                          </div>
+                          {r.referred_profile_image_url ? (
+                            <button type="button" onClick={() => setPublicProfileImage({ url: r.referred_profile_image_url, name: r.referred_name || 'Friend' })} aria-label={`View ${r.referred_name || 'friend'} profile picture`}>
+                              <UserAvatar user={{ name: r.referred_name, email: r.referred_email, profile_image_url: r.referred_profile_image_url }} size="h-9 w-9" />
+                            </button>
+                          ) : <UserAvatar user={{ name: r.referred_name || r.referred_email || '?' }} size="h-9 w-9" />}
 
                           <div className="min-w-0">
                             <div className="text-sm font-medium truncate">
@@ -986,6 +1068,7 @@ export default function MyAccount() {
             </div>
           </div>
         )}
+        {publicProfileImage && <ProfileImageViewer imageUrl={publicProfileImage.url} name={publicProfileImage.name} onClose={() => setPublicProfileImage(null)} />}
       </div>
       )}
 

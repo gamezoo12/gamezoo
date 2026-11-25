@@ -70,6 +70,9 @@ def _to_public(user_doc: dict) -> dict:
     lack newer fields (phone_verified, dob, address, terms_accepted_at, ...).
     """
     payload = {k: user_doc.get(k) for k in UserPublic.model_fields.keys() if user_doc.get(k) is not None}
+    if user_doc.get('profile_image_key'):
+        payload['profile_image_url'] = f"/api/users/profile-picture/{user_doc.get('user_id')}"
+        payload['profile_image_public'] = bool(user_doc.get('profile_image_public', False))
     payload['phone_verification_required'] = phone_gate_blocks(user_doc)
     return UserPublic(**payload).model_dump(mode='json')
 
@@ -370,7 +373,7 @@ async def register(inp: RegisterInput, request: Request):
             referrer_user_id=referred_by,
             referred_user_id=user.user_id,
             code=referral_code,
-            **await referral_enrollment(db),
+            **await referral_enrollment(db, referred_by),
         )
         await db.referrals.insert_one(r.model_dump())
         from routers.referral_routes import qualify_zero_topup_referral
@@ -684,7 +687,9 @@ async def google_session(request: Request):
         user = doc
     else:
         await db.users.update_one({'user_id': user['user_id']}, {'$set': {
-            'name': data.get('name') or user['name'],
+            # Google is an identity source, not a profile source of truth.
+            # Preserve a name the user edited in Prize League.
+            'name': user.get('name') or data.get('name') or email,
             'picture': data.get('picture') or user.get('picture'),
             'email_verified': True,
             'email_verified_at': user.get('email_verified_at') or datetime.now(timezone.utc),
@@ -902,7 +907,7 @@ async def _apply_google_personal_referral(db, user_id: str, referral_code: str) 
                 referrer_user_id=ref_user['user_id'],
                 referred_user_id=user_id,
                 code=referral_code,
-                **await referral_enrollment(db),
+                **await referral_enrollment(db, ref_user['user_id']),
             )
             await db.referrals.insert_one(referral.model_dump())
             from routers.referral_routes import qualify_zero_topup_referral

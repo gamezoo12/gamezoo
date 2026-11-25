@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { signupChallengeAPI } from '../../lib/api';
 import { downloadBlob, renderScorecard } from './scorecard';
 import { tm } from './parts';
+import ShareMenu from '../ShareMenu';
 
 const track = (type, preview) => { if (!preview) signupChallengeAPI.event(type); };
 
@@ -16,7 +17,7 @@ function Btn({ icon: Icon, children, onClick, testId, gold }) {
   return (
     <button type="button" onClick={onClick} data-testid={testId}
       className={`sc-btn flex items-center justify-center gap-2 px-3 text-sm ${gold ? 'sc-btn-gold' : 'sc-btn-ghost'}`}>
-      <Icon className="h-4 w-4" />{children}
+      <Icon className="h-4 w-4 shrink-0" />{children}
     </button>
   );
 }
@@ -30,7 +31,7 @@ export function FinalScorecard({ state, partial, preview, onFinish }) {
   const card = useMemo(() => ({
     title: ch.title, prize: ch.prize_label, name: p.display_name || 'Player', game: ch.game_label, url: link, bgUrl: ch.scorecard_bg_url,
     best: tm(p.best_score), partial,
-    attempts: state.attempts.map((a) => ({ no: a.attempt_no, label: a.status === 'completed' ? tm(a.score) : a.status.toUpperCase(), best: a.attempt_id === p.best_attempt_id })),
+    attempts: state.attempts.map((a) => ({ no: a.attempt_no, label: a.status === 'completed' ? tm(a.score) : 'No time', best: a.attempt_id === p.best_attempt_id })),
   }), [ch, p, state.attempts, partial, link]);
 
   useEffect(() => {
@@ -56,6 +57,7 @@ export function FinalScorecard({ state, partial, preview, onFinish }) {
           <Btn icon={Download} onClick={() => save('square')} testId="sc-save-square">Save Square</Btn>
           <Btn icon={MessageCircle} onClick={whatsapp} testId="sc-share-whatsapp">Share to WhatsApp</Btn>
           <Btn icon={Instagram} onClick={instagram} testId="sc-share-instagram">Share to Instagram</Btn>
+          <div className="flex items-center"><ShareMenu path={sharePath(p)} title={`Prize League ${titleCase(ch.title)} scorecard`} subtitle={`Best time: ${tm(p.best_score)}`} imageRenderer={() => renderScorecard(card, 'story')} label="More scorecard share options" /></div>
           <Btn icon={Link2} onClick={() => copy(link, 'copy_link', preview, 'Challenge link')} testId="sc-copy-link">Copy Challenge Link</Btn>
           <Btn icon={Copy} onClick={() => copy(message, 'copy_caption', preview, 'Caption')} testId="sc-copy-caption">Copy Caption</Btn>
           {ch.whatsapp_url && <Btn icon={Users} onClick={() => { track('community_whatsapp', preview); window.open(ch.whatsapp_url, '_blank', 'noopener'); }} testId="sc-join-whatsapp">Join WhatsApp Community</Btn>}
@@ -70,6 +72,7 @@ export function FinalScorecard({ state, partial, preview, onFinish }) {
 }
 
 const shareLink = (ch, p) => `${(ch.share_url || 'https://www.prizeleague.co.uk').replace(/\/$/, '')}/?sc=${p.share_code || ''}`;
+const sharePath = (p) => `/?sc=${encodeURIComponent(p.share_code || '')}`;
 const shareMessage = (ch, time, link, label) => `🏆 I just played the Prize League ${titleCase(ch.title)}!\n⏱️ ${label}: ${time}\n💷 ${ch.prize_label}!\nThink you can beat my time?\nJoin here: ${link}`;
 
 function IgHelp() {
@@ -122,7 +125,7 @@ export function AttemptShare({ state, attempt, preview }) {
     title: ch.title, prize: ch.prize_label, name: p.display_name || 'Player', game: ch.game_label, url: link, bgUrl: ch.scorecard_bg_url,
     headline: `ATTEMPT ${attempt.attempt_no} TIME`, best: time, partial: false,
     attempts: state.attempts.filter((a) => a.attempt_no <= attempt.attempt_no)
-      .map((a) => ({ no: a.attempt_no, label: a.status === 'completed' ? tm(a.score) : a.status.toUpperCase(), best: a.attempt_id === attempt.attempt_id })),
+      .map((a) => ({ no: a.attempt_no, label: a.status === 'completed' ? tm(a.score) : 'No time', best: a.attempt_id === attempt.attempt_id })),
   }), [ch, p, state.attempts, attempt, link, time]);
   const message = shareMessage(ch, time, link, `My attempt ${attempt.attempt_no} time`);
   const { save, whatsapp, instagram, igHelp } = useScorecardShare(card, message, preview, `attempt-${attempt.attempt_no}`);
@@ -144,6 +147,7 @@ export function AttemptShare({ state, attempt, preview }) {
         <Btn icon={Download} gold onClick={() => save('story')} testId="sc-attempt-save">Save</Btn>
         <Btn icon={MessageCircle} onClick={whatsapp} testId="sc-attempt-whatsapp">WhatsApp</Btn>
         <Btn icon={Instagram} onClick={instagram} testId="sc-attempt-instagram">Instagram</Btn>
+        <div className="flex items-center justify-center"><ShareMenu path={sharePath(p)} title={`Prize League ${titleCase(ch.title)} attempt`} subtitle={`Attempt ${attempt.attempt_no}: ${time}`} imageRenderer={() => renderScorecard(card, 'square')} label="More attempt share options" /></div>
       </div>
       {igHelp && <div className="mt-3"><IgHelp /></div>}
     </div>

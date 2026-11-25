@@ -115,7 +115,7 @@ async def _real_homepage_winners(db):
     rows.sort(key=_winner_sort_key, reverse=True)
     users = {user['user_id']: user async for user in db.users.find(
         {'user_id': {'$in': list({row.get('user_id') for row in rows if row.get('user_id')})}},
-        {'_id': 0, 'user_id': 1, 'name': 1, 'username': 1, 'profile_image_url': 1, 'profile_image_public': 1},
+        {'_id': 0, 'user_id': 1, 'name': 1, 'username': 1, 'profile_image_key': 1, 'profile_image_public': 1},
     )}
     winners = []
     for row in rows[:100]:
@@ -129,7 +129,7 @@ async def _real_homepage_winners(db):
             'kind': 'winner',
             'name': str(row.get('homepage_name') or public_name),
             'prize': str(row.get('homepage_prize_label') or _real_prize(row)),
-            'image_url': row.get('winner_image_url') or (user.get('profile_image_url') if user.get('profile_image_public') else ''),
+            'image_url': row.get('winner_image_url') or (f"/api/users/profile-picture/{row.get('user_id')}" if user.get('profile_image_key') and user.get('profile_image_public') else ''),
             'created_at': row.get('credited_at') or row.get('drawn_at') or row.get('created_at'),
             'contest_id': row.get('contest_id'),
         })
@@ -160,7 +160,7 @@ async def _real_homepage_winners(db):
     ).sort([('credited_at', -1), ('paid_at', -1), ('frozen_at', -1)]).to_list(5000)
     champion_users = {user['user_id']: user async for user in db.users.find(
         {'user_id': {'$in': list({award.get('user_id') for award in champion_awards if award.get('user_id')})}},
-        {'_id': 0, 'user_id': 1, 'name': 1, 'username': 1, 'profile_image_url': 1, 'profile_image_public': 1},
+        {'_id': 0, 'user_id': 1, 'name': 1, 'username': 1, 'profile_image_key': 1, 'profile_image_public': 1},
     )}
     champion_winners = []
     for award in champion_awards:
@@ -176,7 +176,7 @@ async def _real_homepage_winners(db):
             'name': str(award.get('homepage_name') or public_name),
             'prize': str(award.get('homepage_prize_label') or f'£{amount:,.2f}'.replace('.00', '')),
             'prize_amount': amount,
-            'image_url': award.get('winner_image_url') or (user.get('profile_image_url') if user.get('profile_image_public') else ''),
+            'image_url': award.get('winner_image_url') or (f"/api/users/profile-picture/{award.get('user_id')}" if user.get('profile_image_key') and user.get('profile_image_public') else ''),
             'created_at': award.get('credited_at') or award.get('paid_at') or award.get('frozen_at'),
             'contest_id': f"championship-{award.get('global_contest_number')}",
         })

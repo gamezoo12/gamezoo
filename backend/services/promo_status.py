@@ -8,7 +8,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
-from services.offer_terms import campaign_conditions_text, campaign_terms, classify_acquisition
+from services.offer_terms import campaign_conditions_text, campaign_terms, classify_acquisition, normal_topup_terms
+from services.reward_program import get_reward_settings
 
 STACKING_RULE = 'influencer_exclusive'
 STACKING_RULE_LABEL = 'Influencer Exclusive'
@@ -60,6 +61,7 @@ async def promotion_rows(db, users: list[dict]) -> list[dict]:
     if not users:
         return []
     now = datetime.now(timezone.utc)
+    current_normal_topup = normal_topup_terms(await get_reward_settings(db))
     ids = [u['user_id'] for u in users]
     attributions = {a['user_id']: a async for a in db.influencer_attributions.find({'user_id': {'$in': ids}}, {'_id': 0})}
     promo_ids = list({a['promo_id'] for a in attributions.values() if a.get('promo_id')})
@@ -101,7 +103,8 @@ async def promotion_rows(db, users: list[dict]) -> list[dict]:
         terms = campaign_terms({**promo, **(attribution or {}).get('campaign_snapshot', {})}) if attribution else None
         campaign_live = _campaign_live(promo, now) if attribution else None
         topup_event_count = topup_event_counts.get((attribution or {}).get('attribution_id'), 0)
-        normal_topup_terms = (user.get('normal_topup_offer_terms') or {}) if acquisition == 'normal' else None
+        enrolled_topup_terms = (user.get('normal_topup_offer_terms') or {}) if acquisition == 'normal' else None
+        normal_topup_promo = current_normal_topup if current_normal_topup.get('audience') == 'all_users' else enrolled_topup_terms
 
         conflicts = []
         if acquisition == 'influencer' and (normal or normal_topup):
@@ -138,7 +141,7 @@ async def promotion_rows(db, users: list[dict]) -> list[dict]:
                              else 'pending' if user.get('signup_bonus_offer_eligible') else 'not_eligible')
             if normal_topup:
                 topup_status = 'credited'
-            elif normal_topup_terms and normal_topup_terms.get('enabled') and (normal_topup_terms.get('reward_tokens') or normal_topup_terms.get('reward_percent')):
+            elif normal_topup_promo and normal_topup_promo.get('enabled') and (normal_topup_promo.get('reward_tokens') or normal_topup_promo.get('reward_percent')):
                 topup_status = 'pending'
             else:
                 topup_status = 'not_offered'
@@ -161,7 +164,7 @@ async def promotion_rows(db, users: list[dict]) -> list[dict]:
             'influencer_topup_event_count': topup_event_count,
             'next_influencer_topup_rank': topup_event_count + 1,
             'signup_bonus_status': signup_status, 'topup_bonus_status': topup_status,
-            'normal_topup_promo': normal_topup_terms,
+            'normal_topup_promo': normal_topup_promo,
             'signup_pending_condition': (_signup_pending_reason(terms, user) if acquisition == 'influencer' and signup_status == 'pending' and terms else None),
             'topup_pending_condition': (_topup_pending_reason(terms) if acquisition == 'influencer' and topup_status == 'pending' and terms else None),
             'normal_bonus_tokens_issued': round(sum(float(g.get('original_amount') or 0) for g in normal + normal_topup), 2),

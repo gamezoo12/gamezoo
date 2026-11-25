@@ -12530,15 +12530,19 @@
     bottom 2.6s cubic-bezier(.45, .05, .4, 1);
 }
 
-/* AT a level: the avatar JUMPS onto the level circle, then idles. */
+/* AT a level: the avatar walks onto the circle, then idles. */
 .pl1000-progress-avatar.is-at-level {
   margin-bottom: 92px;
   transform: translateX(-50%) scale(1.6);
   transform-origin: bottom center;
   animation:
     pl1000AvatarAppear .5s ease-out both,
-    pl1000AvatarJump .7s cubic-bezier(.3, 1.35, .5, 1) both,
+    pl1000AvatarWalk .8s ease-in-out both,
     pl1000AvatarIdle 2.6s ease-in-out .7s infinite;
+}
+
+.pl1000-progress-avatar.is-walking .pl-map-avatar-art {
+  animation: pl-map-avatar-walk .4s ease-in-out 6;
 }
 
 /* WAITING: rest ON the road path (before the locked level) until it unlocks. */
@@ -12643,6 +12647,12 @@
   45%  { transform: translateX(-50%) scale(1.6) translateY(-30px); }
   72%  { transform: translateX(-50%) scale(1.6) translateY(-6px); }
   100% { transform: translateX(-50%) scale(1.6) translateY(0); }
+}
+
+@keyframes pl1000AvatarWalk {
+  0%, 100% { transform: translateX(-50%) scale(1.6) translateY(0); }
+  25%, 75% { transform: translateX(-50%) scale(1.6) translateY(-4px) rotate(3deg); }
+  50% { transform: translateX(-50%) scale(1.6) translateY(0) rotate(-3deg); }
 }
 
 /* Bright white legs */
@@ -12853,6 +12863,24 @@
 .pl1000-progress-avatar {
   z-index: 9999 !important;
   isolation: isolate;
+  pointer-events: auto;
+}
+
+.pl-map-avatar-control { position: absolute; bottom: -4px; left: 50%; width: 56px; height: 78px; transform: translateX(-50%); border: 0; padding: 0; background: transparent; cursor: pointer; touch-action: manipulation; }
+.pl-map-avatar-art { width: 100%; height: 100%; transform-origin: 50% 90%; }
+.pl-map-avatar-action-0 { animation: pl-map-avatar-wave .65s ease-in-out; }
+.pl-map-avatar-action-1 { animation: pl-map-avatar-spin .7s ease-in-out; }
+.pl-map-avatar-action-2 { animation: pl-map-avatar-dance .8s ease-in-out; }
+.pl-map-avatar-action-3 { animation: pl-map-avatar-cheer .75s ease-in-out; }
+.pl-map-avatar-action-4 { animation: pl-map-avatar-pose .7s ease-in-out; }
+@keyframes pl-map-avatar-wave { 25%, 75% { transform: rotate(calc(var(--avatar-action-tilt) * -1)); } 50% { transform: rotate(var(--avatar-action-tilt)); } }
+@keyframes pl-map-avatar-spin { to { transform: rotateY(360deg); } }
+@keyframes pl-map-avatar-dance { 25% { transform: translateY(calc(var(--avatar-action-lift) * -1)) rotate(var(--avatar-action-tilt)); } 50% { transform: rotate(calc(var(--avatar-action-tilt) * -1)); } 75% { transform: translateY(calc(var(--avatar-action-lift) * -.6)) rotate(calc(var(--avatar-action-tilt) * .6)); } }
+@keyframes pl-map-avatar-cheer { 25%, 75% { transform: translateY(calc(var(--avatar-action-lift) * -1)) rotate(calc(var(--avatar-action-tilt) * -.6)); } 50% { transform: translateY(0) rotate(var(--avatar-action-tilt)); } }
+@keyframes pl-map-avatar-pose { 30%, 70% { transform: rotate(var(--avatar-action-tilt)) scale(1.08); } 50% { transform: translateY(calc(var(--avatar-action-lift) * -.5)) rotate(calc(var(--avatar-action-tilt) * -1)); } }
+@keyframes pl-map-avatar-walk { 0%, 100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-3px) rotate(4deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .pl-map-avatar-art, .pl1000-progress-avatar { animation: none !important; transition: none !important; }
 }
 
 /* Champion state must remain on the top avatar layer */

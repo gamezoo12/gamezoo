@@ -465,6 +465,9 @@ async def _apply_tx_idempotent(
     ref_order_id: Optional[str] = None,
     *,
     allow_pending_bonus_grant: bool = False,
+    bonus_only: bool = False,
+    bonus_limit: Optional[float] = None,
+    winning_bonus_limit: Optional[float] = None,
 ) -> dict:
     """
     Idempotent wallet mutation for recoverable workflows.
@@ -579,12 +582,18 @@ async def _apply_tx_idempotent(
                 raise HTTPException(status_code=400, detail='Insufficient wallet balance')
             debit_bonus, debit_winning_bonus, debit_withdrawable = _split_debit(
                 effective_balance, usable_bonus, winning_bonus, withdrawable, pending, abs(delta),
+                bonus_limit, winning_bonus_limit,
             )
             reservation_id = f'{marker}:bonus' if debit_bonus > 0 else ''
             reserved = await reserve_from_grants(db, user_id, debit_bonus, reservation_id, now) if debit_bonus > 0 else []
             grant_debit = r2(sum(amount for _, amount in reserved))
             legacy_debit = min(legacy_bonus, max(0.0, r2(debit_bonus - grant_debit)))
             actual_bonus_debit = r2(grant_debit + legacy_debit)
+            if bonus_only and actual_bonus_debit + 0.001 < abs(delta):
+                if reserved:
+                    await finalize_reservation(db, reserved, reservation_id, committed=False)
+                    reserved = []
+                raise HTTPException(status_code=400, detail='Insufficient Bonus Tokens')
             if actual_bonus_debit + 0.001 < debit_bonus:
                 if reserved:
                     await finalize_reservation(db, reserved, reservation_id, committed=False)

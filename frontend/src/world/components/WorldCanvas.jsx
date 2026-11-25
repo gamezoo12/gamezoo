@@ -27,10 +27,14 @@ import FreeWorldLeaderboard from './FreeWorldLeaderboard';
 
 import InstallPrompt from './InstallPrompt';
 
+import RiggedFreeWorldAvatar from './RiggedFreeWorldAvatar';
+import FreeWorldAvatar, { getRenderableFreeWorldAvatarId, isUnityFreeWorldAvatar, UNITY_3D_AVATARS_ENABLED } from './FreeWorldAvatar';
+import FreeWorldAvatarPicker from './FreeWorldAvatarPicker';
+import MapAvatar from './MapAvatar';
 import '../styles/world2d.css';
 import '../styles/festiveMaps.css';
-import SantaAvatar from './SantaAvatar';
-import SantaIntro from './SantaIntro';
+import FreeWorldIntroVideo from './FreeWorldIntroVideo';
+import TokenIcon from '../../components/TokenIcon';
 
 const CHAMPIONSHIP_HEIGHT = 3500;
 const VIRTUAL_SECTION_OVERSCAN = 1;
@@ -738,6 +742,8 @@ const ChampionshipSection = React.memo(function ChampionshipSection({
   championship,
   sectionIndex,
   worldState,
+  avatarId,
+  onChooseAvatar,
   currentGlobalLevel,
   currentChampionship,
   journeyStarted,
@@ -1241,6 +1247,18 @@ const ChampionshipSection = React.memo(function ChampionshipSection({
       worldState,
       serverClockAnchorRef,
     ]);
+
+  const avatarPositionKey = progressAvatar ? `${progressAvatar.left}:${progressAvatar.bottom}` : '';
+  const previousAvatarPosition = useRef('');
+  const [avatarWalking, setAvatarWalking] = useState(false);
+  useEffect(() => {
+    const previous = previousAvatarPosition.current;
+    previousAvatarPosition.current = avatarPositionKey;
+    if (!previous || !avatarPositionKey || previous === avatarPositionKey) return undefined;
+    setAvatarWalking(true);
+    const timeout = setTimeout(() => setAvatarWalking(false), 2400);
+    return () => clearTimeout(timeout);
+  }, [avatarPositionKey]);
 
   return (
     <section
@@ -1923,6 +1941,7 @@ const ChampionshipSection = React.memo(function ChampionshipSection({
           <div
             className={[
               'pl1000-progress-avatar',
+              avatarWalking ? 'is-walking' : '',
 
               progressAvatar.waiting
                 ? 'is-waiting'
@@ -1948,15 +1967,7 @@ const ChampionshipSection = React.memo(function ChampionshipSection({
             }
             aria-label="Your avatar"
           >
-            <SantaAvatar left={progressAvatar.left} bottom={progressAvatar.bottom} />
-            <span className="pl1000-avatar-head" />
-
-            <span className="pl1000-avatar-body">
-              PL
-            </span>
-
-            <span className="pl1000-avatar-leg left" />
-            <span className="pl1000-avatar-leg right" />
+            <MapAvatar avatarId={avatarId} onChoose={onChooseAvatar} walking={avatarWalking} />
 
             <b>YOU</b>
           </div>
@@ -1979,6 +1990,7 @@ const ChampionshipSection = React.memo(function ChampionshipSection({
 
 function SeasonStart({
   showAvatar,
+  avatarId,
   journeyWalking,
   onStartJourney,
 }) {
@@ -2096,17 +2108,9 @@ function SeasonStart({
           >
             <span className="pl2d-gate-avatar-shadow" />
 
-            <span className="pl2d-gate-avatar-head" />
-
-            <span className="pl2d-gate-avatar-body">
-              PL
-            </span>
-
-            <span className="pl2d-gate-avatar-arm left" />
-            <span className="pl2d-gate-avatar-arm right" />
-
-            <span className="pl2d-gate-avatar-leg left" />
-            <span className="pl2d-gate-avatar-leg right" />
+            {UNITY_3D_AVATARS_ENABLED && isUnityFreeWorldAvatar(avatarId)
+              ? <RiggedFreeWorldAvatar avatarId={avatarId} walking={journeyWalking} className="h-full w-full" />
+              : <FreeWorldAvatar avatarId={avatarId} className="h-full w-full" />}
 
             <small>YOU</small>
           </div>
@@ -2188,11 +2192,34 @@ export default function WorldCanvas({
   previewState = null,
 }) {
 
-  const { user } = useAuth();
+  const { user, refresh: refreshUser } = useAuth();
+  const [avatarPickerRequest, setAvatarPickerRequest] = useState(0);
+  const [avatarId, setAvatarId] = useState(() => {
+    try { return getRenderableFreeWorldAvatarId(localStorage.getItem('pl_free_world_avatar')); } catch { return 'male-01'; }
+  });
+  const [avatarOffers, setAvatarOffers] = useState([]);
+  const [ownedAvatarIds, setOwnedAvatarIds] = useState([]);
+  const [previousAvatarIds, setPreviousAvatarIds] = useState(() => {
+    try { const history = JSON.parse(localStorage.getItem('pl_guest_avatar_history') || '[]'); return Array.isArray(history) ? history : []; } catch { return []; }
+  });
 
   const [mapTheme, setMapTheme] = useState(() => { try { return JSON.parse(localStorage.getItem('pl_map_theme')) || { theme: 'festive', effects: true }; } catch { return { theme: 'festive', effects: true }; } });
-  const [santaIntroDone, setSantaIntroDone] = useState(() => sessionStorage.getItem('pl_santa_intro_seen') === '1');
-  useEffect(() => { worldAPI.mapTheme().then((t) => { setMapTheme(t); localStorage.setItem('pl_map_theme', JSON.stringify(t)); }).catch(() => {}); }, []);
+  const [mapThemeLoaded, setMapThemeLoaded] = useState(false);
+  const [introVideoDismissed, setIntroVideoDismissed] = useState(false);
+  useEffect(() => {
+    let active = true;
+    worldAPI.mapTheme().then((t) => {
+      if (!active) return;
+      setMapTheme(t);
+      localStorage.setItem('pl_map_theme', JSON.stringify(t));
+    }).catch(() => { if (active) setMapTheme((current) => ({ ...current, intro_video_url: null })); }).finally(() => { if (active) setMapThemeLoaded(true); });
+    return () => { active = false; };
+  }, []);
+  useEffect(() => {
+    let active = true;
+    worldAPI.avatarCatalog().then((result) => { if (active) setAvatarOffers(result.offers || []); }).catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   const [walletBalance, setWalletBalance] =
     useState(null);
@@ -2566,6 +2593,50 @@ export default function WorldCanvas({
     },
     [],
   );
+
+  useEffect(() => {
+    if (!worldState?.avatar_id) return;
+    const renderableAvatarId = getRenderableFreeWorldAvatarId(worldState.avatar_id);
+    setAvatarId(renderableAvatarId);
+    localStorage.setItem('pl_free_world_avatar', renderableAvatarId);
+  }, [worldState?.avatar_id]);
+
+  useEffect(() => {
+    if (Array.isArray(worldState?.owned_avatar_ids)) setOwnedAvatarIds(worldState.owned_avatar_ids);
+  }, [worldState?.owned_avatar_ids]);
+
+  useEffect(() => {
+    if (user?.user_id && Array.isArray(worldState?.previous_avatar_ids)) setPreviousAvatarIds(worldState.previous_avatar_ids);
+  }, [user?.user_id, worldState?.previous_avatar_ids]);
+
+  const selectAvatar = (nextAvatarId) => {
+    setAvatarId(nextAvatarId);
+    setPreviousAvatarIds((current) => {
+      const history = Array.from(new Set([...current, avatarId, nextAvatarId]));
+      if (!user?.user_id) {
+        try { localStorage.setItem('pl_guest_avatar_history', JSON.stringify(history)); } catch {}
+      }
+      return history;
+    });
+    localStorage.setItem('pl_free_world_avatar', nextAvatarId);
+    if (user?.user_id) {
+      worldAPI.setAvatar(nextAvatarId).then(() => refreshUser()).catch(() => {
+        toast.error('Avatar saved on this device, but could not sync to your account.');
+      });
+    }
+  };
+
+  const purchaseAvatar = async (nextAvatarId) => {
+    try {
+      const result = await worldAPI.purchaseAvatar(nextAvatarId);
+      setOwnedAvatarIds(result.owned_avatar_ids || []);
+      window.dispatchEvent(new CustomEvent('pl:wallet-updated'));
+      toast.success('Avatar unlocked. You can now select it for the map.');
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || 'Could not unlock this avatar.');
+      throw error;
+    }
+  };
 
   const refreshBalance = React.useCallback(() => {
     if (!user) {
@@ -3398,6 +3469,8 @@ export default function WorldCanvas({
 
       </div>
 
+      {!previewState && <FreeWorldAvatarPicker avatarId={avatarId} offers={avatarOffers} ownedAvatarIds={ownedAvatarIds} previousAvatarIds={previousAvatarIds} isAuthenticated={!!user?.user_id} onSelect={selectAvatar} onPurchase={purchaseAvatar} openRequest={avatarPickerRequest} />}
+
       {stateLoading && (
         <div className="pl2d-progress-status">
           Loading your position…
@@ -3434,17 +3507,9 @@ export default function WorldCanvas({
         >
           <span className="pl2d-travel-shadow" />
 
-          <span className="pl2d-travel-head" />
-
-          <span className="pl2d-travel-body">
-            PL
-          </span>
-
-          <span className="pl2d-travel-arm left" />
-          <span className="pl2d-travel-arm right" />
-
-          <span className="pl2d-travel-leg left" />
-          <span className="pl2d-travel-leg right" />
+          {UNITY_3D_AVATARS_ENABLED && isUnityFreeWorldAvatar(avatarId)
+            ? <RiggedFreeWorldAvatar avatarId={avatarId} walking className="h-full w-full" />
+            : <FreeWorldAvatar avatarId={avatarId} className="h-full w-full" />}
 
           <small>
             YOU
@@ -3452,8 +3517,8 @@ export default function WorldCanvas({
         </div>
       )}
 
-      {mapTheme.theme === 'festive' && !santaIntroDone && !previewState && (
-        <SantaIntro name={(user?.name || '').split(' ')[0] || 'friend'} onDone={() => { sessionStorage.setItem('pl_santa_intro_seen', '1'); setSantaIntroDone(true); }} />
+      {mapThemeLoaded && !stateLoading && worldState && mapTheme.intro_media_enabled !== false && mapTheme.intro_media_url && !introVideoDismissed && !previewState && (
+        <FreeWorldIntroVideo url={mapTheme.intro_media_url} type={mapTheme.intro_media_type} onClose={() => setIntroVideoDismissed(true)} />
       )}
 
       <div
@@ -3505,6 +3570,8 @@ export default function WorldCanvas({
                 championship={championship}
                 sectionIndex={sectionIndex}
                 worldState={worldState}
+                avatarId={avatarId}
+                onChooseAvatar={() => setAvatarPickerRequest((current) => current + 1)}
                 serverClockAnchorRef={serverClockAnchorRef}
                 currentGlobalLevel={currentGlobalLevel}
                 currentChampionship={currentChampionship}
@@ -3519,6 +3586,7 @@ export default function WorldCanvas({
         )}
 
         <SeasonStart
+          avatarId={avatarId}
           showAvatar={
             isAtJourneyStart &&
             !journeyWalking
@@ -3699,7 +3767,7 @@ export default function WorldCanvas({
               <div>
                 <span>Token cost</span>
                 <strong data-testid="early-unlock-cost">
-                  {unlockModal.cost} 🪙
+                  {unlockModal.cost} <TokenIcon className="inline h-4 w-4" />
                 </strong>
               </div>
 
@@ -3708,7 +3776,7 @@ export default function WorldCanvas({
                 <strong data-testid="early-unlock-current-balance">
                   {walletBalance === null
                     ? '…'
-                    : `${walletBalance} 🪙`}
+                    : <>{walletBalance} <TokenIcon className="inline h-4 w-4" /></>}
                 </strong>
               </div>
 
@@ -3717,11 +3785,7 @@ export default function WorldCanvas({
                 <strong data-testid="early-unlock-remaining-balance">
                   {walletBalance === null
                     ? '…'
-                    : `${Math.max(
-                        0,
-                        walletBalance -
-                          unlockModal.cost,
-                      )} 🪙`}
+                    : <>{Math.max(0, walletBalance - unlockModal.cost)} <TokenIcon className="inline h-4 w-4" /></>}
                 </strong>
               </div>
             </div>

@@ -181,6 +181,74 @@ def test_single_user_web_push_enable_sets_pending_without_consent_or_subscriptio
     asyncio.run(run())
 
 
+def test_user_reward_overrides_are_saved_and_audited(monkeypatch):
+    user = {'user_id': 'target-user', 'erased': False, 'normal_topup_offer_terms': {'expiry_days': 45}}
+    audits = []
+
+    class Users:
+        async def find_one(self, _query, _projection):
+            return dict(user)
+        async def update_one(self, _query, update):
+            user.update(update['$set'])
+
+    class AuditLog:
+        async def insert_one(self, row):
+            audits.append(row)
+
+    async def require_admin(_request):
+        return {'user_id': 'admin-user', 'email': 'admin@example.test', 'role': 'admin'}
+
+    monkeypatch.setattr(user360_routes, 'require_admin', require_admin)
+    monkeypatch.setattr('deps.get_db', lambda: SimpleNamespace(users=Users(), audit_log=AuditLog()))
+
+    async def run():
+        payload = user360_routes.UserRewardOverridesRequest(
+            referral_reward_enabled=True,
+            referral_reward_tokens=12.5,
+            topup_bonus_enabled=True,
+            topup_bonus_mode='percentage',
+            topup_bonus_percent=15,
+            topup_bonus_minimum_gbp=20,
+            topup_bonus_first_only=True,
+            reason='Approved individual retention offer',
+        )
+        result = await user360_routes.set_user_reward_overrides('target-user', payload, _request())
+        assert result['referral_reward_tokens'] == 12.5
+        assert user['admin_referral_reward_tokens_override'] == 12.5
+        assert user['normal_topup_offer_terms']['mode'] == 'percentage'
+        assert user['normal_topup_offer_terms']['reward_percent'] == 15
+        assert user['normal_topup_offer_terms']['minimum_gbp'] == 20
+        assert user['normal_topup_offer_terms']['expiry_days'] == 45
+        assert audits[0]['kind'] == 'admin_user_reward_overrides_updated'
+        assert audits[0]['reason'] == payload.reason
+
+    asyncio.run(run())
+
+
+def test_referral_enrollment_snapshots_referrer_reward_override(monkeypatch):
+    from services.offer_terms import referral_enrollment
+
+    class Users:
+        async def find_one(self, query, _projection):
+            assert query == {'user_id': 'referrer-user'}
+            return {'admin_referral_reward_tokens_override': 18}
+
+    async def get_reward_settings(_db):
+        return {'referral_offer_enabled': True, 'referral_reward_tokens': 5,
+                'referral_referred_reward_tokens': 0, 'referral_qualifying_topup_gbp': 10,
+                'referral_contest_entry_required': True, 'referral_bonus_expiry_enabled': False,
+                'offer_version': 3}
+
+    monkeypatch.setattr('services.reward_program.get_reward_settings', get_reward_settings)
+
+    async def run():
+        fields = await referral_enrollment(SimpleNamespace(users=Users()), 'referrer-user')
+        assert fields['offer_terms']['referrer_reward_tokens'] == 18
+        assert fields['offer_terms']['offer_version'] == 3
+
+    asyncio.run(run())
+
+
 def test_bulk_web_push_revoke_is_idempotently_audited(monkeypatch):
     users_by_id = {'target-user': {'user_id': 'target-user', 'erased': False, 'web_push_enabled': True}}
     audits = {}

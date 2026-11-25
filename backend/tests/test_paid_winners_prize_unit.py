@@ -6,6 +6,38 @@ import pytest
 from routers import paid_winners_routes
 
 
+def test_public_winner_ticket_count_uses_valid_contest_entries():
+    expected = [{'_id': 'player-1', 'count': 7}]
+    cursor = MagicMock()
+    cursor.to_list = AsyncMock(return_value=expected)
+    tickets = MagicMock()
+    tickets.aggregate.return_value = cursor
+    db = MagicMock(tickets=tickets)
+
+    counts = asyncio.run(paid_winners_routes._winner_ticket_counts(db, 'contest-1', ['player-1']))
+
+    assert counts == {'player-1': 7}
+    match = tickets.aggregate.call_args.args[0][0]['$match']
+    assert match['refunded'] == {'$ne': True}
+    assert match['disqualified'] == {'$ne': True}
+
+
+def test_public_winner_entry_includes_ticket_purchase_count(monkeypatch):
+    winner = {'user_id': 'player-1', 'user_name': 'Player One', 'ticket_number': 77,
+              'source': 'draw_studio', 'published': True, 'approval_status': 'credited'}
+    db = MagicMock()
+    db.winners.find.return_value.sort.return_value.to_list = AsyncMock(return_value=[winner])
+    db.tickets.aggregate.return_value.to_list = AsyncMock(return_value=[{'_id': 'player-1', 'count': 14}])
+    monkeypatch.setattr(paid_winners_routes, 'get_db', lambda: db)
+    monkeypatch.setattr(paid_winners_routes, '_visible', AsyncMock(return_value={
+        'contest_id': 'contest-1', 'title': 'Contest', 'kind': 'draw', 'publication': {}, 'end_date': None,
+    }))
+
+    response = asyncio.run(paid_winners_routes.public_winners('contest-1'))
+
+    assert response['winners'][0]['tickets_purchased'] == 14
+
+
 @pytest.mark.parametrize("cash,bonus", [(50, 25), (0, 25), (50, 0)])
 def test_published_contest_card_includes_bonus_prize(monkeypatch, cash, bonus):
     contest = {"contest_id": "contest-1", "title": "Contest", "status": "drawn",

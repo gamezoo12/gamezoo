@@ -6,6 +6,8 @@ import {
 import { worldAPI, worldGcCompetitionAPI } from '../../lib/api';
 import { LevelLeaderboardPanel, useHybridLevelBoards } from './HybridLevelBoards';
 import { useAuth } from '../../context/AuthContext';
+import ShareMenu from '../../components/ShareMenu';
+import UserAvatar from '../../components/UserAvatar';
 import '../styles/pl-global-lb.css';
 
 const LOGO_URL = '/logo.png?v=5';
@@ -30,10 +32,6 @@ const gbp2 = (v) => {
 const fmtMult = (m) => `${Number.isInteger(m) ? m : m.toFixed(1)}x`;
 
 function nameOf(r) { return r?.user_name || r?.username || r?.display_name || 'Player'; }
-function initials(name) {
-  const p = String(name || 'P').trim().split(/\s+/).slice(0, 2);
-  return (p.map((x) => x[0]).join('') || 'P').toUpperCase();
-}
 function fmtTime(ms) {
   const v = Math.max(0, Number(ms) || 0);
   if (!v) return '—';
@@ -61,13 +59,13 @@ function parseUtcMs(s) {
   return Number.isNaN(t) ? null : t;
 }
 
-export default function FreeWorldLeaderboard({ open, onClose, activeGc: activeGcProp }) {
+export default function FreeWorldLeaderboard({ open, onClose, activeGc: activeGcProp, initialView, initialGc, initialLevel }) {
   const auth = useAuth();
   const myId = auth?.user?.user_id || auth?.user?.id || null;
   const myName = auth?.user?.name || auth?.user?.user_name || null;
 
-  const [champN, setChampN] = useState('all');
-  const [view, setView] = useState('championship');
+  const [champN, setChampN] = useState(initialGc ? String(initialGc) : 'all');
+  const [view, setView] = useState(initialView === 'level' ? 'level' : 'championship');
   const [model, setModel] = useState(null);
   const modelLoaded = useRef(false);
   useEffect(() => {
@@ -77,9 +75,9 @@ export default function FreeWorldLeaderboard({ open, onClose, activeGc: activeGc
       setModel(r || {});
       const gc = activeGcProp || r?.gc_number;
       const first = gc ? await worldGcCompetitionAPI.levelBoard(gc, 1).catch(() => null) : null;
-      if (first?.enabled) setView('level');
+      if (first?.enabled && !initialView) setView('level');
     }).catch(() => setModel({}));
-  }, [open, activeGcProp]);
+  }, [open, activeGcProp, initialView]);
   const activeGc = activeGcProp || model?.gc_number;
   const [levelRefresh, setLevelRefresh] = useState(0);
   const levelGc = champN === 'all' ? Number(activeGc) || null : Number(champN);
@@ -210,7 +208,7 @@ export default function FreeWorldLeaderboard({ open, onClose, activeGc: activeGc
             >
               <span className="pl-global-lb-rankcell"><b>{r.rank}</b>{rankBadge(r.rank)}</span>
               <span className="pl-global-lb-player">
-                <span className={`pl-global-lb-av r${r.rank <= 3 ? r.rank : ''}`}>{initials(nameOf(r))}</span>
+                <UserAvatar user={{ ...r, name: nameOf(r), profile_image_url: isMine(r) ? auth?.user?.profile_image_url || r.profile_image_url : r.profile_image_url }} size="pl-global-lb-av" className={`r${r.rank <= 3 ? r.rank : ''}`} />
                 <span className="pl-global-lb-pn">{nameOf(r)} <VerifiedReviewerBadge show={r.verified_reviewer} testid={`fw-global-verified-${r.rank}`} />{isMine(r) && <em>YOU</em>}</span>
               </span>
               <span className="pl-global-lb-champ"><Trophy size={12} /> {champOf(r)}</span>
@@ -306,8 +304,6 @@ export default function FreeWorldLeaderboard({ open, onClose, activeGc: activeGc
           </div>
         </div>
 
-        {view === 'level' && <LevelLeaderboardPanel gcNumber={levelGc} boards={levelBoards} isMine={(row) => Boolean(myName) && row.user_name === myName} />}
-
         {view === 'championship' && <>
         {/* YOUR POSITION */}
         {myRow ? (
@@ -315,7 +311,7 @@ export default function FreeWorldLeaderboard({ open, onClose, activeGc: activeGc
             <div className="pl-global-lb-sectlbl purple">YOUR POSITION</div>
             <div className="pl-global-lb-yourow">
               <span className="pl-global-lb-yourank">#{myRow.rank}</span>
-              <span className="pl-global-lb-av you">{initials(nameOf(myRow))}</span>
+              <UserAvatar user={{ ...myRow, name: nameOf(myRow), profile_image_url: auth?.user?.profile_image_url || myRow.profile_image_url }} size="pl-global-lb-av" className="you" />
               <span className="pl-global-lb-yn">{nameOf(myRow)}</span>
               <span className="pl-global-lb-champ"><Trophy size={12} /> {champOf(myRow)}</span>
               <span className="pl-global-lb-time"><Clock size={12} /> {fmtTime(myRow.duration_ms)}</span>
@@ -333,8 +329,11 @@ export default function FreeWorldLeaderboard({ open, onClose, activeGc: activeGc
         <div className="pl-global-lb-card pl-global-lb-rankings">
           <div className="pl-global-lb-rankhead">
             <h2>{titleLbl}</h2>
-            {isLive && <span className="pl-global-lb-updates" data-testid="lb-updates"><i /> UPDATES LIVE</span>}
-            {settled && <span className="pl-global-lb-updates final" data-testid="lb-final"><Crown size={12} /> FINAL RESULTS</span>}
+            <div className="flex items-center gap-2">
+              <ShareMenu path={`/world?leaderboard=1&view=championship&champ=${champN}`} title={`Free World ${champN === 'all' ? 'Global' : `Championship ${champN}`} leaderboard`} subtitle="Top 5 official standings" rows={rows.slice(0, 5).map((row) => ({ rank: row.rank, name: nameOf(row), detail: champOf(row), result: `${fmtTime(row.duration_ms)}${winningsOf(row) ? ` · ${winningsOf(row)}` : ''}` }))} maxRows={5} label="Share Championship leaderboard" />
+              {isLive && <span className="pl-global-lb-updates" data-testid="lb-updates"><i /> UPDATES LIVE</span>}
+              {settled && <span className="pl-global-lb-updates final" data-testid="lb-final"><Crown size={12} /> FINAL RESULTS</span>}
+            </div>
           </div>
           {settled && (
             <div className="pl-global-lb-settled" data-testid="lb-settled">
@@ -344,6 +343,7 @@ export default function FreeWorldLeaderboard({ open, onClose, activeGc: activeGc
           <RankingsBody />
         </div>
         </>}
+        {view === 'level' && <LevelLeaderboardPanel gcNumber={levelGc} boards={levelBoards} isMine={(row) => (myId && row.user_id && String(row.user_id) === String(myId)) || (!row.user_id && Boolean(myName) && row.user_name === myName)} initialLevel={initialLevel} />}
       </div>
 
       {/* MULTIPLIERS MODAL */}

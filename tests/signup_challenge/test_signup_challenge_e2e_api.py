@@ -36,7 +36,7 @@ def login(creds):
     return s
 
 
-def realistic_run(wait=1.5, n=20):
+def realistic_run(wait=4.5, n=20):  # >=150ms avg per tap (anti-forgery, iter73)
     time.sleep(3 + wait)
     dur = int(wait * 1000)
     return [int(dur * (i + 1) / n) for i in range(n)], list(range(1, n + 1)), dur

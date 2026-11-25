@@ -32,12 +32,36 @@ LOCK_TTL = timedelta(minutes=5)  # a crashed worker's claim becomes retryable af
 logger = logging.getLogger(__name__)
 
 
+async def _payment_matches_offer_start(db, session_id: str | None, effective_from) -> bool:
+    if not effective_from:
+        return True
+    if not session_id:
+        return False
+    payment = await db.payment_transactions.find_one(
+        {'session_id': session_id, 'payment_status': 'paid'},
+        {'_id': 0, 'credited_at': 1, 'created_at': 1},
+    )
+    if not payment:
+        return False
+    paid_at = payment.get('created_at') or payment.get('credited_at')
+    if isinstance(paid_at, str):
+        paid_at = datetime.fromisoformat(paid_at.replace('Z', '+00:00'))
+    if isinstance(effective_from, str):
+        effective_from = datetime.fromisoformat(effective_from.replace('Z', '+00:00'))
+    return isinstance(paid_at, datetime) and paid_at >= effective_from
+
+
 async def _grant_normal_topup_bonus_once(db, user_id: str, amount_gbp: float, session_id: str | None) -> bool:
     """Grant an enrolled Normal user's configured top-up promotion once per qualifying payment."""
     if not session_id or await resolve_acquisition_program(db, user_id) != 'normal':
         return False
+    settings = await get_reward_settings(db)
+    from services.offer_terms import normal_topup_terms as build_normal_terms
+    current_terms = build_normal_terms(settings)
     user = await db.users.find_one({'user_id': user_id}, {'_id': 0, 'normal_topup_offer_terms': 1}) or {}
-    terms = user.get('normal_topup_offer_terms')
+    terms = current_terms if current_terms.get('audience') == 'all_users' else user.get('normal_topup_offer_terms')
+    if terms and terms.get('audience') == 'all_users' and not await _payment_matches_offer_start(db, session_id, terms.get('effective_from')):
+        return False
     if not terms or not terms.get('enabled') or amount_gbp < float(terms.get('minimum_gbp') or 0):
         return False
 
@@ -200,7 +224,8 @@ async def _complete_referral_if_eligible(db, referred_user_id: str) -> bool:
     if not candidate:
         return False
 
-    terms = candidate.get('offer_terms') or referral_terms(settings)
+    current_terms = referral_terms(settings)
+    terms = current_terms if current_terms.get('audience') == 'all_users' else (candidate.get('offer_terms') or current_terms)
     if not terms.get('enabled', True):
         return False
     if terms.get('contest_entry_required') and not candidate.get('contest_entered'):
@@ -342,12 +367,28 @@ async def record_verified_topup(
         and amount_gbp >= float(signup_in_force['qualifying_topup_gbp'])
     )
 
+    current_referral_terms = referral_terms(settings)
+    referral_statuses = ['pending']
+    if current_referral_terms.get('audience') == 'all_users' and current_referral_terms.get('enabled'):
+        referral_statuses.append('rejected')
     referral = await db.referrals.find_one(
-        {'referred_user_id': user_id, 'program_version': PROGRAM_VERSION, 'status': 'pending'},
+        {'referred_user_id': user_id, 'program_version': PROGRAM_VERSION,
+         'status': {'$in': referral_statuses}},
         {'_id': 0},
     )
-    referral_in_force = (referral or {}).get('offer_terms') or referral_terms(settings)
+    if referral and referral.get('status') == 'rejected':
+        await db.referrals.update_one(
+            {'referral_id': referral['referral_id'], 'rejected_reason': 'referral_offer_disabled'},
+            {'$set': {'status': 'pending', 'offer_terms': current_referral_terms},
+             '$unset': {'rejected_reason': ''}},
+        )
+        referral['status'] = 'pending'
+        referral['offer_terms'] = current_referral_terms
+    live_referral_terms = referral_terms(settings)
+    referral_in_force = live_referral_terms if live_referral_terms.get('audience') == 'all_users' else ((referral or {}).get('offer_terms') or live_referral_terms)
+    referral_after_start = (live_referral_terms.get('audience') != 'all_users' or await _payment_matches_offer_start(db, session_id, live_referral_terms.get('effective_from')))
     referral_qualified = bool(
+        live_referral_terms.get('enabled') and referral_after_start and
         program == 'normal' and referral and amount_gbp >= float(referral_in_force['qualifying_topup_gbp'])
     )
 
@@ -453,10 +494,14 @@ async def _sync_current_user(db, user_id: str):
         '_id': 0, 'signup_bonus_offer_eligible': 1, 'normal_topup_offer_terms': 1,
     })
     program = await resolve_acquisition_program(db, user_id)
+    current_settings = await get_reward_settings(db)
+    from services.offer_terms import normal_topup_terms as current_normal_terms_fn
+    current_normal_terms = current_normal_terms_fn(current_settings)
     if program == 'normal' and user and user.get('signup_bonus_offer_eligible'):
         await grant_zero_threshold_signup_bonus(db, user_id)
     pending_referral = await db.referrals.find_one(
-        {'referred_user_id': user_id, 'program_version': PROGRAM_VERSION, 'status': 'pending'},
+        {'referred_user_id': user_id, 'program_version': PROGRAM_VERSION,
+         'status': {'$in': ['pending', 'rejected'] if referral_terms(current_settings).get('audience') == 'all_users' else ['pending']}},
         {'_id': 1},
     )
 
@@ -473,8 +518,9 @@ async def _sync_current_user(db, user_id: str):
                 await record_topup_commission(db, user_id, payment['session_id'])
 
     normal_topup_terms = (user or {}).get('normal_topup_offer_terms') or {}
+    active_all_user_topup = program == 'normal' and current_normal_terms.get('audience') == 'all_users' and current_normal_terms.get('enabled')
     if ((program == 'normal' and user and (user.get('signup_bonus_offer_eligible')
-          or normal_topup_terms.get('enabled'))) or pending_referral or program == 'influencer'):
+          or normal_topup_terms.get('enabled'))) or active_all_user_topup or pending_referral or program == 'influencer'):
         payments = await db.payment_transactions.find(
             {'user_id': user_id, 'kind': 'wallet_topup', 'payment_status': 'paid', 'wallet_credited': True},
             {'_id': 0},
@@ -560,6 +606,14 @@ async def my_referral(request: Request):
         'program_version': PROGRAM_VERSION,
         'status': 'pending',
     })
+    total = await db.referrals.count_documents({
+        'referrer_user_id': user['user_id'],
+        'program_version': PROGRAM_VERSION,
+    })
+
+    share_actions = await db.referral_share_events.count_documents({
+        'referrer_user_id': user['user_id'],
+    })
 
     rewarded = await db.referrals.find(
         {
@@ -601,6 +655,8 @@ async def my_referral(request: Request):
         'link_path': f"/login?tab=signup&ref={code}",
         'completed': completed,
         'pending': pending,
+        'total': total,
+        'share_actions': share_actions,
         'tokens_earned': tokens_earned,
         'offer': public_offer(settings),
         'promotion': promotion and {
@@ -631,6 +687,21 @@ async def my_referral(request: Request):
     }
 
 
+@router.post('/share')
+async def record_referral_share(request: Request):
+    user = await get_current_user(request)
+    body = await request.json()
+    channel = str(body.get('channel') or '')[:20]
+    if channel not in {'copy', 'native', 'whatsapp', 'facebook', 'instagram'}:
+        raise HTTPException(status_code=422, detail='Unknown share channel')
+    await get_db().referral_share_events.insert_one({
+        'referrer_user_id': user['user_id'],
+        'channel': channel,
+        'created_at': datetime.now(timezone.utc),
+    })
+    return {'ok': True}
+
+
 @router.get('/list')
 async def list_my_referrals(request: Request):
     user = await get_current_user(request)
@@ -656,6 +727,8 @@ async def list_my_referrals(request: Request):
                 'email': 1,
                 'name': 1,
                 'public_id': 1,
+                'profile_image_key': 1,
+                'profile_image_public': 1,
             },
         ).to_list(200)
 
@@ -667,6 +740,10 @@ async def list_my_referrals(request: Request):
             r['referred_email'] = u.get('email')
             r['referred_name'] = u.get('name')
             r['referred_public_id'] = u.get('public_id')
+            r['referred_profile_image_url'] = (
+                f"/api/users/profile-picture/{u['user_id']}"
+                if u.get('profile_image_key') and u.get('profile_image_public') else None
+            )
 
     for r in refs:
         r.update(referral_progress(r, settings))

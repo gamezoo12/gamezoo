@@ -47,14 +47,29 @@ const luminance = (colour) => {
   const lin = (c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
   return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
 };
-// White text unless it would fall below ~3:1 contrast on the accent.
-const onAccent = (accent) => (1.05 / (luminance(accent) + 0.05) >= 3 ? '#ffffff' : '#0b1220');
+const contrast = (foreground, background) => {
+  const [light, dark] = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
+  return (light + 0.05) / (dark + 0.05);
+};
+const onAccent = (accent, strong) => {
+  const whiteScore = Math.min(contrast('#ffffff', accent), contrast('#ffffff', strong));
+  const darkScore = Math.min(contrast('#111827', accent), contrast('#111827', strong));
+  return whiteScore >= darkScore ? '#ffffff' : '#111827';
+};
+const accentText = (accent, backgrounds) => {
+  const candidates = ['#111827', '#ffffff', accent];
+  return candidates.reduce((best, candidate) => (
+    Math.min(...backgrounds.map((background) => contrast(candidate, background)))
+      > Math.min(...backgrounds.map((background) => contrast(best, background))
+      ) ? candidate : best
+  ));
+};
 
 export const themeVars = (theme) => {
   const c = theme.colours;
   return { '--fw-accent': c.accent, '--fw-accent-strong': c.accentStrong, '--fw-accent-soft': c.accentSoft,
     '--fw-ink': c.ink, '--fw-muted': c.muted, '--fw-card': c.card, '--fw-soft': c.soft, '--fw-line': c.line,
-    '--fw-on-accent': onAccent(c.accent) };
+    '--fw-on-accent': onAccent(c.accent, c.accentStrong), '--fw-accent-text': accentText(c.accent, [c.card, c.soft]) };
 };
 
 export function applyWorldTheme(id) {

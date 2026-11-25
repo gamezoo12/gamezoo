@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { gamesAPI } from '../lib/api';
 import { Trophy, Medal, Award, ArrowRight, Sparkles } from 'lucide-react';
+import UserAvatar from './UserAvatar';
 
 /**
  * Embeddable per-contest leaderboard card.
@@ -67,6 +68,7 @@ export default function ContestLeaderboardCard({ contestId, contestTitle, limit 
                 <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold shrink-0 ${m.cls}`}>
                   {m.Icon ? <m.Icon className="w-4 h-4" /> : r.rank}
                 </div>
+                <UserAvatar user={{ ...r, name: r.user_name }} size="h-9 w-9" />
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-slate-900 truncate text-sm flex items-center gap-1"><span className="truncate">{r.user_name}</span><VerifiedReviewerBadge show={r.verified_reviewer} testid={`lb-card-verified-${r.rank}`} /></div>
                   <div className="text-[11px] text-slate-500">{(r.duration_ms / 1000).toFixed(1)}s · {Math.round(r.accuracy * 100)}% accuracy</div>

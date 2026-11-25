@@ -31,6 +31,7 @@ export default function Header() {
  const [profileOpen, setProfileOpen] = useState(false);
  const [signOutOpen, setSignOutOpen] = useState(false);
  const [balance, setBalance] = useState(null);
+ const [walletSummary, setWalletSummary] = useState(null);
  const [cartCount, setCartCount] = useState(0);
  const { pathname } = useLocation();
  const { user, logout } = useAuth();
@@ -63,8 +64,15 @@ const minimalWorldHeader =
 
  // Wallet balance
  useEffect(() => {
- if (!user) { setBalance(null); return undefined; }
- const load = () => { if (document.visibilityState === 'visible') walletAPI.me().then(w => setBalance(w.balance)).catch(() => {}); };
+ if (!user) { setBalance(null); setWalletSummary(null); return undefined; }
+ const load = () => { if (document.visibilityState === 'visible') walletAPI.me().then(w => {
+   setBalance(w.balance);
+   const classified = w.source_classified === true;
+   setWalletSummary({
+     tokens: classified ? Number(w.topup_tokens || 0) + Number(w.winning_tokens || 0) : Number(w.tokens ?? w.balance ?? 0),
+     bonus: classified ? Number(w.bonus_tokens || 0) + Number(w.winning_bonus_tokens || 0) : 0,
+   });
+ }).catch(() => {}); };
  load();
  const t = setInterval(load, 30000);
  window.addEventListener('pl-world-progress-refresh', load);
@@ -246,7 +254,7 @@ const minimalWorldHeader =
  title="Your token balance"
  >
  <WalletIcon className="w-3.5 h-3.5" />
- {balance === null ? '…' : <>{tokenCount(balance)} <TokenIcon className="h-3.5 w-3.5" /></>}
+ {walletSummary === null ? '…' : <span className="flex flex-col leading-tight"><span className="inline-flex items-center gap-1">Tokens {tokenCount(walletSummary.tokens)} <TokenIcon className="h-3 w-3" /></span><span className="inline-flex items-center gap-1 text-emerald-300">Bonus {tokenCount(walletSummary.bonus)} <TokenIcon className="h-3 w-3" /></span></span>}
  </Link>
  )}
 
@@ -261,7 +269,7 @@ const minimalWorldHeader =
  {/* Mobile coin balance opens the wallet. */}
  {user && (
  <Link to="/my-account/wallet" className={isFreeWorldHeader ? "hidden" : "sm:hidden text-[#FFD54A] text-sm font-bold px-2"} data-testid="mobile-coin-balance" aria-label="Open wallet">
- {balance === null ? '…' : <>{tokenCount(balance)} <TokenIcon className="inline h-3.5 w-3.5" /></>}
+ {walletSummary === null ? '…' : <span className="flex flex-col text-right leading-tight"><span>Tokens {tokenCount(walletSummary.tokens)}</span><span className="text-emerald-500">Bonus {tokenCount(walletSummary.bonus)}</span></span>}
  </Link>
  )}
 
@@ -359,10 +367,10 @@ const minimalWorldHeader =
      title="Your token balance"
    >
      <TokenIcon className="h-3.5 w-3.5" />
-     <span className="text-[13px] sm:text-sm font-black leading-none" data-testid="free-world-token-balance-value">
-       {balance === null ? '…' : tokenCount(balance)}
+     <span className="flex flex-col text-right leading-tight" data-testid="free-world-token-balance-value">
+       <span className="text-[12px] sm:text-sm font-black">Tokens {walletSummary === null ? '…' : tokenCount(walletSummary.tokens)}</span>
+       <span className="text-[10px] font-black text-emerald-300">Bonus {walletSummary === null ? '…' : tokenCount(walletSummary.bonus)}</span>
      </span>
-     <span className="hidden sm:inline text-[8px] font-black tracking-wider text-[#fff3a1] leading-none">TOKENS</span>
    </Link>
  )}
 

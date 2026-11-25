@@ -62,6 +62,7 @@ def normal_topup_terms(settings: dict) -> dict:
         'reward_percent': _num(settings.get('normal_topup_bonus_percent')),
         'minimum_gbp': _num(settings.get('normal_topup_bonus_minimum_gbp')),
         'first_only': bool(settings.get('normal_topup_bonus_first_only', True)),
+        'audience': settings.get('normal_topup_bonus_audience') or 'new_users',
         'expiry_days': _expiry_days(settings, 'normal_topup'),
         'offer_version': int(settings.get('offer_version') or 1),
         'effective_from': _effective(settings),
@@ -74,6 +75,7 @@ def referral_terms(settings: dict) -> dict:
         'offer_version': int(settings.get('offer_version') or 1),
         'effective_from': _effective(settings),
         'enabled': bool(settings.get('referral_offer_enabled', True)),
+        'audience': settings.get('referral_offer_audience') or 'new_users',
         'qualifying_topup_gbp': _num(settings.get('referral_qualifying_topup_gbp')),
         'contest_entry_required': bool(settings.get('referral_contest_entry_required', True)),
         'referrer_reward_tokens': _num(settings.get('referral_reward_tokens')),
@@ -96,11 +98,18 @@ async def signup_enrollment(db) -> dict:
             'signup_offer_version': terms['offer_version']}
 
 
-async def referral_enrollment(db) -> dict:
+async def referral_enrollment(db, referrer_user_id: str | None = None) -> dict:
     """Referral-document fields; a referral captured while the offer is off is recorded as rejected."""
     from services.reward_program import get_reward_settings
 
     terms = referral_terms(await get_reward_settings(db))
+    if referrer_user_id:
+        referrer = await db.users.find_one(
+            {'user_id': referrer_user_id}, {'_id': 0, 'admin_referral_reward_tokens_override': 1},
+        ) or {}
+        override = referrer.get('admin_referral_reward_tokens_override')
+        if override is not None:
+            terms['referrer_reward_tokens'] = _num(override)
     fields = {'offer_version': terms['offer_version'], 'offer_terms': terms}
     if not terms['enabled']:
         fields.update({'status': 'rejected', 'rejected_reason': 'referral_offer_disabled'})
@@ -154,7 +163,8 @@ def public_offer(settings: dict) -> dict:
 
 def referral_progress(ref: dict, settings: dict) -> dict:
     """Per-referral state and the exact condition still pending, from the terms that apply to it."""
-    terms = ref.get('offer_terms') or referral_terms(settings)
+    current = referral_terms(settings)
+    terms = current if current.get('audience') == 'all_users' else (ref.get('offer_terms') or current)
     topup_met = bool(ref.get('topup_qualified')) or _num(terms.get('qualifying_topup_gbp')) == 0
     needs_contest = bool(terms.get('contest_entry_required'))
     contest_met = bool(ref.get('contest_entered'))

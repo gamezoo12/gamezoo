@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/button';
 import { Progress } from '../../components/ui/progress';
 import { gbp, percent } from '../../lib/format';
 import { useToast } from '../../hooks/use-toast';
-import { Play, Pause, Trash2, Trophy, Pencil, Plus, PlayCircle, PauseCircle, Smartphone } from 'lucide-react';
+import { Play, Pause, Trash2, Trophy, Pencil, Plus, Copy, PlayCircle, PauseCircle, Smartphone } from 'lucide-react';
 import EditContestDialog from '../../components/EditContestDialog';
 import { COMPETITION_SECTIONS, competitionSectionOf } from '../../lib/competitionSections';
 
@@ -52,6 +52,14 @@ export default function CompetitionsAdmin() {
     } catch (e) { toast({ title: 'Bulk hold failed', description: e?.response?.data?.detail }); }
   };
   const remove = async (id) => { if (!window.confirm('Delete contest? Tickets will be deleted too.')) return; try { await adminAPI.deleteContest(id); toast({ title: 'Deleted' }); load(); } catch (e) { toast({ title: 'Failed', description: e?.response?.data?.detail }); } };
+  const duplicate = async (contest) => {
+    try {
+      const result = await adminAPI.duplicateContest(contest.contest_id);
+      toast({ title: 'Contest duplicated', description: 'Edit the copied draft, then launch it as a new contest.' });
+      setEditing(result.contest);
+      load();
+    } catch (e) { toast({ title: 'Duplicate failed', description: e?.response?.data?.detail }); }
+  };
 
   const phaseOf = (c) => c.phase || c.status;
   const inTab = (c, key) => key === 'all' || (key === 'coming-soon' ? c.public_coming_soon === true : key === 'draft' ? c.status === 'draft' && !c.public_coming_soon : phaseOf(c) === key);
@@ -145,6 +153,7 @@ export default function CompetitionsAdmin() {
               <div className="px-3"><Progress value={pct} className="h-1.5" /></div>
               <div className="flex flex-wrap justify-end gap-2 p-3">
                 <Button size="sm" variant="outline" onClick={() => setEditing(c)}><Pencil className="w-3.5 h-3.5 mr-1" /> Edit</Button>
+                <Button size="sm" variant="outline" onClick={() => duplicate(c)} data-testid={`duplicate-contest-${c.contest_id}`}><Copy className="w-3.5 h-3.5 mr-1" /> Duplicate</Button>
                 {c.status === 'draft' && !c.public_coming_soon && <Button size="sm" onClick={() => launch(c.contest_id)} className="bg-emerald-600 hover:bg-emerald-700"><Play className="w-3.5 h-3.5 mr-1" /> Launch</Button>}
                 {c.public_coming_soon === true && <Button size="sm" variant="outline" onClick={() => pauseComingSoon(c.contest_id)}><Pause className="w-3.5 h-3.5 mr-1" /> Pause Coming Soon</Button>}
                 {phaseOf(c) === 'live' && <Button size="sm" variant="outline" onClick={() => pause(c.contest_id)}><Pause className="w-3.5 h-3.5 mr-1" /> Pause</Button>}

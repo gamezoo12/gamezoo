@@ -118,6 +118,9 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  useEffect(() => { loadMyOffer(); }, [loadMyOffer]);
  const isInfluencer = myPromotion?.acquisition_type === 'influencer';
  const promoUnresolved = myPromotion?.acquisition_type === 'unresolved';
+ const normalTopupPromo = offer?.normal_topup_promo?.audience === 'all_users'
+   ? offer.normal_topup_promo
+   : myPromotion?.normal_topup_promo;
  const signupBonusFor = (amount) => {
    if (isInfluencer || promoUnresolved) return 0;
    const s = myOffer;
@@ -126,7 +129,9 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
  const purchasedTokensFor = (amount) => amount * Number(offer?.topup?.tokens_per_gbp ?? 1);
  const normalTopupBonusFor = (amount) => {
    if (isInfluencer || promoUnresolved) return 0;
-   const terms = myPromotion?.normal_topup_promo;
+   const terms = offer?.normal_topup_promo?.audience === 'all_users'
+     ? offer.normal_topup_promo
+     : myPromotion?.normal_topup_promo;
    if (!terms?.enabled || amount < Number(terms.minimum_gbp || 0)) return 0;
    if (terms.first_only && Number(myPromotion?.normal_topup_bonus_tokens_issued || 0) > 0) return 0;
    const purchased = purchasedTokensFor(amount);
@@ -325,14 +330,14 @@ export default function WalletPanel({ wallet, walletTxs, setWallet, setWalletTxs
    <strong>Your signup offer:</strong> {myOffer.conditions_text}
   </div>
  )}
- {!isInfluencer && !promoUnresolved && myPromotion?.normal_topup_promo?.enabled && (
+ {!isInfluencer && !promoUnresolved && normalTopupPromo?.enabled && (
   <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 mb-4 text-xs text-emerald-900" data-testid="normal-topup-promo-terms">
-   Normal top-up promotion: {myPromotion.normal_topup_promo.mode === 'percentage'
-     ? `${myPromotion.normal_topup_promo.reward_percent}% Bonus Tokens`
-     : `${tokensText(myPromotion.normal_topup_promo.reward_tokens)} Bonus Tokens`}
-   {' '}on verified top-ups of {gbp(myPromotion.normal_topup_promo.minimum_gbp)} or more.
-   {myPromotion.normal_topup_promo.first_only ? ' First qualifying top-up only.' : ' Each qualifying top-up.'}
-   {myPromotion.normal_topup_promo.expiry_days ? ` Expires ${myPromotion.normal_topup_promo.expiry_days} days after credit.` : ''}
+   Normal top-up promotion: {normalTopupPromo.mode === 'percentage'
+     ? `${normalTopupPromo.reward_percent}% Bonus Tokens`
+     : `${tokensText(normalTopupPromo.reward_tokens)} Bonus Tokens`}
+   {' '}on verified top-ups of {gbp(normalTopupPromo.minimum_gbp)} or more.
+   {normalTopupPromo.first_only ? ' First qualifying top-up only.' : ' Each qualifying top-up.'}
+   {normalTopupPromo.expiry_days ? ` Expires ${normalTopupPromo.expiry_days} days after credit.` : ''}
   </div>
  )}
  {promoUnresolved && <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 mb-4 text-xs text-amber-900" data-testid="topup-promo-unresolved">Promotional rewards are paused while your promotion attribution is reviewed. Purchased Top-up Tokens are unaffected.</div>}

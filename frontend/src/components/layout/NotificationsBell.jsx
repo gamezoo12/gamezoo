@@ -82,7 +82,8 @@ export default function NotificationsBell({ dark = false }) {
   // Open the full-details view for a notification. Marks it read only after a
   // successful backend update (never optimistically before the write).
   const openDetail = async (n) => {
-    setDetail(n);
+    const body = n.body || n.message || n.content || n.description || n.data?.body || n.data?.message || n.title || 'No additional details available.';
+    setDetail({ ...n, body });
     if (!n.read) {
       try {
         await userAPI.markNotificationRead(n.notification_id);
@@ -177,7 +178,7 @@ export default function NotificationsBell({ dark = false }) {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-semibold text-slate-900">{n.title}</div>
-                        <div className="text-xs text-slate-500 mt-0.5 line-clamp-2">{n.body}</div>
+                        <div className="text-xs text-slate-500 mt-0.5 line-clamp-2">{n.body || n.message || n.content || n.description || n.data?.body || n.data?.message || n.title}</div>
                         <div className="text-[10px] text-slate-400 mt-1">{new Date(n.created_at).toLocaleString('en-GB', { timeZone: 'Europe/London' })}</div>
                       </div>
                     </button>

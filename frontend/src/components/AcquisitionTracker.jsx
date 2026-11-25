@@ -67,6 +67,16 @@ export default function AcquisitionTracker() {
   const current = useRef({ viewId: '', visibleMs: 0, shownAt: 0, sent: 0 });
 
   useEffect(() => {
+    if (user || EXCLUDED_PREFIXES.some((prefix) => location.pathname.startsWith(prefix))) return;
+    const referralCode = String(new URLSearchParams(location.search).get('ref') || '').trim().toUpperCase();
+    if (!referralCode) return;
+    try {
+      localStorage.setItem('pl_referral_code', referralCode);
+      localStorage.setItem('pl_referral_code_expires', String(Date.now() + 30 * 86400000));
+    } catch (error) { /* storage may be unavailable */ }
+  }, [location.pathname, location.search, user]);
+
+  useEffect(() => {
     const onConsent = () => setConsentVersion((value) => value + 1);
     window.addEventListener('pl-analytics-consent-change', onConsent);
     return () => window.removeEventListener('pl-analytics-consent-change', onConsent);

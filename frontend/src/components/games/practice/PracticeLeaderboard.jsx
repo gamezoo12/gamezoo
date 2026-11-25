@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Crown, Medal, Star, Trophy } from 'lucide-react';
 import { practiceAPI } from '../../../lib/api';
+import UserAvatar from '../../UserAvatar';
 
 const MEDAL = ['text-amber-300', 'text-slate-200', 'text-orange-400'];
 
@@ -22,6 +23,7 @@ export function PracticeLeaderboard({ gameId, title, limit = 10, refreshKey = 0 
           {data.top.map((r) => (
             <li key={r.rank} className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm ${r.rank <= 3 ? 'bg-white/[0.07]' : ''}`} data-testid={`practice-lb-row-${r.rank}`}>
               <span className={`w-6 text-center font-black ${MEDAL[r.rank - 1] || 'text-white/50'}`}>{r.rank === 1 ? <Crown className="mx-auto h-4 w-4" /> : r.rank <= 3 ? <Medal className="mx-auto h-4 w-4" /> : r.rank}</span>
+              <UserAvatar user={{ ...r, name: r.name }} size="h-8 w-8" />
               <span className="min-w-0 flex-1 truncate font-bold text-white">{r.name}</span>
               {gameId ? <>
                 <span className="whitespace-nowrap font-black text-amber-300">Lv {r.level}</span>

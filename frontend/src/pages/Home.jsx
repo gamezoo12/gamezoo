@@ -5,7 +5,6 @@ import PromotionBanner from '../components/home/PromotionBanner';
 import CompetitionSection from '../components/home/CompetitionSection';
 import WinnersGallery from '../components/home/WinnersGallery';
 import Reviews from '../components/home/Reviews';
-import ReferAndEarnCard from '../components/home/ReferAndEarnCard';
 import TrustBadges from '../components/home/TrustBadges';
 import MobileHome from '../components/mobile/MobileHome';
 import InstallPrompt from '../world/components/InstallPrompt';
@@ -110,10 +109,6 @@ export default function Home() {
         {/* 4 - reviews */}
         <Reviews />
 
-        {/* 5 */}
-        <ReferAndEarnCard />
-
-        {/* 6 */}
         <TrustBadges />
 
       </div>

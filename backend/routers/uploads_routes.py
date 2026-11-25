@@ -287,7 +287,7 @@ async def upload_contest_image(
 # =====================================================================
 VIDEO_MAX_BYTES = 120 * 1024 * 1024
 VIDEO_CHUNK = 2 * 1024 * 1024
-VIDEO_MAX_SECONDS = 60.5
+VIDEO_MAX_SECONDS = 60
 VIDEO_TYPES = {"video/mp4", "video/webm", "video/quicktime", "video/x-m4v", ""}
 
 
@@ -311,8 +311,8 @@ async def start_video_upload(request: Request):
         raise HTTPException(415, "Unsupported video. Use MP4, MOV or WebM.")
     if not 0 < size <= VIDEO_MAX_BYTES:
         raise HTTPException(413, "Video too large (max 120 MB)")
-    if not 0 < duration <= VIDEO_MAX_SECONDS:
-        raise HTTPException(400, "Video must be 1 minute or shorter")
+    if not 0 < duration < VIDEO_MAX_SECONDS:
+        raise HTTPException(400, "Video must be shorter than 1 minute")
     upload_id = uuid.uuid4().hex
     await get_db().video_upload_sessions.insert_one({"upload_id": upload_id, "size": size, "created_at": datetime.now(timezone.utc)})
     return {"upload_id": upload_id, "chunk_size": VIDEO_CHUNK}

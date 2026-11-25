@@ -2,6 +2,13 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { ContestCard } from './ContestCard';
 
 jest.mock('../../lib/api', () => ({ paidWinnersAPI: { mediaUrl: jest.fn() } }));
+jest.mock('../../context/AuthContext', () => ({ useAuth: () => ({ user: null }) }));
+jest.mock('../ui/dropdown-menu', () => ({
+  DropdownMenu: ({ children }) => <>{children}</>,
+  DropdownMenuContent: ({ children }) => <div>{children}</div>,
+  DropdownMenuItem: ({ children }) => <div>{children}</div>,
+  DropdownMenuTrigger: ({ children }) => children,
+}));
 
 test.each([
   [50, 25, true, true],

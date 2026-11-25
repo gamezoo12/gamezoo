@@ -22,11 +22,13 @@ DEFAULT_REWARD_SETTINGS = {
     "normal_topup_bonus_percent": 0.0,
     "normal_topup_bonus_minimum_gbp": 0.0,
     "normal_topup_bonus_first_only": True,
+    "normal_topup_bonus_audience": "new_users",
     "normal_topup_bonus_expiry_enabled": False,
     "normal_topup_bonus_expiry_days": 30,
 
     # Personal referral bonus
     "referral_offer_enabled": True,
+    "referral_offer_audience": "new_users",
     "referral_reward_tokens": 5.0,
     "referral_referred_reward_tokens": 0.0,
     "referral_qualifying_topup_gbp": 10.0,
@@ -267,6 +269,10 @@ async def save_reward_settings(db, payload: dict) -> dict:
                 status_code=400,
                 detail=f"{field} must be true or false",
             )
+
+    for field in ('normal_topup_bonus_audience', 'referral_offer_audience'):
+        if field in updates and updates[field] not in ('new_users', 'all_users'):
+            raise HTTPException(status_code=400, detail=f'{field} must be new_users or all_users')
 
     if 'normal_topup_bonus_mode' in updates and updates['normal_topup_bonus_mode'] not in ('fixed', 'percentage'):
         raise HTTPException(status_code=400, detail='normal_topup_bonus_mode must be fixed or percentage')

@@ -523,7 +523,10 @@ export default function SignupWizard() {
       localStorage.removeItem(DRAFT_KEY);
       localStorage.setItem('pl_welcome_pending', '1');
 
-      const destination = result?.user?.role === 'influencer' ? '/influencer' : '/choose-world';
+      const requestedNext = new URLSearchParams(window.location.search).get('next') || '';
+      const safeNext = requestedNext.startsWith('/') && !requestedNext.startsWith('//') && !requestedNext.includes('\\')
+        ? requestedNext : '/choose-world';
+      const destination = result?.user?.role === 'influencer' ? '/influencer' : safeNext;
       if (sessionStorage.getItem('fw_promo_next')) sessionStorage.setItem('fw_promo_next', destination);
       if (result?.user) setGoogleUser(result.user);
 

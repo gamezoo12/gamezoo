@@ -18,9 +18,21 @@ _SUPPORT_REPLY_TITLE = 'Prize League Customer Support replied to your ticket'
 
 
 def _public_notification(notification):
-    if (notification.get('kind') or notification.get('type')) != 'support_reply':
-        return notification
-    return {**notification, 'title': _SUPPORT_REPLY_TITLE}
+    data = notification.get('data') if isinstance(notification.get('data'), dict) else {}
+    body = (
+        notification.get('body')
+        or notification.get('message')
+        or notification.get('content')
+        or notification.get('description')
+        or data.get('body')
+        or data.get('message')
+        or notification.get('title')
+        or 'Open this notification for details.'
+    )
+    result = {**notification, 'body': str(body)}
+    if (notification.get('kind') or notification.get('type')) == 'support_reply':
+        result['title'] = _SUPPORT_REPLY_TITLE
+    return result
 
 
 async def _require_staff(request: Request):

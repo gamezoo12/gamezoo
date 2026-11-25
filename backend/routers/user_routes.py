@@ -6,7 +6,7 @@ from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 import uuid
 
-from auth import get_current_user, hash_password, verify_password, decode_jwt, phone_gate_blocks
+from auth import get_current_user, require_super_admin, hash_password, verify_password, decode_jwt, phone_gate_blocks
 from object_storage import put_object, get_object, APP_NAME
 
 router = APIRouter(prefix='/api/users', tags=['users'])
@@ -45,6 +45,10 @@ class PasswordSetFirst(BaseModel):
     new_password: str = Field(..., min_length=8, max_length=128)
 
 
+class ProfileImagePrivacy(BaseModel):
+    public: bool
+
+
 @router.get('/me')
 async def get_me(request: Request):
     """Return the full profile of the currently signed-in user."""
@@ -57,6 +61,8 @@ async def get_me(request: Request):
     unread = await db.notifications.count_documents({'user_id': user['user_id'], 'read': False})
     return {
         **user,
+        'profile_image_url': f"/api/users/profile-picture/{user['user_id']}" if user.get('profile_image_key') else None,
+        'profile_image_public': bool(user.get('profile_image_public', False)),
         'phone': user.get('phone') or (kyc.get('phone') if kyc else None),
         'phone_verification_required': phone_gate_blocks(user),
         'kyc_status': (kyc or {}).get('status', 'none'),
@@ -64,6 +70,91 @@ async def get_me(request: Request):
         'order_count': order_count,
         'unread_notifications': unread,
     }
+
+
+@router.post('/me/profile-picture')
+async def upload_profile_picture(request: Request, file: UploadFile = File(...)):
+    user = await get_current_user(request)
+    data = await file.read(KYC_MAX_BYTES + 1)
+    if len(data) > KYC_MAX_BYTES:
+        raise HTTPException(413, 'Image too large (max 8 MB)')
+    sniffed = _kyc_sniff(data)
+    if not sniffed or sniffed[0] == 'application/pdf':
+        raise HTTPException(415, 'Use a JPG, PNG, or WEBP image.')
+    mime, _ext = sniffed
+    storage_path = f'{APP_NAME}/profile-images/{user["user_id"]}/current'
+    stored = await run_in_threadpool(put_object, storage_path, data, mime)
+    from deps import get_db
+    await get_db().users.update_one(
+        {'user_id': user['user_id']},
+        {'$set': {
+            'profile_image_key': stored.get('path', storage_path),
+            'profile_image_type': mime,
+            'profile_image_updated_at': datetime.now(timezone.utc),
+            'profile_image_public': bool(user.get('profile_image_public', False)),
+        }},
+    )
+    return {'profile_image_url': f"/api/users/profile-picture/{user['user_id']}",
+            'profile_image_public': bool(user.get('profile_image_public', False))}
+
+
+@router.delete('/me/profile-picture')
+async def delete_profile_picture(request: Request):
+    user = await get_current_user(request)
+    from deps import get_db
+    await get_db().users.update_one(
+        {'user_id': user['user_id']},
+        {'$unset': {'profile_image_key': '', 'profile_image_type': ''},
+         '$set': {'profile_image_public': False, 'profile_image_updated_at': datetime.now(timezone.utc)}},
+    )
+    return {'ok': True}
+
+
+@router.patch('/me/profile-picture-privacy')
+async def set_profile_picture_privacy(inp: ProfileImagePrivacy, request: Request):
+    user = await get_current_user(request)
+    if inp.public and not user.get('profile_image_key'):
+        raise HTTPException(400, 'Upload a profile image before making it public.')
+    from deps import get_db
+    await get_db().users.update_one(
+        {'user_id': user['user_id']},
+        {'$set': {'profile_image_public': inp.public, 'profile_image_updated_at': datetime.now(timezone.utc)}},
+    )
+    return {'profile_image_public': inp.public}
+
+
+@router.get('/profile-picture/{user_id}')
+async def get_profile_picture(user_id: str, request: Request, download: bool = False):
+    from deps import get_db
+    db = get_db()
+    target = await db.users.find_one(
+        {'user_id': user_id},
+        {'_id': 0, 'user_id': 1, 'profile_image_key': 1, 'profile_image_type': 1, 'profile_image_public': 1},
+    )
+    if not target or not target.get('profile_image_key'):
+        raise HTTPException(404, 'Profile image not found')
+    viewer = None
+    try:
+        viewer = await get_current_user(request)
+    except HTTPException:
+        pass
+    owner = viewer and viewer.get('user_id') == user_id
+    admin = False
+    if viewer and not owner:
+        try:
+            await require_super_admin(request)
+            admin = True
+        except HTTPException:
+            pass
+    if not (owner or admin or target.get('profile_image_public')):
+        raise HTTPException(404, 'Profile image not found')
+    content, content_type = await run_in_threadpool(get_object, target['profile_image_key'])
+    headers = {'Cache-Control': 'private, no-store'}
+    if download and admin:
+        headers['Content-Disposition'] = 'attachment; filename="profile-image"'
+    else:
+        headers['Content-Disposition'] = 'inline'
+    return Response(content, media_type=target.get('profile_image_type') or content_type, headers=headers)
 
 
 @router.patch('/me')

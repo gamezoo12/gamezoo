@@ -1,6 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom';
 import Header from './Header';
 import Footer from './Footer';
+import SupportResources from '../SupportResources';
 
 export default function PublicLayout() {
   const { pathname } = useLocation();
@@ -11,6 +12,7 @@ export default function PublicLayout() {
       <main className="flex-1">
         <Outlet />
       </main>
+      <SupportResources />
       {showFooter && <Footer />}
     </div>
   );

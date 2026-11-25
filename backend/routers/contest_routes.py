@@ -1,5 +1,9 @@
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import Response
 from typing import Optional
+from urllib.parse import urlsplit
+import os
+import httpx
 from services.contest_lifecycle import close_expired_contests, is_expired
 from skill_challenge import build_challenge, verify_challenge
 
@@ -113,6 +117,36 @@ async def list_contests(category: Optional[str] = None, q: Optional[str] = Query
     limit = max(1, min(limit, 500))
     docs = await db.contests.find(query, {'_id': 0}).sort('end_date', 1).to_list(limit)
     return [_to_public(d) for d in docs if d.get('slug')]
+
+
+@router.get('/share-image')
+async def share_contest_image(url: str = Query(...)):
+    parsed = urlsplit(url)
+    if parsed.scheme not in {'http', 'https'} or not parsed.hostname:
+        raise HTTPException(status_code=400, detail='Invalid image URL')
+    host = parsed.hostname.lower()
+    allowed_hosts = {'images.pexels.com', 'images.unsplash.com'}
+    r2_base = os.getenv('R2_PUBLIC_URL', '') or os.getenv('R2_PUBLIC_BASE', '') or os.getenv('PUBLIC_UPLOAD_BASE', '')
+    if r2_base:
+        allowed_host = urlsplit(r2_base).hostname
+        if allowed_host:
+            allowed_hosts.add(allowed_host.lower())
+    if host not in allowed_hosts and not any(host.endswith('.' + allowed) for allowed in allowed_hosts):
+        raise HTTPException(status_code=400, detail='Image host is not allowed for sharing')
+    try:
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+            response = await client.get(url)
+            final_host = urlsplit(str(response.url)).hostname or ''
+            if response.status_code >= 400 or final_host.lower() not in allowed_hosts and not any(final_host.lower().endswith('.' + allowed) for allowed in allowed_hosts):
+                raise HTTPException(status_code=502, detail='Could not fetch contest image')
+            content_type = response.headers.get('content-type', '').split(';')[0].strip().lower()
+            if not content_type.startswith('image/') or len(response.content) > 12 * 1024 * 1024:
+                raise HTTPException(status_code=422, detail='Contest image is not a supported image')
+            return Response(content=response.content, media_type=content_type, headers={'Cache-Control': 'public, max-age=3600'})
+    except HTTPException:
+        raise
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail='Could not fetch contest image') from exc
 
 
 @router.get('/{slug}')

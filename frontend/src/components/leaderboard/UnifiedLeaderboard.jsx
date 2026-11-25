@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { gamesAPI } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
+import UserAvatar from '../UserAvatar';
 
 export default function UnifiedLeaderboard({
   contests: suppliedContests = [],
@@ -199,6 +200,7 @@ export default function UnifiedLeaderboard({
 
                   {player ? (
                     <>
+                      <UserAvatar user={{ ...player, name: player.user_name || player.username }} size="h-8 w-8" className="mt-1 border border-white/40" />
                       <div className="mt-0.5 w-full truncate text-[11px] font-extrabold">
                         {player.user_name || player.username || 'Player'}
                       </div>
@@ -239,10 +241,12 @@ export default function UnifiedLeaderboard({
                 Your Position
               </div>
 
-              <div className="grid grid-cols-[42px_1fr_auto] items-center gap-3">
+              <div className="grid grid-cols-[42px_36px_1fr_auto] items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#FFD54A] font-black text-slate-900">
                   #{myRow.rank}
                 </div>
+
+                <UserAvatar user={{ ...myRow, name: user.name, profile_image_url: user.profile_image_url || myRow.profile_image_url }} size="h-9 w-9" />
 
                 <div className="min-w-0">
                   <div className="truncate text-sm font-extrabold text-white">
@@ -314,20 +318,14 @@ export default function UnifiedLeaderboard({
                         #{entry.rank}
                       </div>
 
-                      <div className="min-w-0">
-                        <div className="truncate text-[10px] font-bold text-white">
-                          {isMe
-                            ? 'You'
-                            : entry.user_name ||
-                              entry.username ||
-                              'Player'}
-                        </div>
-
-                        {entry.public_id && (
-                          <div className="truncate font-mono text-[7px] text-white">
-                            #{entry.public_id}
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <UserAvatar user={{ ...entry, name: entry.user_name || entry.username, profile_image_url: isMe ? user.profile_image_url || entry.profile_image_url : entry.profile_image_url }} size="h-6 w-6" />
+                        <div className="min-w-0">
+                          <div className="truncate text-[10px] font-bold text-white">
+                            {isMe ? 'You' : entry.user_name || entry.username || 'Player'}
                           </div>
-                        )}
+                          {entry.public_id && <div className="truncate font-mono text-[7px] text-white">#{entry.public_id}</div>}
+                        </div>
                       </div>
 
                       <div className="text-center text-[9px] text-white">
