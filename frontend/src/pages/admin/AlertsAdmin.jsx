@@ -2078,6 +2078,11 @@ const ALERT_TYPES = [
 
 const asArray = (value) => Array.isArray(value) ? value : [];
 const asRecord = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+const costText = (value, currency) => value == null ? 'Rate not set' : `${currency} ${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`;
+const smsChargeText = (costs) => {
+      const amounts = Object.entries(costs?.sms_by_currency || {}).map(([currency, amount]) => costText(amount, currency));
+      return amounts.length ? amounts.join(', ') : 'Not available';
+};
 
 const normalizeCampaign = (campaign) => ({
       ...campaign,
@@ -2129,6 +2134,7 @@ function AlertsAdminContent() {
     title: '',
     message: '',
     channels: ['in_app'],
+            include_contests: false,
       scheduled_at: '',
   });
   const [campaigns, setCampaigns] = useState([]);
@@ -2139,6 +2145,10 @@ function AlertsAdminContent() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+      const [estimate, setEstimate] = useState(null);
+      const [rates, setRates] = useState({ currency: 'GBP', sms_per_segment: '', email_per_message: '' });
+      const [ratesDirty, setRatesDirty] = useState(false);
+      const [costLoading, setCostLoading] = useState(false);
   const [templateCategory, setTemplateCategory] = useState(CATEGORY_KEYS[0]);
 
   // Recipient targeting (audience)
@@ -2218,6 +2228,12 @@ function AlertsAdminContent() {
   };
 
   useEffect(() => { loadCampaigns(); }, []);
+      useEffect(() => {
+            adminAPI.alertCostRates().then(data => setRates({
+                  currency: data.currency || 'GBP', sms_per_segment: data.sms_per_segment ?? '', email_per_message: data.email_per_message ?? '',
+            })).catch(e => setError(apiErrorMessage(e, 'Unable to load alert cost rates.')));
+      }, []);
+      useEffect(() => { setEstimate(null); }, [form, audienceMode, selectedUsers, winnerSource, winnerRef]);
 
   const toggleChannel = (channel) => {
     setForm(prev => ({
@@ -2234,31 +2250,7 @@ function AlertsAdminContent() {
     setForm(prev => ({ ...prev, title: t.name, message: t.message }));
   };
 
-  const send = async (e) => {
-    e.preventDefault();
-    setError('');
-    setNotice('');
-    if (!form.channels.length) {
-      setError('Select at least one delivery channel.');
-      return;
-    }
-    if (audienceMode === 'users' && !selectedUsers.length) {
-      setError('Add at least one recipient.');
-      return;
-    }
-    if (audienceMode === 'winners' && !(winnerPreview?.count)) {
-      setError('Load winners for the selected source first.');
-      return;
-    }
-            const confirmAudience = audienceMode === 'range'
-      ? `Send this alert to up to ${targetCount.toLocaleString()} users?`
-      : `Send this alert to ${targetCount.toLocaleString()} selected recipient(s)?`;
-            const confirmText = form.scheduled_at
-                  ? `${confirmAudience}\nSchedule for ${new Date(form.scheduled_at).toLocaleString()}?`
-                  : confirmAudience;
-    if (!window.confirm(confirmText)) return;
-    setLoading(true);
-    try {
+      const buildPayload = () => {
       const shouldIncludeWebsite = form.channels.some(channel => ['email', 'sms', 'whatsapp'].includes(channel));
       const messageWithWebsite = shouldIncludeWebsite && !form.message.includes(PRIZE_LEAGUE_URL)
         ? `${form.message.trim()}\n\nPlay now: ${PRIZE_LEAGUE_URL}`
@@ -2269,6 +2261,7 @@ function AlertsAdminContent() {
         message: messageWithWebsite,
         alert_type: form.alert_type,
         channels: form.channels,
+                        include_contests: form.channels.includes('email') && form.include_contests,
       scheduled_at: form.scheduled_at ? new Date(form.scheduled_at).toISOString() : null,
       };
       let payload;
@@ -2294,8 +2287,50 @@ function AlertsAdminContent() {
         };
       }
 
-      const result = await adminAPI.createAlertCampaign(payload);
-      setNotice(`Campaign created. ${result?.targeted_count ?? 0} users targeted.`);
+                  return payload;
+      };
+
+      const previewCost = async () => {
+            setError('');
+            setCostLoading(true);
+            try { setEstimate(await adminAPI.estimateAlertCost(buildPayload())); }
+            catch (e) { setEstimate(null); setError(apiErrorMessage(e, 'Unable to estimate alert cost.')); }
+            finally { setCostLoading(false); }
+      };
+
+      const saveRates = async () => {
+            setError('');
+            setCostLoading(true);
+            try {
+                  await adminAPI.updateAlertCostRates({ currency: rates.currency,
+                        sms_per_segment: rates.sms_per_segment === '' ? null : Number(rates.sms_per_segment),
+                        email_per_message: rates.email_per_message === '' ? null : Number(rates.email_per_message) });
+                  setRatesDirty(false);
+                  setEstimate(null);
+                  setNotice('Alert estimate rates saved.');
+            } catch (e) { setError(apiErrorMessage(e, 'Unable to save alert cost rates.')); }
+            finally { setCostLoading(false); }
+      };
+
+      const send = async (e) => {
+            e.preventDefault();
+            setError('');
+            setNotice('');
+            if (!form.channels.length) { setError('Select at least one delivery channel.'); return; }
+            if (ratesDirty && form.channels.some(channel => ['email', 'sms'].includes(channel))) { setError('Save your rate changes before sending.'); return; }
+            if (audienceMode === 'users' && !selectedUsers.length) { setError('Add at least one recipient.'); return; }
+            if (audienceMode === 'winners' && !(winnerPreview?.count)) { setError('Load winners for the selected source first.'); return; }
+            setLoading(true);
+            try {
+                  const payload = buildPayload();
+                  const freshEstimate = await adminAPI.estimateAlertCost(payload);
+                  setEstimate(freshEstimate);
+                  const confirmation = `${freshEstimate.targeted_count} users targeted. Estimated cost: ${costText(freshEstimate.estimated_total, freshEstimate.currency)}.\nActual provider charges may differ.${form.scheduled_at ? `\nSchedule for ${new Date(form.scheduled_at).toLocaleString()}?` : '\nSend this alert?'}`;
+                  if (!window.confirm(confirmation)) return;
+                  const result = await adminAPI.createAlertCampaign(payload);
+                  setNotice(result?.status === 'scheduled'
+                        ? `Campaign scheduled for ${new Date(form.scheduled_at).toLocaleString()}. ${result?.targeted_count ?? 0} users targeted.`
+                        : `Campaign created. ${result?.targeted_count ?? 0} users targeted.`);
       await loadCampaigns();
     } catch (e2) {
       setError(apiErrorMessage(e2, 'Alert campaign failed.'));
@@ -2303,6 +2338,18 @@ function AlertsAdminContent() {
       setLoading(false);
     }
   };
+
+      const refreshCosts = async () => {
+            if (!selected?.campaign_id) return;
+            setCostLoading(true);
+            try {
+                  const result = await adminAPI.refreshAlertCosts(selected.campaign_id);
+                  setSelected(prev => ({ ...prev, costs: result.costs }));
+                  setNotice(`Checked ${result.checked} SMS charges; ${result.updated} prices available.`);
+                  await loadCampaigns();
+            } catch (e) { setError(apiErrorMessage(e, 'Unable to refresh SMS charges.')); }
+            finally { setCostLoading(false); }
+      };
 
   const openCampaign = async (id) => {
     setDetailLoading(true);
@@ -2521,6 +2568,13 @@ function AlertsAdminContent() {
                               <p className="mt-2 text-xs text-slate-500">Web Push requires the user to enable browser notifications. Native Push stays skipped until a native app and provider are connected. Existing Email, SMS, and In-App behavior is unchanged.</p>
         </div>
 
+                        {form.channels.includes('email') && (
+                              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                                    <input type="checkbox" checked={form.include_contests} onChange={event => setForm({ ...form, include_contests: event.target.checked })} />
+                                    Include latest and closing-soon contests in email
+                              </label>
+                        )}
+
                         <label className="block text-sm font-semibold text-slate-700">
                               Schedule (optional)
                               <input type="datetime-local" value={form.scheduled_at} onChange={event => setForm({ ...form, scheduled_at: event.target.value })} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 md:max-w-sm" />
@@ -2536,6 +2590,35 @@ function AlertsAdminContent() {
           <textarea required maxLength="4000" rows="5" value={form.message} onChange={e => setForm({...form,message:e.target.value})} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" placeholder="Write your message…" />
           <span className="mt-1 block text-right text-xs text-slate-400">{form.message.length} / 4000</span>
         </label>
+
+                        <section className="border-t border-slate-200 pt-4" data-testid="alert-cost-estimate">
+                              <h2 className="text-sm font-bold text-slate-900">Alert cost estimate</h2>
+                              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                                    <label className="text-sm font-semibold text-slate-700">Currency
+                                            <select value={rates.currency} onChange={event => { setRates({ ...rates, currency: event.target.value }); setRatesDirty(true); setEstimate(null); }} className="mt-1 w-full rounded border border-slate-300 px-3 py-2">
+                                                <option>GBP</option><option>USD</option><option>EUR</option>
+                                          </select>
+                                    </label>
+                                    <label className="text-sm font-semibold text-slate-700">SMS rate per segment
+                                            <input type="number" min="0" max="100" step="0.000001" value={rates.sms_per_segment} onChange={event => { setRates({ ...rates, sms_per_segment: event.target.value }); setRatesDirty(true); setEstimate(null); }} className="mt-1 w-full rounded border border-slate-300 px-3 py-2" placeholder="Not set" />
+                                    </label>
+                                    <label className="text-sm font-semibold text-slate-700">Email rate per message
+                                            <input type="number" min="0" max="100" step="0.000001" value={rates.email_per_message} onChange={event => { setRates({ ...rates, email_per_message: event.target.value }); setRatesDirty(true); setEstimate(null); }} className="mt-1 w-full rounded border border-slate-300 px-3 py-2" placeholder="Not set" />
+                                    </label>
+                              </div>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                    <button type="button" disabled={costLoading} onClick={saveRates} className="rounded border border-slate-300 px-3 py-2 text-sm font-semibold disabled:opacity-50">Save rates</button>
+                                    <button type="button" disabled={costLoading || ratesDirty || !form.title.trim() || !form.message.trim() || !form.channels.length} onClick={previewCost} className="rounded bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">Estimate cost</button>
+                              </div>
+                              <p className="mt-2 text-xs text-slate-500">Enter your contracted rates. Estimates use current consent and a single SMS rate; destination, carrier, tax and email plan charges may differ. Scheduled audiences can change.</p>
+                                  {ratesDirty && <p className="mt-1 text-xs text-amber-700">Save rate changes before estimating or sending paid channels.</p>}
+                              {estimate && <div className="mt-3 space-y-1 text-sm text-slate-700" aria-live="polite">
+                                    <p className="font-bold">Estimated total: {costText(estimate.estimated_total, estimate.currency)}</p>
+                                    <p>{estimate.targeted_count} users targeted</p>
+                                    {form.channels.includes('sms') && <p>SMS: {estimate.sms.eligible} eligible, {estimate.sms.segments} {estimate.sms.encoding} segment(s) per message. {costText(estimate.sms.estimated_cost, estimate.currency)}{!estimate.sms_configured && ' (provider not configured)'}</p>}
+                                    {form.channels.includes('email') && <p>Email: {estimate.email.eligible} eligible. {costText(estimate.email.estimated_cost, estimate.currency)}{!estimate.email_configured && ' (provider not configured)'}</p>}
+                              </div>}
+                        </section>
 
                         <section className="rounded-xl border border-slate-200 bg-slate-50 p-4" data-testid="alert-notification-preview" aria-live="polite">
                               <div className="mb-3 flex items-center justify-between gap-3">
@@ -2566,7 +2649,7 @@ function AlertsAdminContent() {
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="p-3">Campaign</th><th className="p-3">Range</th><th className="p-3">Targeted</th><th className="p-3">Channels</th><th className="p-3">Status</th></tr></thead>
+            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="p-3">Campaign</th><th className="p-3">Range</th><th className="p-3">Targeted</th><th className="p-3">Channels</th><th className="p-3">Status</th><th className="p-3">Reported SMS charges</th></tr></thead>
             <tbody>
               {campaigns.map(c => (
                 <tr key={c.campaign_id} onClick={() => openCampaign(c.campaign_id)} className="cursor-pointer border-t border-slate-100 hover:bg-slate-50">
@@ -2574,10 +2657,11 @@ function AlertsAdminContent() {
                   <td className="p-3">{c.user_from}–{c.user_to}</td>
                   <td className="p-3">{c.targeted_count ?? 0}</td>
                   <td className="p-3">{(c.channels || []).join(', ')}</td>
-                  <td className="p-3">{c.status}</td>
+                  <td className="p-3">{c.status}{c.scheduled_at && <div className="text-xs text-slate-500">{new Date(c.scheduled_at).toLocaleString()}</div>}</td>
+                  <td className="p-3">{smsChargeText(c.costs)}{Number(c.costs?.sms_awaiting_price || 0) > 0 && <div className="text-xs text-slate-500">{c.costs.sms_awaiting_price} awaiting price</div>}{c.cost_estimate && <div className="text-xs text-slate-500">Estimate: {costText(c.cost_estimate.estimated_total, c.cost_estimate.currency)}</div>}</td>
                 </tr>
               ))}
-              {!campaigns.length && <tr><td colSpan="5" className="p-8 text-center text-slate-400">No alert campaigns yet.</td></tr>}
+              {!campaigns.length && <tr><td colSpan="6" className="p-8 text-center text-slate-400">No alert campaigns yet.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -2595,6 +2679,15 @@ function AlertsAdminContent() {
             <CountCard label="Pending" value={sumStatus('pending')} icon={Clock3} />
             <CountCard label="Skipped" value={sumStatus('skipped')} icon={Ban} />
           </div>
+                              <div className="border-t border-slate-200 pt-3 text-sm text-slate-700">
+                                    <div className="flex flex-wrap items-center gap-3"><strong>Reported SMS charges: {smsChargeText(selected.costs)}</strong>
+                                          <button type="button" onClick={refreshCosts} disabled={costLoading} className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold disabled:opacity-50">Refresh SMS charges</button>
+                                    </div>
+                                    {selected.cost_estimate && <p className="mt-1">Pre-send estimate: {costText(selected.cost_estimate.estimated_total, selected.cost_estimate.currency)}</p>}
+                                    {selected.cost_estimate && (selected.channels || []).includes('sms') && <p className="text-xs text-slate-500">Estimated SMS: {costText(selected.cost_estimate.sms?.estimated_cost, selected.cost_estimate.currency)} for {selected.cost_estimate.sms?.eligible || 0} eligible users, {selected.cost_estimate.sms?.segments || 0} segment(s) each.</p>}
+                                    {selected.cost_estimate && (selected.channels || []).includes('email') && <p className="text-xs text-slate-500">Estimated email: {costText(selected.cost_estimate.email?.estimated_cost, selected.cost_estimate.currency)} for {selected.cost_estimate.email?.eligible || 0} eligible users.</p>}
+                                    <p className="mt-1 text-xs text-slate-500">{selected.costs?.sms_awaiting_price || 0} SMS awaiting provider pricing; {selected.costs?.sms_pending || 0} pending. Refresh checks up to 50 at a time. SendGrid does not report individual email charges here.</p>
+                              </div>
           <div className="flex flex-wrap gap-2">
             <select value={filter.status} onChange={e => setFilter({...filter,status:e.target.value})} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
               <option value="">All statuses</option><option value="sent">Sent</option><option value="pending">Pending</option><option value="skipped">Skipped</option><option value="failed">Failed</option>

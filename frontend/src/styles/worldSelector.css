@@ -1,13 +1,13 @@
 .world-selector-page {
+  position: relative;
   width: 100%;
-  min-height: 100vh;
+  min-height: 0;
   margin: 0;
   padding: 0;
   background: #020611;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
+  display: block;
   overflow-x: hidden;
+  overflow-y: visible;
 }
 
 .world-selector-artwork {
@@ -18,14 +18,35 @@
   line-height: 0;
 }
 
+.world-selector-background {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  pointer-events: none;
+}
+
+.world-selector-background img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.world-selector-support > div {
+  padding-top: 8px !important;
+  padding-bottom: 12px !important;
+}
+
 .world-selector-holder-section {
+  position: relative;
+  z-index: 1;
   width: min(100%, 1440px);
   margin: 0 auto;
-  padding: clamp(28px, 5vw, 72px) clamp(12px, 3vw, 40px) 42px;
+  padding: var(--world-header-gap-desktop, 72px) clamp(12px, 3vw, 40px) 10px;
 }
 
 .world-selector-holder-header {
-  margin: 0 0 clamp(20px, 3vw, 38px);
+  margin: 0 0 var(--world-title-gap-desktop, 36px);
   text-align: center;
   color: #fff;
 }
@@ -41,7 +62,7 @@
 .world-selector-holder-header h1 {
   margin: 0;
   font-family: Georgia, serif;
-  font-size: clamp(30px, 5vw, 58px);
+  font-size: var(--world-title-size-desktop, 48px);
   line-height: 1;
   letter-spacing: 0;
 }
@@ -49,7 +70,7 @@
 .world-selector-custom-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: clamp(12px, 2.5vw, 34px);
+  gap: var(--world-image-gap-desktop, 32px);
 }
 
 .world-selector-holder {
@@ -146,7 +167,7 @@
 .world-selector-subheading {
   display: block;
   margin-top: 10px;
-  font-size: clamp(14px, 2vw, 22px);
+  font-size: var(--world-subtitle-size-desktop, 22px);
   font-weight: 700;
 }
 
@@ -213,10 +234,23 @@
  * Artwork is vertical.
  * Paid card first, Free World second.
  */
-@media (min-width: 768px) and (max-width: 1199px) {
+@media (orientation: landscape) {
+  .world-selector-holder-header { margin-bottom: var(--world-title-gap-desktop, 36px); }
+  .world-selector-holder-header h1 { font-size: var(--world-title-size-desktop, 48px); }
+  .world-selector-subheading { font-size: var(--world-subtitle-size-desktop, 22px); }
+  .world-selector-custom-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--world-image-gap-desktop, 32px); }
+}
+
+@media (min-width: 768px) and (orientation: portrait) {
   .world-selector-artwork {
     max-width: 1024px;
   }
+
+  .world-selector-holder-section { padding-top: var(--world-header-gap-tablet, 41px); }
+  .world-selector-holder-header { margin-bottom: var(--world-title-gap-tablet, 24px); }
+  .world-selector-holder-header h1 { font-size: var(--world-title-size-tablet, 42px); }
+  .world-selector-subheading { font-size: var(--world-subtitle-size-tablet, 20px); }
+  .world-selector-custom-grid { grid-template-columns: 1fr; width: 100%; max-width: 560px; margin: 0 auto; gap: var(--world-image-gap-tablet, 20px); }
 
   .world-selector-paid {
     left: 5%;
@@ -238,7 +272,7 @@
  * Artwork is vertical.
  * Large touch targets for both cards.
  */
-@media (max-width: 767px) {
+@media (max-width: 767px) and (orientation: portrait) {
   .world-selector-artwork {
     max-width: 520px;
   }
@@ -253,9 +287,14 @@
     padding-top: 30px;
   }
 
+  .world-selector-holder-header { margin-bottom: calc(var(--world-title-gap-mobile, 22px) + 8px); }
+  .world-selector-holder-header h1 { font-size: var(--world-title-size-mobile, 34px); }
+  .world-selector-subheading { font-size: var(--world-subtitle-size-mobile, 16px); }
+  .world-selector-custom-grid { gap: var(--world-image-gap-mobile, 12px); }
+
   .world-selector-holder-image {
     aspect-ratio: auto;
-    height: clamp(170px, 30vh, 260px);
+    height: clamp(180px, 32vh, 280px);
     min-height: 0;
   }
 

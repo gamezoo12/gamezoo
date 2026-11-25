@@ -14,6 +14,7 @@ IMPORTANT:
 from __future__ import annotations
 
 import asyncio
+import logging
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
@@ -2272,6 +2273,8 @@ class WorldSelectionImagesInput(BaseModel):
     text_highlight_color: str = Field(default='#facc15', max_length=32)
     text_gradient: bool = False
     text_gradient_color: str = Field(default='#facc15', max_length=32)
+    text_gradient_angle: int = Field(default=90, ge=0, le=360)
+    text_gradient_preset: str = Field(default='custom', max_length=80)
     text_preset: str = Field(default='custom', max_length=40)
     text_color: str = Field(default='#ffffff', max_length=32)
     accent_color: str = Field(default='#facc15', max_length=32)
@@ -2280,6 +2283,23 @@ class WorldSelectionImagesInput(BaseModel):
     background_color: str = Field(default='#020611', max_length=32)
     background_color_2: str = Field(default='#172033', max_length=32)
     background_image: str = Field(default='', max_length=2048)
+    background_mobile: str = Field(default='', max_length=2048)
+    background_tablet: str = Field(default='', max_length=2048)
+    background_desktop: str = Field(default='', max_length=2048)
+    header_gap_tablet: int = Field(default=41, ge=0, le=240)
+    header_gap_desktop: int = Field(default=72, ge=0, le=240)
+    title_gap_mobile: int = Field(default=22, ge=0, le=160)
+    title_gap_tablet: int = Field(default=24, ge=0, le=200)
+    title_gap_desktop: int = Field(default=36, ge=0, le=240)
+    image_gap_mobile: int = Field(default=12, ge=0, le=100)
+    image_gap_tablet: int = Field(default=20, ge=0, le=120)
+    image_gap_desktop: int = Field(default=32, ge=0, le=160)
+    mobile_title_size: int = Field(default=34, ge=12, le=160)
+    tablet_title_size: int = Field(default=42, ge=12, le=160)
+    desktop_title_size: int = Field(default=48, ge=12, le=160)
+    mobile_subtitle_size: int = Field(default=16, ge=10, le=120)
+    tablet_subtitle_size: int = Field(default=20, ge=10, le=120)
+    desktop_subtitle_size: int = Field(default=22, ge=10, le=120)
     letter_spacing: int = Field(default=0, ge=-5, le=20)
     heading_case: str = Field(default='none', pattern='^(none|uppercase|lowercase)$')
     sub_font_family: str = Field(default='Georgia, serif', max_length=120)
@@ -2291,16 +2311,58 @@ class WorldSelectionImagesInput(BaseModel):
     sub_letter_spacing: int = Field(default=0, ge=-5, le=20)
 
 
+async def _mirror_selection_manifest(values: dict) -> None:
+    import json
+    from routers.uploads_routes import _upload_to_r2
+    await asyncio.to_thread(
+        _upload_to_r2,
+        key='world-selection/settings.json',
+        body=json.dumps(values, separators=(',', ':')).encode('utf-8'),
+        content_type='application/json',
+        cache_control='public, max-age=60, must-revalidate',
+    )
+
+
+async def _selection_manifest_fallback() -> dict:
+    import json
+    from urllib.error import URLError
+    from urllib.request import urlopen
+    import os
+    base = (os.getenv('R2_PUBLIC_URL') or '').rstrip('/')
+    if not base:
+        return {}
+    def load():
+        try:
+            with urlopen(f'{base}/world-selection/settings.json', timeout=8) as response:
+                data = json.loads(response.read(1024 * 64).decode('utf-8'))
+                return data if isinstance(data, dict) else {}
+        except (URLError, TimeoutError, OSError, ValueError, json.JSONDecodeError):
+            return {}
+    return await asyncio.to_thread(load)
+
+
 @public_router.get("/selection-images")
 async def public_selection_images():
     doc = await get_db().world_settings.find_one(
         {"_id": "selection_images"}, {"_id": 0, "season_id": 0, "updated_at": 0, "updated_by": 0},
     ) or {}
+    if not doc:
+        doc = await _selection_manifest_fallback()
     defaults = WorldSelectionImagesInput()
-    return {
+    values = {
         key: doc[key] if key in doc and doc[key] is not None else getattr(defaults, key)
         for key in WorldSelectionImagesInput.model_fields
     }
+    if doc and not doc.get('manifest_mirrored'):
+        try:
+            await _mirror_selection_manifest(values)
+            await get_db().world_settings.update_one(
+                {'_id': 'selection_images'},
+                {'$set': {'manifest_mirrored': True, 'manifest_mirrored_at': _utcnow()}},
+            )
+        except Exception:
+            logging.exception('Could not repair World Selection R2 manifest')
+    return values
 
 
 @admin_router.get("/selection-images")
@@ -2318,6 +2380,14 @@ async def admin_set_selection_images(payload: WorldSelectionImagesInput, request
         {"$set": {**values, "season_id": WORLD_SEASON_ID, "updated_at": _utcnow(), "updated_by": admin.get("user_id")}},
         upsert=True,
     )
+    try:
+        await _mirror_selection_manifest(values)
+        await get_db().world_settings.update_one(
+            {'_id': 'selection_images'},
+            {'$set': {'manifest_mirrored': True, 'manifest_mirrored_at': _utcnow()}},
+        )
+    except Exception:
+        logging.exception('Could not persist World Selection manifest to R2')
     return values
 
 

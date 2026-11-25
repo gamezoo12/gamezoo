@@ -239,6 +239,7 @@ export const adminAPI = {
   hideRecentWinner: (id) => api.delete(`/admin/homepage-content/recent-winners/${encodeURIComponent(id)}`).then(r => r.data),
   updateHomepageContentSettings: (data) => api.put('/admin/homepage-content/settings', data).then(r => r.data),
   uploadHomepageImage: (file) => { const fd = new FormData(); fd.append('file', file); return api.post('/admin/uploads/image', fd, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data); },
+  uploadWorldSelectionImage: (slot, file) => { const fd = new FormData(); fd.append('slot', slot); fd.append('file', file); return api.post('/admin/uploads/world-selection-image', fd, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data); },
   tickerWinners: () => api.get('/admin/world/ticker-winners').then(r => r.data),
   addTickerWinner: (data) => api.post('/admin/world/ticker-winners', data).then(r => r.data),
   deleteTickerWinner: (id) => api.delete(`/admin/world/ticker-winners/${id}`).then(r => r.data),
@@ -297,6 +298,13 @@ export const adminAPI = {
 
   createAlertCampaign: (data) =>
     api.post('/admin/users/alerts/campaigns', data).then(r => r.data),
+
+  estimateAlertCost: (data) =>
+    api.post('/admin/users/alerts/estimate', data).then(r => r.data),
+
+  alertCostRates: () => api.get('/admin/users/alerts/cost-rates').then(r => r.data),
+  updateAlertCostRates: (data) => api.put('/admin/users/alerts/cost-rates', data).then(r => r.data),
+  refreshAlertCosts: (campaignId) => api.post(`/admin/users/alerts/campaigns/${encodeURIComponent(campaignId)}/costs/refresh`).then(r => r.data),
 
   alertCampaign: (campaignId) =>
     api.get(`/admin/users/alerts/campaigns/${campaignId}`).then(r => r.data),

@@ -162,6 +162,49 @@ async def upload_image(request: Request, file: UploadFile = File(...)):
     }
 
 
+@uploads_router.post('/world-selection-image')
+async def upload_world_selection_image(
+    request: Request,
+    file: UploadFile = File(...),
+    slot: str = Form(...),
+):
+    """Optimize a World Selection image and persist it in R2."""
+    await require_admin(request)
+    allowed_slots = {
+        'paid_mobile', 'paid_tablet', 'paid_desktop',
+        'free_mobile', 'free_tablet', 'free_desktop',
+        'background_mobile', 'background_tablet', 'background_desktop',
+    }
+    if slot not in allowed_slots:
+        raise HTTPException(422, 'Unknown World Selection image slot')
+    data = await file.read(MAX_BYTES + 1)
+    if len(data) > MAX_BYTES:
+        raise HTTPException(413, 'File too large (max 8 MB)')
+    if not _sniff_mime(data):
+        raise HTTPException(415, 'Unsupported file type. Use JPG, PNG, or WEBP.')
+    try:
+        src = ImageOps.exif_transpose(Image.open(io.BytesIO(data))).convert('RGB')
+    except Exception as exc:
+        raise HTTPException(400, f'Could not decode image: {exc}') from exc
+    max_width = 960 if slot.endswith('_mobile') else 1440 if slot.endswith('_tablet') else 1920
+    if src.width > max_width:
+        height = max(1, round(src.height * (max_width / src.width)))
+        src = src.resize((max_width, height), Image.Resampling.LANCZOS)
+    output = io.BytesIO()
+    src.save(output, format='WEBP', quality=86, method=6)
+    payload = output.getvalue()
+    key = f"world-selection/{slot}/{uuid.uuid4().hex}.webp"
+    return {
+        'url': _upload_to_r2(key=key, body=payload, content_type='image/webp', cache_control='public, max-age=31536000, immutable'),
+        'slot': slot,
+        'size': len(payload),
+        'width': src.width,
+        'height': src.height,
+        'mime': 'image/webp',
+        'storage': 'r2',
+    }
+
+
 # =====================================================================
 # Contest image processor — one upload → 5 responsive variants
 # =====================================================================

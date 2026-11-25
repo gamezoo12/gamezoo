@@ -1518,6 +1518,28 @@ class AdminAlertCreateRequest(BaseModel):
         default_factory=lambda: ['in_app']
     )
     audience: Optional[AudienceSpec] = None
+    include_contests: bool = False
+    scheduled_at: Optional[datetime] = None
+
+
+def _sms_segments(message: str) -> dict:
+    basic = "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà"
+    extended = '^{}\\[~]|€\f'
+    gsm = all(char in basic or char in extended for char in message)
+    units = [2 if char in extended else 1 for char in message] if gsm else [len(char.encode('utf-16-be')) // 2 for char in message]
+    total = sum(units)
+    if not total:
+        return {'encoding': 'GSM-7' if gsm else 'UCS-2', 'units': 0, 'segments': 0}
+    single_limit, multi_limit = (160, 153) if gsm else (70, 67)
+    segments = 1
+    if total > single_limit:
+        segments, used = 1, 0
+        for size in units:
+            if used + size > multi_limit:
+                segments += 1
+                used = 0
+            used += size
+    return {'encoding': 'GSM-7' if gsm else 'UCS-2', 'units': total, 'segments': segments}
 
 
 # User fields loaded for every recipient (shared projection).
@@ -1548,7 +1570,7 @@ async def _resolve_identifier_users(db, identifiers: list):
     found = await db.users.find(
         {'$and': [{'erased': {'$ne': True}}, query]},
         _ALERT_USER_PROJECTION,
-    ).to_list(5000)
+    ).to_list(10000)
 
     by_key = {}
     for u in found:
@@ -1753,21 +1775,79 @@ def _campaign_email_configured() -> bool:
     )
 
 
+def _campaign_datetime(value):
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        except ValueError:
+            return None
+    if not isinstance(value, datetime):
+        return None
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
+
+
+def _campaign_contest_sections(contests, current_time):
+    eligible = []
+    seen = set()
+    for contest in contests:
+        end = _campaign_datetime(contest.get('end_date'))
+        if (contest.get('status') != 'live' or contest.get('public_coming_soon') is True
+                or not contest.get('slug') or not contest.get('title') or contest['slug'] in seen
+                or (contest.get('has_time_limit', True) and (not end or end <= current_time))):
+            continue
+        seen.add(contest['slug'])
+        eligible.append((contest, end))
+    latest = sorted(eligible, key=lambda item: _campaign_datetime(item[0].get('created_at')) or datetime.min.replace(tzinfo=timezone.utc), reverse=True)[:4]
+    closing = sorted((item for item in eligible if item[0].get('has_time_limit', True) and item[1]), key=lambda item: item[1])[:4]
+    return {'latest': [item[0] for item in latest], 'closing_soon': [item[0] for item in closing]}
+
+
 def _send_sendgrid_campaign_email(
     to_email: str,
     title: str,
     message: str,
     unsubscribe_url: str,
+    contest_sections: Optional[dict] = None,
+    support_email: str = 'support@prizeleague.co.uk',
 ):
     """Submit to SendGrid; HTTP 202 means accepted, not delivered."""
     import json
     from urllib.request import Request as UrlRequest, urlopen
     from urllib.error import HTTPError
+    from urllib.parse import quote
     from html import escape
 
     sender = os.environ.get('SENDGRID_FROM_EMAIL') or os.environ.get('FROM_EMAIL')
     import re
     text_body = message + "\n\nUnsubscribe from marketing emails: " + unsubscribe_url
+    site_url = (os.environ.get('PUBLIC_SITE_URL') or 'https://prizeleague.co.uk').rstrip('/')
+    contests_html = ''
+    for key, heading in (('latest', 'Latest contests'), ('closing_soon', 'Closing soon')):
+        contests = (contest_sections or {}).get(key, [])
+        if not contests:
+            continue
+        text_body += f'\n\n{heading}:\n'
+        contests_html += f'<h2 style="margin:24px 0 10px;font-size:19px;color:#101827;">{heading}</h2>'
+        for contest in contests:
+            url = f'{site_url}/competition/{quote(str(contest["slug"]), safe="")}'
+            contest_title = str(contest['title'])
+            end = _campaign_datetime(contest.get('end_date')) if contest.get('has_time_limit', True) else None
+            closes = f' (closes {end.strftime("%d %b %Y, %H:%M UTC")})' if end else ''
+            text_body += f'{contest_title}{closes}: {url}\n'
+            contests_html += f'<div style="padding:7px 0;"><a href="{escape(url, quote=True)}" style="color:#4b27a5;">{escape(contest_title)}</a>{escape(closes)}</div>'
+    if not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', support_email):
+        support_email = 'support@prizeleague.co.uk'
+    links = (
+        ('Instagram', 'https://www.instagram.com/prizeleague', 'https://img.icons8.com/color/48/instagram-new.png'),
+        ('WhatsApp', 'https://chat.whatsapp.com/I6L15DZ3r9FD4NEaNPDesL', 'https://img.icons8.com/color/48/whatsapp.png'),
+        ('Support', f'mailto:{support_email}', 'https://img.icons8.com/color/48/customer-support.png'),
+    )
+    text_body += '\n\n' + '\n'.join(f'{label}: {url}' for label, url, _ in links)
+    links_html = ' &nbsp; '.join(
+        f'<a href="{escape(url, quote=True)}" style="color:#475569;text-decoration:none;">'
+        f'<img src="{escape(icon, quote=True)}" alt="" width="20" height="20" style="vertical-align:middle;border:0;"> '
+        f'{escape(label)}</a>' for label, url, icon in links
+    )
     # Pull the first link out of the message and render it as a button instead of a raw URL.
     url_match = re.search(r'https?://[^\s<>"]+', message)
     cta_url = url_match.group(0).rstrip('.,);') if url_match else None
@@ -1790,9 +1870,10 @@ def _send_sendgrid_campaign_email(
         '<tr><td style="padding:32px 28px 18px;">'
         '<h1 style="margin:0 0 18px;font-size:24px;line-height:1.3;color:#101827;">' + escape(title) + '</h1>'
         '<div style="font-size:16px;line-height:1.7;color:#475569;">' + safe_body + '</div>'
-        + cta_html +
+        + cta_html + contests_html +
         '</td></tr>'
         '<tr><td style="padding:18px 28px 24px;border-top:1px solid #edf0f3;font-size:12px;line-height:1.6;color:#7b8794;">'
+        + '<div style="margin-bottom:14px;">' + links_html + '</div>' +
         'You are receiving this because you opted in to Prize League marketing emails. '
         '<a href="' + escape(unsubscribe_url, quote=True) + '" style="color:#64748b;text-decoration:underline;">Unsubscribe</a>'
         '</td></tr></table></td></tr></table></body></html>'
@@ -1825,7 +1906,7 @@ def _send_sendgrid_campaign_email(
         raise RuntimeError('SendGrid rejected request (HTTP %s)' % exc.code) from exc
 
 
-async def _send_campaign_email(campaign_id: str, title: str, message: str, sends: list) -> None:
+async def _send_campaign_email(campaign_id: str, title: str, message: str, sends: list, include_contests: bool = False) -> None:
     """Send opted-in campaign email; persist provider acceptance, not delivery."""
     import asyncio
     from deps import get_db
@@ -1842,6 +1923,24 @@ async def _send_campaign_email(campaign_id: str, title: str, message: str, sends
     public_site_url = (
         os.environ.get('PUBLIC_SITE_URL') or 'https://prizeleague.co.uk'
     ).rstrip('/')
+    contest_sections = None
+    if include_contests:
+        try:
+            query = {'status': 'live', 'public_coming_soon': {'$ne': True}}
+            newest = await db.contests.find(query, {'_id': 0}).sort('created_at', -1).limit(500).to_list(500)
+            ending = await db.contests.find(query, {'_id': 0}).sort('end_date', 1).limit(500).to_list(500)
+            contest_sections = _campaign_contest_sections(newest + ending, datetime.now(timezone.utc))
+        except Exception:
+            logger.exception('Campaign %s contest selection failed', campaign_id)
+            await db.alert_deliveries.update_many(
+                {'campaign_id': campaign_id, 'channel': 'email', 'status': 'pending'},
+                {'$set': {'status': 'failed', 'reason': 'contest_selection_error', 'updated_at': datetime.now(timezone.utc)}},
+            )
+            await _recount_campaign(db, campaign_id)
+            return
+    company = await db.settings.find_one({'_id': 'company'}, {'email_support': 1}) or {}
+    app_settings = await db.settings.find_one({'_id': 'app'}, {'support_email': 1}) or {}
+    support_email = str(company.get('email_support') or app_settings.get('support_email') or 'support@prizeleague.co.uk').strip()
 
     for item in sends:
         delivery_id = item['delivery_id']
@@ -1858,7 +1957,7 @@ async def _send_campaign_email(campaign_id: str, title: str, message: str, sends
             )
             status_code, provider_id = await asyncio.to_thread(
                 _send_sendgrid_campaign_email,
-                item['email'], title, message, unsubscribe_url,
+                item['email'], title, message, unsubscribe_url, contest_sections, support_email,
             )
             await db.alert_deliveries.update_one(
                 {'delivery_id': delivery_id},
@@ -1956,12 +2055,14 @@ async def _send_campaign_sms(campaign_id: str, message: str, sends: list) -> Non
                 to=item['phone'],
                 body=message,
             )
+            cost_fields = _twilio_message_cost(msg)
             await db.alert_deliveries.update_one(
                 {'delivery_id': delivery_id},
                 {'$set': {
                     'status': 'sent',
                     'provider_status': getattr(msg, 'status', None) or 'queued',
                     'message_sid': msg.sid,
+                    **cost_fields,
                     'reason': None,
                     'updated_at': datetime.now(timezone.utc),
                 }},
@@ -1994,6 +2095,141 @@ async def _send_campaign_sms(campaign_id: str, message: str, sends: list) -> Non
     await _recount_campaign(db, campaign_id)
 
 
+def _twilio_message_cost(message):
+    from decimal import Decimal, InvalidOperation
+
+    price = getattr(message, 'price', None)
+    currency = str(getattr(message, 'price_unit', '') or '').upper()
+    try:
+        value = Decimal(str(price))
+        if not value.is_finite() or len(currency) != 3 or not currency.isalpha():
+            return {}
+        return {'provider_cost': float(abs(value)), 'provider_cost_currency': currency}
+    except (InvalidOperation, ValueError):
+        return {}
+
+
+async def _alert_cost_summaries(db, campaign_ids):
+    summaries = {campaign_id: {'sms_by_currency': {}, 'sms_awaiting_price': 0, 'sms_pending': 0} for campaign_id in campaign_ids}
+    if not campaign_ids:
+        return summaries
+    async for row in db.alert_deliveries.aggregate([
+        {'$match': {'campaign_id': {'$in': campaign_ids}, 'channel': 'sms'}},
+        {'$group': {
+            '_id': {'campaign_id': '$campaign_id', 'currency': '$provider_cost_currency'},
+            'amount': {'$sum': {'$ifNull': ['$provider_cost', 0]}},
+            'known': {'$sum': {'$cond': [{'$ne': [{'$ifNull': ['$provider_cost', None]}, None]}, 1, 0]}},
+            'awaiting': {'$sum': {'$cond': [{'$and': [
+                {'$ne': [{'$ifNull': ['$message_sid', None]}, None]},
+                {'$eq': [{'$ifNull': ['$provider_cost', None]}, None]},
+            ]}, 1, 0]}},
+            'pending': {'$sum': {'$cond': [{'$in': ['$status', ['pending', 'sending']]}, 1, 0]}},
+        }},
+    ]):
+        summary = summaries[row['_id']['campaign_id']]
+        currency = row['_id'].get('currency')
+        if currency and row['known']:
+            summary['sms_by_currency'][currency] = round(row['amount'], 6)
+        summary['sms_awaiting_price'] += row['awaiting']
+        summary['sms_pending'] += row['pending']
+    return summaries
+
+
+@router.post('/alerts/campaigns/{campaign_id}/costs/refresh')
+async def refresh_alert_costs(campaign_id: str, request: Request):
+    import asyncio
+
+    await require_admin(request)
+    db = get_db()
+    if not await db.alert_campaigns.find_one({'campaign_id': campaign_id}, {'_id': 1}):
+        raise HTTPException(status_code=404, detail='Campaign not found')
+    client, _ = _twilio_messaging()
+    if not client:
+        raise HTTPException(status_code=503, detail='Twilio is not configured')
+    rows = await db.alert_deliveries.find({
+        'campaign_id': campaign_id, 'channel': 'sms', 'message_sid': {'$exists': True, '$ne': None},
+        'provider_cost': None,
+    }, {'_id': 0, 'delivery_id': 1, 'message_sid': 1}).sort('provider_cost_checked_at', 1).limit(50).to_list(50)
+    updated = 0
+    for row in rows:
+        try:
+            message = await asyncio.to_thread(lambda: client.messages(row['message_sid']).fetch())
+            cost = _twilio_message_cost(message)
+            updated += bool(cost)
+        except Exception:
+            cost = {}
+        await db.alert_deliveries.update_one({'delivery_id': row['delivery_id']}, {
+            '$set': {'provider_cost_checked_at': datetime.now(timezone.utc), **cost},
+        })
+    return {'checked': len(rows), 'updated': updated, 'costs': (await _alert_cost_summaries(db, [campaign_id]))[campaign_id]}
+
+
+class AlertCostRates(BaseModel):
+    currency: Literal['GBP', 'USD', 'EUR'] = 'GBP'
+    sms_per_segment: Optional[float] = Field(default=None, ge=0, le=100, allow_inf_nan=False)
+    email_per_message: Optional[float] = Field(default=None, ge=0, le=100, allow_inf_nan=False)
+
+
+@router.get('/alerts/cost-rates')
+async def get_alert_cost_rates(request: Request):
+    await require_admin(request)
+    rates = await get_db().settings.find_one({'_id': 'alert_cost_rates'}, {'_id': 0}) or {}
+    return AlertCostRates(**rates).model_dump()
+
+
+@router.put('/alerts/cost-rates')
+async def update_alert_cost_rates(rates: AlertCostRates, request: Request):
+    admin = await require_admin(request)
+    if admin.get('role') not in ('admin', 'super_admin'):
+        raise HTTPException(status_code=403, detail='Only admins can change cost rates')
+    await get_db().settings.update_one({'_id': 'alert_cost_rates'}, {'$set': rates.model_dump()}, upsert=True)
+    return rates.model_dump()
+
+
+@router.post('/alerts/estimate')
+async def estimate_alert_cost(payload: AdminAlertCreateRequest, request: Request):
+    await require_admin(request)
+    db = get_db()
+    audience = payload.audience or AudienceSpec()
+    if audience.mode == 'range':
+        count = payload.user_to - payload.user_from + 1
+        if count < 1 or count > 10000:
+            raise HTTPException(status_code=400, detail='Invalid audience range (maximum 10,000 users).')
+        users = await db.users.find({'erased': {'$ne': True}}, _ALERT_USER_PROJECTION).sort(
+            [('created_at', 1), ('user_id', 1)]).skip(payload.user_from - 1).limit(count).to_list(count)
+    elif audience.mode == 'users':
+        users, _ = await _resolve_identifier_users(db, audience.identifiers)
+    else:
+        if not audience.winner_source:
+            raise HTTPException(status_code=400, detail='winner_source is required.')
+        users = await _users_by_ids(db, await _resolve_winner_user_ids(db, audience.winner_source, audience.winner_ref or 'all'))
+    if len(users) > 10000:
+        raise HTTPException(status_code=400, detail='A single campaign can target at most 10,000 users')
+    return await _estimate_alert_for_users(db, payload, users)
+
+
+async def _estimate_alert_for_users(db, payload, users):
+    from decimal import Decimal
+
+    rates = AlertCostRates(**(await db.settings.find_one({'_id': 'alert_cost_rates'}, {'_id': 0}) or {}))
+    segments = _sms_segments(payload.message.strip())
+    email_count = sum(bool(user.get('email')) and user.get('marketing_email_consent') is True and user.get('marketing_email_unsubscribed') is not True for user in users)
+    sms_count = sum(bool(user.get('phone') and user.get('phone_verified')) and user.get('sms_consent') is True and user.get('sms_opt_out') is not True for user in users)
+
+    def amount(count, rate):
+        return float(Decimal(count) * Decimal(str(rate))) if rate is not None else (0.0 if not count else None)
+
+    email_cost = amount(email_count, rates.email_per_message) if 'email' in payload.channels else 0.0
+    sms_cost = amount(sms_count * segments['segments'], rates.sms_per_segment) if 'sms' in payload.channels else 0.0
+    return {
+        'targeted_count': len(users), 'currency': rates.currency, 'sms': {**segments, 'eligible': sms_count, 'estimated_cost': sms_cost},
+        'email': {'eligible': email_count, 'estimated_cost': email_cost},
+        'estimated_total': None if email_cost is None or sms_cost is None else float(Decimal(str(email_cost)) + Decimal(str(sms_cost))),
+        'rates': rates.model_dump(),
+        'email_configured': _campaign_email_configured(), 'sms_configured': _twilio_messaging()[0] is not None,
+    }
+
+
 @router.post('/alerts/campaigns')
 async def create_alert_campaign(
     payload: AdminAlertCreateRequest,
@@ -2011,6 +2247,14 @@ async def create_alert_campaign(
     the separately configured Twilio Messaging Service.
     """
     admin = await require_admin(request)
+
+    scheduled_at = payload.scheduled_at
+    if scheduled_at:
+        if scheduled_at.tzinfo is None or scheduled_at.utcoffset() is None:
+            raise HTTPException(status_code=400, detail='Scheduled time must include a timezone.')
+        scheduled_at = scheduled_at.astimezone(timezone.utc)
+        if scheduled_at <= datetime.now(timezone.utc):
+            raise HTTPException(status_code=400, detail='Scheduled time must be in the future.')
 
     from deps import get_db
     db = get_db()
@@ -2084,10 +2328,7 @@ async def create_alert_campaign(
 
     now = datetime.now(timezone.utc)
     campaign_id = f'alt_{uuid.uuid4().hex[:16]}'
-
-    # Whether the Twilio Messaging Service is configured for real SMS sends.
-    _mclient, _ = _twilio_messaging()
-    sms_configured = _mclient is not None
+    cost_estimate = await _estimate_alert_for_users(db, payload, users)
 
     campaign = {
         'campaign_id': campaign_id,
@@ -2100,12 +2341,44 @@ async def create_alert_campaign(
         'requested_count': target_count,
         'targeted_count': len(users),
         'channels': list(dict.fromkeys(payload.channels)),
+        'include_contests': payload.include_contests,
+        'cost_estimate': cost_estimate,
         'created_by_user_id': admin.get('user_id'),
         'created_by_email': admin.get('email'),
         'created_at': now,
-        'status': 'processing',
+        'status': 'scheduled' if scheduled_at else 'processing',
+        'scheduled_at': scheduled_at,
+        'schedule_engine': 'user360',
     }
+    if scheduled_at:
+        campaign['target_user_ids'] = [user['user_id'] for user in users if user.get('user_id')]
     await db.alert_campaigns.insert_one(dict(campaign))
+
+    await db.audit_log.insert_one({
+        'audit_id': f'aud_{uuid.uuid4().hex[:12]}',
+        'kind': 'admin_alert_campaign_created',
+        'admin_email': admin.get('email'),
+        'admin_user_id': admin.get('user_id'),
+        'campaign_id': campaign_id,
+        'user_from': payload.user_from,
+        'user_to': payload.user_to,
+        'targeted_count': len(users),
+        'channels': campaign['channels'],
+        'at': now,
+    })
+
+    if scheduled_at:
+        return {'ok': True, 'campaign_id': campaign_id, 'status': 'scheduled', 'targeted_count': len(users)}
+
+    return await _dispatch_alert_campaign(db, campaign, users, background_tasks)
+
+
+async def _dispatch_alert_campaign(db, campaign, users, background_tasks):
+    campaign_id = campaign['campaign_id']
+    camp_from = campaign['user_from']
+    now = datetime.now(timezone.utc)
+    _mclient, _ = _twilio_messaging()
+    sms_configured = _mclient is not None
 
     notification_docs = []
     delivery_docs = []
@@ -2229,19 +2502,6 @@ async def create_alert_campaign(
         },
     )
 
-    await db.audit_log.insert_one({
-        'audit_id': f'aud_{uuid.uuid4().hex[:12]}',
-        'kind': 'admin_alert_campaign_created',
-        'admin_email': admin.get('email'),
-        'admin_user_id': admin.get('user_id'),
-        'campaign_id': campaign_id,
-        'user_from': payload.user_from,
-        'user_to': payload.user_to,
-        'targeted_count': len(users),
-        'channels': campaign['channels'],
-        'at': now,
-    })
-
     if pending_email:
         background_tasks.add_task(
             _send_campaign_email,
@@ -2249,6 +2509,7 @@ async def create_alert_campaign(
             campaign['title'],
             campaign['message'],
             pending_email,
+            campaign['include_contests'],
         )
 
     if pending_push:
@@ -2283,6 +2544,40 @@ async def create_alert_campaign(
     }
 
 
+async def process_due_alert_campaigns(db, current_time=None):
+    from pymongo import ReturnDocument
+
+    current_time = current_time or datetime.now(timezone.utc)
+    processed = 0
+    for _ in range(100):
+        campaign = await db.alert_campaigns.find_one_and_update(
+            {'status': 'scheduled', 'schedule_engine': 'user360', 'scheduled_at': {'$lte': current_time}},
+            {'$set': {'status': 'processing', 'dispatch_started_at': datetime.now(timezone.utc)}},
+            sort=[('scheduled_at', 1)], return_document=ReturnDocument.AFTER,
+        )
+        if not campaign:
+            break
+        try:
+            user_ids = campaign.get('target_user_ids', [])
+            users = await db.users.find(
+                {'user_id': {'$in': user_ids}, 'erased': {'$ne': True}}, _ALERT_USER_PROJECTION,
+            ).to_list(10000)
+            users_by_id = {user['user_id']: user for user in users}
+            users = [users_by_id[user_id] for user_id in user_ids if user_id in users_by_id]
+            tasks = BackgroundTasks()
+            await _dispatch_alert_campaign(db, campaign, users, tasks)
+            await tasks()
+        except Exception:
+            logger.exception('Scheduled campaign %s dispatch failed', campaign['campaign_id'])
+            await db.alert_campaigns.update_one(
+                {'campaign_id': campaign['campaign_id']},
+                {'$set': {'status': 'failed', 'dispatch_error': 'scheduled_dispatch_failed',
+                          'updated_at': datetime.now(timezone.utc)}},
+            )
+        processed += 1
+    return processed
+
+
 @router.get('/alerts/campaigns')
 async def list_alert_campaigns(
     request: Request,
@@ -2295,9 +2590,11 @@ async def list_alert_campaigns(
     limit = max(1, min(int(limit), 200))
     docs = await db.alert_campaigns.find(
         {},
-        {'_id': 0},
+        {'_id': 0, 'target_user_ids': 0},
     ).sort('created_at', -1).limit(limit).to_list(limit)
-
+    costs = await _alert_cost_summaries(db, [doc['campaign_id'] for doc in docs])
+    for doc in docs:
+        doc['costs'] = costs[doc['campaign_id']]
     return {'campaigns': docs}
 
 
@@ -2312,7 +2609,7 @@ async def get_alert_campaign(
 
     campaign = await db.alert_campaigns.find_one(
         {'campaign_id': campaign_id},
-        {'_id': 0},
+        {'_id': 0, 'target_user_ids': 0},
     )
     if not campaign:
         raise HTTPException(status_code=404, detail='Campaign not found')
@@ -2339,6 +2636,7 @@ async def get_alert_campaign(
         counts[channel][status] = row['count']
 
     campaign['delivery_counts'] = counts
+    campaign['costs'] = (await _alert_cost_summaries(db, [campaign_id]))[campaign_id]
     return campaign
 
 

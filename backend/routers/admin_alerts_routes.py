@@ -346,7 +346,7 @@ async def process_due_campaigns(db, current_time=None):
     """Dispatch scheduled campaigns through the existing per-delivery worker."""
     current_time = current_time or now()
     due = await db.alert_campaigns.find(
-        {'status': 'scheduled', 'scheduled_at': {'$lte': current_time}},
+        {'status': 'scheduled', 'schedule_engine': {'$ne': 'user360'}, 'scheduled_at': {'$lte': current_time}},
         {'_id': 0, 'campaign_id': 1},
     ).sort('scheduled_at', 1).limit(100).to_list(100)
     for campaign in due:

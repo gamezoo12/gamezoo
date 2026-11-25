@@ -8,6 +8,7 @@ from services.world_championship_scheduler import tick_free_world
 
 log = logging.getLogger('gz.scheduler')
 _TASK: asyncio.Task | None = None
+_ALERT_TASK: asyncio.Task | None = None
 _INTERVAL_SECONDS = 60
 _running = False
 
@@ -79,6 +80,10 @@ async def _tick(db):
     except Exception as e:  # noqa: BLE001
         log.exception('[scheduler] scheduled alert processing failed: %s', e)
 
+    global _ALERT_TASK
+    if _ALERT_TASK is None or _ALERT_TASK.done():
+        _ALERT_TASK = asyncio.create_task(_process_user_alerts(db, now))
+
     try:
         from services.push_delivery import process_web_push_outbox
         processed = await process_web_push_outbox(db, current_time=now)
@@ -104,6 +109,14 @@ async def _tick(db):
         log.exception('[scheduler] analytics retention job failed: %s', e)
 
 
+async def _process_user_alerts(db, now):
+    try:
+        from routers.user360_routes import process_due_alert_campaigns
+        await process_due_alert_campaigns(db, current_time=now)
+    except Exception as e:  # noqa: BLE001
+        log.exception('[scheduler] user alert processing failed: %s', e)
+
+
 async def _loop(db):
     global _running
     _running = True
@@ -124,8 +137,11 @@ def start(db):
 
 
 def stop():
-    global _running, _TASK
+    global _running, _TASK, _ALERT_TASK
     _running = False
     if _TASK:
         _TASK.cancel()
         _TASK = None
+    if _ALERT_TASK:
+        _ALERT_TASK.cancel()
+        _ALERT_TASK = None
