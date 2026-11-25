@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { cashoutAPI, contestsAPI } from '../../lib/api';
+import { cashoutAPI } from '../../lib/api';
 import { useToast } from '../../hooks/use-toast';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { CashoutReviewStep } from './CashoutReviewStep';
 import {
   Banknote, Coins, Gift, Lock, ShieldCheck, ArrowRight, CheckCircle2,
-  Landmark, Star, Trophy, ChevronRight,
+  Landmark, Star,
 } from 'lucide-react';
 
 const gbp = (n) => `£${(Number(n) || 0).toFixed(2)}`;
@@ -18,7 +18,6 @@ export default function CashOutCard() {
   const [summary, setSummary] = useState(null);
   const [banks, setBanks] = useState([]);
   const [requests, setRequests] = useState([]);
-  const [contests, setContests] = useState([]);
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState('amount');
   const [amount, setAmount] = useState('');
@@ -37,9 +36,6 @@ export default function CashOutCard() {
     } catch (e) { /* wallet still renders */ }
   };
   useEffect(() => { load(); }, []);
-  useEffect(() => {
-    contestsAPI.list({ status: 'live' }).then((d) => setContests((Array.isArray(d) ? d : d?.items || []).slice(0, 3))).catch(() => {});
-  }, []);
 
   const available = summary?.available_to_cash_out ?? 0;
   const kyc = summary?.kyc_status || 'none';
@@ -257,19 +253,6 @@ export default function CashOutCard() {
                   <div className="flex gap-2">
                     {success.google_review_url && <a href={success.google_review_url} target="_blank" rel="noreferrer" className="flex-1 text-center text-xs font-bold rounded-xl border border-slate-200 py-2 hover:bg-white" data-testid="review-google">Google Review</a>}
                     {success.trustpilot_review_url && <a href={success.trustpilot_review_url} target="_blank" rel="noreferrer" className="flex-1 text-center text-xs font-bold rounded-xl border border-slate-200 py-2 hover:bg-white" data-testid="review-trustpilot">Trustpilot</a>}
-                  </div>
-                </div>
-              )}
-              {contests.length > 0 && (
-                <div>
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1"><Trophy className="w-3.5 h-3.5" /> Live paid contests</div>
-                  <div className="space-y-1.5">
-                    {contests.map((c) => (
-                      <a key={c.slug || c.id} href={`/contests/${c.slug}`} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-1.5 text-xs hover:bg-slate-50" data-testid="cashout-live-contest">
-                        <span className="font-semibold text-slate-700 truncate">{c.title || c.name}</span>
-                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                      </a>
-                    ))}
                   </div>
                 </div>
               )}

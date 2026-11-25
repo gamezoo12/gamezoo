@@ -5,9 +5,9 @@ import ProfilePictureCrop from '../components/account/ProfilePictureCrop';
 import SetPasswordCard from '../components/account/SetPasswordCard';
 import { VerifiedReviewerBadge } from '../components/VerifiedReviewerBadge';
 import { useEffect, useState } from 'react';
-import { ordersAPI, userAPI, walletAPI, referralAPI, paymentsAPI, pushAPI } from '../lib/api';
+import { ordersAPI, userAPI, referralAPI, pushAPI } from '../lib/api';
 import PhoneOtpModal from '../components/auth/PhoneOtpModal';
-import WalletPanel from '../components/account/WalletPanel';
+import CashOutCard from '../components/account/CashOutCard';
 import WinningsWallet from './WinningsWallet';
 import SupportPanel from '../components/account/SupportPanel';
 import MyGamesPanel from '../components/account/MyGamesPanel';
@@ -19,7 +19,7 @@ import {
   Trophy, Copy, Check, Clock, AlertCircle, Mail, ChevronRight, Upload, Sparkles, Coins, X, ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { Link, useNavigate, useSearchParams, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Button } from '../components/ui/button';
@@ -50,7 +50,7 @@ const KycBadge = ({ status }) => {
 // 12 navigation tokens — order & colours locked per spec
 const TOKENS = [
   { id: 'profile',       label: 'Profile',        Icon: User,        color: 'from-violet-500 to-purple-600',   ring: 'ring-violet-400/40', hero: true },
-  { id: 'wallet',        label: 'Wallet',         Icon: Wallet,      color: 'from-amber-500 to-orange-600',    ring: 'ring-amber-400/40' },
+  { id: 'wallet',        label: 'Cash Out',       Icon: Wallet,      color: 'from-amber-500 to-orange-600',    ring: 'ring-amber-400/40' },
   { id: 'winnings',      label: 'Winnings',       Icon: Coins,       color: 'from-yellow-500 to-amber-600',    ring: 'ring-yellow-400/40' },
   { id: 'contest-winners', label: 'Winners',      Icon: Trophy,      color: 'from-amber-400 to-yellow-600',    ring: 'ring-amber-400/40' },
   { id: 'promotions',    label: 'Promotions',     Icon: Trophy,      color: 'from-orange-500 to-rose-600',     ring: 'ring-orange-400/40' },
@@ -69,7 +69,6 @@ const TOKENS = [
 export default function MyAccount() {
   const { user, loading, logout, refresh } = useAuth();
   const nav = useNavigate();
-  const [searchParams] = useSearchParams();
   const { section } = useParams();
   const { toast } = useToast();
 
@@ -90,8 +89,6 @@ export default function MyAccount() {
   const [profileImageOpen, setProfileImageOpen] = useState(false);
   const [profileImageFile, setProfileImageFile] = useState(null);
   const [publicProfileImage, setPublicProfileImage] = useState(null);
-  const [wallet, setWallet] = useState(null);
-  const [walletTxs, setWalletTxs] = useState([]);
   const [referral, setReferral] = useState(null);
   const [referralList, setReferralList] = useState([]);
   const [savingProfile, setSavingProfile] = useState(false);
@@ -121,8 +118,6 @@ export default function MyAccount() {
     ordersAPI.myTickets().then(setTickets).catch(() => {});
     userAPI.kycStatus().then(setKyc).catch(() => {});
     userAPI.notifications().then(r => setNotifications(r?.notifications || [])).catch(() => {});
-    walletAPI.me().then(setWallet).catch(() => {});
-    walletAPI.transactions(20).then(r => setWalletTxs(r?.transactions || [])).catch(() => {});
     const refreshReferralStatus = () => {
       referralAPI.me().then(setReferral).catch(() => {});
       referralAPI.list().then(r => setReferralList(r?.referrals || [])).catch(() => {});
@@ -316,46 +311,6 @@ export default function MyAccount() {
       toast({ title: 'Failed', description: err?.response?.data?.detail });
     } finally { setKycBusy(false); }
   };
-
-  // Handle return from Stripe checkout
-  useEffect(() => {
-    const topupParam = searchParams.get('topup');
-    const sid = searchParams.get('session_id');
-    if (topupParam === 'cancel') {
-      toast({ title: 'Payment cancelled', description: 'No charge was made.' });
-      nav('/my-account/wallet', { replace: true });
-      return undefined;
-    }
-    if (topupParam !== 'success' || !sid) return undefined;
-    let attempts = 0;
-    const maxAttempts = 15;
-    const poll = async () => {
-      attempts += 1;
-      try {
-        const s = await paymentsAPI.status(sid);
-        if (s.payment_status === 'paid') {
-          const [w, txs] = await Promise.all([walletAPI.me(), walletAPI.transactions(20)]);
-          setWallet(w);
-          setWalletTxs(txs?.transactions || []);
-          toast({ title: '✅ Payment successful', description: `£${s.amount_gbp.toFixed(2)} added to your wallet.` });
-          nav('/my-account/wallet', { replace: true });
-          return;
-        }
-        if (s.payment_status === 'failed' || s.payment_status === 'expired') {
-          toast({ title: 'Payment did not complete', description: `Status: ${s.payment_status}` });
-          nav('/my-account/wallet', { replace: true });
-          return;
-        }
-        if (attempts < maxAttempts) setTimeout(poll, 2000);
-        else toast({ title: 'Still processing', description: 'Refresh in a moment — your balance will update.' });
-      } catch {
-        if (attempts < maxAttempts) setTimeout(poll, 2000);
-      }
-    };
-    poll();
-    return undefined;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
 
   const copyReferralLink = async () => {
     const url = `${window.location.origin}/login?tab=signup&ref=${encodeURIComponent(referral?.code || '')}`;
@@ -564,13 +519,7 @@ export default function MyAccount() {
 
         {active === 'wallet' && (
           <div data-testid="panel-wallet">
-            <WalletPanel
-              wallet={wallet}
-              walletTxs={walletTxs}
-              setWallet={setWallet}
-              setWalletTxs={setWalletTxs}
-              autoOpenTopup={searchParams.get('topup') === '1'}
-            />
+            <CashOutCard />
           </div>
         )}
 
