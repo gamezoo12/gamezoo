@@ -6,11 +6,11 @@ import { Input } from '../ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { CashoutReviewStep } from './CashoutReviewStep';
 import {
-  Banknote, Coins, Gift, Lock, ShieldCheck, ArrowRight, CheckCircle2,
+  Banknote, Lock, ShieldCheck, ArrowRight, CheckCircle2,
   Landmark, Star,
 } from 'lucide-react';
 
-const gbp = (n) => `£${(Number(n) || 0).toFixed(2)}`;
+const inr = (n) => `₹${(Number(n) || 0).toFixed(2)}`;
 
 export default function CashOutCard() {
   const { toast } = useToast();
@@ -22,7 +22,7 @@ export default function CashOutCard() {
   const [step, setStep] = useState('amount');
   const [amount, setAmount] = useState('');
   const [bankId, setBankId] = useState('');
-  const [newBank, setNewBank] = useState({ account_holder: '', email: '', sort_code: '', account_number: '', iban: '', bacs: '' });
+  const [newBank, setNewBank] = useState({ account_holder: '', email: '', ifsc: '', account_number: '' });
   const [addingBank, setAddingBank] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(null);
@@ -46,7 +46,7 @@ export default function CashOutCard() {
   };
 
   const addBank = async () => {
-    if (!newBank.account_holder || !newBank.email || !newBank.sort_code || !newBank.account_number || !newBank.iban || !newBank.bacs) {
+    if (!newBank.account_holder || !newBank.email || !newBank.ifsc || !newBank.account_number) {
       toast({ title: 'All bank fields are required', variant: 'destructive' }); return;
     }
     setAddingBank(true);
@@ -54,7 +54,7 @@ export default function CashOutCard() {
       const res = await cashoutAPI.addBank(newBank);
       const list = await cashoutAPI.banks(); setBanks(list.items || []);
       setBankId(res.bank_account_id);
-      setNewBank({ account_holder: '', email: '', sort_code: '', account_number: '', iban: '', bacs: '' });
+      setNewBank({ account_holder: '', email: '', ifsc: '', account_number: '' });
       toast({ title: 'Bank account added' });
     } catch (e) {
       toast({ title: e?.response?.data?.detail || 'Could not add bank account', variant: 'destructive' });
@@ -84,21 +84,18 @@ export default function CashOutCard() {
     <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm" data-testid="cashout-card">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-display font-extrabold text-lg text-slate-900 flex items-center gap-2">
-          <Banknote className="w-5 h-5 text-[#6C2BFF]" /> Wallet
+          <Banknote className="w-5 h-5 text-[#6C2BFF]" /> Championship winnings
         </h3>
-        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">1 token = £1</span>
+        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">1 winning token = ₹1</span>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <Stat testid="wallet-total" icon={<Coins className="w-4 h-4" />} label="Total Tokens" value={summary ? summary.total_tokens : '—'} tone="slate" />
-        <Stat testid="wallet-tokens" icon={<Coins className="w-4 h-4" />} label="Tokens" value={summary ? summary.tokens : '—'} tone="violet" />
-        <Stat testid="wallet-bonus" icon={<Gift className="w-4 h-4" />} label="Bonus Tokens" value={summary ? summary.bonus_tokens : '—'} tone="amber" />
-        <Stat testid="wallet-available" icon={<Banknote className="w-4 h-4" />} label="Available to Cash Out" value={summary ? gbp(available) : '—'} tone="emerald" />
+        <Stat testid="wallet-available" icon={<Banknote className="w-4 h-4" />} label="Available to withdraw" value={summary ? inr(available) : '—'} tone="emerald" />
       </div>
 
       {summary?.pending_cash_out > 0 && (
         <div className="mt-3 text-xs font-semibold text-slate-500" data-testid="wallet-pending">
-          Pending cash out: {gbp(summary.pending_cash_out)}
+          Pending withdrawal: {inr(summary.pending_cash_out)}
         </div>
       )}
 
@@ -129,7 +126,7 @@ export default function CashOutCard() {
             {requests.slice(0, 5).map((r) => (
               <div key={r.withdrawal_id} className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2 text-sm" data-testid="cashout-history-row">
                 <div>
-                  <div className="font-semibold text-slate-800">{gbp(r.amount_gbp)}</div>
+                  <div className="font-semibold text-slate-800">{inr(r.amount_inr)}</div>
                   <div className="text-[10px] text-slate-400 font-mono">{r.withdrawal_id}</div>
                 </div>
                 <StatusPill status={r.status} />
@@ -152,15 +149,15 @@ export default function CashOutCard() {
             <div className="space-y-4">
               <div className="rounded-2xl bg-emerald-50 border border-emerald-100 p-4">
                 <div className="text-xs text-emerald-700 font-semibold uppercase tracking-wide">Available to cash out</div>
-                <div className="text-3xl font-extrabold text-emerald-700">{gbp(available)}</div>
-                <div className="text-[11px] text-emerald-600 mt-1">1 eligible token = £1</div>
+                <div className="text-3xl font-extrabold text-emerald-700">{inr(available)}</div>
+                <div className="text-[11px] text-emerald-600 mt-1">1 winning token = ₹1</div>
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-600">Amount (tokens)</label>
                 <Input type="number" min="1" max={Math.floor(available)} value={amount}
                   onChange={(e) => setAmount(e.target.value)} placeholder="Enter tokens"
                   data-testid="cashout-amount-input" />
-                <div className="text-sm font-bold text-slate-700 mt-1">{amt} tokens = {gbp(amt)}</div>
+                <div className="text-sm font-bold text-slate-700 mt-1">{amt} tokens = {inr(amt)}</div>
               </div>
               {kyc === 'none' && (
                 <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 flex items-start gap-2">
@@ -185,7 +182,7 @@ export default function CashOutCard() {
                   <Landmark className="w-4 h-4 text-slate-500" />
                   <div>
                     <div className="font-semibold text-sm text-slate-800">{b.account_holder}</div>
-                    <div className="text-xs text-slate-400 font-mono">{b.sort_code_masked} · {b.account_number_masked}</div>
+                    <div className="text-xs text-slate-400 font-mono">{b.ifsc} · {b.account_number_masked}</div>
                   </div>
                 </button>
               ))}
@@ -196,15 +193,11 @@ export default function CashOutCard() {
                 <Input type="email" placeholder="Email / Mail ID" value={newBank.email}
                   onChange={(e) => setNewBank({ ...newBank, email: e.target.value })} data-testid="bank-email-input" />
                 <div className="grid grid-cols-2 gap-2">
-                  <Input placeholder="Sort code" value={newBank.sort_code}
-                    onChange={(e) => setNewBank({ ...newBank, sort_code: e.target.value })} data-testid="bank-sort-input" />
+                  <Input placeholder="IFSC code" value={newBank.ifsc}
+                    onChange={(e) => setNewBank({ ...newBank, ifsc: e.target.value.toUpperCase() })} data-testid="bank-ifsc-input" />
                   <Input placeholder="Account number" value={newBank.account_number}
                     onChange={(e) => setNewBank({ ...newBank, account_number: e.target.value })} data-testid="bank-number-input" />
                 </div>
-                <Input placeholder="IBAN" value={newBank.iban}
-                  onChange={(e) => setNewBank({ ...newBank, iban: e.target.value })} data-testid="bank-iban-input" />
-                <Input placeholder="BACS" value={newBank.bacs}
-                  onChange={(e) => setNewBank({ ...newBank, bacs: e.target.value })} data-testid="bank-bacs-input" />
                 <Button variant="outline" className="w-full h-9 rounded-xl" onClick={addBank} disabled={addingBank} data-testid="bank-add-btn">
                   {addingBank ? 'Adding…' : 'Add account'}
                 </Button>
@@ -219,7 +212,7 @@ export default function CashOutCard() {
           {step === 'confirm' && (
             <div className="space-y-4">
               <div className="rounded-2xl border border-slate-200 p-4 space-y-2 text-sm">
-                <Row label="Amount" value={<b>{gbp(amt)}</b>} />
+                <Row label="Amount" value={<b>{inr(amt)}</b>} />
                 <Row label="Tokens" value={`${amt}`} />
                 <Row label="Bank" value={banks.find((b) => b.bank_account_id === bankId)?.account_number_masked || '—'} />
                 <Row label="KYC" value={<span className="capitalize">{kyc}</span>} />
@@ -243,7 +236,7 @@ export default function CashOutCard() {
               <div className="flex flex-col items-center text-center py-2">
                 <CheckCircle2 className="w-12 h-12 text-emerald-500" />
                 <div className="text-lg font-extrabold text-slate-900 mt-2">Cash-out request submitted</div>
-                <div className="text-2xl font-extrabold text-[#6C2BFF] mt-1">{gbp(success.amount_gbp)}</div>
+                <div className="text-2xl font-extrabold text-[#6C2BFF] mt-1">{inr(success.amount_inr)}</div>
                 <div className="text-xs text-slate-500 mt-1">Status: Processing · <span className="font-mono">{success.withdrawal_id}</span></div>
                 <p className="text-xs text-slate-500 mt-2">Your cash-out request is being processed. We'll review your KYC and payment details before completing the payment.</p>
               </div>

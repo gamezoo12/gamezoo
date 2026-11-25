@@ -591,6 +591,7 @@ async def dashboard_recent_activity(request: Request, period: str = '30d', limit
                 'kind': kind, 'title': label, 'user_id': row.get('user_id'),
                 'amount_tokens': amount if amount_unit == 'tokens' else None,
                 'amount_gbp': amount if amount_unit in ('gbp', 'pence') else None,
+                'amount_inr': amount if amount_unit == 'inr' else None,
                 'created_at': row.get(field), 'reference': row.get(reference_field) if reference_field else None,
             })
 
@@ -620,8 +621,8 @@ async def dashboard_recent_activity(request: Request, period: str = '30d', limit
                   query={'kind': {'$in': list(transaction_titles)}, 'amount': {'$ne': 0}},
                   amount_field='amount', reference_field='ref_order_id', title_by_row=True)
     await collect('cashout_requests', 'cashout_request',
-                  lambda row: f"Cashout {row.get('status') or 'requested'}", amount_field='amount_gbp',
-                  amount_unit='gbp', reference_field='withdrawal_id', title_by_row=True)
+                  lambda row: f"Cashout {row.get('status') or 'requested'}", amount_field='amount_inr',
+                  amount_unit='inr', reference_field='withdrawal_id', title_by_row=True)
     await collect('withdrawal_requests', 'withdrawal_request',
                   lambda row: f"Withdrawal {row.get('status') or 'requested'}", amount_field='amount_pence',
                   amount_unit='pence', reference_field='withdrawal_id', title_by_row=True)

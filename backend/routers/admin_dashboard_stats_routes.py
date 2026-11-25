@@ -646,7 +646,7 @@ async def wallet_report(request: Request, include_staff: bool = False, include_t
         {'$group': {'_id': None, 'count': {'$sum': 1}, 'cash': {'$sum': {'$ifNull': ['$prize_cash_amount', '$prize_amount']}},
                     'winning_bonus': {'$sum': {'$ifNull': ['$prize_bonus_tokens', 0]}}}},
     ]).to_list(1) or [{'count': 0, 'cash': 0, 'winning_bonus': 0}])[0]
-    cashouts = {s: await _sum(db, 'cashout_requests', {**uw, 'status': s}, '$amount_gbp') for s in ('processing', 'paid')}
+    cashouts = {s: await _sum(db, 'cashout_requests', {**uw, 'status': s}, '$amount_inr') for s in ('processing', 'paid')}
     cashout_tokens = {s: await _sum(db, 'cashout_requests', {**uw, 'status': s}, '$amount_tokens') for s in ('processing', 'paid')}
     wins = (await db.winnings_wallets.aggregate([
         {'$match': uw},
@@ -720,8 +720,8 @@ async def wallet_report(request: Request, include_staff: bool = False, include_t
             'championship_prize_tokens': {
                 'awarded': won_tokens, 'held_withdrawable': round(float(wallets.get('withdrawable', 0)), 2),
                 'cash_out_pending': round(float(wallets.get('pending', 0)), 2),
-                'withdrawn': cashout_tokens['paid'], 'withdrawn_gbp': round(cashouts['paid'], 2),
-                'pending_requests_tokens': cashout_tokens['processing'], 'pending_requests_gbp': round(cashouts['processing'], 2),
+                'withdrawn': cashout_tokens['paid'], 'withdrawn_inr': round(cashouts['paid'], 2),
+                'pending_requests_tokens': cashout_tokens['processing'], 'pending_requests_inr': round(cashouts['processing'], 2),
             },
             'challenge_winnings_gbp': {
                 'awarded': _gbp(wins['won']), 'held': _gbp(wins['available']), 'pending': _gbp(wins['pending']),

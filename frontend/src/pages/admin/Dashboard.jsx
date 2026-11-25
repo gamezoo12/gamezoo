@@ -18,6 +18,7 @@ function Stat({ label, value, sub, Icon, gradient, onClick, active, testid }) {
 
 const num = (value) => (value == null ? 'Unavailable' : Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 }));
 const pct = (value) => (value == null ? 'Unavailable' : `${value}%`);
+const inr = (value) => `₹${(Number(value) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 function TokenCard({ title, lines, remaining, basis, endLabel, onClick, testid }) {
   const remainingNote = basis === 'period_end' ? endLabel : basis === 'current' ? 'balance now' : 'unavailable: legacy history is unclassified';
@@ -176,7 +177,8 @@ export default function Dashboard() {
             <tbody>
               {recentActivity.map((item, index) => {
                 const rawAmount = item.amount_tokens ?? item.amount;
-                const amount = item.amount_gbp != null ? gbp(item.amount_gbp)
+                const amount = item.amount_inr != null ? inr(item.amount_inr)
+                  : item.amount_gbp != null ? gbp(item.amount_gbp)
                   : rawAmount != null ? `${Math.abs(Number(rawAmount)).toLocaleString()} tokens` : '—';
                 return <tr key={`${item.kind}-${item.reference || item.user_id}-${index}`} className="border-t border-slate-100">
                   <td className="p-3 font-medium text-slate-800">{item.title}</td>

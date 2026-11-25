@@ -164,7 +164,7 @@ def test_wallet_report_reconciles_types_and_gbp_without_mutating(db_name):
                     'original_amount': 10, 'remaining_amount': 6, 'granted_at': now - timedelta(days=1),
                     'expires_at': now + timedelta(hours=12), 'status': 'active', 'expired_amount': 0, 'revoked_amount': 0})
                 await db.cashout_requests.insert_one({'withdrawal_id': uuid.uuid4().hex, 'user_id': user_id,
-                    'amount_tokens': 10, 'amount_gbp': 10, 'status': 'processing', 'created_at': now})
+                    'amount_tokens': 10, 'amount_inr': 10, 'status': 'processing', 'created_at': now})
                 await db.winnings_wallets.insert_one({'user_id': user_id, 'total_won_pence': 5000,
                     'available_pence': 2500, 'pending_pence': 500, 'total_paid_pence': 2000})
                 await db.withdrawal_requests.insert_one({'withdrawal_id': uuid.uuid4().hex, 'user_id': user_id,
@@ -268,12 +268,12 @@ def test_token_accounting_reconciles_categories_and_cashout_lifecycle(db_name):
                     'contest_id': f'contest_{user_id}', 'user_id': user_id, 'ticket_number': 1, 'created_at': now})
                 await db.cashout_requests.insert_many([
                     {'withdrawal_id': f'paid_{user_id}', 'user_id': user_id, 'amount_tokens': 2,
-                     'amount_gbp': 2, 'status': 'paid', 'created_at': now - timedelta(days=3),
+                     'amount_inr': 2, 'status': 'paid', 'created_at': now - timedelta(days=3),
                      'paid_at': now - timedelta(days=1), 'updated_at': now - timedelta(days=1)},
                     {'withdrawal_id': f'pending_{user_id}', 'user_id': user_id, 'amount_tokens': 2,
-                     'amount_gbp': 2, 'status': 'processing', 'created_at': now - timedelta(hours=2)},
+                     'amount_inr': 2, 'status': 'processing', 'created_at': now - timedelta(hours=2)},
                     {'withdrawal_id': f'rejected_{user_id}', 'user_id': user_id, 'amount_tokens': 1,
-                     'amount_gbp': 1, 'status': 'rejected', 'created_at': now - timedelta(days=3),
+                     'amount_inr': 1, 'status': 'rejected', 'created_at': now - timedelta(days=3),
                      'updated_at': now - timedelta(days=1), 'reject_reason': 'test reversal'},
                 ])
             return run()
@@ -438,7 +438,7 @@ def test_recent_activity_is_bounded_filtered_and_excludes_staff(db_name):
                 await db.game_scores.insert_one({'score_id': uuid.uuid4().hex, 'user_id': user_id,
                                                    'created_at': now, 'contest_id': 'contest-feed-test'})
                 await db.cashout_requests.insert_one({'withdrawal_id': uuid.uuid4().hex, 'user_id': user_id,
-                    'amount_gbp': 3.5, 'status': 'processing', 'created_at': now})
+                    'amount_inr': 3.5, 'status': 'processing', 'created_at': now})
                 await db.world_level_attempts.insert_one({'attempt_id': uuid.uuid4().hex, 'user_id': user_id,
                                                             'created_at': now})
                 await db.users.update_one({'user_id': user_id}, {'$set': {'created_at': now - timedelta(days=60)}})
@@ -455,7 +455,7 @@ def test_recent_activity_is_bounded_filtered_and_excludes_staff(db_name):
         topup = next(item for item in items if item.get('reference') == 'stripe-test-ref')
         cashout = next(item for item in items if item['title'] == 'Cashout processing')
         assert topup['amount_tokens'] == 8 and topup['amount_gbp'] is None
-        assert cashout['amount_gbp'] == 3.5 and cashout['amount_tokens'] is None
+        assert cashout['amount_inr'] == 3.5 and cashout['amount_tokens'] is None
         outside = requests.get(f'{API}/admin/dashboard/recent-activity', params={'period': 'today', 'limit': 100},
                                headers=headers, timeout=30)
         assert outside.status_code == 200

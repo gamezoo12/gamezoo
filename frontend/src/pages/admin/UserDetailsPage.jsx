@@ -23,6 +23,8 @@ import {
   Map as MapIcon, Coins, Swords,
 } from 'lucide-react';
 
+const inr = (value) => `₹${(Number(value) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 const Section = ({ title, icon: Icon, children, hidden = false }) => (
   <section hidden={hidden} className={`bg-white rounded-2xl border border-slate-200 p-5 ${hidden ? 'hidden' : ''}`}>
     <div className="flex items-center gap-2 mb-3">
@@ -850,7 +852,7 @@ export default function UserDetailsPage() {
     try {
       const detail = await cashoutAPI.adminDetail(withdrawalId);
       setWithdrawalDetail(detail);
-      setWithdrawalMessage(`Your ${gbp(detail.amount_gbp)} cash-out has been approved and paid successfully.`);
+      setWithdrawalMessage(`Your ${inr(detail.amount_inr)} cash-out has been approved and paid successfully.`);
       setWithdrawalRejectReason('');
     } catch (error) {
       toast({ title: 'Could not load withdrawal', description: error?.response?.data?.detail || 'Please try again.' });
@@ -1194,13 +1196,13 @@ export default function UserDetailsPage() {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[520px] text-left text-xs">
             <thead className="text-slate-500"><tr><th className="py-2">Request</th><th>Amount</th><th>Status</th><th>Created</th><th>Payment reference</th><th /></tr></thead>
-            <tbody>{(withdrawals || []).map((withdrawal, index) => <tr key={withdrawal.withdrawal_id || withdrawal._id || index} className="border-t border-slate-100"><td className="py-2 font-mono">{withdrawal.withdrawal_id || '—'}</td><td>{gbp(Number(withdrawal.amount_gbp || 0))}</td><td>{withdrawal.status || '—'}</td><td>{withdrawal.created_at ? new Date(withdrawal.created_at).toLocaleString('en-GB', { timeZone: 'Europe/London' }) : '—'}</td><td>{withdrawal.payment_reference || '—'}</td><td>{['admin', 'super_admin'].includes(currentUser?.role) && withdrawal.status === 'processing' && <Button size="sm" variant="outline" onClick={() => reviewWithdrawal(withdrawal.withdrawal_id)} disabled={withdrawalBusy}>Review</Button>}</td></tr>)}</tbody>
+            <tbody>{(withdrawals || []).map((withdrawal, index) => <tr key={withdrawal.withdrawal_id || withdrawal._id || index} className="border-t border-slate-100"><td className="py-2 font-mono">{withdrawal.withdrawal_id || '—'}</td><td>{inr(withdrawal.amount_inr)}</td><td>{withdrawal.status || '—'}</td><td>{withdrawal.created_at ? new Date(withdrawal.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '—'}</td><td>{withdrawal.payment_reference || '—'}</td><td>{['admin', 'super_admin'].includes(currentUser?.role) && withdrawal.status === 'processing' && <Button size="sm" variant="outline" onClick={() => reviewWithdrawal(withdrawal.withdrawal_id)} disabled={withdrawalBusy}>Review</Button>}</td></tr>)}</tbody>
           </table>
           {!withdrawals?.length && <p className="py-3 text-slate-400">No withdrawal requests.</p>}
         </div>
         {withdrawalDetail && <div className="mt-4 space-y-3 rounded-xl border border-slate-200 p-4" data-testid="user-withdrawal-review">
           <div className="flex items-center justify-between gap-2"><h3 className="font-bold">Review {withdrawalDetail.withdrawal_id}</h3><Button variant="outline" size="sm" onClick={() => setWithdrawalDetail(null)}>Close</Button></div>
-          <div className="grid gap-1 text-xs sm:grid-cols-2"><div>Amount: <strong>{gbp(withdrawalDetail.amount_gbp)}</strong></div><div>Status: {withdrawalDetail.status}</div><div>Account holder: {withdrawalDetail.bank?.account_holder || '—'}</div><div>Sort code: {withdrawalDetail.bank?.sort_code || '—'}</div><div>Account number: {withdrawalDetail.bank?.account_number || '—'}</div><div>IBAN: {withdrawalDetail.bank?.iban || '—'}</div><div>Current KYC: {withdrawalDetail.kyc_current_status || '—'}</div></div>
+          <div className="grid gap-1 text-xs sm:grid-cols-2"><div>Amount: <strong>{inr(withdrawalDetail.amount_inr)}</strong></div><div>Status: {withdrawalDetail.status}</div><div>Account holder: {withdrawalDetail.bank?.account_holder || '—'}</div><div>IFSC: {withdrawalDetail.bank?.ifsc || '—'}</div><div>Account number: {withdrawalDetail.bank?.account_number || '—'}</div><div>Current KYC: {withdrawalDetail.kyc_current_status || '—'}</div></div>
           {withdrawalDetail.status === 'processing' && <>
             <div className="space-y-1"><Label htmlFor="withdrawal-notification">User notification</Label><textarea id="withdrawal-notification" className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm" rows={2} value={withdrawalMessage} onChange={event => setWithdrawalMessage(event.target.value)} /></div>
             <div className="space-y-1"><Label htmlFor="withdrawal-reject-reason">Rejection reason</Label><Input id="withdrawal-reject-reason" value={withdrawalRejectReason} onChange={event => setWithdrawalRejectReason(event.target.value)} maxLength={500} /></div>

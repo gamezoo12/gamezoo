@@ -7,7 +7,7 @@ import { Input } from '../../components/ui/input';
 import { CashoutReviewSettings } from '../../components/admin/CashoutReviewSettings';
 import { Banknote, ShieldCheck, Eye, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
 
-const gbp = (n) => `£${(Number(n) || 0).toFixed(2)}`;
+const inr = (n) => `₹${(Number(n) || 0).toFixed(2)}`;
 const STATUSES = ['processing', 'paid', 'rejected'];
 
 export default function CashOutAdmin() {
@@ -53,13 +53,13 @@ export default function CashOutAdmin() {
     try {
       const d = await cashoutAPI.adminDetail(id);
       setDetail(d);
-      setNotificationMessage(`Your ${gbp(d.amount_gbp)} cash-out has been approved and paid successfully.`);
+      setNotificationMessage(`Your ${inr(d.amount_inr)} cash-out has been approved and paid successfully.`);
       setRejectReason('');
     } catch (e) { toast({ title: 'Failed to load detail', variant: 'destructive' }); }
   };
   const markPaid = async (id) => {
     if (!notificationMessage.trim()) { toast({ title: 'Notification message is required', variant: 'destructive' }); return; }
-    if (!window.confirm(`Confirm that ${gbp(detail?.amount_gbp)} has been manually sent to this user's bank account.`)) return;
+    if (!window.confirm(`Confirm that ${inr(detail?.amount_inr)} has been manually sent to this user's bank account.`)) return;
     setBusy(true);
     try { await cashoutAPI.adminMarkPaid(id, notificationMessage.trim()); toast({ title: 'Marked as paid & notification sent' }); setDetail(null); loadRows(); }
     catch (e) { toast({ title: e?.response?.data?.detail || 'Failed', variant: 'destructive' }); }
@@ -130,7 +130,7 @@ export default function CashOutAdmin() {
                 <tr key={r.withdrawal_id} className="border-t border-slate-100">
                   <td className="py-2 font-mono text-xs">{r.withdrawal_id}</td>
                   <td>{r.name || r.email}<CountryBadge userId={r.user_id} /></td>
-                  <td className="font-bold">{gbp(r.amount_gbp)}</td>
+                  <td className="font-bold">{inr(r.amount_inr)}</td>
                   <td className="capitalize text-xs">{r.kyc_status_snapshot}</td>
                   <td className="capitalize">{r.status}</td>
                   <td><Button size="sm" variant="outline" onClick={() => openDetail(r.withdrawal_id)} data-testid="admin-view-btn"><Eye className="w-4 h-4" /></Button></td>
@@ -149,7 +149,7 @@ export default function CashOutAdmin() {
             <h3 className="font-bold text-lg">{detail.withdrawal_id}</h3>
             <div className="text-sm space-y-1">
               <Row l="User" v={`${detail.user?.name || ''} (${detail.user?.email || ''})`} />
-              <Row l="Amount" v={<b>{gbp(detail.amount_gbp)}</b>} />
+              <Row l="Amount" v={<b>{inr(detail.amount_inr)}</b>} />
               <Row l="Tokens" v={detail.amount_tokens} />
               <Row l="KYC (snapshot)" v={detail.kyc_status_snapshot} />
               <Row l="KYC (current)" v={detail.kyc_current_status} />
@@ -159,10 +159,8 @@ export default function CashOutAdmin() {
               <div className="text-xs font-bold uppercase text-slate-400 mb-1 flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5" /> Bank payout details</div>
               <Row l="Holder" v={detail.bank?.account_holder} />
               <Row l="Email / Mail ID" v={detail.bank?.email} />
-              <Row l="Sort code" v={detail.bank?.sort_code} />
+              <Row l="IFSC" v={detail.bank?.ifsc} />
               <Row l="Account number" v={detail.bank?.account_number} />
-              <Row l="IBAN" v={detail.bank?.iban} />
-              <Row l="BACS" v={detail.bank?.bacs} />
             </div>
             {detail.status === 'processing' && (
               <div className="space-y-3">
@@ -183,7 +181,7 @@ export default function CashOutAdmin() {
                     onChange={(e) => {
                       setRejectReason(e.target.value);
                       if (e.target.value.trim()) {
-                        setNotificationMessage(`Your ${gbp(detail?.amount_gbp)} cash-out request was rejected. Reason: ${e.target.value.trim()}. The reserved tokens have been returned to your wallet.`);
+                        setNotificationMessage(`Your ${inr(detail?.amount_inr)} cash-out request was rejected. Reason: ${e.target.value.trim()}. The reserved tokens have been returned to your wallet.`);
                       }
                     }}
                     placeholder="Enter rejection reason"

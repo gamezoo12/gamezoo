@@ -85,8 +85,8 @@ class TestFlagGating:
 
         # Need a bank id (add first, since bank creation is allowed regardless of flag)
         bank = requests.post(f"{API}/cashout/bank-accounts", headers=uh(user_token),
-                             json={"account_holder": "TEST Player", "email": "cashout.test@example.com", "sort_code": "12-34-56",
-                                   "account_number": "12345678", "iban": "GB82WEST12345698765432", "bacs": "123456"}, timeout=30)
+                                 json={"account_holder": "TEST Player", "email": "cashout.test@example.com", "ifsc": "HDFC0001234",
+                                     "account_number": "12345678"}, timeout=30)
         assert bank.status_code == 200, bank.text
 
         r = requests.post(f"{API}/cashout/request", headers=uh(user_token),
@@ -157,8 +157,8 @@ class TestFullFlow:
 
         # add bank
         b = requests.post(f"{API}/cashout/bank-accounts", headers=uh(user_token),
-                          json={"account_holder": "TEST P One", "email": "cashout.test@example.com", "sort_code": "11-22-33",
-                                "account_number": "87654321", "iban": "GB82WEST12345698765432", "bacs": "123456"}, timeout=30).json()
+                          json={"account_holder": "TEST P One", "email": "cashout.test@example.com", "ifsc": "HDFC0001234",
+                              "account_number": "87654321"}, timeout=30).json()
         # ensure masked-only in list
         lst = requests.get(f"{API}/cashout/bank-accounts", headers=uh(user_token), timeout=30).json()
         for row in lst["items"]:
@@ -178,7 +178,7 @@ class TestFullFlow:
         assert r.status_code == 200, r.text
         wid = r.json()["withdrawal_id"]
         assert wid.startswith("WD-")
-        assert r.json()["amount_gbp"] == 20.0
+        assert r.json()["amount_inr"] == 20.0
         assert r.json()["google_review_url"].startswith("http")
 
         # summary should now reflect reserved (available drops by 20, pending +20)
@@ -196,6 +196,7 @@ class TestFullFlow:
                            headers=uh(admin_token), timeout=30)
         assert det.status_code == 200
         assert det.json()["bank"]["account_number"] == "87654321"
+        assert det.json()["bank"]["ifsc"] == "HDFC0001234"
 
         # mark paid
         mp = requests.post(f"{API}/admin/cashout/withdrawals/{wid}/mark-paid",

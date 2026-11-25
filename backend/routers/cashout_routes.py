@@ -1,4 +1,4 @@
-"""Cash-Out (manual GBP withdrawal of Championship-winnings tokens).
+"""Cash-Out (manual INR withdrawal of Championship-winnings tokens).
 
 Only WITHDRAWABLE tokens (championship prizes + Something Special winnings)
 can be cashed out. 1 token = £1. Purchased and bonus tokens are never
@@ -9,6 +9,7 @@ flag (CASHOUT_ENABLED) gates live submissions.
 
 import uuid
 import logging
+import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
@@ -31,8 +32,8 @@ router = APIRouter(prefix="/api/cashout", tags=["cashout"])
 admin_router = APIRouter(prefix="/api/admin/cashout", tags=["admin-cashout"])
 
 SETTINGS_KEY = "cashout"
-CURRENCY = "GBP"
-RATE = 1.0  # 1 token = £1
+CURRENCY = "INR"
+RATE = 1.0  # 1 token = INR 1
 
 DEFAULT_SETTINGS = {
     "enabled": False,
@@ -61,13 +62,6 @@ def _mask_acct(acct: str) -> str:
     if not acct:
         return ""
     return f"••••{acct[-4:]}"
-
-
-def _mask_sort(code: str) -> str:
-    if not code:
-        return ""
-    digits = code.replace("-", "").replace(" ", "")
-    return f"••-••-{digits[-2:]}" if len(digits) >= 2 else "••-••-••"
 
 
 async def get_settings(db) -> dict:
@@ -149,10 +143,8 @@ async def cashout_summary(request: Request):
 class BankAccountBody(BaseModel):
     account_holder: str
     email: str
-    sort_code: str
+    ifsc: str
     account_number: str
-    iban: str
-    bacs: str
 
 
 @router.post("/bank-accounts")
@@ -161,14 +153,14 @@ async def add_bank_account(body: BankAccountBody, request: Request):
     db = get_db()
     holder = (body.account_holder or "").strip()
     email = (body.email or "").strip()
-    sort_code = (body.sort_code or "").strip()
+    ifsc = (body.ifsc or "").strip().upper()
     account_number = (body.account_number or "").strip()
-    iban = (body.iban or "").strip()
-    bacs = (body.bacs or "").strip()
-    if not holder or not email or not sort_code or not account_number or not iban or not bacs:
+    if not holder or not email or not ifsc or not account_number:
         raise HTTPException(400, "All bank fields are required")
     if "@" not in email or "." not in email.rsplit("@", 1)[-1]:
         raise HTTPException(400, "Invalid email address")
+    if not re.fullmatch(r"[A-Z]{4}0[A-Z0-9]{6}", ifsc):
+        raise HTTPException(400, "Enter a valid 11-character IFSC code")
     digits = account_number.replace(" ", "")
     if not digits.isdigit() or not (6 <= len(digits) <= 12):
         raise HTTPException(400, "Invalid account number")
@@ -178,20 +170,16 @@ async def add_bank_account(body: BankAccountBody, request: Request):
         "user_id": user["user_id"],
         "account_holder": holder,
         "email": email,
-        "sort_code": sort_code,
+        "ifsc": ifsc,
         "account_number": digits,  # restricted; never returned to users in full
-        "iban": iban,
-        "bacs": bacs,
         "created_at": _now(),
     })
     return {
         "bank_account_id": acct_id,
         "account_holder": holder,
         "email": email,
-        "sort_code_masked": _mask_sort(sort_code),
+        "ifsc": ifsc,
         "account_number_masked": _mask_acct(digits),
-        "iban_masked": _mask_acct(iban),
-        "bacs_masked": _mask_acct(bacs),
     }
 
 
@@ -211,10 +199,8 @@ async def list_bank_accounts(request: Request):
             "bank_account_id": r["bank_account_id"],
             "account_holder": r.get("account_holder"),
             "email": r.get("email"),
-            "sort_code_masked": _mask_sort(r.get("sort_code", "")),
+            "ifsc": r.get("ifsc"),
             "account_number_masked": _mask_acct((full or {}).get("account_number", "")),
-            "iban_masked": _mask_acct(r.get("iban", "")),
-            "bacs_masked": _mask_acct(r.get("bacs", "")),
         })
     return {"items": out}
 
@@ -279,17 +265,15 @@ async def create_cashout(body: CashOutBody, request: Request):
             "withdrawal_id": wid,
             "user_id": user["user_id"],
             "amount_tokens": amount,
-            "amount_gbp": round(amount * RATE, 2),
+            "amount_inr": round(amount * RATE, 2),
             "conversion_rate": RATE,
             "currency": CURRENCY,
             "status": "processing",
             "bank_account_id": body.bank_account_id,
             "account_holder": acct.get("account_holder"),
             "bank_email": acct.get("email"),
-            "sort_code": acct.get("sort_code"),
+            "ifsc": acct.get("ifsc"),
             "account_number": acct.get("account_number"),  # restricted
-            "iban": acct.get("iban"),
-            "bacs": acct.get("bacs"),
             "kyc_status_snapshot": kyc_status,
             "created_at": now,
             "updated_at": now,
@@ -310,7 +294,7 @@ async def create_cashout(body: CashOutBody, request: Request):
         "withdrawal_id": wid,
         "status": "processing",
         "amount_tokens": amount,
-        "amount_gbp": round(amount * RATE, 2),
+        "amount_inr": round(amount * RATE, 2),
         "kyc_status": kyc_status,
         "google_review_url": settings["google_review_url"],
         "trustpilot_review_url": settings["trustpilot_review_url"],
@@ -323,7 +307,7 @@ async def my_cashouts(request: Request):
     db = get_db()
     rows = await db.cashout_requests.find(
         {"user_id": user["user_id"]},
-        {"_id": 0, "account_number": 0, "sort_code": 0, "iban": 0, "bacs": 0},
+        {"_id": 0, "account_number": 0},
     ).sort("created_at", -1).to_list(100)
     for r in rows:
         r["created_at"] = _iso(r.get("created_at"))
@@ -493,14 +477,14 @@ async def admin_list(request: Request, status: str = None):
             "public_id": u.get("public_id"),
             "name": u.get("name"),
             "amount_tokens": r["amount_tokens"],
-            "amount_gbp": r["amount_gbp"],
+            "amount_inr": r["amount_inr"],
             "status": r["status"],
             "kyc_status_snapshot": r.get("kyc_status_snapshot"),
             "created_at": _iso(r.get("created_at")),
             "paid_at": _iso(r.get("paid_at")),
             "account_holder": r.get("account_holder"),
             "email": r.get("email"),
-            "sort_code_masked": _mask_sort(r.get("sort_code", "")),
+            "ifsc": r.get("ifsc"),
             "account_number_masked": _mask_acct(r.get("account_number", "")),
         })
     return {"items": items}
@@ -524,7 +508,7 @@ async def admin_detail(withdrawal_id: str, request: Request):
         "withdrawal_id": r["withdrawal_id"],
         "user": {"name": u.get("name"), "email": u.get("email"), "public_id": u.get("public_id")},
         "amount_tokens": r["amount_tokens"],
-        "amount_gbp": r["amount_gbp"],
+        "amount_inr": r["amount_inr"],
         "conversion_rate": r["conversion_rate"],
         "status": r["status"],
         "kyc_status_snapshot": r.get("kyc_status_snapshot"),
@@ -532,10 +516,8 @@ async def admin_detail(withdrawal_id: str, request: Request):
         "bank": {
             "account_holder": r.get("account_holder"),
             "email": r.get("bank_email"),
-            "sort_code": r.get("sort_code"),
+            "ifsc": r.get("ifsc"),
             "account_number": r.get("account_number"),
-            "iban": r.get("iban"),
-            "bacs": r.get("bacs"),
         },
         "created_at": _iso(r.get("created_at")),
         "paid_at": _iso(r.get("paid_at")),

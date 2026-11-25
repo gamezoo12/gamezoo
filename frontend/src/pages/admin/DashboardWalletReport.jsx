@@ -3,6 +3,7 @@ import { adminAPI } from '../../lib/api';
 
 const t = (v) => `${(v ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 const gbp = (v) => `\u00a3${(v ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const inr = (v) => `₹${(v ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 function Group({ title, tone, children, testid }) {
   return (
@@ -115,8 +116,8 @@ export default function DashboardWalletReport() {
           <Row label="Pending bonus prizes (tokens)" value={t(w.pending_paid_world_prizes?.winning_bonus_tokens)} />
           <Row label="Champion prizes awarded (tokens)" value={t(w.championship_prize_tokens.awarded)} />
           <Row label="Held, withdrawable (tokens)" value={t(w.championship_prize_tokens.held_withdrawable)} />
-          <Row label="Cash-outs pending (GBP)" value={gbp(w.championship_prize_tokens.pending_requests_gbp)} />
-          <Row label="Cash-outs paid (GBP)" value={gbp(w.championship_prize_tokens.withdrawn_gbp)} />
+          <Row label="Cash-outs pending (INR)" value={inr(w.championship_prize_tokens.pending_requests_inr)} />
+          <Row label="Cash-outs paid (INR)" value={inr(w.championship_prize_tokens.withdrawn_inr)} />
           <Row label="Challenge winnings awarded (GBP)" value={gbp(w.challenge_winnings_gbp.awarded)} />
           <Row label="Challenge winnings held (GBP)" value={gbp(w.challenge_winnings_gbp.held)} />
           <Row label="Withdrawals pending (GBP)" value={gbp(w.challenge_winnings_gbp.pending_withdrawals)} />

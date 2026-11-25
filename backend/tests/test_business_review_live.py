@@ -119,7 +119,7 @@ def test_business_review_periods_staff_exclusion_and_tokens(db_name):  # noqa: F
                         'ref_order_id': f'impossible_challenge_entry:{attempt_id}' if index == 6 else f'ref_{index}_{user_id}',
                     })
                 await db.cashout_requests.insert_one({
-                    'withdrawal_id': f'paid_{user_id}', 'user_id': user_id, 'amount_tokens': 2, 'amount_gbp': 2,
+                    'withdrawal_id': f'paid_{user_id}', 'user_id': user_id, 'amount_tokens': 2, 'amount_inr': 2,
                     'status': 'paid', 'created_at': recent, 'paid_at': recent, 'updated_at': recent})
                 await db.special_challenge_attempts.insert_one({
                     'attempt_id': attempt_id, 'user_id': user_id, 'challenge_id': 'challenge_itest',

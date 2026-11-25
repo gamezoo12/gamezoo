@@ -486,7 +486,7 @@ async def user_360(user_id: str, request: Request):
     winnings_wallet = await db.winnings_wallets.find_one({'user_id': user_id}, {'_id': 0}) or {}
     withdrawals = await db.cashout_requests.find(
         {'user_id': user_id},
-        {'_id': 0, 'withdrawal_id': 1, 'amount_tokens': 1, 'amount_gbp': 1, 'status': 1,
+        {'_id': 0, 'withdrawal_id': 1, 'amount_tokens': 1, 'amount_inr': 1, 'status': 1,
          'created_at': 1, 'paid_at': 1, 'kyc_status_snapshot': 1, 'admin_notes': 1,
          'reject_reason': 1, 'payment_reference': 1},
     ).sort('created_at', -1).limit(100).to_list(100)
