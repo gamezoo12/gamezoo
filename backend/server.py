@@ -193,68 +193,18 @@ async def diagnostics_find_authorized_db():
     return result
 
 
-@api_router.get('/public/winners')
-async def public_winners(limit: int = 50):
-    limit = max(1, min(limit, 200))
-    docs = await db.winners.find(PUBLIC_WINNERS, {'_id': 0}).sort('drawn_at', -1).to_list(limit)
-    return docs
-
-
-PUBLIC_WINNERS = {'quarantined': {'$ne': True}, 'prize_blocked': {'$ne': True}, '$or': [{'source': {'$ne': 'draw_studio'}}, {'published': True}]}
-
-
-@api_router.get('/public/contest-winners')
-async def public_contest_winners():
-    rows = await db.winners.find(PUBLIC_WINNERS, {'_id': 0, 'winner_id': 1, 'contest_id': 1, 'contest_title': 1, 'user_name': 1,
-                                                  'ticket_number': 1, 'prize_amount': 1, 'reward_type': 1, 'prize_title': 1,
-                                                  'draw_round_name': 1, 'draw_round_index': 1, 'drawn_at': 1}).sort('drawn_at', -1).to_list(1000)
-    titles = {c['contest_id']: c.get('title') async for c in db.contests.find(
-        {'contest_id': {'$in': list({r['contest_id'] for r in rows})}}, {'_id': 0, 'contest_id': 1, 'title': 1})}
-    groups = {}
-    for r in rows:
-        g = groups.setdefault(r['contest_id'], {'contest_id': r['contest_id'], 'contest_title': r.get('contest_title') or titles.get(r['contest_id']) or 'Prize contest',
-                                                'drawn_at': r.get('drawn_at'), 'winners': []})
-        g['winners'].append({'winner_id': r['winner_id'], 'name': r.get('user_name') or 'Winner', 'ticket_number': r.get('ticket_number'),
-                             'prize_amount': r.get('prize_amount'), 'reward_type': r.get('reward_type') or 'winnings',
-                             'round_name': r.get('draw_round_name') or r.get('prize_title'), 'round_index': r.get('draw_round_index') or 0})
-    from routers.draw_studio_ops_routes import published_round_media
-    media = await published_round_media(db, list(groups))
-    for g in groups.values():
-        g['winners'].sort(key=lambda w: w['round_index'])
-        g['media'] = media.get(g['contest_id'], [])
-    return {'contests': list(groups.values())}
-
-
-@api_router.get('/public/stats')
-async def public_stats():
-    contests_count = await db.contests.count_documents({'status': 'live'})
-    winners_count = await db.winners.count_documents({})
-    pp = await db.contests.aggregate([{'$group': {'_id': None, 't': {'$sum': '$prize_amount'}}}]).to_list(1)
-    prize_pool = pp[0]['t'] if pp else 0
-    paid_pipe = await db.winners.aggregate([{'$group': {'_id': None, 't': {'$sum': '$prize_amount'}}}]).to_list(1)
-    prizes_given = paid_pipe[0]['t'] if paid_pipe else 0
-    return {
-        'contests_live': contests_count,
-        'winners_total': winners_count,
-        'prize_pool': prize_pool,
-        'prizes_given': prizes_given,
-    }
-
-
 app.include_router(api_router)
 
 # Feature routers
 from routers.auth_routes import router as auth_router
 from routers.push_routes import router as push_router
-from routers.contest_routes import router as contest_router
-from routers.order_routes import router as order_router
 from routers.admin_routes import router as admin_router
 from routers.admin_alerts_routes import PUBLIC_ROUTER as marketing_public_router
 from routers.meera_routes import router as meera_router, public_router as meera_public_router
 from routers.user_routes import router as user_router
 from routers.settings_routes import router as settings_router, public_router as settings_public_router
 from routers.homepage_content_routes import admin_router as homepage_content_admin_router, public_router as homepage_content_public_router
-from routers.production_routes import production_router, notif_router
+from routers.production_routes import notif_router
 from routers.wallet_routes import wallet_router, admin_wallet_router
 from routers.referral_routes import router as referral_router
 from routers.game_routes import router as game_router, public_router as game_public_router
@@ -270,25 +220,19 @@ from routers.world_gc_competition_routes import (
     public_router as world_gc_public_router,
     ensure_world_gc_competition_indexes,
 )
-from routers.draw_studio_routes import router as draw_studio_router, ensure_draw_studio_indexes
-from routers.draw_studio_ops_routes import router as draw_studio_ops_router, public_media_router as draw_media_public_router
 from routers.otp_diagnostics_routes import router as otp_diagnostics_router
-from routers.admin_winners_all_routes import router as admin_winners_all_router
-from routers.paid_winners_routes import admin_router as paid_winners_admin_router, public_router as paid_winners_public_router
 from routers.world_gc_live_routes import (
     admin_router as world_gc_live_admin_router,
     public_router as world_gc_live_public_router,
 )
-from routers.payments_routes import payments_router
 from routers.announcement_routes import public_router as announcement_public_router, admin_router as announcement_admin_router
 from routers.uploads_routes import uploads_router
-from routers.winners_routes import winners_router
 from routers.twilio_routes import router as twilio_router
 from routers.country_routes import public_router as country_public_router, admin_router as country_admin_router
 from routers.captcha_routes import router as captcha_router
 from routers.support_routes import router as support_router, admin_router as admin_support_router
 from routers.legal_routes import public_router as legal_public_router, admin_router as legal_admin_router, ensure_legal_docs_seeded
-from routers.company_routes import public_router as company_public_router, admin_router as company_admin_router, contest_router as leaderboard_router
+from routers.company_routes import public_router as company_public_router, admin_router as company_admin_router
 from routers.engines_routes import router as engines_router, public_router as engines_public_router
 from routers.user360_routes import router as user360_router
 from routers.acquisition_routes import public_router as acquisition_public_router, admin_router as acquisition_admin_router
@@ -321,8 +265,23 @@ app.include_router(winnings_router)
 app.include_router(winnings_admin_router)
 app.include_router(cashout_router)
 app.include_router(cashout_admin_router)
-app.include_router(contest_router)
-app.include_router(order_router)
+# This router also contains Free World admin tools, so filter only Paid World routes.
+_disabled_paid_admin_prefixes = (
+    '/api/admin/orders',
+    '/api/admin/payments',
+    '/api/admin/contests',
+    '/api/admin/winners',
+    '/api/admin/draw',
+    '/api/admin/live-contests',
+    '/api/admin/leaderboards/paid',
+)
+admin_router.routes = [
+    route for route in admin_router.routes
+    if not any(
+        route.path == prefix or route.path.startswith(prefix + '/')
+        for prefix in _disabled_paid_admin_prefixes
+    )
+]
 app.include_router(admin_router)
 app.include_router(marketing_public_router)
 app.include_router(meera_router)
@@ -332,7 +291,6 @@ app.include_router(settings_router)
 app.include_router(settings_public_router)
 app.include_router(homepage_content_admin_router)
 app.include_router(homepage_content_public_router)
-app.include_router(production_router)
 app.include_router(notif_router)
 app.include_router(wallet_router)
 app.include_router(acquisition_reports_router)
@@ -361,23 +319,13 @@ app.include_router(world_public_router)
 app.include_router(world_admin_router)
 app.include_router(world_gc_public_router)
 app.include_router(world_gc_router)
-app.include_router(draw_studio_router)
-app.include_router(draw_studio_ops_router)
-from routers.draw_media_routes import router as draw_media_router  # noqa: E402
-app.include_router(draw_media_router)
-app.include_router(draw_media_public_router)
-app.include_router(paid_winners_admin_router)
-app.include_router(admin_winners_all_router)
 app.include_router(otp_diagnostics_router)
-app.include_router(paid_winners_public_router)
 app.include_router(world_gc_live_admin_router)
 app.include_router(world_gc_live_public_router)
 app.include_router(world_gc_admin_router)
 app.include_router(announcement_public_router)
 app.include_router(announcement_admin_router)
-app.include_router(payments_router)
 app.include_router(uploads_router)
-app.include_router(winners_router)
 app.include_router(twilio_router)
 app.include_router(captcha_router)
 app.include_router(support_router)
@@ -386,7 +334,6 @@ app.include_router(legal_public_router)
 app.include_router(legal_admin_router)
 app.include_router(company_public_router)
 app.include_router(company_admin_router)
-app.include_router(leaderboard_router)
 app.include_router(engines_router)
 app.include_router(engines_public_router)
 app.include_router(user360_router)

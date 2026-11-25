@@ -8,10 +8,9 @@ const seconds = (milliseconds) => (Number(milliseconds || 0) / 1000).toFixed(2);
 export default function AdminLeaderboards() {
   const { user } = useAuth();
   const isSuperAdmin = user?.role === 'super_admin';
-  const [world, setWorld] = useState('paid');
   const [freeBoardKind, setFreeBoardKind] = useState('champion');
   const [freeLevel, setFreeLevel] = useState('1');
-  const [sources, setSources] = useState({ paid_contests: [], free_world_contests: [] });
+  const [sources, setSources] = useState({ free_world_contests: [] });
   const [contestId, setContestId] = useState('');
   const [leaderboard, setLeaderboard] = useState([]);
   const [search, setSearch] = useState('');
@@ -29,22 +28,17 @@ export default function AdminLeaderboards() {
     adminAPI.leaderboardContests()
       .then((data) => {
         if (cancelled) return;
-        const nextSources = {
-          paid_contests: data.paid_contests || [],
-          free_world_contests: data.free_world_contests || [],
-        };
+        const nextSources = { free_world_contests: data.free_world_contests || [] };
         setSources(nextSources);
-        const first = world === 'paid'
-          ? nextSources.paid_contests[0]?.contest_id
-          : nextSources.free_world_contests[0]?.contest_number;
+        const first = nextSources.free_world_contests[0]?.contest_number;
         setContestId((current) => current || String(first || ''));
       })
       .catch((e) => { if (!cancelled) setError(e?.response?.data?.detail || 'Could not load contests.'); })
       .finally(() => { if (!cancelled) setLoadingSources(false); });
     return () => { cancelled = true; };
-  }, [world]);
+  }, []);
 
-  const contestOptions = world === 'paid' ? sources.paid_contests : sources.free_world_contests;
+  const contestOptions = sources.free_world_contests;
 
   useEffect(() => {
     if (!contestId) {
@@ -54,18 +48,16 @@ export default function AdminLeaderboards() {
     let cancelled = false;
     setLoadingBoard(true);
     setError('');
-    const request = world === 'paid'
-      ? adminAPI.paidLeaderboard(contestId)
-      : freeBoardKind === 'champion'
-        ? adminAPI.freeWorldLeaderboard(contestId)
-        : adminAPI.freeWorldLevelLeaderboard(contestId, freeLevel);
+    const request = freeBoardKind === 'champion'
+      ? adminAPI.freeWorldLeaderboard(contestId)
+      : adminAPI.freeWorldLevelLeaderboard(contestId, freeLevel);
     request.then((data) => {
       if (!cancelled) setLeaderboard(data.leaderboard || []);
     }).catch((e) => {
       if (!cancelled) setError(e?.response?.data?.detail || 'Could not load this leaderboard.');
     }).finally(() => { if (!cancelled) setLoadingBoard(false); });
     return () => { cancelled = true; };
-  }, [world, contestId, freeBoardKind, freeLevel]);
+  }, [contestId, freeBoardKind, freeLevel]);
 
   const showTimeOverrides = isSuperAdmin;
 
@@ -74,7 +66,7 @@ export default function AdminLeaderboards() {
     if (!query) return leaderboard;
     return leaderboard.filter((row) => [
       row.user?.name, row.user?.username, row.user?.email, row.user?.public_id,
-      row.user_name, row.user_id, row.ticket_id, row.ticket_number,
+      row.user_name, row.user_id,
     ].some((value) => String(value ?? '').toLowerCase().includes(query)));
   }, [leaderboard, search]);
 
@@ -106,16 +98,13 @@ export default function AdminLeaderboards() {
     setNotice('');
     try {
       const payload = { duration_ms: milliseconds, reason: reason.trim() };
-      if (world === 'paid') await adminAPI.overridePaidLeaderboardTime(row.score_id, payload);
-      else if (freeBoardKind === 'level') await adminAPI.overrideFreeWorldLevelLeaderboardTime(contestId, freeLevel, row.user_id, payload);
+      if (freeBoardKind === 'level') await adminAPI.overrideFreeWorldLevelLeaderboardTime(contestId, freeLevel, row.user_id, payload);
       else await adminAPI.overrideFreeWorldLeaderboardTime(row.score_id, payload);
       setNotice('Leaderboard result time updated and audit logged.');
       cancelEdit();
-      const data = world === 'paid'
-        ? await adminAPI.paidLeaderboard(contestId)
-        : freeBoardKind === 'champion'
-          ? await adminAPI.freeWorldLeaderboard(contestId)
-          : await adminAPI.freeWorldLevelLeaderboard(contestId, freeLevel);
+      const data = freeBoardKind === 'champion'
+        ? await adminAPI.freeWorldLeaderboard(contestId)
+        : await adminAPI.freeWorldLevelLeaderboard(contestId, freeLevel);
       setLeaderboard(data.leaderboard || []);
     } catch (e) {
       setError(e?.response?.data?.detail || 'Could not update this time.');
@@ -129,11 +118,9 @@ export default function AdminLeaderboards() {
     setLoadingBoard(true);
     setError('');
     try {
-      const data = world === 'paid'
-        ? await adminAPI.paidLeaderboard(contestId)
-        : freeBoardKind === 'champion'
-          ? await adminAPI.freeWorldLeaderboard(contestId)
-          : await adminAPI.freeWorldLevelLeaderboard(contestId, freeLevel);
+      const data = freeBoardKind === 'champion'
+        ? await adminAPI.freeWorldLeaderboard(contestId)
+        : await adminAPI.freeWorldLevelLeaderboard(contestId, freeLevel);
       setLeaderboard(data.leaderboard || []);
     } catch (e) {
       setError(e?.response?.data?.detail || 'Could not load this leaderboard.');
@@ -147,7 +134,7 @@ export default function AdminLeaderboards() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-900">All Leaderboards</h1>
-          <p className="mt-1 text-sm text-slate-500">Paid contests and Free World verified scores.</p>
+          <p className="mt-1 text-sm text-slate-500">Free World championship scores.</p>
         </div>
         <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
           <ShieldCheck className="h-4 w-4 text-emerald-700" />
@@ -156,27 +143,14 @@ export default function AdminLeaderboards() {
       </header>
 
       <div className="flex flex-wrap items-end gap-3 border-b border-slate-200 pb-4">
-        <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1" role="tablist" aria-label="Leaderboard world">
-          <button type="button" role="tab" aria-selected={world === 'paid'} onClick={() => { setWorld('paid'); setContestId(''); setSearch(''); }} className={`rounded-md px-4 py-2 text-sm font-bold ${world === 'paid' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>Paid World</button>
-          {isSuperAdmin && <button type="button" role="tab" aria-selected={world === 'free'} onClick={() => { setWorld('free'); setContestId(''); setSearch(''); }} className={`rounded-md px-4 py-2 text-sm font-bold ${world === 'free' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>Free World</button>}
-        </div>
-        {world === 'free' && <label className="min-w-64 flex-1 text-xs font-bold uppercase tracking-wide text-slate-500">
+        <label className="min-w-64 flex-1 text-xs font-bold uppercase tracking-wide text-slate-500">
           Championship
           <select value={contestId} onChange={(event) => setContestId(event.target.value)} disabled={loadingSources} className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium normal-case tracking-normal text-slate-800">
             <option value="">{loadingSources ? 'Loading contests…' : 'Select a contest'}</option>
-            {contestOptions.map((contest) => world === 'paid'
-              ? <option key={contest.contest_id} value={contest.contest_id}>{contest.title || contest.contest_id} · {contest.status || 'unknown'}</option>
-              : <option key={contest.contest_number} value={contest.contest_number}>Free World contest {contest.contest_number} · {contest.status || 'unknown'}</option>)}
+            {contestOptions.map((contest) => <option key={contest.contest_number} value={contest.contest_number}>Free World contest {contest.contest_number} · {contest.status || 'unknown'}</option>)}
           </select>
-        </label>}
-        {world === 'paid' && <label className="min-w-64 flex-1 text-xs font-bold uppercase tracking-wide text-slate-500">
-          Contest
-          <select value={contestId} onChange={(event) => setContestId(event.target.value)} disabled={loadingSources} className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium normal-case tracking-normal text-slate-800">
-            <option value="">{loadingSources ? 'Loading contests…' : 'Select a contest'}</option>
-            {contestOptions.map((contest) => <option key={contest.contest_id} value={contest.contest_id}>{contest.title || contest.contest_id} · {contest.status || 'unknown'}</option>)}
-          </select>
-        </label>}
-        {world === 'free' && Boolean(contestId) && <label className="min-w-52 flex-1 text-xs font-bold uppercase tracking-wide text-slate-500">
+        </label>
+        {Boolean(contestId) && <label className="min-w-52 flex-1 text-xs font-bold uppercase tracking-wide text-slate-500">
           Level
           <select value={freeBoardKind === 'champion' ? 'champion' : `level-${freeLevel}`} onChange={(event) => {
             const value = event.target.value;
@@ -190,7 +164,7 @@ export default function AdminLeaderboards() {
         <label className="relative min-w-56 flex-1 text-xs font-bold uppercase tracking-wide text-slate-500">
           Search players
           <Search className="absolute left-3 top-[34px] h-4 w-4 text-slate-400" />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, email, ID or ticket" className="mt-1 block w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm font-medium normal-case tracking-normal text-slate-800" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, email or ID" className="mt-1 block w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm font-medium normal-case tracking-normal text-slate-800" />
         </label>
         <button type="button" onClick={refresh} disabled={!contestId || loadingBoard} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${loadingBoard ? 'animate-spin' : ''}`} /> Refresh</button>
       </div>
@@ -201,20 +175,20 @@ export default function AdminLeaderboards() {
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table className="w-full min-w-[940px] text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-            <tr><th className="px-4 py-3">Rank</th><th className="px-4 py-3">Player</th><th className="px-4 py-3">Ticket / Score ID</th><th className="px-4 py-3 text-right">Score</th><th className="px-4 py-3 text-right">Time</th><th className="px-4 py-3 text-right">Attempts</th>{showTimeOverrides && <th className="px-4 py-3 text-right">Action</th>}</tr>
+            <tr><th className="px-4 py-3">Rank</th><th className="px-4 py-3">Player</th><th className="px-4 py-3">Score ID</th><th className="px-4 py-3 text-right">Score</th><th className="px-4 py-3 text-right">Time</th><th className="px-4 py-3 text-right">Attempts</th>{showTimeOverrides && <th className="px-4 py-3 text-right">Action</th>}</tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {visibleRows.map((row) => {
               const name = row.user?.name || row.user?.username || row.user_name || 'Player';
               const identity = row.user?.email || row.user?.public_id || row.user_id;
-              const rowId = row.score_id || `${row.ticket_id || row.user_id}-${world}`;
+              const rowId = row.score_id || `${row.user_id}-free`;
               const editId = row.score_id || row.user_id;
               const editable = showTimeOverrides && Boolean(editId);
               return (
                 <tr key={rowId} className="align-top hover:bg-slate-50/70">
                   <td className="px-4 py-3 font-black tabular-nums">#{row.rank}</td>
                   <td className="px-4 py-3"><div className="font-bold text-slate-900">{name}</div><div className="mt-0.5 text-xs text-slate-500">{identity}</div></td>
-                  <td className="px-4 py-3 text-xs text-slate-600">{row.ticket_number ? `Ticket #${row.ticket_number}` : row.ticket_id || row.score_id || '—'}{row.duration_override_reason && <div className="mt-1 text-amber-700">Override: {row.duration_override_reason}</div>}</td>
+                  <td className="px-4 py-3 text-xs text-slate-600">{row.score_id || row.user_id || '—'}{row.duration_override_reason && <div className="mt-1 text-amber-700">Override: {row.duration_override_reason}</div>}</td>
                   <td className="px-4 py-3 text-right font-bold tabular-nums">{row.points ?? row.score ?? '—'}</td>
                   <td className="px-4 py-3 text-right tabular-nums">
                     <span className="font-bold">{seconds(row.duration_ms)}s</span>
@@ -235,7 +209,7 @@ export default function AdminLeaderboards() {
                 </tr>
               );
             })}
-            {!loadingBoard && visibleRows.length === 0 && <tr><td colSpan={showTimeOverrides ? 7 : 6} className="px-4 py-12 text-center text-slate-500">{world === 'free' && freeBoardKind === 'level' ? `No scores for Normal Level ${freeLevel}.` : contestId ? 'No leaderboard scores for this contest.' : 'Choose a world and contest to view its leaderboard.'}</td></tr>}
+            {!loadingBoard && visibleRows.length === 0 && <tr><td colSpan={showTimeOverrides ? 7 : 6} className="px-4 py-12 text-center text-slate-500">{freeBoardKind === 'level' ? `No scores for Normal Level ${freeLevel}.` : contestId ? 'No leaderboard scores for this championship.' : 'Choose a championship to view its leaderboard.'}</td></tr>}
           </tbody>
         </table>
       </div>
